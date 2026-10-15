@@ -1,0 +1,54 @@
+name: Measured on my graphics card
+description: You ran the measuring kit on your PC and want to share the result file. 한국어로 적으셔도 됩니다.
+labels: ["measured"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you — this is the thing we cannot do ourselves. We own a handful of PCs; how Sonjari runs on **your** card is something only you can show.
+
+        With Sonjari running, in a terminal:
+
+        ```
+        sonjari-mcp -X utf8 -m alture_jarvis.measure_kit
+        ```
+
+        It waits while you are using the PC, rests between tasks, and writes `Documents\Sonjari-measure\measure_<date>.json`.
+        That file holds numbers and yes/no only — no page text, no addresses, no answers, no file names. Please open it and look before attaching it.
+  - type: input
+    id: card
+    attributes:
+      label: Graphics card
+      description: Model and memory. Desktop or laptop.
+      placeholder: RTX 4060 8GB, laptop
+    validations:
+      required: true
+  - type: dropdown
+    id: screen
+    attributes:
+      label: Is the monitor plugged into this same card?
+      description: A card that also drives the screen has less room for the model. That is the normal case and we want to see it.
+      options:
+        - "Yes — one card does both"
+        - "No — another card or the motherboard drives the screen"
+        - "Not sure"
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: The result file
+      description: Drag `measure_<date>.json` here, or paste its contents.
+    validations:
+      required: true
+  - type: input
+    id: rounds
+    attributes:
+      label: How many rounds
+      description: One round is welcome. Three (`--rounds 3`) lets us say "on this card it goes like this".
+      placeholder: "1"
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything you noticed
+      description: Fans, heat, a stall, a question card that popped up, the screen stuttering — whatever you saw.

@@ -1,0 +1,275 @@
+{
+  "name": "saramin",
+  "description": "사람인 채용 검색 + 관심공고(스크랩) + 관심기업 등록/해제. 바꾸는 절차에는 전부 undo 가 걸려 있다.",
+  "hosts": [
+    "saramin.co.kr",
+    "www.saramin.co.kr"
+  ],
+  "_note_why": "일반 경로(browser_site_search)가 이 사이트에서만 계속 실패했다. 실측하면 검색칸은 DOM 에 **있는데** 안 보인다: #ipt_keyword_recruit 가 width=0, #btn_search_recruit 도 width=0 이다. 첫 화면 검색이 단일 입력칸이 아니라 '검색어 + 지역 선택 + 직업 선택'이 한 덩어리로 접힌 복합 위젯이기 때문이다. 화면에 보이는 유일한 검색 버튼은 button.btn_ai_search('AI 검색')인데 그건 펼치기가 아니라 다른 기능이라, 눌러도 칸이 안 펴진다(실측). 숨은 폼을 JS 로 submit 해 봐도 검색이 안 태워지고 홈으로 되돌아왔다.",
+  "_note_urls": "네이버 블로그 레시피가 '글쓰기 버튼을 찾지 않고 편집기 주소로 바로 연다'고 한 것과 같은 판단이다. 두 주소 모두 지어낸 것이 아니라 라이브에서 열어 확인했다. job 주소는 2026-08-15 에 rec_idx=51000003 로 열어 제목이 '[한길종합건설(주)] [경영지원] 건설업 회계, 세무 신입 사원 채용공고(D-2) - 사람인' 인 것을 확인했다. 목록에서 받은 주소에는 추적 인자가 잔뜩 붙는데(view_type·search_uuid·relayNonce…) rec_idx 하나만 남겨도 같은 화면이 열린다.",
+  "urls": {
+    "search": "https://www.saramin.co.kr/zf_user/search/recruit?searchword={query}",
+    "job": "https://www.saramin.co.kr/zf_user/jobs/relay/view?rec_idx={job_id}",
+    "search_region": "https://www.saramin.co.kr/zf_user/search/recruit?searchword={query}&loc_mcd={region}"
+  },
+  "_note_param_values": "★ 지역 번호는 2026-10-04 사람인 검색 화면의 지역 버튼(data-code)에서 **읽어 온 값**이다. 그중 대전·세종·충남·광주·울산·인천·부산·제주는 그 번호로 검색해 결과의 근무지역이 그 지역인 것까지 확인했다(「연구비 정산」: 대전 11건 · 대전+세종+충남 16건). 광주(103000)는 사람인이 「전남광주」로 묶어 보여 준다. 왜 표가 필요한가: 그날 손자리가 지역을 걸려고 번호를 **짐작해** 주소를 조립했다(loc_mcd=41,42,44 · 85,86,51 · 47,55,46). 틀린 번호는 오류가 아니라 **개수 없는 서초구 공고 20개**를 돌려주고, 손자리는 그것을 보고 「대전·세종·충남 0건 — 없다는 결론은 유효」라고 답했다. 이름을 받아 번호로 바꾸는 일은 사람이 확인한 표가 한다.",
+  "param_values": {
+    "region": {
+      "서울": "101000",
+      "경기": "102000",
+      "광주": "103000",
+      "대구": "104000",
+      "대전": "105000",
+      "부산": "106000",
+      "울산": "107000",
+      "인천": "108000",
+      "강원": "109000",
+      "경남": "110000",
+      "경북": "111000",
+      "전남": "112000",
+      "전북": "113000",
+      "충북": "114000",
+      "충남": "115000",
+      "제주": "116000",
+      "세종": "118000",
+      "서울특별시": "101000",
+      "서울시": "101000",
+      "경기도": "102000",
+      "광주광역시": "103000",
+      "대구광역시": "104000",
+      "대전광역시": "105000",
+      "부산광역시": "106000",
+      "울산광역시": "107000",
+      "인천광역시": "108000",
+      "강원도": "109000",
+      "강원특별자치도": "109000",
+      "경상남도": "110000",
+      "경상북도": "111000",
+      "전라남도": "112000",
+      "전라북도": "113000",
+      "전북특별자치도": "113000",
+      "충청북도": "114000",
+      "충청남도": "115000",
+      "제주도": "116000",
+      "제주특별자치도": "116000",
+      "세종시": "118000",
+      "세종특별자치시": "118000"
+    }
+  },
+  "param_joins": {
+    "region": "%2C"
+  },
+  "_note_read_selectors": "★ 공고 단독 보기(/zf_user/jobs/view)에서 **읽을 자리**. 2026-10-04 라이브에서 세었다(공고 55093229: 머리 61자 · 핵심 정보 229자 · 상세 849자 · 근무지 37자 · 접수기간 153자, 각 1개씩). 왜 적나: 사람인 공고 편집기의 템플릿이 본문을 `<main class=\"job-posting\">` 으로 감싸는데, 본문 고르기는 「<main> 이 있으면 그대로 믿는다」 — 그래서 그 안만 읽고 사람인이 채운 핵심 정보(근무형태·급여)와 접수기간을 버렸다(실전 판 e055235f: 공고 11개 중 8개). 자리가 둘 이상 보일 때만 쓰고, 안 보이면 예전 고르기로 돌아간다.",
+  "read_selectors": {
+    "/zf_user/jobs/view": [
+      ".wrap_jv_header",
+      ".jv_cont.jv_summary",
+      ".jv_cont.jv_detail",
+      ".jv_cont.jv_location",
+      ".jv_cont.jv_howto"
+    ]
+  },
+  "_note_targets": "★ 셀렉터는 전부 2026-08-15 라이브에서 browser_probe_frames 로 **세어서** 정했다. 지어낸 것이 하나도 없다.\n\n  .btn_scrap                 33개  <- 아래 추천 공고 카드까지 전부 잡힌다. 이걸 쓰면 엉뚱한 공고를 스크랩한다.\n  .jv_header .btn_scrap       2개  <- 본 공고. 둘인 이유는 스크롤하면 따라붙는 고정 머리말에 사본이 있어서다(하나만 보인다).\n  .jv_header .btn_scrap.on    1개  <- 스크랩된 상태에서만 붙는다. aria-pressed=true 로도 같은 1개가 잡힌다.\n\n상태를 :not(.on) / .on 으로 갈라 목표에 넣은 이유: 이미 스크랩된 공고에 scrap 을 또 걸면 대상을 못 찾아 멈춘다. 두 번 눌러 도로 풀리는 것이 제일 나쁘다.\n\n[관심기업 — 2026-08-15 실측]\n  [class*=interest]                        8개\n  .jv_header button[class*=interest]       2개  <- 본 공고 (+ 고정 머리말 사본). 페이지 전체엔 '관심기업 등록' 버튼이 4개라 머리말 한정이 필수다.\n  .jv_header button[class*=interest].on    1개  <- 등록된 상태에서만. aria-pressed=true 로도 같은 1개.\n\n스크랩과 같은 모양이다. 버튼 이름은 등록 전후로 '관심기업 등록' 그대로라 **이름으로는 상태를 알 수 없다** — .on 으로만 갈린다.",
+  "targets": {
+    "scrap_off": [
+      ".jv_header .btn_scrap:not(.on)"
+    ],
+    "scrap_on": [
+      ".jv_header .btn_scrap.on"
+    ],
+    "follow_off": [
+      ".jv_header button[class*=interest]:not(.on)"
+    ],
+    "follow_on": [
+      ".jv_header button[class*=interest].on"
+    ]
+  },
+  "actions": {
+    "search_jobs": {
+      "description": "사람인에서 채용 공고를 검색해 결과 목록 화면까지 간다. 읽기만 한다.",
+      "result_url_contains": [
+        "/zf_user/jobs/relay/view"
+      ],
+      "_note_risk": "L0 이다. 여는 것과 팝업을 정리하는 것뿐이고 아무것도 저장·제출하지 않는다. 되돌릴 것이 없다.",
+      "risk": "L0",
+      "steps": [
+        {
+          "do": "open",
+          "url_key": "search"
+        },
+        {
+          "_why": "결과가 스크립트로 그려진다. 바로 세면 0건이 나오고, 그 0건은 '결과 없음'과 구별되지 않는다.",
+          "do": "wait",
+          "ms": 2500
+        },
+        {
+          "_why": "공지·쿠키 배너가 목록 위를 덮는 경우가 있다. 부정 버튼만 눌린다.",
+          "do": "dismiss",
+          "rounds": 1
+        },
+        {
+          "_why": "검색 화면에는 '검색결과'라는 말이 본문에 박힌다 — 홈으로 되돌아온 경우와 갈라내는 증거다. 숨은 폼을 submit 했을 때가 정확히 그 모양이었다: 주소는 바뀌었는데 내용은 홈 배너였다.",
+          "do": "verify",
+          "expect": {
+            "kind": "text_appears",
+            "value": "검색결과"
+          },
+          "timeout_ms": 8000
+        }
+      ]
+    },
+    "search_jobs_in_region": {
+      "description": "사람인에서 **지역을 걸어** 채용 공고를 검색해 결과 목록 화면까지 간다. 읽기만 한다. region 에는 지역 **이름**을 쓴다(서울·경기·인천·부산·대구·광주·대전·울산·세종·강원·충북·충남·전북·전남·경북·경남·제주, 여러 곳은 쉼표로: 「대전,세종,충남」). 지역 번호를 직접 넣거나 주소를 손으로 조립하지 않는다.",
+      "result_url_contains": [
+        "/zf_user/jobs/relay/view"
+      ],
+      "_note_risk": "L0 이다. 여는 것과 팝업을 정리하는 것뿐이고 아무것도 저장·제출하지 않는다. 되돌릴 것이 없다.",
+      "risk": "L0",
+      "steps": [
+        {
+          "do": "open",
+          "url_key": "search_region"
+        },
+        {
+          "_why": "결과가 스크립트로 그려진다. 바로 세면 0건이 나오고, 그 0건은 '결과 없음'과 구별되지 않는다.",
+          "do": "wait",
+          "ms": 2500
+        },
+        {
+          "_why": "공지·쿠키 배너가 목록 위를 덮는 경우가 있다. 부정 버튼만 눌린다.",
+          "do": "dismiss",
+          "rounds": 1
+        },
+        {
+          "_why": "검색 화면에는 '검색결과'라는 말이 본문에 박힌다 — 홈으로 되돌아온 경우와 갈라내는 증거다. 숨은 폼을 submit 했을 때가 정확히 그 모양이었다: 주소는 바뀌었는데 내용은 홈 배너였다.",
+          "do": "verify",
+          "expect": {
+            "kind": "text_appears",
+            "value": "검색결과"
+          },
+          "timeout_ms": 8000
+        }
+      ]
+    },
+    "scrap": {
+      "description": "그 공고를 관심공고(스크랩)에 담는다. job_id 는 공고 주소의 rec_idx 다.",
+      "_note_risk": "L1 이다. 담기는 되돌릴 수 있고(undo: unscrap) 남에게 보이지도 않는다. 등급을 L2 로 올려 두면 사람을 부르는데, 그럴 만한 무게가 아니다.",
+      "risk": "L1",
+      "undo": "unscrap",
+      "steps": [
+        {
+          "do": "open",
+          "url_key": "job"
+        },
+        {
+          "_why": "머리말 버튼이 스크립트로 그려진다. 바로 찾으면 없다.",
+          "do": "wait",
+          "ms": 2500
+        },
+        {
+          "do": "dismiss",
+          "rounds": 1
+        },
+        {
+          "_why": "★ 증거를 **건수로 잡으면 안 된다.** 버튼에 붙은 '스크랩 23건' 은 내가 담았는지가 아니라 **모든 사람의 스크랩 수**라서, 내가 담아도 그대로다(2026-08-15 실측: 담았는데 23건 그대로였고 별표만 채워졌다). 담긴 것은 .on 이 붙는 것으로만 알 수 있다.",
+          "do": "click",
+          "target": "scrap_off",
+          "expect": {
+            "kind": "appears",
+            "selector": ".jv_header .btn_scrap.on"
+          },
+          "timeout_ms": 8000
+        }
+      ]
+    },
+    "unscrap": {
+      "description": "관심공고에서 뺀다. scrap 의 역동작이다.",
+      "_note_risk": "L1. 되돌리기로도 쓰이고 사람이 직접 시킬 수도 있다.",
+      "risk": "L1",
+      "steps": [
+        {
+          "do": "open",
+          "url_key": "job"
+        },
+        {
+          "do": "wait",
+          "ms": 2500
+        },
+        {
+          "do": "dismiss",
+          "rounds": 1
+        },
+        {
+          "_why": "담긴 것만 고른다(.on). 안 담긴 공고에 이걸 걸면 대상을 못 찾아 멈추고, 그게 맞다 — 없는 것을 뺐다고 말하면 안 된다.",
+          "do": "click",
+          "target": "scrap_on",
+          "expect": {
+            "kind": "disappears",
+            "selector": ".jv_header .btn_scrap.on"
+          },
+          "timeout_ms": 8000
+        }
+      ]
+    },
+    "follow_company": {
+      "description": "그 공고를 낸 기업을 관심기업으로 등록한다. job_id 는 공고 주소의 rec_idx 다.",
+      "_note_risk": "★ L2 다. 스크랩과 달리 관심기업은 그 기업에 '이 사람이 관심 있다'는 신호가 갈 수 있고, 채용 알림·추천이 따라붙는다. 되돌릴 수 있지만 **되돌리기가 실제로 도는 것이 확인되기 전까지는** 사람 앞에 세운다. 확인된 뒤에는 recipe_inverse_proofs 를 보고 게이트웨이가 알아서 L1 로 둔다 — 이 파일이 그렇게 적어서가 아니다.",
+      "risk": "L2",
+      "undo": "unfollow_company",
+      "steps": [
+        {
+          "do": "open",
+          "url_key": "job"
+        },
+        {
+          "_why": "머리말 버튼이 스크립트로 그려진다.",
+          "do": "wait",
+          "ms": 2500
+        },
+        {
+          "do": "dismiss",
+          "rounds": 1
+        },
+        {
+          "_why": "버튼 이름이 등록 전후로 안 바뀐다('관심기업 등록' 그대로). 이름으로 성공을 판정하면 안 눌려도 성공으로 읽는다.",
+          "do": "click",
+          "target": "follow_off",
+          "expect": {
+            "kind": "appears",
+            "selector": ".jv_header button[class*=interest].on"
+          },
+          "timeout_ms": 8000
+        }
+      ]
+    },
+    "unfollow_company": {
+      "description": "관심기업에서 뺀다. follow_company 의 역동작이다.",
+      "_note_risk": "L1. 되돌리기로도 쓰이고 사람이 직접 시킬 수도 있다.",
+      "risk": "L1",
+      "steps": [
+        {
+          "do": "open",
+          "url_key": "job"
+        },
+        {
+          "do": "wait",
+          "ms": 2500
+        },
+        {
+          "do": "dismiss",
+          "rounds": 1
+        },
+        {
+          "_why": "등록된 것만 고른다(.on). 아닌 기업에 걸면 대상을 못 찾아 멈추고, 그게 맞다.",
+          "do": "click",
+          "target": "follow_on",
+          "expect": {
+            "kind": "disappears",
+            "selector": ".jv_header button[class*=interest].on"
+          },
+          "timeout_ms": 8000
+        }
+      ]
+    }
+  }
+}

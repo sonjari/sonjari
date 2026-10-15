@@ -1,0 +1,44 @@
+{
+  "note": "W4 GitHub 분야별 스킬 후보 — 2026-09-15 웹에서 README·라이선스만 확인했고 **아무것도 받지 않았다**. 받으려면 사람이 승인하고 커밋 sha(40자)를 고정한 뒤 skills/sources.json 으로 옮겨 `scripts/harvest_skills.py --manifest skills/sources.json --fetch` (미리보기) → `--apply`. 들인 뒤 한국어 트리거는 실제 발화에서 캐서 넣는다.",
+  "checked_at": "2026-09-15",
+  "candidates": [
+    {
+      "repo": "GarethManning/education-agent-skills",
+      "domain": "education",
+      "url": "https://github.com/GarethManning/education-agent-skills",
+      "license_seen": "CC-BY-SA-4.0",
+      "verdict": "보류 — 허용 목록(MIT·Apache-2.0·CC-BY-4.0) 밖. ShareAlike 는 우리가 고친 파생본에 같은 라이선스를 요구한다. 들이려면 제품 책임자 판단 필요",
+      "fit": "교사·학교용 165종(학습과학·평가·커리큘럼). 학원 운영보다 수업 설계 쪽",
+      "has_scripts": "저장소 루트 scripts/ 있음 — 하베스터는 스킬 폴더의 .md 만 가져온다"
+    },
+    {
+      "repo": "addyosmani/agent-skills",
+      "domain": "dev",
+      "url": "https://github.com/addyosmani/agent-skills",
+      "license_seen": "MIT",
+      "verdict": "후보 — 다만 이미 있는 engineering(obra/superpowers) 14종과 겹친다(TDD·계획·리뷰). 겹치는 이름은 하베스터가 거절한다. 새로 얻는 것: spec-driven-development·documentation-and-adrs·deprecation-and-migration",
+      "fit": "개발",
+      "has_scripts": "저장소 루트 scripts/ 13개 — 스킬 폴더 밖"
+    },
+    {
+      "repo": "tech-leads-club/agent-skills",
+      "domain": "dev",
+      "url": "https://github.com/tech-leads-club/agent-skills",
+      "license_seen": "MIT(코드) + CC-BY-4.0(SKILL.md)",
+      "verdict": "후보 — 스킬 파일 CC-BY-4.0 은 허용. 고지 보존 필요",
+      "fit": "개발"
+    },
+    {
+      "repo": "HoangNguyen0403/agent-skills-standard",
+      "domain": "dev",
+      "url": "https://github.com/HoangNguyen0403/agent-skills-standard",
+      "license_seen": "MIT",
+      "verdict": "후보 — 264종 프레임워크별 모범 사례. 양이 많아 분야 버튼에 넣기 전에 닿는 비율부터 재야 한다(85종이 11,043판 중 11판에 닿았던 전례)",
+      "fit": "개발"
+    }
+  ],
+  "gaps": [
+    "사무·문서: 허용 라이선스의 docx/xlsx 스킬을 못 찾았다(Anthropic 문서 스킬은 소스 공개지만 오픈소스 라이선스가 아니다 — 이전에 같은 이유로 안 들였다)",
+    "교육·학원: 한국 학원 운영(학부모 안내·보강·수강료 안내) 스킬은 공개 저장소에 없다 — vendor/alture 에 우리가 직접 쓰는 편이 맞다"
+  ]
+}

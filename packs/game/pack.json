@@ -1,0 +1,37 @@
+{
+  "id": "game",
+  "name": "게임 팩",
+  "version": "0.2.0",
+  "kind": "code",
+  "summary": "유니티 프로젝트를 점검하고, 열려 있는 에디터를 손자리 화면에 비춰 같이 보며 승인을 받아 만진다. 클로드·코덱스가 짠 새 스크립트는 실제 프로젝트에서 돌려 레시피로 쌓고, 레시피는 정해 둔 시각에 모델 없이 저절로 돈다.",
+  "description": "검증된 레시피를 유니티 배치 모드로 돌리고, 레시피가 남긴 결과 파일로 답한다. 에디터가 열려 있으면 이 PC 안의 소켓(127.0.0.1)으로 붙어 계층·콘솔·선택을 읽고, 바꾸는 일은 승인 카드를 거쳐 에디터 Undo 에 남긴다. 에디터 다리는 MCP for Unity(CoplayDev, MIT) 10.2.0 을 손자리가 고정·수정한 사본이다 — 밖으로 나가는 연결과 원본 텔레메트리를 뺐다.",
+  "tools": [
+    "unity_project_info", "unity_list_recipes", "unity_run_recipe", "unity_try_script",
+    "unity_editor_status", "unity_editor_look", "unity_editor_change", "unity_editor_undo"
+  ],
+  "skills": ["game-unity"],
+  "guide": "guide/SKILL.md",
+  "domains": ["game"],
+  "permissions": {
+    "reads": [
+      "허락한 유니티 프로젝트 폴더",
+      "유니티 설치 위치(에디터·허브를 찾으려고)",
+      "열려 있는 유니티 에디터 창의 화면(손자리 창에 비추려고 — 모델·기록으로 보내지 않는다)"
+    ],
+    "writes": [
+      "프로젝트의 Assets/Editor/SonjariRecipes — 레시피가 도는 동안만 두고 끝나면 지운다",
+      "「에디터 잇기」를 누른 프로젝트의 Packages/manifest.json 한 줄(풀기로 원래대로 — 바꾸기 전 사본을 남긴다)",
+      "열린 에디터의 씬 — 승인한 변경만, 에디터 Undo 에 남고 저장은 따로 승인"
+    ],
+    "runs": [
+      "Unity.exe — 에디터 창 없이 배치 모드로, 프로젝트와 같은 버전만",
+      "에디터 안의 MCP for Unity 손자리 사본 — 이 PC 안 소켓(127.0.0.1)만 연다"
+    ],
+    "network": "쓰지 않는다. 원본 도구의 업데이트 확인·텔레메트리·에셋 생성 연결은 사본에서 뺐다(설정에서 켤 때만 원본 주소로 사용 기록을 보낸다). 유니티 라이선스 확인과 패키지 받기는 유니티가 직접 한다."
+  },
+  "bench": "bench/game_pack",
+  "sources": [
+    {"name": "MCP for Unity", "url": "https://github.com/CoplayDev/unity-mcp", "version": "10.2.0", "license": "MIT",
+     "path": "vendor/unity-mcp", "changes": "vendor/unity-mcp/NOTICE.ontelic.md"}
+  ]
+}

@@ -1,0 +1,98 @@
+/* 모델을 그래픽카드에 다 못 올렸을 때의 두 길(WayOut.tsx). 컴포넌트가 직접 불러온다 — 마법사 창과 제품의 모델 화면
+   둘 다에서 쓰고, 두 창이 불러오는 스타일 파일이 다르다(jarvisMark.css 와 같은 까닭).
+
+   색: 호박색(--signal). 이 앱에서 빨강은 「되돌릴 수 없다」이고, 여기는 「사람이 고를 차례」다. 면은 칠하지 않고
+   선과 글자로만 말한다 — 주변의 모델 카드보다 시끄러우면 안 된다. */
+
+.wayout {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  border: 1px solid rgb(var(--signal-dim));
+  border-left: 3px solid rgb(var(--signal));
+  border-radius: var(--r-2, 8px);
+  background: rgb(var(--surface-3));
+  color: rgb(var(--text-2));
+  min-width: 0;
+}
+
+.wayout-head { display: grid; gap: 2px; }
+.wayout-head b { color: rgb(var(--signal-bright)); font-weight: var(--fw-bold, 600); }
+.wayout-head span { color: rgb(var(--text-3)); font-size: var(--fs-2, 13px); }
+
+/* 메모리 한 줄 — 남이 쓰는 몫(회색) 뒤에 이 모델이 필요한 몫(호박색 테두리)이 어디까지 가는지. 넘치면 끝이 열린다. */
+.wayout-bar {
+  position: relative;
+  height: 10px;
+  margin-bottom: 18px;
+  border-radius: 5px;
+  background: rgb(var(--surface-4));
+}
+.wayout-bar-used,
+.wayout-bar-need { position: absolute; top: 0; bottom: 0; }
+.wayout-bar-used { left: 0; border-radius: 5px 0 0 5px; background: rgb(var(--text-5)); }
+.wayout-bar-need { border: 1px solid rgb(var(--signal)); background: rgb(var(--signal) / .18); }
+.wayout-bar-need.is-over {
+  border-right: 0;
+  border-radius: 0;
+  background: repeating-linear-gradient(135deg, rgb(var(--signal) / .3) 0 4px, transparent 4px 8px);
+}
+.wayout-bar em {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  font-style: normal;
+  font-size: var(--fs-1, 12px);
+  color: rgb(var(--text-4));
+  white-space: nowrap;
+}
+
+.wayout-ways {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.wayout-way {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgb(var(--line));
+  border-radius: var(--r-1, 6px);
+  background: rgb(var(--surface-2));
+}
+.wayout-way h4 { margin: 0; color: rgb(var(--text-1)); font-size: inherit; font-weight: var(--fw-bold, 600); }
+.wayout-way p { margin: 0; line-height: 1.55; overflow-wrap: anywhere; }
+.wayout-way p b { display: block; color: rgb(var(--text-1)); }
+.wayout-meta { display: block; color: rgb(var(--text-4)); font-size: var(--fs-2, 13px); }
+.wayout-note { color: rgb(var(--text-4)); font-size: var(--fs-2, 13px); }
+
+.wayout-apps { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.wayout-apps li {
+  padding: 2px 8px;
+  border: 1px solid rgb(var(--line-strong));
+  border-radius: 999px;
+  color: rgb(var(--text-1));
+  font-size: var(--fs-2, 13px);
+}
+
+.wayout-btn {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 8px 14px;
+  font: inherit;
+  font-weight: var(--fw-mid, 500);
+  cursor: pointer;
+  border: 1px solid rgb(var(--signal));
+  border-radius: var(--r-2, 8px);
+  background: transparent;
+  color: rgb(var(--signal-bright));
+  transition: background var(--t-move, 180ms) var(--ease, ease), color var(--t-move, 180ms) var(--ease, ease);
+}
+.wayout-btn:hover:not(:disabled) { background: rgb(var(--signal)); color: rgb(var(--ground)); }
+.wayout-btn:focus-visible { outline: 2px solid rgb(var(--signal-bright)); outline-offset: 2px; }
+.wayout-btn:disabled { border-color: rgb(var(--line)); color: rgb(var(--text-5)); cursor: default; }
+
+@media (prefers-reduced-motion: reduce) { .wayout-btn { transition: none; } }

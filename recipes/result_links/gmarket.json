@@ -1,0 +1,14 @@
+{
+  "name": "gmarket",
+  "hosts": [
+    "gmarket.co.kr"
+  ],
+  "detail_url_contains": [
+    "item.gmarket.co.kr/Item"
+  ],
+  "not_url_contains": [
+    "buyboxtype=ad"
+  ],
+  "why": "검색 결과 맨 위에 광고 묶음(「먼저 둘러보세요」)이 있고 그 카드가 결과 순위에 든다. 2026-10-12 가격 조사 판을 가게별로 세어 보니 창 32K 세 판의 G마켓 온전한 줄이 1/9 였다(다나와 5/9 · 11번가 0/9 — 11번가는 같은 날 광고 카드를 걸렀다). 11번가와 달리 G마켓의 광고 카드는 상품과 같은 주소 꼴이라 꼬리의 buyboxtype=ad 로만 갈린다.",
+  "checked": "2026-10-12 손자리가 로그인 안 된 크롬으로 그 검색 화면(www.gmarket.co.kr/n/search)을 열어 링크를 세어 왔다(판 d99d49dd — 내 브라우저로는 봇 확인이 떠서 직접 열지 못했다). 그 판의 도구 결과에서 주소 꼴을 뽑았다: 상품은 https://item.gmarket.co.kr/Item?goodscode=<번호>&utparam-url=… , 광고 묶음 7장은 같은 주소에 &buyboxtype=ad 가 더 붙는다. 손자리의 보고로는 상품 링크 144 · 광고 묶음 7 · 배너 1(ad.esmplus.com/CPC/Main). 순위를 만드는 길(serp.collect_results)이 그 꼬리를 지우지 않는 것도 확인했다."
+}

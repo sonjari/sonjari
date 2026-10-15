@@ -1,0 +1,36 @@
+{
+  "name": "unused_assets",
+  "title": "안 쓰는 에셋 찾기",
+  "description": "빌드에 들어가는 씬에서 의존성을 따라가 닿지 않는 에셋을 크기순으로 찾는다. Resources·StreamingAssets·Editor·Plugins 와 스크립트는 코드로 불릴 수 있어 후보에서 뺀다. 아무것도 지우지 않는다.",
+  "plain": "빌드에 들어가는 어느 씬에서도 쓰지 않는 에셋을 큰 것부터 찾습니다. 아무것도 지우지 않습니다.",
+  "ask": "유니티 프로젝트에서 안 쓰는 에셋 찾아 줘",
+  "method": "Sonjari.Recipes.UnusedAssets.Run",
+  "risk": "L1",
+  "params": {
+    "folder": {
+      "type": "string",
+      "default": "Assets",
+      "asset_folder": true,
+      "description": "찾을 폴더"
+    },
+    "limit": {
+      "type": "integer",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "description": "결과에 담을 항목 수(총 개수는 따로 센다)"
+    },
+    "min_kb": {
+      "type": "integer",
+      "default": 0,
+      "min": 0,
+      "max": 10000000,
+      "description": "이 크기(KB) 이상만"
+    }
+  },
+  "_why": "게임 팩(2026-09-27). 「업데이트 용량이 왜 이렇게 커졌지」·「정리하고 싶은데 뭘 지워도 되지」 — 사람이 의존성을 손으로 따라가는 일.",
+  "watch": {
+    "unused_total": "안 쓰는 에셋(개)",
+    "unused_mb": "안 쓰는 에셋(MB)"
+  }
+}

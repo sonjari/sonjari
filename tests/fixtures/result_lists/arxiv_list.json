@@ -1,0 +1,18 @@
+{
+ "site": "arxiv_list",
+ "url": "https://arxiv.org/list/cs.CL/recent",
+ "landed": "https://arxiv.org/list/cs.CL/recent",
+ "title": "Computation and Language",
+ "why": "제목은 링크가 아니고(글자뿐) 항목 링크는 「arXiv:번호」 — 저자 링크 묶음이 목록을 이긴다",
+ "route": "direct",
+ "captured_at": "2026-10-05T15:05:12",
+ "links": 483,
+ "stylesheets_inlined": 4,
+ "stylesheets_missing": 0,
+ "scripts_stripped": 8,
+ "bytes_gz": 29980,
+ "expect_top1_contains": "arXiv:2610.03695",
+ "expect_min_items": 20,
+ "known_failing": true,
+ "note": "지금 못 푼다(1번이 저자 이름). 제목은 링크가 아니고(글자뿐) 항목 링크는 「arXiv:번호」 16자 하나에 pdf·html·other 가 붙는다. 논문마다 저자 링크 묶음(div.list-authors)이 같은 생김새라 한 바구니로 합쳐져 목록을 이긴다. 칸마다 대표 링크 하나를 고르는 문제(해커뉴스와 같은 뿌리) — 홈 카드 과제(최신 3편 비교표)는 순위 도구를 안 거치고 65초에 완주해 막히지는 않는다(2026-10-05)."
+}

@@ -1,0 +1,7 @@
+{
+  "name": "danawa",
+  "hosts": ["search.danawa.com"],
+  "detail_url_contains": ["prod.danawa.com/info"],
+  "why": "검색 결과 맨 위에 다른 가게로 넘어가는 광고 링크(prod.danawa.com/bridge/go_link_goods.php)가 있어 순위 1번이 그것이 됐다. 가격 조사 스킬팩 판 둘(092a5347 · 72b20214 — 작은 27B 판)이 그 링크를 타고 G마켓의 엉뚱한 검색 화면으로 갔고, 다나와 줄에 다른 가게 값을 적거나 「가격비교 서비스 종료」라고 답했다. 스킬 글에 「다른 가게로 넘어가는 링크는 누르지 않는다」고 적어 뒀지만 안 먹었다(사고 R).",
+  "checked": "2026-10-11 같은 날 가격 조사 스물한 판의 연 주소 기록 — 다나와 상품 페이지는 전부 https://prod.danawa.com/info?pcode=<번호>… , 광고 링크는 https://prod.danawa.com/bridge/…"
+}

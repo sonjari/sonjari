@@ -1,0 +1,45 @@
+/* 이 표식은 작업 화면·첫 실행 마법사·설정 어디서든 같은 모양으로 쓴다 — 그래서 workspace.css 에서 떼어
+   컴포넌트가 직접 불러온다(마법사 창은 workspace.css 를 안 불러와 표식이 색 없이 그려졌다). */
+/* ── 온텔릭 표식 = 로고 = 상태 표시등 (로고 시안 A, 2026-09-15) ────────────────────────────────────────────────────────
+   열린 고리와 초점. 상태를 말하는 **유일한 자리**라 여기에만 색과 움직임을 준다.
+   (JarvisMark.tsx 의 주석 참고 — 「생각하는 중」 칩과 작성칸 안내 문구를 이것으로
+   대신했다. 같은 것을 세 군데서 말하면 셋 다 안 읽힌다.)
+
+   ★ 회전은 **CSS 한 곳**에서만 한다. SVG 속성 transform 과 CSS transform-origin 을 같이 쓰면 회전 중심이
+     두 번 들어가 고리가 밀린다(2026-09-15 사용자가 「점이 집 나갔다」로 잡음). 좌표는 전부 viewBox(32) 단위. */
+.jarvis-mark { flex: 0 0 auto; display: grid; place-items: center; }
+.jarvis-mark svg { overflow: visible; }
+.jarvis-mark .mark-body { transform-box: view-box; transform-origin: 16px 16px; }
+.jarvis-mark .mark-ring {
+  stroke: rgb(var(--brand));
+  transform-box: view-box;
+  transform-origin: 16px 16px;
+  transform: rotate(-33deg); /* 트인 자리가 위쪽 오른편 — 로고와 같다 */
+}
+/* 점은 자기 중심에서 숨 쉰다 — 고리 중심에서 키우면 점이 고리 쪽으로 밀려 나간다. */
+.jarvis-mark .mark-dot { fill: rgb(var(--brand-bright)); transform-box: view-box; transform-origin: 22.4px 16px; }
+
+.jarvis-mark.tone-signal .mark-ring { stroke: rgb(var(--signal)); }
+.jarvis-mark.tone-signal .mark-dot { fill: rgb(var(--signal-bright)); }
+.jarvis-mark.tone-stop .mark-ring { stroke: rgb(var(--stop)); }
+.jarvis-mark.tone-stop .mark-dot { fill: rgb(var(--stop-bright)); }
+/* 연결이 끊기면 색이 빠진다 — 표식이 살아 있는 척하지 않는다. */
+.jarvis-mark.tone-offline .mark-ring { stroke: rgb(var(--text-5)); }
+.jarvis-mark.tone-offline .mark-dot { fill: rgb(var(--text-5)); }
+
+/* 일하는 중 = 고리와 점이 **함께** 돈다(트레이 tray_status.rs 프레임과 같은 모양). */
+@keyframes jarvis-mark-sweep { to { transform: rotate(360deg); } }
+.jarvis-mark.motion-sweeping .mark-body { animation: jarvis-mark-sweep 2.4s linear infinite; }
+
+/* 점이 숨 쉰다 = 듣는 중 · 승인 기다림. 고리는 가만히 둔다 — 둘 다 움직이면 무엇을 보라는 건지 알 수 없다. */
+@keyframes jarvis-mark-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: .75; }
+}
+.jarvis-mark.motion-breathing .mark-dot { animation: jarvis-mark-breathe 1.5s ease-in-out infinite; }
+/* 승인을 기다리면 호박색 점이 조금 더 느리게 숨 쉰다(트레이와 같은 규칙). */
+.jarvis-mark.motion-breathing.tone-signal .mark-dot { animation-duration: 1.8s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-mark .mark-body, .jarvis-mark .mark-dot { animation: none; }
+}

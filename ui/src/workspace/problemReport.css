@@ -1,0 +1,20 @@
+/* 「문제 보내기」 대화 상자 — 작업 화면과 첫 실행 마법사가 같이 쓴다(2026-10-06). */
+/* 가림막·닫기 단추는 작업 화면의 것(.settings-veil · .settings-close)과 같은 모양이다. 마법사에는 그 규칙이 없어 여기에 같이 둔다. */
+.report-veil { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 24px; background: rgb(var(--ground) / .62); animation: veil-in var(--t-enter) var(--ease) both; }
+.report-close { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border: 0; border-radius: var(--r-1); color: rgb(var(--text-4)); background: transparent; cursor: pointer; }
+.report-close:hover { color: rgb(var(--text-1)); background: rgb(var(--text-1) / .06); }
+.report-dialog { width: min(640px, 100%); max-height: min(760px, 100%); display: flex; flex-direction: column; gap: 12px; overflow: auto; padding: 18px 20px 20px; border: 1px solid rgb(var(--line)); border-radius: var(--r-3); background: rgb(var(--surface-2)); box-shadow: var(--lift-3); }
+.report-dialog > header { display: flex; align-items: center; justify-content: space-between; }
+.report-dialog > header strong { font-size: var(--fs-4); color: rgb(var(--text-1)); }
+.report-lead { margin: 0; font-size: var(--fs-2); line-height: 1.55; color: rgb(var(--text-3)); }
+.report-preview { margin: 0; max-height: 300px; overflow: auto; padding: 10px 12px; border: 1px solid rgb(var(--line)); border-radius: var(--r-1); background: rgb(var(--surface-1)); color: rgb(var(--text-3)); font-size: var(--fs-1); white-space: pre-wrap; word-break: break-all; }
+.report-note { display: grid; gap: 6px; font-size: var(--fs-2); color: rgb(var(--text-2)); }
+.report-note small { color: rgb(var(--text-4)); font-size: var(--fs-1); }
+.report-note textarea { resize: vertical; padding: 8px 10px; border: 1px solid rgb(var(--line)); border-radius: var(--r-1); background: rgb(var(--surface-1)); color: rgb(var(--text-1)); font: inherit; }
+.report-consent { display: flex; align-items: flex-start; gap: 8px; font-size: var(--fs-2); color: rgb(var(--text-2)); line-height: 1.45; }
+.report-error { margin: 0; font-size: var(--fs-2); color: rgb(var(--signal-bright)); }
+.report-send { align-self: flex-end; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border: 0; border-radius: var(--r-1); background: rgb(var(--signal)); color: rgb(var(--ground)); font-weight: 600; cursor: pointer; }
+.report-send:disabled { opacity: .45; cursor: default; }
+.report-done { display: grid; gap: 8px; }
+.report-done p { margin: 0; color: rgb(var(--text-1)); }
+.report-done small { color: rgb(var(--text-4)); }

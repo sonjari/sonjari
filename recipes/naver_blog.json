@@ -1,0 +1,51 @@
+{
+  "name": "naver_blog",
+  "description": "네이버 블로그 SmartEditor ONE. 2026-08-05 실전 성공한 절차를 데이터로 옮긴 것 — 셀렉터는 라이브 세션에서 확인된 값이다.",
+  "hosts": ["blog.naver.com", "admin.blog.naver.com", "nid.naver.com"],
+
+  "_note_urls": "글쓰기 버튼을 화면에서 찾지 않는다. 편집기 주소로 바로 연다 — 버튼은 멀쩡히 있었고 애초에 누를 필요가 없었다(2026-08-03 삽질).",
+  "urls": {
+    "editor": "https://blog.naver.com/GoBlogWrite.naver"
+  },
+
+  "_note_targets": "여러 개를 순서대로 시도한다. 앞이 정확하고 뒤가 구조적 대비책. .se-main-container는 이 편집기에 아예 없어서 뺐다 — 그 접두어로 만든 셀렉터가 전부 빗나갔던 5번 원인이다.",
+  "targets": {
+    "title": [
+      ".se-documentTitle .se-text-paragraph",
+      ".se-title-text",
+      ".se-documentTitle [contenteditable='true']"
+    ],
+    "body": [
+      ".se-component.se-text:not(.se-documentTitle) .se-text-paragraph",
+      ".se-text-paragraph",
+      "[contenteditable='true']"
+    ],
+    "save": [".save_btn__bzc5B", ".btn_save", "button:has-text('저장')"],
+    "save_count": [".save_btn__bzc5B", ".btn_save", "[class*='save_btn']"]
+  },
+
+  "actions": {
+    "save_draft": {
+      "description": "제목·본문을 채우고 임시저장한다. 증거는 저장 개수 증가.",
+
+      "_note_risk": "★ 2026-08-10 까지 이 값은 **아무도 읽지 않는 장식**이었다 — SiteRecipe.risk_of 를 부르는 곳이 한 군데도 없어서 L2 라고 적혀 있어도 승인 없이 그냥 돌았다. 게이트웨이가 이 값을 직접 보게 고치면서(_run_risk) 이제 실제로 화면 승인을 부른다. L2 를 그대로 둔 이유: 같은 임시저장이라도 도구 경로(naver_blog_save_draft)는 L1 인데, 그건 InverseSpec 으로 '방금 임시저장한 글 지우기'가 붙어 있어서다. 레시피 엔진에는 되돌리기 장치가 아예 없다 — 되돌릴 수 있어서 등급을 내린 것이므로, 되돌릴 손잡이가 없는 이 경로는 내리면 안 된다.",
+      "risk": "L2",
+      "steps": [
+        { "do": "open", "url_key": "editor" },
+        { "do": "wait", "ms": 1200 },
+
+        { "_why": "편집기가 뜨면서 '이전에 작성 중이던 글이 있습니다'가 늦게 뜬다. 부정 버튼만 눌린다 — 확인을 누르면 예전 초안이 새 글을 덮는다.",
+          "do": "dismiss", "rounds": 2 },
+
+        { "do": "fill", "target": "title", "value": "{title}" },
+        { "do": "fill", "target": "body", "value": "{body}" },
+
+        { "_why": "draft_count:3->4. 클릭이 먹었다는 말이 아니라 저장이 됐다는 증거다.",
+          "do": "click",
+          "target": "save",
+          "expect": { "kind": "number_increases", "selector": ".save_btn__bzc5B, .btn_save, [class*='save_btn']" },
+          "verify_timeout_ms": 12000 }
+      ]
+    }
+  }
+}

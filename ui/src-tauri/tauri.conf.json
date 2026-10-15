@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Sonjari",
+  "version": "0.4.0",
+  "identifier": "com.alture.jarvis",
+  "build": {
+    "beforeDevCommand": "npm.cmd run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm.cmd run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8091 ws://127.0.0.1:8091; frame-src http://127.0.0.1:* http://localhost:*; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all"
+  }
+}

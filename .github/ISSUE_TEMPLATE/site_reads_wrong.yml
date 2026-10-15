@@ -1,0 +1,31 @@
+name: A site is read wrong
+description: Sonjari picks the wrong links on a list page of a site you use. 한국어로 적으셔도 됩니다.
+labels: ["site"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You can often fix this yourself with a two-line JSON file — see "Fix one site" in CONTRIBUTING.md. If you would rather just report it, fill this in.
+  - type: input
+    id: url
+    attributes:
+      label: The list page
+      description: The address of the search result or list page, without anything private in it.
+    validations:
+      required: true
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What it opened as result 1, 2, 3
+      description: For example "skip to main content", a date link, a "more related news" link.
+    validations:
+      required: true
+  - type: input
+    id: item
+    attributes:
+      label: What a real item address looks like
+      placeholder: https://example.com/item/12345
+  - type: input
+    id: model
+    attributes:
+      label: Model and context size

@@ -1,0 +1,17 @@
+{
+ "site": "kmong",
+ "url": "https://kmong.com/search?type=gigs&keyword=AI 에이전트",
+ "landed": "https://kmong.com/search?type=gigs&keyword=AI%20%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8",
+ "title": "실력 있는 전문가 찾기, 크몽",
+ "why": "사람만 지나는 문 뒤에 목록이 있던 곳",
+ "captured_at": "2026-08-13T11:40:04",
+ "links": 124,
+ "stylesheets_inlined": 6,
+ "stylesheets_missing": 0,
+ "scripts_stripped": 153,
+ "bytes_gz": 124669,
+ "expect_top1_contains": "AI 서비스 시스템 맞춤 주문제작",
+ "expect_min_items": 30,
+ "observed_items": 45,
+ "note": ""
+}

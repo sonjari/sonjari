@@ -1,0 +1,18 @@
+{
+ "site": "hackernews",
+ "url": "https://news.ycombinator.com/",
+ "landed": "https://news.ycombinator.com/",
+ "title": "Hacker News",
+ "why": "표(table) 한 줄이 항목 — 항목은 딴 사이트로 간다",
+ "route": "direct",
+ "captured_at": "2026-10-05T06:45:22",
+ "links": 229,
+ "stylesheets_inlined": 1,
+ "stylesheets_missing": 0,
+ "scripts_stripped": 1,
+ "bytes_gz": 7364,
+ "expect_top1_contains": "Run Qwen 3.8 Flash Next (125B) on consum",
+ "expect_min_items": 20,
+ "known_failing": true,
+ "note": "지금 못 푼다(0건). 제목 옆 「(github.com)」 표시가 같은 사이트 안 주소(from?site=)로 가는데, 네이버 광고 칸을 거르는 규칙(보이는 주소와 가는 곳이 다르면 광고 묶음)이 이 묶음을 통째로 뺀다. 그 규칙만 풀면 2·4·6번이 사이트 필터 주소가 되어 지금의 정직한 거절(no_result_list)보다 나빠진다 — 칸마다 대표 하나를 고르는 문제까지 같이 풀어야 한다(2026-10-05)."
+}

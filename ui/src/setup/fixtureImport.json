@@ -1,0 +1,656 @@
+{
+ "project_path": "D:\\work\\academy-site",
+ "global": {
+  "project": "",
+  "project_error": "",
+  "candidates": [
+   {
+    "id": "claude:global",
+    "tool": "claude",
+    "tool_name": "Claude Code",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.claude\\CLAUDE.md",
+    "exists": true,
+    "size": 499,
+    "readable": true,
+    "skip_reason": "",
+    "too_large": false,
+    "modified_at": 1757029054
+   },
+   {
+    "id": "codex:global",
+    "tool": "codex",
+    "tool_name": "Codex",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.codex\\AGENTS.md",
+    "exists": true,
+    "size": 148,
+    "readable": true,
+    "skip_reason": "",
+    "too_large": false,
+    "modified_at": 1757047081
+   },
+   {
+    "id": "codex:config",
+    "tool": "codex",
+    "tool_name": "Codex",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.codex\\config.toml",
+    "exists": true,
+    "size": 84,
+    "readable": false,
+    "skip_reason": "settings_file",
+    "too_large": false,
+    "modified_at": 1757161393
+   },
+   {
+    "id": "cursor:settings",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "global",
+    "path": "C:\\Users\\you\\AppData\\Roaming\\Cursor\\User\\settings.json",
+    "exists": true,
+    "size": 2,
+    "readable": false,
+    "skip_reason": "settings_file",
+    "too_large": false,
+    "modified_at": 1757475629
+   }
+  ],
+  "max_bytes": 256000
+ },
+ "project": {
+  "project": "D:\\work\\academy-site",
+  "project_error": "",
+  "candidates": [
+   {
+    "id": "claude:global",
+    "tool": "claude",
+    "tool_name": "Claude Code",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.claude\\CLAUDE.md",
+    "exists": true,
+    "size": 499,
+    "readable": true,
+    "skip_reason": "",
+    "too_large": false,
+    "modified_at": 1756918698
+   },
+   {
+    "id": "codex:global",
+    "tool": "codex",
+    "tool_name": "Codex",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.codex\\AGENTS.md",
+    "exists": true,
+    "size": 148,
+    "readable": true,
+    "skip_reason": "",
+    "too_large": false,
+    "modified_at": 1757255319
+   },
+   {
+    "id": "codex:config",
+    "tool": "codex",
+    "tool_name": "Codex",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.codex\\config.toml",
+    "exists": true,
+    "size": 84,
+    "readable": false,
+    "skip_reason": "settings_file",
+    "too_large": false,
+    "modified_at": 1757674847
+   },
+   {
+    "id": "cursor:settings",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "global",
+    "path": "C:\\Users\\you\\AppData\\Roaming\\Cursor\\User\\settings.json",
+    "exists": true,
+    "size": 2,
+    "readable": false,
+    "skip_reason": "settings_file",
+    "too_large": false,
+    "modified_at": 1757661124
+   },
+   {
+    "id": "claude:project",
+    "tool": "claude",
+    "tool_name": "Claude Code",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\CLAUDE.md",
+    "exists": true,
+    "size": 264,
+    "readable": true,
+    "skip_reason": "",
+    "too_large": false,
+    "modified_at": 1756931744
+   },
+   {
+    "id": "codex:project",
+    "tool": "codex",
+    "tool_name": "Codex",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\AGENTS.md",
+    "exists": false,
+    "size": 0,
+    "readable": true,
+    "skip_reason": "",
+    "too_large": false
+   },
+   {
+    "id": "cursor:cursorrules",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\.cursorrules",
+    "exists": false,
+    "size": 0,
+    "readable": true,
+    "skip_reason": "",
+    "too_large": false
+   },
+   {
+    "id": "cursor:rule:00_style.mdc",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\.cursor\\rules\\00_style.mdc",
+    "exists": true,
+    "size": 126,
+    "readable": true,
+    "skip_reason": "",
+    "too_large": false,
+    "modified_at": 1757394675
+   },
+   {
+    "id": "cursor:rule:01_never.mdc",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\.cursor\\rules\\01_never.mdc",
+    "exists": true,
+    "size": 81,
+    "readable": true,
+    "skip_reason": "",
+    "too_large": false,
+    "modified_at": 1757317111
+   }
+  ],
+  "max_bytes": 256000
+ },
+ "preview": {
+  "plain": [
+   {
+    "id": "claude:global",
+    "tool": "claude",
+    "tool_name": "Claude Code",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.claude\\CLAUDE.md",
+    "sha256": "d2ae964c838cd4d50f60713fee22320211cc617ce4d52942fee52233d7f0311e",
+    "chars": 319,
+    "segments": [
+     {
+      "t": "text",
+      "v": "# 작업 방식\r\n\r\n- 한국어로 짧게 답한다. 버튼·파일 이름은 영어 원문을 같이 적는다.\r\n- 고치기 전에 무엇을 바꿀지 먼저 말하고, 고친 뒤에는 실제로 돌려 본 결과를 보여 준다.\r\n- 커밋·배포는 내가 요청할 때만 한다.\r\n\r\n## 서버 확인\r\n\r\n```bash\r\ncurl -s https://api.example-academy.kr/v1/status \\\r\n  -H \"X-ACADEMY-API-KEY: "
+     },
+     {
+      "t": "secret",
+      "v": "[비밀 걷어 냄: API 키]",
+      "label": "API 키"
+     },
+     {
+      "t": "text",
+      "v": "\"\r\n```\r\n\r\n막히면 "
+     },
+     {
+      "t": "contact",
+      "v": "hello@example-academy.kr",
+      "label": "이메일"
+     },
+     {
+      "t": "text",
+      "v": " 로 알린다.\r\n"
+     }
+    ],
+    "secrets": {
+     "API 키": 1
+    },
+    "secret_total": 1,
+    "contacts": {
+     "이메일": 1
+    },
+    "contact_total": 1
+   },
+   {
+    "id": "codex:global",
+    "tool": "codex",
+    "tool_name": "Codex",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.codex\\AGENTS.md",
+    "sha256": "d2e1e3e1498e00f9dad0e7a952f912e8ed604534611f3db7292f58f5132fc1b4",
+    "chars": 68,
+    "segments": [
+     {
+      "t": "text",
+      "v": "# 코덱스에게\r\n\r\n- 테스트가 없으면 먼저 실패하는 테스트를 만든다.\r\n- 한 번에 파일 세 개 넘게 고치지 않는다.\r\n"
+     }
+    ],
+    "secrets": {},
+    "secret_total": 0,
+    "contacts": {},
+    "contact_total": 0
+   },
+   {
+    "id": "codex:config",
+    "tool": "codex",
+    "tool_name": "Codex",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.codex\\config.toml",
+    "error": "settings_file"
+   },
+   {
+    "id": "cursor:settings",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "global",
+    "path": "C:\\Users\\you\\AppData\\Roaming\\Cursor\\User\\settings.json",
+    "error": "settings_file"
+   },
+   {
+    "id": "claude:project",
+    "tool": "claude",
+    "tool_name": "Claude Code",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\CLAUDE.md",
+    "sha256": "f1a99b8cef793550083484a0cb45d28d80814c375a45c5ec65fafcc6ffce1d8c",
+    "chars": 188,
+    "segments": [
+     {
+      "t": "text",
+      "v": "# 학원 홈페이지\r\n\r\n- 프론트는 `web/` 아래, 배포는 `main` push 로만 한다.\r\n- 스테이징 토큰: `STAGING_DEPLOY_TOKEN="
+     },
+     {
+      "t": "secret",
+      "v": "[비밀 걷어 냄: GitHub 토큰]",
+      "label": "GitHub 토큰"
+     },
+     {
+      "t": "text",
+      "v": "`\r\n- 강사 연락처 표는 `docs/teachers.md` 를 본다. 급하면 "
+     },
+     {
+      "t": "contact",
+      "v": "010-2345-6789",
+      "label": "전화번호"
+     },
+     {
+      "t": "text",
+      "v": ".\r\n"
+     }
+    ],
+    "secrets": {
+     "GitHub 토큰": 1
+    },
+    "secret_total": 1,
+    "contacts": {
+     "전화번호": 1
+    },
+    "contact_total": 1
+   },
+   {
+    "id": "codex:project",
+    "tool": "codex",
+    "tool_name": "Codex",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\AGENTS.md",
+    "error": "missing"
+   },
+   {
+    "id": "cursor:cursorrules",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\.cursorrules",
+    "error": "missing"
+   },
+   {
+    "id": "cursor:rule:00_style.mdc",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\.cursor\\rules\\00_style.mdc",
+    "sha256": "68fad117297db4f07ac0d747247e41036072c6466f1f02f21929a6c294b3682b",
+    "chars": 70,
+    "segments": [
+     {
+      "t": "text",
+      "v": "---\r\ndescription: 화면 규칙\r\n---\r\n- 색은 토큰으로만 쓴다.\r\n- 오류 문구는 고치는 방법까지 적는다.\r\n"
+     }
+    ],
+    "secrets": {},
+    "secret_total": 0,
+    "contacts": {},
+    "contact_total": 0
+   },
+   {
+    "id": "cursor:rule:01_never.mdc",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\.cursor\\rules\\01_never.mdc",
+    "sha256": "fe68ddc81eaaedf995df151aab6c3d1d5b49f4195f78b1711bac9c881f1ca384",
+    "chars": 53,
+    "segments": [
+     {
+      "t": "text",
+      "v": "---\r\ndescription: 하지 말 것\r\n---\r\n- 운영 DB 에 직접 쓰지 않는다.\r\n"
+     }
+    ],
+    "secrets": {},
+    "secret_total": 0,
+    "contacts": {},
+    "contact_total": 0
+   }
+  ],
+  "contacts": [
+   {
+    "id": "claude:global",
+    "tool": "claude",
+    "tool_name": "Claude Code",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.claude\\CLAUDE.md",
+    "sha256": "d2ae964c838cd4d50f60713fee22320211cc617ce4d52942fee52233d7f0311e",
+    "chars": 319,
+    "segments": [
+     {
+      "t": "text",
+      "v": "# 작업 방식\r\n\r\n- 한국어로 짧게 답한다. 버튼·파일 이름은 영어 원문을 같이 적는다.\r\n- 고치기 전에 무엇을 바꿀지 먼저 말하고, 고친 뒤에는 실제로 돌려 본 결과를 보여 준다.\r\n- 커밋·배포는 내가 요청할 때만 한다.\r\n\r\n## 서버 확인\r\n\r\n```bash\r\ncurl -s https://api.example-academy.kr/v1/status \\\r\n  -H \"X-ACADEMY-API-KEY: "
+     },
+     {
+      "t": "secret",
+      "v": "[비밀 걷어 냄: API 키]",
+      "label": "API 키"
+     },
+     {
+      "t": "text",
+      "v": "\"\r\n```\r\n\r\n막히면 "
+     },
+     {
+      "t": "secret",
+      "v": "[비밀 걷어 냄: 이메일]",
+      "label": "이메일"
+     },
+     {
+      "t": "text",
+      "v": " 로 알린다.\r\n"
+     }
+    ],
+    "secrets": {
+     "API 키": 1,
+     "이메일": 1
+    },
+    "secret_total": 2,
+    "contacts": {
+     "이메일": 1
+    },
+    "contact_total": 1
+   },
+   {
+    "id": "codex:global",
+    "tool": "codex",
+    "tool_name": "Codex",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.codex\\AGENTS.md",
+    "sha256": "d2e1e3e1498e00f9dad0e7a952f912e8ed604534611f3db7292f58f5132fc1b4",
+    "chars": 68,
+    "segments": [
+     {
+      "t": "text",
+      "v": "# 코덱스에게\r\n\r\n- 테스트가 없으면 먼저 실패하는 테스트를 만든다.\r\n- 한 번에 파일 세 개 넘게 고치지 않는다.\r\n"
+     }
+    ],
+    "secrets": {},
+    "secret_total": 0,
+    "contacts": {},
+    "contact_total": 0
+   },
+   {
+    "id": "codex:config",
+    "tool": "codex",
+    "tool_name": "Codex",
+    "scope": "global",
+    "path": "C:\\Users\\you\\.codex\\config.toml",
+    "error": "settings_file"
+   },
+   {
+    "id": "cursor:settings",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "global",
+    "path": "C:\\Users\\you\\AppData\\Roaming\\Cursor\\User\\settings.json",
+    "error": "settings_file"
+   },
+   {
+    "id": "claude:project",
+    "tool": "claude",
+    "tool_name": "Claude Code",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\CLAUDE.md",
+    "sha256": "f1a99b8cef793550083484a0cb45d28d80814c375a45c5ec65fafcc6ffce1d8c",
+    "chars": 188,
+    "segments": [
+     {
+      "t": "text",
+      "v": "# 학원 홈페이지\r\n\r\n- 프론트는 `web/` 아래, 배포는 `main` push 로만 한다.\r\n- 스테이징 토큰: `STAGING_DEPLOY_TOKEN="
+     },
+     {
+      "t": "secret",
+      "v": "[비밀 걷어 냄: GitHub 토큰]",
+      "label": "GitHub 토큰"
+     },
+     {
+      "t": "text",
+      "v": "`\r\n- 강사 연락처 표는 `docs/teachers.md` 를 본다. 급하면 "
+     },
+     {
+      "t": "secret",
+      "v": "[비밀 걷어 냄: 전화번호]",
+      "label": "전화번호"
+     },
+     {
+      "t": "text",
+      "v": ".\r\n"
+     }
+    ],
+    "secrets": {
+     "GitHub 토큰": 1,
+     "전화번호": 1
+    },
+    "secret_total": 2,
+    "contacts": {
+     "전화번호": 1
+    },
+    "contact_total": 1
+   },
+   {
+    "id": "codex:project",
+    "tool": "codex",
+    "tool_name": "Codex",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\AGENTS.md",
+    "error": "missing"
+   },
+   {
+    "id": "cursor:cursorrules",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\.cursorrules",
+    "error": "missing"
+   },
+   {
+    "id": "cursor:rule:00_style.mdc",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\.cursor\\rules\\00_style.mdc",
+    "sha256": "68fad117297db4f07ac0d747247e41036072c6466f1f02f21929a6c294b3682b",
+    "chars": 70,
+    "segments": [
+     {
+      "t": "text",
+      "v": "---\r\ndescription: 화면 규칙\r\n---\r\n- 색은 토큰으로만 쓴다.\r\n- 오류 문구는 고치는 방법까지 적는다.\r\n"
+     }
+    ],
+    "secrets": {},
+    "secret_total": 0,
+    "contacts": {},
+    "contact_total": 0
+   },
+   {
+    "id": "cursor:rule:01_never.mdc",
+    "tool": "cursor",
+    "tool_name": "Cursor",
+    "scope": "project",
+    "path": "D:\\work\\academy-site\\.cursor\\rules\\01_never.mdc",
+    "sha256": "fe68ddc81eaaedf995df151aab6c3d1d5b49f4195f78b1711bac9c881f1ca384",
+    "chars": 53,
+    "segments": [
+     {
+      "t": "text",
+      "v": "---\r\ndescription: 하지 말 것\r\n---\r\n- 운영 DB 에 직접 쓰지 않는다.\r\n"
+     }
+    ],
+    "secrets": {},
+    "secret_total": 0,
+    "contacts": {},
+    "contact_total": 0
+   }
+  ]
+ },
+ "paste_example": {
+  "id": "paste",
+  "tool": "manus",
+  "tool_name": "Manus",
+  "scope": "paste",
+  "path": "",
+  "sha256": "bd5c91e7588cfdfaf62bb14f9b48be4f3d13254ac5bb3378752f789f3fe752f6",
+  "chars": 87,
+  "segments": [
+   {
+    "t": "text",
+    "v": "마누스에 적어 둔 지침\n- 보고서는 표로 끝낸다.\n- 키: "
+   },
+   {
+    "t": "secret",
+    "v": "[비밀 걷어 냄: API 키]",
+    "label": "API 키"
+   },
+   {
+    "t": "text",
+    "v": "\n"
+   }
+  ],
+  "secrets": {
+   "API 키": 1
+  },
+  "secret_total": 1,
+  "contacts": {},
+  "contact_total": 0
+ },
+ "imported": {
+  "claude:global": {
+   "import_id": 1,
+   "tool": "claude",
+   "tool_name": "Claude Code",
+   "scope": "global",
+   "source_path": "C:\\Users\\you\\.claude\\CLAUDE.md",
+   "imported_at": 1789319824.264495,
+   "updated_at": 1789319824.264495,
+   "chars": 292,
+   "text": "# 작업 방식\r\n\r\n- 한국어로 짧게 답한다. 버튼·파일 이름은 영어 원문을 같이 적는다.\r\n- 고치기 전에 무엇을 바꿀지 먼저 말하고, 고친 뒤에는 실제로 돌려 본 결과를 보여 준다.\r\n- 커밋·배포는 내가 요청할 때만 한다.\r\n\r\n## 서버 확인\r\n\r\n```bash\r\ncurl -s https://api.example-academy.kr/v1/status \\\r\n  -H \"X-ACADEMY-API-KEY: [비밀 걷어 냄: API 키]\"\r\n```\r\n\r\n막히면 hello@example-academy.kr 로 알린다.\r\n",
+   "secrets": {
+    "API 키": 1
+   },
+   "secret_total": 1,
+   "status": "same"
+  },
+  "codex:global": {
+   "import_id": 2,
+   "tool": "codex",
+   "tool_name": "Codex",
+   "scope": "global",
+   "source_path": "C:\\Users\\you\\.codex\\AGENTS.md",
+   "imported_at": 1789319824.2784002,
+   "updated_at": 1789319824.2784002,
+   "chars": 68,
+   "text": "# 코덱스에게\r\n\r\n- 테스트가 없으면 먼저 실패하는 테스트를 만든다.\r\n- 한 번에 파일 세 개 넘게 고치지 않는다.\r\n",
+   "secrets": {},
+   "secret_total": 0,
+   "status": "same"
+  },
+  "claude:project": {
+   "import_id": 3,
+   "tool": "claude",
+   "tool_name": "Claude Code",
+   "scope": "project",
+   "source_path": "D:\\work\\academy-site\\CLAUDE.md",
+   "imported_at": 1789319824.2928307,
+   "updated_at": 1789319824.2928307,
+   "chars": 168,
+   "text": "# 학원 홈페이지\r\n\r\n- 프론트는 `web/` 아래, 배포는 `main` push 로만 한다.\r\n- 스테이징 토큰: `STAGING_DEPLOY_TOKEN=[비밀 걷어 냄: GitHub 토큰]`\r\n- 강사 연락처 표는 `docs/teachers.md` 를 본다. 급하면 010-2345-6789.\r\n",
+   "secrets": {
+    "GitHub 토큰": 1
+   },
+   "secret_total": 1,
+   "status": "same"
+  },
+  "cursor:rule:00_style.mdc": {
+   "import_id": 4,
+   "tool": "cursor",
+   "tool_name": "Cursor",
+   "scope": "project",
+   "source_path": "D:\\work\\academy-site\\.cursor\\rules\\00_style.mdc",
+   "imported_at": 1789319824.3063815,
+   "updated_at": 1789319824.3063815,
+   "chars": 70,
+   "text": "---\r\ndescription: 화면 규칙\r\n---\r\n- 색은 토큰으로만 쓴다.\r\n- 오류 문구는 고치는 방법까지 적는다.\r\n",
+   "secrets": {},
+   "secret_total": 0,
+   "status": "same"
+  },
+  "cursor:rule:01_never.mdc": {
+   "import_id": 5,
+   "tool": "cursor",
+   "tool_name": "Cursor",
+   "scope": "project",
+   "source_path": "D:\\work\\academy-site\\.cursor\\rules\\01_never.mdc",
+   "imported_at": 1789319824.3249161,
+   "updated_at": 1789319824.3249161,
+   "chars": 53,
+   "text": "---\r\ndescription: 하지 말 것\r\n---\r\n- 운영 DB 에 직접 쓰지 않는다.\r\n",
+   "secrets": {},
+   "secret_total": 0,
+   "status": "same"
+  },
+  "paste": {
+   "import_id": 6,
+   "tool": "manus",
+   "tool_name": "Manus",
+   "scope": "paste",
+   "source_path": "붙여넣기 · Manus",
+   "imported_at": 1789319824.339654,
+   "updated_at": 1789319824.339654,
+   "chars": 50,
+   "text": "마누스에 적어 둔 지침\n- 보고서는 표로 끝낸다.\n- 키: [비밀 걷어 냄: API 키]\n",
+   "secrets": {
+    "API 키": 1
+   },
+   "secret_total": 1,
+   "status": "same"
+  }
+ }
+}

@@ -1,0 +1,18 @@
+{
+ "site": "coupang",
+ "url": "https://www.coupang.com/np/search?q=무선마우스",
+ "landed": "https://www.coupang.com/np/search?component=&q=%EB%AC%B4%EC%84%A0%EB%A7%88%EC%9A%B0%EC%8A%A4&traceId=msqxe715&channel=user",
+ "title": "쿠팡이 추천하는 무선마우스 관련 혜택과 특가",
+ "why": "직타로는 벽만 온다 — 사람 길로만 열린다",
+ "route": "human",
+ "captured_at": "2026-08-13T11:55:44",
+ "links": 260,
+ "stylesheets_inlined": 19,
+ "stylesheets_missing": 0,
+ "scripts_stripped": 74,
+ "bytes_gz": 106490,
+ "expect_top1_contains": "UGREEN 유그린 5000DPI",
+ "expect_min_items": 40,
+ "observed_items": 80,
+ "note": "2026-08-13 이 벤치가 처음 잡아낸 고장이었고 2026-08-14 에 고쳤다. 상품 목록 <ul>(60개)과 카테고리 사이드바 <ul>(26개)이 **둘 다 클래스가 없어** 서명 'ul|' 로 한 바구니에 합쳐졌고, 평균 글자수는 상품이 끌어올려 통과시키고 1번은 DOM 순서상 앞인 메뉴의 '전체'가 됐다. 신호가 충분한데도 진 것이 아니라 애초에 **한 묶음으로 세어지고 있었다.** 고친 자리: browser._RESULT_LIST_JS 의 signature — 빈 클래스는 서명으로 안 쓴다."
+}

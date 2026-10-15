@@ -1,0 +1,30 @@
+      <aside className={`workspace-sidebar ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
+        <div className="workspace-brand">
+          <div className="brand-mark"><Sparkles size={17} /></div>
+          {sidebarOpen && <div><span>ALTURE</span><strong>JARVIS</strong></div>}
+          <button onClick={() => setSidebarOpen((value) => !value)} aria-label="사이드바 접기">
+            {sidebarOpen ? <ChevronLeft size={17} /> : <Menu size={17} />}
+          </button>
+        </div>
+        <button className="new-chat" onClick={newConversation} disabled={Boolean(activeJobId)}>
+          <Plus size={17} />{sidebarOpen && "새 대화"}
+        </button>
+        {sidebarOpen && <p className="sidebar-label">최근 대화</p>}
+        <nav className="session-list">
+          {sessions.map((session) => (
+            <button key={session.session_id} className={session.session_id === sessionId ? "active" : ""} onClick={() => void loadConversation(session.session_id)}>
+              <MessageSquareText size={15} />
+              {sidebarOpen && <span><strong>{session.title}</strong><small>{timeLabel(session.updated_at)}</small></span>}
+            </button>
+          ))}
+        </nav>
+        {/* `connected` is what re-renders once clientRef is populated, and it
+            is also when the panel can actually reach the backend. */}
+        {sidebarOpen && connected && clientRef.current ? (
+          <PeoplePanel client={clientRef.current} />
+        ) : null}
+        <div className="local-card">
+          <span className={`local-dot ${connected ? "online" : ""}`} />
+          {sidebarOpen && <div><strong>{connected ? "이 PC에서 실행 중" : "연결 확인 중"}</strong><small>대화와 파일은 밖으로 나가지 않습니다</small></div>}
+        </div>
+      </aside>

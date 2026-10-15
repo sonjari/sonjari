@@ -1,0 +1,1736 @@
+{
+ "settings": {
+  "groups": [
+   {
+    "id": "general",
+    "label": "일반"
+   },
+   {
+    "id": "model",
+    "label": "모델"
+   },
+   {
+    "id": "voice",
+    "label": "음성"
+   },
+   {
+    "id": "memory",
+    "label": "메모리"
+   },
+   {
+    "id": "permissions",
+    "label": "권한·안전"
+   },
+   {
+    "id": "takeover",
+    "label": "이어받기"
+   },
+   {
+    "id": "skills",
+    "label": "스킬"
+   },
+   {
+    "id": "labs",
+    "label": "실험실"
+   }
+  ],
+  "settings": [
+   {
+    "key": "user_label",
+    "group": "general",
+    "label": "부르는 이름",
+    "kind": "str",
+    "help": "Sonjari가 사용자를 부를 호칭. 비우면 호칭 없이 말한다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": "",
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "attention_notices_enabled",
+    "group": "general",
+    "label": "먼저 알려 주기",
+    "kind": "bool",
+    "help": "작업이 끝나거나 사람이 필요할 때 Sonjari가 먼저 알린다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "scheduler_enabled",
+    "group": "general",
+    "label": "예약 작업",
+    "kind": "bool",
+    "help": "정해 둔 시각에 일을 돌린다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "model_chat",
+    "group": "model",
+    "label": "대화 모델",
+    "kind": "model",
+    "help": "Ollama 태그. 첫 실행에서 고른 값 위에 얹힌다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": "gemma4:26b-a4b-it-qat",
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "model_code",
+    "group": "model",
+    "label": "코드 모델",
+    "kind": "model",
+    "help": "Code 탭이 쓰는 모델.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": "qwen3.8:27b-mtp-q4_K_M",
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "model_vision",
+    "group": "model",
+    "label": "이미지 모델",
+    "kind": "model",
+    "help": "그림·스캔 PDF 를 읽는 모델.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": "gemma4:26b-a4b-it-qat",
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "ollama_num_ctx",
+    "group": "model",
+    "label": "컨텍스트 크기",
+    "kind": "choice",
+    "help": "크게 잡을수록 긴 문서를 한 번에 본다. 그래픽 메모리를 더 쓴다.",
+    "choices": [
+     "16384",
+     "32768",
+     "65536",
+     "131072"
+    ],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": "131072",
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "agent_thinking_enabled",
+    "group": "model",
+    "label": "생각하고 답하기",
+    "kind": "bool",
+    "help": "작업 판에서 모델이 먼저 생각한다. 끄면 빠르지만 덜 꼼꼼하다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "ollama_max_tool_steps",
+    "group": "model",
+    "label": "한 번에 쓸 걸음 수",
+    "kind": "int",
+    "help": "작업 한 판에서 도구를 부르는 최대 횟수.",
+    "choices": [],
+    "min": 4,
+    "max": 40,
+    "lab": false,
+    "value": 12,
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "voice_enabled",
+    "group": "voice",
+    "label": "말로 시키기",
+    "kind": "bool",
+    "help": "마이크로 받아 적는다(음성 인식).",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "tts_enabled",
+    "group": "voice",
+    "label": "소리 내어 답하기",
+    "kind": "bool",
+    "help": "짧은 답을 음성으로 읽는다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "supertonic_voice",
+    "group": "voice",
+    "label": "목소리",
+    "kind": "str",
+    "help": "음성 이름. 예: F1",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": "F1",
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "hotkey_enabled",
+    "group": "voice",
+    "label": "단축키 쓰기",
+    "kind": "bool",
+    "help": "누르고 말하기 단축키.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "hotkey",
+    "group": "voice",
+    "label": "단축키",
+    "kind": "str",
+    "help": "예: f9",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": "f9",
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "media_pause_enabled",
+    "group": "voice",
+    "label": "말할 때 음악 멈추기",
+    "kind": "bool",
+    "help": "",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "memory_retrieval_enabled",
+    "group": "memory",
+    "label": "지난 대화 찾아 쓰기",
+    "kind": "bool",
+    "help": "관련 있는 옛 대화를 찾아 맥락에 넣는다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "fact_learning_enabled",
+    "group": "memory",
+    "label": "배운 사실 기억하기",
+    "kind": "bool",
+    "help": "대화에서 사용자에 대한 사실을 뽑아 둔다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "memory_backup_enabled",
+    "group": "memory",
+    "label": "기억 복제본 두기",
+    "kind": "bool",
+    "help": "앱을 지워도 대화·배운 사실이 남도록 사용자 폴더에 복제본을 둔다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": false,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "local_file_allowed_roots",
+    "group": "permissions",
+    "label": "읽고 쓸 수 있는 폴더",
+    "kind": "list",
+    "help": "Sonjari가 파일을 여는 곳. 이 밖은 승인을 받아야 한다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": [
+     "C:\\Users\\me\\Desktop",
+     "C:\\Users\\me\\Documents"
+    ],
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "browser_enabled",
+    "group": "permissions",
+    "label": "브라우저 쓰기",
+    "kind": "bool",
+    "help": "웹을 직접 열어 조사한다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "browser_read_only",
+    "group": "permissions",
+    "label": "브라우저는 읽기만",
+    "kind": "bool",
+    "help": "끄면 폼 입력·제출을 한다(되돌릴 수 없는 것은 여전히 승인).",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "google_write_enabled",
+    "group": "permissions",
+    "label": "Google 쓰기",
+    "kind": "bool",
+    "help": "메일 보내기·일정 만들기. 켜면 권한을 다시 받는다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": false,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "windows_control_enabled",
+    "group": "permissions",
+    "label": "창·앱 조작",
+    "kind": "bool",
+    "help": "열린 창을 앞으로 가져오고 조작한다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "approval_ttl_sec",
+    "group": "permissions",
+    "label": "승인 유효 시간(초)",
+    "kind": "int",
+    "help": "승인 카드가 이 시간 뒤에 만료된다.",
+    "choices": [],
+    "min": 60,
+    "max": 7200,
+    "lab": false,
+    "value": 1800,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "takeover_enabled",
+    "group": "takeover",
+    "label": "멈춘 AI 작업 이어받기",
+    "kind": "bool",
+    "help": "Claude Code·Codex 가 사용량 한도로 멈추면 이어갈지 묻는다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": true,
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "takeover_branch_enabled",
+    "group": "takeover",
+    "label": "코드 가지에서 이어 작업",
+    "kind": "bool",
+    "help": "git 가지를 따로 만들어 코드를 이어 고친다. 아직 베타다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": true,
+    "value": false,
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "skills_route_enabled",
+    "group": "skills",
+    "label": "요청에 맞는 스킬 붙이기",
+    "kind": "bool",
+    "help": "요청에 맞는 일하는 방법(스킬)을 골라 답에 참고한다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": false,
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "skills_domains",
+    "group": "skills",
+    "label": "주로 쓰는 분야",
+    "kind": "list",
+    "help": "고른 분야의 스킬만 후보로 둔다. 비우면 전부.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": false,
+    "value": [],
+    "source": "default",
+    "live": true,
+    "restart_required": false
+   },
+   {
+    "key": "claude_code_enabled",
+    "group": "labs",
+    "label": "Claude Code 에 맡기기",
+    "kind": "bool",
+    "help": "어려운 코드 일을 설치된 Claude Code 에 위임한다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": true,
+    "value": true,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "sandbox_enabled",
+    "group": "labs",
+    "label": "격리 상자",
+    "kind": "bool",
+    "help": "WSL 격리 상자에서 코드를 돌린다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": true,
+    "value": false,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   },
+   {
+    "key": "code_scout_enabled",
+    "group": "labs",
+    "label": "코드 정찰기",
+    "kind": "bool",
+    "help": "두 번째 그래픽카드의 작은 모델로 저장소를 먼저 훑는다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": true,
+    "value": false,
+    "source": "default",
+    "live": false,
+    "restart_required": false
+   }
+  ],
+  "path": "C:\\Users\\me\\AppData\\Local\\AltureJarvis\\data\\settings.json"
+ },
+ "domains": {
+  "domains": [
+   {
+    "id": "office",
+    "label": "사무·문서",
+    "blurb": "보고서·엑셀·공지문·메일 문장 다듬기",
+    "selected": false,
+    "skills": [
+     {
+      "name": "document-craft",
+      "what": "문서·보고서·정리본을 만들 때의 뼈대와 규율.",
+      "triggers": [
+       "문서로",
+       "문서 로",
+       "보고서로",
+       "리포트로"
+      ]
+     },
+     {
+      "name": "internal-comms",
+      "what": "A set of resources to help me write all kinds of internal communications, using the formats that my company…",
+      "triggers": [
+       "공지",
+       "안내문",
+       "주간 보고",
+       "사내 공지"
+      ]
+     },
+     {
+      "name": "copy-editing",
+      "what": "\"When the user wants to edit, review, or improve existing marketing copy, or refresh outdated content.",
+      "triggers": [
+       "윤문",
+       "교정",
+       "매끄럽게",
+       "문장 다듬"
+      ]
+     },
+     {
+      "name": "humanizer",
+      "what": "| Rewrite AI-sounding text so it reads naturally without changing what it says.",
+      "triggers": [
+       "ai 티",
+       "ai가 쓴",
+       "기계가 쓴",
+       "사람이 쓴 것처럼"
+      ]
+     },
+     {
+      "name": "brand-guidelines",
+      "what": "Applies Anthropic's official brand colors and typography to any sort of artifact that may benefit from havi…",
+      "triggers": []
+     },
+     {
+      "name": "thinking-pre-mortem",
+      "what": "Before committing to a plan or launch, assume it already failed and reason backward through concrete causes…",
+      "triggers": [
+       "프리모템",
+       "뭐가 잘못될",
+       "실패할 만한",
+       "리스크 점검"
+      ]
+     },
+     {
+      "name": "thinking-kepner-tregoe",
+      "what": "Use when a selective defect needs IS/IS-NOT difference analysis or a consequential option choice needs must…",
+      "triggers": [
+       "여기서만 나",
+       "선택지 비교",
+       "어느 쪽을 골라"
+      ]
+     }
+    ],
+    "missing": []
+   },
+   {
+    "id": "research",
+    "label": "조사·리서치",
+    "blurb": "시장·경쟁사·고객 조사, 근거 있는 비교 정리",
+    "selected": false,
+    "skills": [
+     {
+      "name": "competitors",
+      "what": "\"When the user wants to create competitor comparison or alternative pages for SEO and sales enablement.",
+      "triggers": [
+       "경쟁사",
+       "경쟁 학원",
+       "경쟁 업체",
+       "비교 페이지"
+      ]
+     },
+     {
+      "name": "competitor-profiling",
+      "what": "\"When the user wants to research, profile, or analyze competitors from their URLs.",
+      "triggers": [
+       "경쟁사 프로필",
+       "경쟁사 조사",
+       "경쟁 업체 조사",
+       "누가 경쟁"
+      ]
+     },
+     {
+      "name": "customer-research",
+      "what": "When the user wants to conduct, analyze, or synthesize customer research.",
+      "triggers": [
+       "고객 조사",
+       "학부모 니즈",
+       "고객 인터뷰",
+       "니즈 파악"
+      ]
+     },
+     {
+      "name": "analytics",
+      "what": "When the user wants to set up, improve, or audit analytics tracking and measurement.",
+      "triggers": [
+       "애널리틱스",
+       "지표 설계",
+       "트래킹",
+       "측정 체계"
+      ]
+     },
+     {
+      "name": "document-craft",
+      "what": "문서·보고서·정리본을 만들 때의 뼈대와 규율.",
+      "triggers": [
+       "문서로",
+       "문서 로",
+       "보고서로",
+       "리포트로"
+      ]
+     },
+     {
+      "name": "thinking-first-principles",
+      "what": "When a constraint is treated as fixed, separate physics from convention, keep only independently supported…",
+      "triggers": [
+       "제1원리",
+       "근본부터",
+       "본질부터"
+      ]
+     },
+     {
+      "name": "thinking-probabilistic",
+      "what": "Use when forecasting, estimating, or sizing risk — anchor on base rates, give ranges, update prior→likeliho…",
+      "triggers": [
+       "확률로",
+       "가능성이 얼마",
+       "몇 퍼센트나"
+      ]
+     },
+     {
+      "name": "thinking-scientific-method",
+      "what": "When a symptom has several plausible causes, rank falsifiable hypotheses and run the cheapest discriminatin…",
+      "triggers": [
+       "원인이 여럿",
+       "뭐가 원인인지 모르",
+       "가설을 세워"
+      ]
+     },
+     {
+      "name": "thinking-steel-manning",
+      "what": "Before rejecting a proposal or reflexively agreeing, build the strongest faithful opposing case, state agre…",
+      "triggers": [
+       "반대 입장",
+       "상대 입장",
+       "가장 강한 반대"
+      ]
+     },
+     {
+      "name": "thinking-red-team",
+      "what": "For authorized security review of code, auth, or APIs you control, model the attacker, map the attack surfa…",
+      "triggers": [
+       "반론",
+       "레드팀",
+       "반대로 생각",
+       "공격적으로 검토"
+      ]
+     },
+     {
+      "name": "thinking-map-territory",
+      "what": "When a claim, doc, test, metric, or assumption conflicts with observed behavior, stop theorizing from the m…",
+      "triggers": [
+       "문서랑 다르",
+       "기록이랑 다르",
+       "설명이랑 다르"
+      ]
+     }
+    ],
+    "missing": []
+   },
+   {
+    "id": "dev",
+    "label": "개발",
+    "blurb": "계획·디버깅·테스트·리뷰, 파이썬·타입스크립트·리액트",
+    "selected": false,
+    "skills": [
+     {
+      "name": "writing-plans",
+      "what": "Use when you have a spec or requirements for a multi-step task, before touching code",
+      "triggers": [
+       "구현 계획",
+       "작업 계획",
+       "계획 세워",
+       "계획서 써"
+      ]
+     },
+     {
+      "name": "executing-plans",
+      "what": "Use when you have a written implementation plan to execute in a separate session with review checkpoints",
+      "triggers": [
+       "계획대로",
+       "계획 실행",
+       "단계대로 진행"
+      ]
+     },
+     {
+      "name": "systematic-debugging",
+      "what": "Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes",
+      "triggers": [
+       "왜 실패",
+       "왜 안 되",
+       "왜 안되",
+       "버그 원인"
+      ]
+     },
+     {
+      "name": "test-driven-development",
+      "what": "Use when implementing any feature or bugfix, before writing implementation code",
+      "triggers": [
+       "tdd",
+       "테스트 주도",
+       "테스트 먼저",
+       "실패하는 테스트"
+      ]
+     },
+     {
+      "name": "verification-before-completion",
+      "what": "Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires r…",
+      "triggers": [
+       "진짜 됐는지",
+       "정말 됐는지",
+       "제대로 됐는지",
+       "검증하고"
+      ]
+     },
+     {
+      "name": "requesting-code-review",
+      "what": "Use when completing tasks, implementing major features, or before merging to verify work meets requirements",
+      "triggers": [
+       "코드 리뷰 요청",
+       "리뷰 올려",
+       "pr 올려",
+       "머지 전에"
+      ]
+     },
+     {
+      "name": "receiving-code-review",
+      "what": "Use when receiving code review feedback, before implementing suggestions, especially if feedback seems uncl…",
+      "triggers": [
+       "리뷰 받았",
+       "리뷰 의견",
+       "리뷰 반영",
+       "지적받은"
+      ]
+     },
+     {
+      "name": "using-git-worktrees",
+      "what": "Use when starting feature work that needs isolation from current workspace or before executing implementati…",
+      "triggers": [
+       "워크트리",
+       "worktree",
+       "브랜치 따로",
+       "작업 분리해"
+      ]
+     },
+     {
+      "name": "finishing-a-development-branch",
+      "what": "Use when implementation is complete, all tests pass, and you need to decide how to integrate the work",
+      "triggers": [
+       "브랜치 정리",
+       "브랜치 마무리",
+       "머지할까"
+      ]
+     },
+     {
+      "name": "brainstorming",
+      "what": "\"You MUST use this before any creative work - creating features, building components, adding functionality,…",
+      "triggers": [
+       "브레인스토밍",
+       "아이디어 뽑",
+       "아이디어 내"
+      ]
+     },
+     {
+      "name": "subagent-driven-development",
+      "what": "Use when executing implementation plans with independent tasks in the current session",
+      "triggers": [
+       "서브에이전트",
+       "에이전트 나눠"
+      ]
+     },
+     {
+      "name": "dispatching-parallel-agents",
+      "what": "Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies",
+      "triggers": [
+       "병렬로 돌",
+       "동시에 여러",
+       "병렬 작업"
+      ]
+     },
+     {
+      "name": "fastapi-python",
+      "what": "Expert in FastAPI Python development with best practices for APIs and async operations",
+      "triggers": [
+       "fastapi",
+       "패스트api",
+       "엔드포인트 추가",
+       "라우터 추가"
+      ]
+     },
+     {
+      "name": "python",
+      "what": "Expert in Python development with best practices across web, data science, and automation",
+      "triggers": []
+     },
+     {
+      "name": "python-testing",
+      "what": "Expert in Python testing with pytest and test-driven development",
+      "triggers": [
+       "pytest",
+       "파이테스트",
+       "테스트 코드 써",
+       "테스트 코드 작성"
+      ]
+     },
+     {
+      "name": "testing",
+      "what": "General testing best practices and guidelines for writing comprehensive, maintainable tests across differen…",
+      "triggers": []
+     },
+     {
+      "name": "typescript",
+      "what": "Expert in TypeScript development with best practices for type safety and clean code",
+      "triggers": [
+       "타입스크립트",
+       "typescript",
+       "타입 오류",
+       "타입 에러"
+      ]
+     },
+     {
+      "name": "react",
+      "what": "Expert in React development with modern patterns, hooks, and performance optimization",
+      "triggers": [
+       "리액트",
+       "react 컴포넌트",
+       "컴포넌트 만들"
+      ]
+     },
+     {
+      "name": "playwright",
+      "what": "Playwright end-to-end testing best practices for web applications, covering test design, locator strategies…",
+      "triggers": [
+       "playwright 테스트",
+       "e2e 시나리오",
+       "브라우저 자동화 테스트"
+      ]
+     },
+     {
+      "name": "git-workflow",
+      "what": "Git conventions and workflow guidelines using Conventional Commits, branching strategies, and best practice…",
+      "triggers": [
+       "커밋 메시지",
+       "컨벤셔널 커밋",
+       "브랜치 전략"
+      ]
+     },
+     {
+      "name": "ci-cd-best-practices",
+      "what": "CI/CD best practices for building automated pipelines, deployment strategies, testing, and DevOps workflows…",
+      "triggers": [
+       "깃허브 액션",
+       "github actions",
+       "ci 파이프라인",
+       "배포 자동화"
+      ]
+     },
+     {
+      "name": "security-best-practices",
+      "what": "Security best practices for backend development, microservices, and secure coding patterns with emphasis on…",
+      "triggers": [
+       "보안 점검",
+       "취약점",
+       "보안 강화"
+      ]
+     },
+     {
+      "name": "performance-optimization",
+      "what": "Performance optimization guidelines for web development including server-side rendering, CSS best practices…",
+      "triggers": [
+       "성능 최적화",
+       "느려서 개선",
+       "최적화해"
+      ]
+     },
+     {
+      "name": "logging-best-practices",
+      "what": "Logging best practices for applications and services including structured logging, log levels, and log mana…",
+      "triggers": [
+       "로깅",
+       "로그 남기",
+       "로그 설계"
+      ]
+     },
+     {
+      "name": "webapp-testing",
+      "what": "Toolkit for interacting with and testing local web applications using Playwright.",
+      "triggers": [
+       "웹앱 테스트",
+       "웹 앱 테스트",
+       "브라우저 테스트",
+       "e2e 테스트"
+      ]
+     },
+     {
+      "name": "mcp-builder",
+      "what": "Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with exte…",
+      "triggers": [
+       "mcp 서버",
+       "mcp 도구",
+       "mcp 연동",
+       "모델 컨텍스트 프로토콜"
+      ]
+     },
+     {
+      "name": "claude-api",
+      "what": "|- Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, age…",
+      "triggers": [
+       "클로드 api",
+       "앤트로픽 api",
+       "anthropic sdk",
+       "claude sdk"
+      ]
+     },
+     {
+      "name": "frontend-design",
+      "what": "Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one.",
+      "triggers": [
+       "프론트엔드 디자인",
+       "ui 디자인",
+       "웹 화면 디자인",
+       "화면 디자인"
+      ]
+     }
+    ],
+    "missing": []
+   },
+   {
+    "id": "marketing",
+    "label": "마케팅·영업",
+    "blurb": "카피·광고·SEO·가격·출시·상담 자료",
+    "selected": false,
+    "skills": [
+     {
+      "name": "copywriting",
+      "what": "When the user wants to write, rewrite, or improve marketing copy for any page — including homepage, landing…",
+      "triggers": [
+       "카피",
+       "문구",
+       "소개글",
+       "랜딩"
+      ]
+     },
+     {
+      "name": "copy-editing",
+      "what": "\"When the user wants to edit, review, or improve existing marketing copy, or refresh outdated content.",
+      "triggers": [
+       "윤문",
+       "교정",
+       "매끄럽게",
+       "문장 다듬"
+      ]
+     },
+     {
+      "name": "cro",
+      "what": "\"When the user wants to optimize, improve, or increase conversions on any marketing page or form — includin…",
+      "triggers": [
+       "전환율",
+       "신청률",
+       "문의율",
+       "이탈률"
+      ]
+     },
+     {
+      "name": "seo-audit",
+      "what": "When the user wants to audit, review, or diagnose SEO issues on their site.",
+      "triggers": [
+       "seo",
+       "검색 노출",
+       "검색최적화",
+       "검색 최적화"
+      ]
+     },
+     {
+      "name": "ai-seo",
+      "what": "\"When the user wants to optimize content for AI search engines, get cited by LLMs, or appear in AI-generate…",
+      "triggers": [
+       "ai 검색",
+       "ai 답변",
+       "llm 검색",
+       "생성형 검색"
+      ]
+     },
+     {
+      "name": "content-strategy",
+      "what": "When the user wants to plan a content strategy, decide what content to create, or figure out what topics to…",
+      "triggers": [
+       "콘텐츠 전략",
+       "콘텐츠 기획",
+       "어떤 글을",
+       "글감"
+      ]
+     },
+     {
+      "name": "marketing-psychology",
+      "what": "\"When the user wants to apply psychological principles, mental models, or behavioral science to marketing.",
+      "triggers": [
+       "설득",
+       "구매 심리",
+       "심리 자극",
+       "행동 유도"
+      ]
+     },
+     {
+      "name": "offers",
+      "what": "\"When the user wants to design, construct, or improve an offer — the thing they actually sell — including v…",
+      "triggers": [
+       "오퍼",
+       "혜택 구성",
+       "패키지 구성",
+       "할인 구성"
+      ]
+     },
+     {
+      "name": "pricing",
+      "what": "\"When the user wants help with pricing decisions, packaging, or monetization strategy.",
+      "triggers": [
+       "가격 책정",
+       "가격 전략",
+       "가격 산정",
+       "수강료"
+      ]
+     },
+     {
+      "name": "launch",
+      "what": "\"When the user wants to plan a product launch, feature announcement, or release strategy.",
+      "triggers": [
+       "런칭",
+       "출시",
+       "신규 오픈",
+       "오픈 준비"
+      ]
+     },
+     {
+      "name": "emails",
+      "what": "When the user wants to create or optimize an email sequence, drip campaign, automated email flow, or lifecy…",
+      "triggers": [
+       "이메일 시퀀스",
+       "메일 시퀀스",
+       "뉴스레터",
+       "메일 문구"
+      ]
+     },
+     {
+      "name": "social",
+      "what": "\"When the user wants help creating, scheduling, or optimizing social media content for LinkedIn, Twitter/X,…",
+      "triggers": [
+       "인스타",
+       "sns",
+       "소셜",
+       "릴스"
+      ]
+     },
+     {
+      "name": "ads",
+      "what": "\"When the user wants help with paid advertising campaigns on Google Ads, Meta (Facebook/Instagram), LinkedI…",
+      "triggers": [
+       "광고비",
+       "퍼포먼스 광고",
+       "메타 광고",
+       "구글 광고"
+      ]
+     },
+     {
+      "name": "ad-creative",
+      "what": "\"When the user wants to generate, iterate, or scale ad creative — headlines, descriptions, primary text, or…",
+      "triggers": [
+       "광고 소재",
+       "배너",
+       "크리에이티브",
+       "썸네일"
+      ]
+     },
+     {
+      "name": "customer-research",
+      "what": "When the user wants to conduct, analyze, or synthesize customer research.",
+      "triggers": [
+       "고객 조사",
+       "학부모 니즈",
+       "고객 인터뷰",
+       "니즈 파악"
+      ]
+     },
+     {
+      "name": "competitors",
+      "what": "\"When the user wants to create competitor comparison or alternative pages for SEO and sales enablement.",
+      "triggers": [
+       "경쟁사",
+       "경쟁 학원",
+       "경쟁 업체",
+       "비교 페이지"
+      ]
+     },
+     {
+      "name": "competitor-profiling",
+      "what": "\"When the user wants to research, profile, or analyze competitors from their URLs.",
+      "triggers": [
+       "경쟁사 프로필",
+       "경쟁사 조사",
+       "경쟁 업체 조사",
+       "누가 경쟁"
+      ]
+     },
+     {
+      "name": "lead-magnets",
+      "what": "When the user wants to create, plan, or optimize a lead magnet for email capture or lead generation.",
+      "triggers": [
+       "리드마그넷",
+       "무료 자료",
+       "상담 유도",
+       "db 수집"
+      ]
+     },
+     {
+      "name": "onboarding",
+      "what": "When the user wants to optimize post-signup onboarding, user activation, first-run experience, or time-to-v…",
+      "triggers": [
+       "온보딩",
+       "등록 직후",
+       "첫 수업",
+       "초기 정착"
+      ]
+     },
+     {
+      "name": "signup",
+      "what": "When the user wants to optimize signup, registration, account creation, or trial activation flows.",
+      "triggers": [
+       "가입 전환",
+       "신청 폼",
+       "등록 전환",
+       "회원가입"
+      ]
+     },
+     {
+      "name": "referrals",
+      "what": "\"When the user wants to create, optimize, or analyze a referral program, affiliate program, or word-of-mout…",
+      "triggers": [
+       "추천 프로그램",
+       "소개 이벤트",
+       "리퍼럴",
+       "입소문"
+      ]
+     },
+     {
+      "name": "public-relations",
+      "what": "\"When the user wants help with public relations, earned media, press coverage, journalist outreach, or medi…",
+      "triggers": [
+       "보도자료",
+       "언론",
+       "홍보 기사",
+       "pr "
+      ]
+     },
+     {
+      "name": "marketing-plan",
+      "what": "When the user needs a comprehensive marketing plan for a client, a company they advise, or their own product.",
+      "triggers": [
+       "마케팅 계획",
+       "마케팅 플랜",
+       "마케팅 로드맵"
+      ]
+     },
+     {
+      "name": "marketing-ideas",
+      "what": "\"When the user needs marketing ideas, inspiration, or strategies for their SaaS or software product.",
+      "triggers": [
+       "마케팅 아이디어",
+       "홍보 아이디어",
+       "마케팅 방법"
+      ]
+     },
+     {
+      "name": "ab-testing",
+      "what": "When the user wants to plan, design, or implement an A/B test or experiment, or build a growth experimentat…",
+      "triggers": [
+       "ab 테스트",
+       "a/b",
+       "실험 설계"
+      ]
+     },
+     {
+      "name": "analytics",
+      "what": "When the user wants to set up, improve, or audit analytics tracking and measurement.",
+      "triggers": [
+       "애널리틱스",
+       "지표 설계",
+       "트래킹",
+       "측정 체계"
+      ]
+     },
+     {
+      "name": "sales-enablement",
+      "what": "\"When the user wants to create sales collateral, pitch decks, one-pagers, objection handling docs, or demo…",
+      "triggers": [
+       "상담 스크립트",
+       "제안서",
+       "원페이저",
+       "세일즈 자료"
+      ]
+     },
+     {
+      "name": "community-marketing",
+      "what": "\"Build and leverage online communities to drive product growth and brand loyalty.",
+      "triggers": [
+       "맘카페",
+       "커뮤니티 마케팅",
+       "카페 홍보"
+      ]
+     },
+     {
+      "name": "humanizer",
+      "what": "| Rewrite AI-sounding text so it reads naturally without changing what it says.",
+      "triggers": [
+       "ai 티",
+       "ai가 쓴",
+       "기계가 쓴",
+       "사람이 쓴 것처럼"
+      ]
+     },
+     {
+      "name": "brand-guidelines",
+      "what": "Applies Anthropic's official brand colors and typography to any sort of artifact that may benefit from havi…",
+      "triggers": []
+     }
+    ],
+    "missing": []
+   },
+   {
+    "id": "education",
+    "label": "교육·학원",
+    "blurb": "학부모 안내·수강료·모집·상담·커뮤니티 홍보",
+    "selected": false,
+    "skills": [
+     {
+      "name": "internal-comms",
+      "what": "A set of resources to help me write all kinds of internal communications, using the formats that my company…",
+      "triggers": [
+       "공지",
+       "안내문",
+       "주간 보고",
+       "사내 공지"
+      ]
+     },
+     {
+      "name": "document-craft",
+      "what": "문서·보고서·정리본을 만들 때의 뼈대와 규율.",
+      "triggers": [
+       "문서로",
+       "문서 로",
+       "보고서로",
+       "리포트로"
+      ]
+     },
+     {
+      "name": "customer-research",
+      "what": "When the user wants to conduct, analyze, or synthesize customer research.",
+      "triggers": [
+       "고객 조사",
+       "학부모 니즈",
+       "고객 인터뷰",
+       "니즈 파악"
+      ]
+     },
+     {
+      "name": "pricing",
+      "what": "\"When the user wants help with pricing decisions, packaging, or monetization strategy.",
+      "triggers": [
+       "가격 책정",
+       "가격 전략",
+       "가격 산정",
+       "수강료"
+      ]
+     },
+     {
+      "name": "offers",
+      "what": "\"When the user wants to design, construct, or improve an offer — the thing they actually sell — including v…",
+      "triggers": [
+       "오퍼",
+       "혜택 구성",
+       "패키지 구성",
+       "할인 구성"
+      ]
+     },
+     {
+      "name": "onboarding",
+      "what": "When the user wants to optimize post-signup onboarding, user activation, first-run experience, or time-to-v…",
+      "triggers": [
+       "온보딩",
+       "등록 직후",
+       "첫 수업",
+       "초기 정착"
+      ]
+     },
+     {
+      "name": "lead-magnets",
+      "what": "When the user wants to create, plan, or optimize a lead magnet for email capture or lead generation.",
+      "triggers": [
+       "리드마그넷",
+       "무료 자료",
+       "상담 유도",
+       "db 수집"
+      ]
+     },
+     {
+      "name": "community-marketing",
+      "what": "\"Build and leverage online communities to drive product growth and brand loyalty.",
+      "triggers": [
+       "맘카페",
+       "커뮤니티 마케팅",
+       "카페 홍보"
+      ]
+     },
+     {
+      "name": "referrals",
+      "what": "\"When the user wants to create, optimize, or analyze a referral program, affiliate program, or word-of-mout…",
+      "triggers": [
+       "추천 프로그램",
+       "소개 이벤트",
+       "리퍼럴",
+       "입소문"
+      ]
+     },
+     {
+      "name": "copywriting",
+      "what": "When the user wants to write, rewrite, or improve marketing copy for any page — including homepage, landing…",
+      "triggers": [
+       "카피",
+       "문구",
+       "소개글",
+       "랜딩"
+      ]
+     },
+     {
+      "name": "marketing-plan",
+      "what": "When the user needs a comprehensive marketing plan for a client, a company they advise, or their own product.",
+      "triggers": [
+       "마케팅 계획",
+       "마케팅 플랜",
+       "마케팅 로드맵"
+      ]
+     },
+     {
+      "name": "sales-enablement",
+      "what": "\"When the user wants to create sales collateral, pitch decks, one-pagers, objection handling docs, or demo…",
+      "triggers": [
+       "상담 스크립트",
+       "제안서",
+       "원페이저",
+       "세일즈 자료"
+      ]
+     },
+     {
+      "name": "thinking-jobs-to-be-done",
+      "what": "Deciding what to build or why adoption fails.",
+      "triggers": [
+       "왜 안 쓰",
+       "왜 안 사",
+       "뭘 만들어야"
+      ]
+     }
+    ],
+    "missing": []
+   },
+   {
+    "id": "career",
+    "label": "취업·이직",
+    "blurb": "공고 찾기·이력서 첨삭·지원서 맞추기",
+    "selected": false,
+    "skills": [
+     {
+      "name": "career-job-search",
+      "what": "국내 채용 공고를 찾아 조건으로 거를 때.",
+      "triggers": [
+       "공고",
+       "채용",
+       "구인",
+       "이직"
+      ]
+     },
+     {
+      "name": "career-resume-review",
+      "what": "이력서·경력기술서를 첨삭할 때.",
+      "triggers": [
+       "이력서",
+       "경력기술서",
+       "자소서",
+       "자기소개서"
+      ]
+     },
+     {
+      "name": "career-application-tailoring",
+      "what": "특정 공고에 맞춰 이력서를 손볼 때.",
+      "triggers": [
+       "회사별",
+       "순위별",
+       "합격",
+       "서류 통과"
+      ]
+     },
+     {
+      "name": "document-craft",
+      "what": "문서·보고서·정리본을 만들 때의 뼈대와 규율.",
+      "triggers": [
+       "문서로",
+       "문서 로",
+       "보고서로",
+       "리포트로"
+      ]
+     },
+     {
+      "name": "copy-editing",
+      "what": "\"When the user wants to edit, review, or improve existing marketing copy, or refresh outdated content.",
+      "triggers": [
+       "윤문",
+       "교정",
+       "매끄럽게",
+       "문장 다듬"
+      ]
+     },
+     {
+      "name": "humanizer",
+      "what": "| Rewrite AI-sounding text so it reads naturally without changing what it says.",
+      "triggers": [
+       "ai 티",
+       "ai가 쓴",
+       "기계가 쓴",
+       "사람이 쓴 것처럼"
+      ]
+     }
+    ],
+    "missing": []
+   },
+   {
+    "id": "thinking",
+    "label": "생각 정리·결정",
+    "blurb": "막연한 문제 쪼개기·선택지 비교·리스크 점검",
+    "selected": false,
+    "skills": [
+     {
+      "name": "thinking-bounded-rationality",
+      "what": "Use when search or investigation could run forever.",
+      "triggers": [
+       "언제까지 찾",
+       "얼마나 파야",
+       "그만 파도"
+      ]
+     },
+     {
+      "name": "thinking-circle-of-competence",
+      "what": "Use when a specific claim may lack grounding.",
+      "triggers": [
+       "아는 범위",
+       "잘 모르는 영역"
+      ]
+     },
+     {
+      "name": "thinking-cynefin",
+      "what": "When the right response mode is unclear, classify the cause-effect domain first; decompose disorder.",
+      "triggers": [
+       "어디서부터 손",
+       "어떻게 접근해야"
+      ]
+     },
+     {
+      "name": "thinking-effectuation",
+      "what": "Under genuine uncertainty with no reliable forecast, inventory means, cap downside at affordable loss, act…",
+      "triggers": [
+       "예측이 안 되",
+       "감이 안 오",
+       "가진 것부터"
+      ]
+     },
+     {
+      "name": "thinking-first-principles",
+      "what": "When a constraint is treated as fixed, separate physics from convention, keep only independently supported…",
+      "triggers": [
+       "제1원리",
+       "근본부터",
+       "본질부터"
+      ]
+     },
+     {
+      "name": "thinking-five-whys-plus",
+      "what": "When a fault is localized and the proximate cause is known but the systemic root is not, chain evidence-lin…",
+      "triggers": [
+       "근본 원인",
+       "왜 그런지 끝까지"
+      ]
+     },
+     {
+      "name": "thinking-jobs-to-be-done",
+      "what": "Deciding what to build or why adoption fails.",
+      "triggers": [
+       "왜 안 쓰",
+       "왜 안 사",
+       "뭘 만들어야"
+      ]
+     },
+     {
+      "name": "thinking-kepner-tregoe",
+      "what": "Use when a selective defect needs IS/IS-NOT difference analysis or a consequential option choice needs must…",
+      "triggers": [
+       "여기서만 나",
+       "선택지 비교",
+       "어느 쪽을 골라"
+      ]
+     },
+     {
+      "name": "thinking-lindy-effect",
+      "what": "Use when longevity of a non-perishable option matters.",
+      "triggers": [
+       "오래 갈",
+       "오래갈",
+       "얼마나 버틸"
+      ]
+     },
+     {
+      "name": "thinking-map-territory",
+      "what": "When a claim, doc, test, metric, or assumption conflicts with observed behavior, stop theorizing from the m…",
+      "triggers": [
+       "문서랑 다르",
+       "기록이랑 다르",
+       "설명이랑 다르"
+      ]
+     },
+     {
+      "name": "thinking-margin-of-safety",
+      "what": "When provisioning, setting a limit, or committing an estimate under uncertainty, size a buffer to residual…",
+      "triggers": [
+       "여유를 얼마",
+       "상한을 얼마",
+       "버퍼를"
+      ]
+     },
+     {
+      "name": "thinking-model-combination",
+      "what": "When one mental model leaves a material blind spot on a multi-domain or high-stakes problem, sequence compl…",
+      "triggers": [
+       "여러 각도로",
+       "한 관점으로는"
+      ]
+     },
+     {
+      "name": "thinking-model-router",
+      "what": "When unsure which thinking skill fits, map domain and problem type, then return NONE or one primary skill b…",
+      "triggers": [
+       "어떤 사고 틀",
+       "무슨 관점으로 봐야"
+      ]
+     },
+     {
+      "name": "thinking-ooda",
+      "what": "Use under time pressure when the situation is still changing and you must act before certainty — cycle Obse…",
+      "triggers": [
+       "시간이 없는데",
+       "급하게 결정"
+      ]
+     },
+     {
+      "name": "thinking-opportunity-cost",
+      "what": "Before committing scarce time, people, or money, name the best forgone use of those resources and the value…",
+      "triggers": [
+       "기회비용",
+       "대신 못 하는"
+      ]
+     },
+     {
+      "name": "thinking-pre-mortem",
+      "what": "Before committing to a plan or launch, assume it already failed and reason backward through concrete causes…",
+      "triggers": [
+       "프리모템",
+       "뭐가 잘못될",
+       "실패할 만한",
+       "리스크 점검"
+      ]
+     },
+     {
+      "name": "thinking-probabilistic",
+      "what": "Use when forecasting, estimating, or sizing risk — anchor on base rates, give ranges, update prior→likeliho…",
+      "triggers": [
+       "확률로",
+       "가능성이 얼마",
+       "몇 퍼센트나"
+      ]
+     },
+     {
+      "name": "thinking-red-team",
+      "what": "For authorized security review of code, auth, or APIs you control, model the attacker, map the attack surfa…",
+      "triggers": [
+       "반론",
+       "레드팀",
+       "반대로 생각",
+       "공격적으로 검토"
+      ]
+     },
+     {
+      "name": "thinking-reversibility",
+      "what": "Before heavy deliberation, classify the decision as cheap or costly to undo; decide two-way doors fast and…",
+      "triggers": [
+       "되돌릴 수 있",
+       "되돌리기",
+       "돌이킬 수"
+      ]
+     },
+     {
+      "name": "thinking-scientific-method",
+      "what": "When a symptom has several plausible causes, rank falsifiable hypotheses and run the cheapest discriminatin…",
+      "triggers": [
+       "원인이 여럿",
+       "뭐가 원인인지 모르",
+       "가설을 세워"
+      ]
+     },
+     {
+      "name": "thinking-second-order",
+      "what": "When a change has effects past the immediate fix—incentives, scale, feedback—trace consequence chains with…",
+      "triggers": [
+       "2차 효과",
+       "파급 효과",
+       "그다음에 벌어질"
+      ]
+     },
+     {
+      "name": "thinking-socratic",
+      "what": "When a request is vague, assumption-laden, or \"obvious,\" ask the few load-bearing questions that expose hid…",
+      "triggers": [
+       "막연한데",
+       "뭘 물어야",
+       "질문을 다듬"
+      ]
+     },
+     {
+      "name": "thinking-steel-manning",
+      "what": "Before rejecting a proposal or reflexively agreeing, build the strongest faithful opposing case, state agre…",
+      "triggers": [
+       "반대 입장",
+       "상대 입장",
+       "가장 강한 반대"
+      ]
+     },
+     {
+      "name": "thinking-systems",
+      "what": "When behavior is emergent across components—fixes elsewhere break, loops/delays dominate—map boundary, stoc…",
+      "triggers": [
+       "고치면 딴 데",
+       "얽혀 있",
+       "전체 구조를"
+      ]
+     },
+     {
+      "name": "thinking-theory-of-constraints",
+      "what": "When throughput or latency is pipeline-limited, identify the single binding constraint and exploit, subordi…",
+      "triggers": [
+       "병목",
+       "제약 조건",
+       "가장 큰 걸림돌"
+      ]
+     },
+     {
+      "name": "thinking-thought-experiment",
+      "what": "'When a real test is too rare, large, or irreversible, run a controlled counterfactual: isolate one variabl…",
+      "triggers": [
+       "가정해 보",
+       "실제로 해볼 수 없"
+      ]
+     },
+     {
+      "name": "thinking-triz",
+      "what": "When two design requirements seem mutually exclusive, name the contradiction, separate conflicting states,…",
+      "triggers": [
+       "둘 다 만족",
+       "트레이드오프",
+       "양립"
+      ]
+     },
+     {
+      "name": "thinking-via-negativa",
+      "what": "Use when the reflex is to add a feature, layer, or process.",
+      "triggers": [
+       "빼는 게",
+       "없애는 게",
+       "덜어내"
+      ]
+     }
+    ],
+    "missing": []
+   }
+  ],
+  "selected": [],
+  "active_count": 96,
+  "total_served": 96,
+  "route_enabled": false
+ }
+}

@@ -1,0 +1,81 @@
+{
+ "scan": {
+  "server_name": "ontelic",
+  "entry": {
+   "command": "C:\\Users\\you\\Ontelic\\.venv\\Scripts\\python.exe",
+   "args": [
+    "-m",
+    "alture_jarvis.mcp_server"
+   ],
+   "env": {
+    "PYTHONPATH": "C:\\Users\\you\\Ontelic\\src",
+    "PYTHONIOENCODING": "utf-8",
+    "JARVIS_BASE_URL": "http://127.0.0.1:8091",
+    "JARVIS_TOKEN_FILE": "C:\\Users\\you\\data\\control.token",
+    "JARVIS_MCP_MAX_RISK": "L1"
+   }
+  },
+  "clients": [
+   {
+    "id": "claude_desktop",
+    "name": "Claude Desktop",
+    "installed": true,
+    "registered": false,
+    "config_paths": [
+     "C:\\Users\\you\\AppData\\Roaming\\Claude\\claude_desktop_config.json"
+    ],
+    "running": true,
+    "can_apply": false,
+    "reason": "running"
+   },
+   {
+    "id": "claude_code",
+    "name": "Claude Code",
+    "installed": true,
+    "registered": null,
+    "cli": "",
+    "can_apply": false,
+    "reason": "cli_missing"
+   },
+   {
+    "id": "cursor",
+    "name": "Cursor",
+    "installed": true,
+    "registered": false,
+    "config_paths": [
+     "C:\\Users\\you\\.cursor\\mcp.json"
+    ],
+    "can_apply": true,
+    "reason": ""
+   },
+   {
+    "id": "codex",
+    "name": "Codex",
+    "installed": true,
+    "registered": false,
+    "cli": "",
+    "config_paths": [
+     "C:\\Users\\you\\.codex\\config.toml"
+    ],
+    "can_apply": true,
+    "reason": ""
+   }
+  ],
+  "hooks": {
+   "claude_code_session_start": false,
+   "settings_path": "C:\\Users\\you\\.claude\\settings.json",
+   "can_apply": true
+  },
+  "not_supported": [
+   {
+    "name": "Windsurf",
+    "reason": "설정 위치를 설치된 PC 에서 확인하기 전이라 아직 안 넣습니다."
+   }
+  ]
+ },
+ "manual_claude_code": "{\n  \"mcpServers\": {\n    \"ontelic\": {\n      \"command\": \"C:\\\\Users\\\\you\\\\Ontelic\\\\.venv\\\\Scripts\\\\python.exe\",\n      \"args\": [\n        \"-m\",\n        \"alture_jarvis.mcp_server\"\n      ],\n      \"env\": {\n        \"PYTHONPATH\": \"C:\\\\Users\\\\you\\\\Ontelic\\\\src\",\n        \"PYTHONIOENCODING\": \"utf-8\",\n        \"JARVIS_BASE_URL\": \"http://127.0.0.1:8091\",\n        \"JARVIS_TOKEN_FILE\": \"C:\\\\Users\\\\you\\\\Ontelic\\\\data\\\\control.token\",\n        \"JARVIS_MCP_MAX_RISK\": \"L1\"\n      }\n    }\n  }\n}",
+ "verify": {
+  "ok": true,
+  "tool_count": 106
+ }
+}

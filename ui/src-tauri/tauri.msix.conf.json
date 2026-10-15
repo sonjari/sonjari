@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Sonjari Beta",
+  "mainBinaryName": "Sonjari",
+  "identifier": "com.robometafit.ontelic.msix-test",
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8094 ws://127.0.0.1:8094; frame-src http://127.0.0.1:* http://localhost:*; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:"
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

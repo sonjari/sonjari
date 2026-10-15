@@ -1,0 +1,16 @@
+numpy>=1.26.0
+opencv-python>=4.10.0
+ultralytics>=8.3.0
+sounddevice>=0.5.0
+faster-whisper>=1.1.0
+keyboard>=0.13.5; platform_system == "Windows"
+winrt-runtime==3.2.1; platform_system == "Windows"
+winrt-Windows.Foundation==3.2.1; platform_system == "Windows"
+winrt-Windows.Foundation.Collections==3.2.1; platform_system == "Windows"
+winrt-Windows.Media.Control==3.2.1; platform_system == "Windows"
+# Osmo Pocket 3 gimbal control over BLE (src/alture_jarvis/osmo_ble.py).
+bleak>=0.22.0
+# Decodes the tablet's screen, which adb streams as raw h264 with no container
+# (src/alture_jarvis/screen_capture.py). OpenCV cannot read that from a pipe,
+# and this avoids needing an ffmpeg binary on PATH -- there is none on this PC.
+av>=13.0.0

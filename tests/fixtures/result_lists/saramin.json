@@ -1,0 +1,17 @@
+{
+ "site": "saramin",
+ "url": "https://www.saramin.co.kr/zf_user/search?searchword=여수 회계",
+ "landed": "https://www.saramin.co.kr/zf_user/search?searchword=%EC%97%AC%EC%88%98%20%ED%9A%8C%EA%B3%84",
+ "title": "여수 회계 통합검색 | 총 38건의 검색결과 - 사람인",
+ "why": "부속 링크(회사명·기업정보)가 섞인다 — 고치려다 되돌린 곳",
+ "captured_at": "2026-08-13T11:41:45",
+ "links": 544,
+ "stylesheets_inlined": 13,
+ "stylesheets_missing": 0,
+ "scripts_stripped": 111,
+ "bytes_gz": 232332,
+ "expect_top1_contains": "푸른빛에너지",
+ "expect_min_items": 30,
+ "observed_items": 80,
+ "note": "80건 중 절반이 부속 링크(회사명·기업정보)다. 대표만 남기면 38건이 되지만 그 규칙은 교보·다나와를 깨뜨려 되돌렸다 — 고칠 때 이 숫자가 38로 줄어드는 것은 정상이다."
+}

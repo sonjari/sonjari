@@ -1,0 +1,14 @@
+{
+  "name": "kyobobook",
+  "hosts": ["product.kyobobook.co.kr", "ebook-product.kyobobook.co.kr"],
+  "head_chars": 900,
+  "_why": "2026-09-28 헤르메스 대결 T1: 모델이 상세를 열고도 표에 딴 값을 썼다 — 첫머리의 「국내도서 16,200원 외국도서 23,410원 eBook 12,960원」(다른 판 가격)·추천 띠(1,350자째)에서 집었다. 주 항목 값은 「할인율% 판매가원 정가원 통합포인트 N P」 한 덩어리로 온다(종이책 약 260자째 · eBook 약 680자째).",
+  "_note_fields": "같은 field 는 위에서부터 처음 맞은 것만 쓴다. 못 맞으면 비워 둔다 — 모르면 안 고친다.",
+  "fields": [
+    {"field": "sale_price", "kind": "money", "label": "판매가", "pattern": "\\d{1,2}\\s*%\\s*([\\d,]{3,})\\s*원", "group": 1},
+    {"field": "list_price", "kind": "money", "label": "정가", "pattern": "\\d{1,2}\\s*%\\s*[\\d,]{3,}\\s*원\\s*([\\d,]{3,})\\s*원", "group": 1},
+    {"field": "points", "kind": "point", "label": "적립", "pattern": "통합포인트\\s*([\\d,]+)\\s*P", "group": 1},
+    {"field": "points_rate", "kind": "rate", "label": "적립률", "pattern": "통합포인트\\s*(\\d{1,2})\\s*%\\s*적립", "group": 1}
+  ],
+  "_note_points_rate": "eBook 상세는 적립을 「통합포인트 5%적립」처럼 **비율로만** 적고 포인트 금액이 없다. 2026-09-28 T1 O22: 그 칸에 옆 책(200제)의 1,000P 를 붙였는데 경고 0. 금액이 없으면 표에는 비율을 쓴다."
+}

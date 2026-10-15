@@ -1,0 +1,8 @@
+{
+  "note": "제품 책임자 승인(2026-09-15). 커밋은 그날 HEAD 로 고정. max_dropped=0 — 실행 파일에 기대는 스킬은 들여도 못 쓰니 안 들인다. HoangNguyen0403/agent-skills-standard(fa8f0ec0…)는 미리보기 뒤 보류: 595개·같은 이름 수십 개·침투시험류 포함·빠지는 실행 파일 527 — sources.candidates.json 참고.",
+  "approved_at": "2026-09-15",
+  "sources": [
+    {"repo": "addyosmani/agent-skills", "commit": "be4e44a9fbc5e8df0beaefadbb28bd22ee61cc39", "collection": "addyosmani", "max_dropped": 0},
+    {"repo": "tech-leads-club/agent-skills", "commit": "0ab82f644cd9caf94c65347a50ad934800b0cbc4", "collection": "tech-leads-club", "max_dropped": 0}
+  ]
+}

@@ -1,0 +1,50 @@
+              {approval && (
+                <motion.div className="spine-node decision" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .26, ease: [.22,1,.36,1] }}>
+                  <span className="spine-dot"><ShieldAlert size={15} /></span>
+                  <section className="spine-decision" ref={decisionRef}>
+                    <header>
+                      <div><strong>승인해 주셔야 진행합니다</strong><small>음성으로는 승인할 수 없습니다</small></div>
+                    </header>
+                    <h3>{toolLabel(approval.tool_name)}</h3>
+                    <div className="decision-body">
+                      {approvalPreview && approvalPreview.action_id === String((approval.arguments ?? {}).action_id ?? "") ? (
+                        <ExternalActionPreviewBody toolName={approval.tool_name} data={approvalPreview.preview} />
+                      ) : (
+                        <pre>{JSON.stringify(approval.arguments ?? {}, null, 2)}</pre>
+                      )}
+                    </div>
+                    <div className="decision-actions">
+                      <button className="deny" disabled={decisionBusy} onClick={() => void decideApproval(false)}><X size={15} /> 거절</button>
+                      <button className="approve" disabled={decisionBusy} onClick={() => void decideApproval(true)}>
+                        <Check size={15} /> {APPROVE_LABELS[approval.tool_name] ?? "승인"}
+                      </button>
+                    </div>
+                  </section>
+                </motion.div>
+              )}
+              {!approval && continuation && (
+                <motion.div className="spine-node decision" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .26, ease: [.22,1,.36,1] }}>
+                  <span className="spine-dot"><TimerReset size={15} /></span>
+                  <section className="spine-decision" ref={decisionRef}>
+                    <header>
+                      <div><strong>작업을 더 이어갈까요?</strong><small>안전한 지점에서 저장했습니다</small></div>
+                    </header>
+                    <h3>{continuation.reason === "step_budget" ? "이번 작업의 단계 예산을 다 썼습니다" : "기본 작업 시간을 다 썼습니다"}</h3>
+                    <p className="decision-goal">{continuation.goal}</p>
+                    <div className="decision-stats">
+                      <span><strong>{continuation.steps ?? 0}</strong>단계</span>
+                      <span><strong>{continuation.successful_steps ?? 0}</strong>성공</span>
+                      <span><strong>{continuation.sources ?? 0}</strong>출처</span>
+                    </div>
+                    <div className="decision-actions three">
+                      <button className="deny" disabled={decisionBusy} onClick={() => void decideContinuation("finish")}><FileText size={15} /> 여기까지 정리</button>
+                      <button className="deny" disabled={decisionBusy} onClick={() => void decideContinuation("extend_3m")}><TimerReset size={15} /> 3분 더</button>
+                      <button className="approve" disabled={decisionBusy} onClick={() => void decideContinuation("continue_task")}><Play size={15} fill="currentColor" /> 계속</button>
+                    </div>
+                  </section>
+                </motion.div>
+              )}
+              <AnimatePresence>
+                {(streaming || thinking) && activeJobId && (
+                  <motion.article className="workspace-message message-assistant streaming-message" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+                    <div className="message-avatar"><Sparkles size={15} /></div>

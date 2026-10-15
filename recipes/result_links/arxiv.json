@@ -1,0 +1,7 @@
+{
+  "name": "arxiv",
+  "hosts": ["arxiv.org"],
+  "detail_url_contains": ["/abs/"],
+  "why": "목록(/list/…)에서 제목은 링크가 아니고 항목 링크는 「arXiv:번호」다. 판정기가 저자 링크 묶음을 목록으로 봤고, 순위 1·2·3 이 건너뛰기·날짜 넘김 링크가 됐다(2026-10-05 9B 판 d3a87ec6).",
+  "checked": "2026-10-05 arxiv.org/list/cs.CL/recent — 논문 50편의 항목 링크가 전부 https://arxiv.org/abs/<번호>"
+}

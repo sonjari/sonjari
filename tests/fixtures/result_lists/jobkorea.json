@@ -1,0 +1,17 @@
+{
+ "site": "jobkorea",
+ "url": "https://www.jobkorea.co.kr/Search/?stext=여수 회계",
+ "landed": "https://www.jobkorea.co.kr/Search/?stext=%EC%97%AC%EC%88%98+%ED%9A%8C%EA%B3%84&tabType=recruit",
+ "title": "'여수 회계' 관련 📢 채용공고 | 총 21건의 검색결과",
+ "why": "처음으로 됐던 곳 — 목록이 마침 앞에 있었을 뿐이다",
+ "captured_at": "2026-08-13T11:35:53",
+ "links": 63,
+ "stylesheets_inlined": 2,
+ "stylesheets_missing": 0,
+ "scripts_stripped": 46,
+ "bytes_gz": 22086,
+ "expect_top1_contains": "푸른빛에너지",
+ "expect_min_items": 15,
+ "observed_items": 20,
+ "note": "목록이 마침 본문 앞에 있어 예전부터 잘 됐던 곳."
+}

@@ -1,0 +1,116 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alture-jarvis"
+version = "0.1.0"
+description = "Local-first multimodal office assistant backend for ALTURE"
+readme = "README.ko.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116.0",
+  "httpx>=0.27.0",
+  "uvicorn[standard]>=0.35.0",
+  "pydantic>=2.8.2",
+  "playwright>=1.44.0",
+  "pypdf>=6.0.0",
+  "pypdfium2>=4.30.0",
+  "python-docx>=1.2.0",
+  "openpyxl>=3.1.5",
+  "python-pptx>=1.0.2",
+  "charset-normalizer>=3.4.0",
+  # ★ 한글(HWPX) 읽기·쓰기. **여기 없으면 갱신으로는 영영 안 깔린다**
+  #   (2026-09-12). `apply_update.ps1` 은 `pip install -e .` 만 돌리므로
+  #   requirements.txt 에만 있던 이것은 처음 설치한 기계에만 있었다.
+  "python-hwpx",
+  # ★ HTTPS 검사를 윈도우에 맡긴다(os_trust.py). 초기화한 PC 는 루트 인증서를 아직 안 받아
+  #   둬서 첫 실행 Ollama 받기가 CERTIFICATE_VERIFY_FAILED 로 죽었다(2026-09-24).
+  #   requirements.txt 에도 같이 적는다(위 python-hwpx 와 같은 이유).
+  "truststore>=0.9.1",
+  "websockets>=13",
+  # ★ 맡기기 문(MCP 서버)과 MCP 연결이 이것으로 돈다. 우리 PC 에는 깔려 있어 선언이 빠진 줄 몰랐다 —
+  #   공개 저장소의 깨끗한 기계가 `No module named 'mcp'` 로 잡았다(2026-10-06). 소스로 까는 사람은 MCP 가 안 됐다.
+  "mcp>=2.0.0",
+  "pywinauto>=0.6.9; platform_system == 'Windows'",
+  "tzdata>=2024.1; platform_system == 'Windows'",
+  # ── Code 모드의 연장 (2026-09-20) ──────────────────────────────────────────
+  #
+  # 고친 뒤 **스스로 확인할 수단**이다. `_PYTHON_MODULES` 에 오래 ruff·mypy 가
+  # 허용돼 있었는데 **설치가 안 돼 있었다** — 모델이 부르면 `No module named ruff`.
+  # 갈래는 있는데 그 끝에 아무것도 없었던 셈이다(사장님 지적으로 발견).
+  #
+  # ★ requirements.txt 에만 넣으면 갱신(`pip install -e .`)으로는 안 깔린다 —
+  #   위의 python-hwpx 가 같은 이유로 한 번 샜다. 두 곳에 같이 적는다.
+  "ruff>=0.6.0",
+  "mypy>=1.11.0",
+  "pyflakes>=3.2.0",
+  "pycodestyle>=2.12.0",
+  "bandit>=1.7.9",
+  "vulture>=2.11",
+  "radon>=6.0.1",
+  "pip-audit>=2.7.3",
+  "pyright[nodejs]>=1.1.380",  # 허용 목록엔 있었는데 선언이 없었다(09-26 노트북 E2E)
+  "pytest-cov>=5.0.0",
+  # ── 2단: 문법 말고도 필요한 갈래 (2026-09-20) ────────────────────────────
+  "jedi>=0.19.1",  # 심볼 정의·참조 찾기 (grep 보다 정확한 「이 함수 누가 부르나」)
+  "libcst>=1.4.0",  # 주석·포맷을 보존하는 코드 변환 — 대량 리팩터에 안전
+  "hypothesis>=6.108.0",  # 속성 기반 시험 — 사람이 안 떠올린 입력으로 버그를 찾는다
+  "pytest-xdist>=3.6.1",  # 시험 병렬 실행 (큰 저장소)
+  "freezegun>=1.5.1",  # 시간 고정 — 날짜가 박힌 시험이 언젠가 터지는 것을 막는다
+  "respx>=0.21.1",  # httpx 모킹 (이 저장소가 httpx 를 쓴다)
+  "pandas>=2.2.0",  # CSV·엑셀·JSON 분석과 표 계산
+  "numpy>=1.26.0",  # 수치 계산
+  "PyYAML>=6.0.1",  # YAML 설정 읽기
+  "tomlkit>=0.13.0",  # TOML 을 **주석 보존하며** 고치기
+  "beautifulsoup4>=4.12.3",  # 만든 HTML 검증 (태그 구조·접근성 속성)
+  "lxml>=5.2.0",  # 빠른 HTML·XML 파서
+  "line-profiler>=4.1.3",  # 어느 줄이 느린가
+]
+
+[project.optional-dependencies]
+test = [
+  "httpx>=0.27.0",
+  "pytest>=8.3.0",
+]
+vision = [
+  "numpy>=1.26.0",
+  "opencv-python>=4.10.0",
+  "ultralytics>=8.3.0",
+]
+voice = [
+  "numpy>=1.26.0",
+  "sounddevice>=0.5.0",
+  "faster-whisper>=1.1.0",
+  "keyboard>=0.13.5; platform_system == 'Windows'",
+  "winrt-runtime==3.2.1; platform_system == 'Windows'",
+  "winrt-Windows.Foundation==3.2.1; platform_system == 'Windows'",
+  "winrt-Windows.Foundation.Collections==3.2.1; platform_system == 'Windows'",
+  "winrt-Windows.Media.Control==3.2.1; platform_system == 'Windows'",
+]
+all = [
+  "pytest>=8.3.0",
+  "numpy>=1.26.0",
+  "opencv-python>=4.10.0",
+  "ultralytics>=8.3.0",
+  "sounddevice>=0.5.0",
+  "faster-whisper>=1.1.0",
+  "keyboard>=0.13.5; platform_system == 'Windows'",
+  "winrt-runtime==3.2.1; platform_system == 'Windows'",
+  "winrt-Windows.Foundation==3.2.1; platform_system == 'Windows'",
+  "winrt-Windows.Foundation.Collections==3.2.1; platform_system == 'Windows'",
+  "winrt-Windows.Media.Control==3.2.1; platform_system == 'Windows'",
+]
+
+[project.scripts]
+alture-jarvis = "alture_jarvis.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

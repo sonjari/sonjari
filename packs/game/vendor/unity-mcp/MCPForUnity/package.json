@@ -1,0 +1,34 @@
+{
+  "name": "com.coplaydev.unity-mcp",
+  "version": "10.2.0-ontelic.4",
+  "displayName": "MCP for Unity (Sonjari build)",
+  "description": "MCP for Unity 10.2.0 (CoplayDev, MIT) pinned by Sonjari. Outbound network, telemetry, server launch and AI client registration are disabled; Sonjari connects over the local socket. See NOTICE.ontelic.md.",
+  "unity": "2021.3",
+  "documentationUrl": "https://github.com/CoplayDev/unity-mcp",
+  "licensesUrl": "https://github.com/CoplayDev/unity-mcp/blob/main/LICENSE",
+  "dependencies": {
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.imageconversion": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.physics2d": "1.0.0",
+    "com.unity.modules.uielements": "1.0.0",
+    "com.unity.modules.screencapture": "1.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0",
+    "com.unity.nuget.newtonsoft-json": "3.0.2",
+    "com.unity.test-framework": "1.1.31"
+  },
+  "keywords": [
+    "unity",
+    "ai",
+    "llm",
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "mcp-client"
+  ],
+  "author": {
+    "name": "Coplay",
+    "email": "support@coplay.dev",
+    "url": "https://coplay.dev"
+  }
+}

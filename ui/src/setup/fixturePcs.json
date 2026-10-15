@@ -1,0 +1,3024 @@
+{
+ "3090": {
+  "profile": {
+   "measured_at": "2026-09-15T18:00:00",
+   "os": "Windows-11",
+   "cpu": "x86_64",
+   "ram_gb": 64.0,
+   "gpus": [
+    {
+     "index": 0,
+     "name": "NVIDIA GeForce RTX 3090",
+     "vram_total_gb": 24.0,
+     "vram_used_gb": 0.4,
+     "driver": "610.88",
+     "display_active": false,
+     "vendor": "nvidia",
+     "backend": "cuda",
+     "integrated": false,
+     "source": "nvidia-smi",
+     "reserve_gb": 0.5,
+     "usable_gb": 23.5
+    },
+    {
+     "index": 1,
+     "name": "Intel(R) UHD Graphics 770",
+     "vram_total_gb": 2.0,
+     "vram_used_gb": null,
+     "driver": "",
+     "display_active": true,
+     "vendor": "intel",
+     "backend": "vulkan",
+     "integrated": true,
+     "source": "registry",
+     "reserve_gb": 1.0,
+     "usable_gb": 1.0
+    }
+   ],
+   "gpu_error": "",
+   "disk_free_gb": 180.0,
+   "models_dir": "C:\\Users\\me\\.ollama\\models",
+   "ollama": {
+    "reachable": true,
+    "version": "0.34.0",
+    "installed": [
+     "gemma4:26b-a4b-it-qat",
+     "translategemma:4b",
+     "bge-m3:latest"
+    ],
+    "vulkan_enabled": false,
+    "vulkan_setting": ""
+   }
+  },
+  "recommendation": {
+   "mode": "local",
+   "model_key": "gemma4-26b-qat",
+   "ollama_tag": "gemma4:26b-a4b-it-qat",
+   "num_ctx": 131072,
+   "installed": true,
+   "confidence": "measured",
+   "reasons": [
+    "NVIDIA GeForce RTX 3090 · 쓸 수 있는 메모리 약 23.5GB",
+    "Gemma 4 26B (QAT) · 컨텍스트 128K 는 올리면 15.5GB 입니다 — 여유 있게 들어갑니다.",
+    "조사해서 문서까지 만드는 우리 벤치에서 8/10 판을 해냈습니다."
+   ],
+   "warnings": [
+    "NVIDIA 카드와 내장 그래픽이 같이 있습니다 — 모델을 올리기 전에 Ollama 가 NVIDIA 카드만 쓰도록 Sonjari가 맞춥니다."
+   ],
+   "fixes": [
+    "ollama_gpu_only"
+   ],
+   "alternatives": [
+    {
+     "model_key": "qwen3.5-9b",
+     "num_ctx": 131072,
+     "vram_gb": 8.9
+    },
+    {
+     "model_key": "qwen3.5-9b",
+     "num_ctx": 65536,
+     "vram_gb": 6.79
+    },
+    {
+     "model_key": "qwen3.5-9b",
+     "num_ctx": 32768,
+     "vram_gb": 6.15
+    },
+    {
+     "model_key": "qwen3.5-4b",
+     "num_ctx": 32768,
+     "vram_gb": 4.2
+    },
+    {
+     "model_key": "qwen3.5-9b",
+     "num_ctx": 16384,
+     "vram_gb": 5.76
+    }
+   ],
+   "budget_gb": 23.5,
+   "tier_gb": 24,
+   "picks": [
+    {
+     "kind": "verified",
+     "model_key": "gemma4-26b-qat",
+     "name": "Gemma 4 26B (QAT)",
+     "ollama_tag": "gemma4:26b-a4b-it-qat",
+     "num_ctx": 131072,
+     "vram_gb": 15.5,
+     "download_gb": 14.56,
+     "installed": true,
+     "confidence": "measured",
+     "license": "Apache 2.0",
+     "chain": {
+      "ok": 8,
+      "total": 10,
+      "ctx": 131072
+     }
+    },
+    {
+     "kind": "external",
+     "model_key": "gemma4-31b-qat",
+     "name": "Gemma 4 31B (QAT)",
+     "ollama_tag": "gemma4:31b-it-qat",
+     "num_ctx": 32768,
+     "vram_estimate_gb": 20.0,
+     "download_gb": 19.0,
+     "installed": false,
+     "license": "Apache 2.0",
+     "evidence": [
+      "Hugging Face 좋아요 3,829 — Gemma 4 가운데 가장 많음",
+      "최근 30일 다운로드 약 882만"
+     ],
+     "caution": "우리 26B 와 같은 과제로 비교한 적 없음",
+     "links": [
+      {
+       "label": "Ollama",
+       "url": "https://ollama.com/library/gemma4"
+      },
+      {
+       "label": "Hugging Face",
+       "url": "https://huggingface.co/google/gemma-4-31B-it"
+      }
+     ],
+     "checked_at": "2026-09-15"
+    }
+   ],
+   "card": {
+    "name": "NVIDIA GeForce RTX 3090",
+    "vendor": "nvidia",
+    "backend": "cuda",
+    "vram_total_gb": 24.0
+   }
+  },
+  "models": [
+   {
+    "key": "gemma4-26b-qat",
+    "name": "Gemma 4 26B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:26b-a4b-it-qat",
+    "download_gb": 14.56,
+    "vram_gb": {
+     "131072": 15.5
+    },
+    "chain": {
+     "ok": 8,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "화면 읽기까지 한 모델로 됩니다. 그래픽카드 24GB 급에 맞습니다.",
+    "sources": [
+     "git d375897c — 같은 밤 같은 10과제로 26B·9B 대조"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 0.0,
+    "installed": true,
+    "fits": true,
+    "largest_fitting_ctx": 131072
+   },
+   {
+    "key": "qwen3.5-9b",
+    "name": "Qwen 3.5 9B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:9b",
+    "download_gb": 6.14,
+    "vram_gb": {
+     "16384": 5.76,
+     "32768": 6.15,
+     "65536": 6.79,
+     "131072": 8.9
+    },
+    "chain": {
+     "ok": 9,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "문서 만들기에서 26B 와 동급으로 쟀습니다. 12GB 이상을 권하며 적용 때 이 PC에서 다시 잽니다.",
+    "sources": [
+     "bench/browser_agents/results/multiturn_9b_2026-09-11.json",
+     "git d375897c"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 12.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 131072
+   },
+   {
+    "key": "qwen3.5-4b",
+    "name": "Qwen 3.5 4B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:4b",
+    "download_gb": 3.4,
+    "vram_gb": {
+     "32768": 4.2
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "노트북 RTX 5050 8GB에서 32K·100% GPU·60.4 tok/s를 확인했습니다. 일 성공률은 아직 안 쟀습니다.",
+    "sources": [
+     "docs/인수인계_2026-09-19_새벽.ko.md §4 — 노트북 /api/ps 4,197,596,527 bytes"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 696만 · 좋아요 924",
+     "Ollama 공식: 도구 호출 · 이미지 · 생각 모드"
+    ],
+    "caution": "평: Hugging Face 토론에 빈 생각 블록 템플릿 수정 제안(#14)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/Qwen/Qwen3.5-4B"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": true,
+    "memory_device": "RTX 5050 Laptop 8GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "qwen3.5-2b",
+    "name": "Qwen 3.5 2B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:2b",
+    "download_gb": 2.7,
+    "vram_gb": {
+     "32768": 3.7
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "4B도 그래픽카드에 전부 안 올라갈 때 32K를 유지하며 실제로 재볼 후보입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Qwen 3.5 작은 모델 사다리 — 적용 시 토큰 생성과 GPU 적재 비율을 검증"
+    ],
+    "caution": "메모리는 추정이며 한국어 작업 성공률은 아직 안 쟀습니다.",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5:2b"
+     }
+    ],
+    "checked_at": "",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "granite4.1-8b",
+    "name": "Granite 4.1 8B",
+    "vendor": "IBM",
+    "ollama_tag": "granite4.1:8b",
+    "download_gb": 5.3,
+    "vram_gb": {
+     "32768": 6.3
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "지원 언어에 한국어, 기능에 함수 호출을 공식으로 적은 가벼운 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "IBM 공식 문서: 지원 언어에 한국어 · 함수 호출 명시",
+     "Hugging Face 최근 30일 다운로드 약 21만"
+    ],
+    "caution": "이미지는 못 읽습니다",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/granite4.1"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/ibm-granite/granite-4.1-8b"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "gemma4-e4b-qat",
+    "name": "Gemma 4 E4B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:e4b-it-qat",
+    "download_gb": 6.1,
+    "vram_gb": {
+     "32768": 7.1
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "작은 카드에서 이미지·오디오까지 되는 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 462만 · 좋아요 1,559",
+     "구글 공식 QAT 버전"
+    ],
+    "caution": "평: 여러 턴 도구 사용에서 이전 추론이 다시 들어가 반복한다는 제보(HF 토론 #37)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-E4B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "gemma4-12b-qat",
+    "name": "Gemma 4 12B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:12b-it-qat",
+    "download_gb": 7.2,
+    "vram_gb": {
+     "32768": 8.2
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "12B 급에서 네이티브 함수 호출과 긴 컨텍스트를 가진 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 296만 · 좋아요 1,560",
+     "구글 공식 QAT GGUF 약 78만 다운로드"
+    ],
+    "caution": "평: 긴 에이전트 프롬프트에서 생각 반복 제보(HF 토론 #38·#41) — Sonjari의 누출 방지로 막히는지 재는 중",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-12B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "gemma4-31b-qat",
+    "name": "Gemma 4 31B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:31b-it-qat",
+    "download_gb": 19.0,
+    "vram_gb": {
+     "32768": 20.0
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "26B(MoE)보다 느리지만 품질을 우선한 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 좋아요 3,829 — Gemma 4 가운데 가장 많음",
+     "최근 30일 다운로드 약 882만"
+    ],
+    "caution": "우리 26B 와 같은 과제로 비교한 적 없음",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-31B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   }
+  ],
+  "installed_models": [
+   {
+    "name": "gemma4:26b-a4b-it-qat",
+    "size_gb": 14.56,
+    "capabilities": [
+     "completion",
+     "vision",
+     "tools",
+     "thinking"
+    ],
+    "tools": true,
+    "embedding_only": false,
+    "catalog_key": "gemma4-26b-qat",
+    "status": "verified"
+   },
+   {
+    "name": "translategemma:4b",
+    "size_gb": 3.1,
+    "capabilities": [
+     "completion",
+     "vision"
+    ],
+    "tools": false,
+    "embedding_only": false,
+    "catalog_key": "",
+    "status": "unlisted"
+   },
+   {
+    "name": "bge-m3:latest",
+    "size_gb": 1.1,
+    "capabilities": [
+     "embedding"
+    ],
+    "tools": false,
+    "embedding_only": true,
+    "catalog_key": "",
+    "status": "unlisted"
+   }
+  ]
+ },
+ "4080-laptop": {
+  "profile": {
+   "measured_at": "2026-09-15T18:00:00",
+   "os": "Windows-11",
+   "cpu": "x86_64",
+   "ram_gb": 32.0,
+   "gpus": [
+    {
+     "index": 0,
+     "name": "NVIDIA GeForce RTX 4080 Laptop GPU",
+     "vram_total_gb": 12.0,
+     "vram_used_gb": 0.4,
+     "driver": "610.88",
+     "display_active": true,
+     "vendor": "nvidia",
+     "backend": "cuda",
+     "integrated": false,
+     "source": "nvidia-smi",
+     "reserve_gb": 1.0,
+     "usable_gb": 11.0
+    }
+   ],
+   "gpu_error": "",
+   "disk_free_gb": 400.0,
+   "models_dir": "C:\\Users\\me\\.ollama\\models",
+   "ollama": {
+    "reachable": true,
+    "version": "0.34.0",
+    "installed": [],
+    "vulkan_enabled": false,
+    "vulkan_setting": ""
+   }
+  },
+  "recommendation": {
+   "mode": "local",
+   "model_key": "qwen3.5-9b",
+   "ollama_tag": "qwen3.5:9b",
+   "num_ctx": 131072,
+   "installed": false,
+   "confidence": "measured",
+   "reasons": [
+    "NVIDIA GeForce RTX 4080 Laptop GPU · 쓸 수 있는 메모리 약 11GB (화면 출력이 같은 카드라 1GB 를 비워 둡니다)",
+    "Qwen 3.5 9B · 컨텍스트 128K 는 올리면 8.9GB 입니다 — 여유 있게 들어갑니다.",
+    "조사해서 문서까지 만드는 우리 벤치에서 9/10 판을 해냈습니다."
+   ],
+   "warnings": [],
+   "fixes": [],
+   "alternatives": [
+    {
+     "model_key": "qwen3.5-9b",
+     "num_ctx": 65536,
+     "vram_gb": 6.79
+    },
+    {
+     "model_key": "qwen3.5-9b",
+     "num_ctx": 32768,
+     "vram_gb": 6.15
+    },
+    {
+     "model_key": "qwen3.5-4b",
+     "num_ctx": 32768,
+     "vram_gb": 4.2
+    },
+    {
+     "model_key": "qwen3.5-9b",
+     "num_ctx": 16384,
+     "vram_gb": 5.76
+    }
+   ],
+   "budget_gb": 11.0,
+   "tier_gb": 12,
+   "picks": [
+    {
+     "kind": "verified",
+     "model_key": "qwen3.5-9b",
+     "name": "Qwen 3.5 9B",
+     "ollama_tag": "qwen3.5:9b",
+     "num_ctx": 131072,
+     "vram_gb": 8.9,
+     "download_gb": 6.14,
+     "installed": false,
+     "confidence": "measured",
+     "license": "Apache 2.0",
+     "chain": {
+      "ok": 9,
+      "total": 10,
+      "ctx": 131072
+     }
+    },
+    {
+     "kind": "external",
+     "model_key": "gemma4-12b-qat",
+     "name": "Gemma 4 12B (QAT)",
+     "ollama_tag": "gemma4:12b-it-qat",
+     "num_ctx": 32768,
+     "vram_estimate_gb": 8.2,
+     "download_gb": 7.2,
+     "installed": false,
+     "license": "Apache 2.0",
+     "evidence": [
+      "Hugging Face 최근 30일 다운로드 약 296만 · 좋아요 1,560",
+      "구글 공식 QAT GGUF 약 78만 다운로드"
+     ],
+     "caution": "평: 긴 에이전트 프롬프트에서 생각 반복 제보(HF 토론 #38·#41) — Sonjari의 누출 방지로 막히는지 재는 중",
+     "links": [
+      {
+       "label": "Ollama",
+       "url": "https://ollama.com/library/gemma4"
+      },
+      {
+       "label": "Hugging Face",
+       "url": "https://huggingface.co/google/gemma-4-12B-it"
+      }
+     ],
+     "checked_at": "2026-09-15"
+    }
+   ],
+   "card": {
+    "name": "NVIDIA GeForce RTX 4080 Laptop GPU",
+    "vendor": "nvidia",
+    "backend": "cuda",
+    "vram_total_gb": 12.0
+   }
+  },
+  "models": [
+   {
+    "key": "gemma4-26b-qat",
+    "name": "Gemma 4 26B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:26b-a4b-it-qat",
+    "download_gb": 14.56,
+    "vram_gb": {
+     "131072": 15.5
+    },
+    "chain": {
+     "ok": 8,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "화면 읽기까지 한 모델로 됩니다. 그래픽카드 24GB 급에 맞습니다.",
+    "sources": [
+     "git d375897c — 같은 밤 같은 10과제로 26B·9B 대조"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "qwen3.5-9b",
+    "name": "Qwen 3.5 9B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:9b",
+    "download_gb": 6.14,
+    "vram_gb": {
+     "16384": 5.76,
+     "32768": 6.15,
+     "65536": 6.79,
+     "131072": 8.9
+    },
+    "chain": {
+     "ok": 9,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "문서 만들기에서 26B 와 동급으로 쟀습니다. 12GB 이상을 권하며 적용 때 이 PC에서 다시 잽니다.",
+    "sources": [
+     "bench/browser_agents/results/multiturn_9b_2026-09-11.json",
+     "git d375897c"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 12.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 131072
+   },
+   {
+    "key": "qwen3.5-4b",
+    "name": "Qwen 3.5 4B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:4b",
+    "download_gb": 3.4,
+    "vram_gb": {
+     "32768": 4.2
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "노트북 RTX 5050 8GB에서 32K·100% GPU·60.4 tok/s를 확인했습니다. 일 성공률은 아직 안 쟀습니다.",
+    "sources": [
+     "docs/인수인계_2026-09-19_새벽.ko.md §4 — 노트북 /api/ps 4,197,596,527 bytes"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 696만 · 좋아요 924",
+     "Ollama 공식: 도구 호출 · 이미지 · 생각 모드"
+    ],
+    "caution": "평: Hugging Face 토론에 빈 생각 블록 템플릿 수정 제안(#14)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/Qwen/Qwen3.5-4B"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": true,
+    "memory_device": "RTX 5050 Laptop 8GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "qwen3.5-2b",
+    "name": "Qwen 3.5 2B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:2b",
+    "download_gb": 2.7,
+    "vram_gb": {
+     "32768": 3.7
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "4B도 그래픽카드에 전부 안 올라갈 때 32K를 유지하며 실제로 재볼 후보입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Qwen 3.5 작은 모델 사다리 — 적용 시 토큰 생성과 GPU 적재 비율을 검증"
+    ],
+    "caution": "메모리는 추정이며 한국어 작업 성공률은 아직 안 쟀습니다.",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5:2b"
+     }
+    ],
+    "checked_at": "",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "granite4.1-8b",
+    "name": "Granite 4.1 8B",
+    "vendor": "IBM",
+    "ollama_tag": "granite4.1:8b",
+    "download_gb": 5.3,
+    "vram_gb": {
+     "32768": 6.3
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "지원 언어에 한국어, 기능에 함수 호출을 공식으로 적은 가벼운 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "IBM 공식 문서: 지원 언어에 한국어 · 함수 호출 명시",
+     "Hugging Face 최근 30일 다운로드 약 21만"
+    ],
+    "caution": "이미지는 못 읽습니다",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/granite4.1"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/ibm-granite/granite-4.1-8b"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "gemma4-e4b-qat",
+    "name": "Gemma 4 E4B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:e4b-it-qat",
+    "download_gb": 6.1,
+    "vram_gb": {
+     "32768": 7.1
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "작은 카드에서 이미지·오디오까지 되는 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 462만 · 좋아요 1,559",
+     "구글 공식 QAT 버전"
+    ],
+    "caution": "평: 여러 턴 도구 사용에서 이전 추론이 다시 들어가 반복한다는 제보(HF 토론 #37)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-E4B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "gemma4-12b-qat",
+    "name": "Gemma 4 12B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:12b-it-qat",
+    "download_gb": 7.2,
+    "vram_gb": {
+     "32768": 8.2
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "12B 급에서 네이티브 함수 호출과 긴 컨텍스트를 가진 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 296만 · 좋아요 1,560",
+     "구글 공식 QAT GGUF 약 78만 다운로드"
+    ],
+    "caution": "평: 긴 에이전트 프롬프트에서 생각 반복 제보(HF 토론 #38·#41) — Sonjari의 누출 방지로 막히는지 재는 중",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-12B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "gemma4-31b-qat",
+    "name": "Gemma 4 31B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:31b-it-qat",
+    "download_gb": 19.0,
+    "vram_gb": {
+     "32768": 20.0
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "26B(MoE)보다 느리지만 품질을 우선한 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 좋아요 3,829 — Gemma 4 가운데 가장 많음",
+     "최근 30일 다운로드 약 882만"
+    ],
+    "caution": "우리 26B 와 같은 과제로 비교한 적 없음",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-31B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   }
+  ],
+  "installed_models": []
+ },
+ "4060-8gb": {
+  "profile": {
+   "measured_at": "2026-09-15T18:00:00",
+   "os": "Windows-11",
+   "cpu": "x86_64",
+   "ram_gb": 32.0,
+   "gpus": [
+    {
+     "index": 0,
+     "name": "NVIDIA GeForce RTX 4060",
+     "vram_total_gb": 8.0,
+     "vram_used_gb": 0.4,
+     "driver": "610.88",
+     "display_active": true,
+     "vendor": "nvidia",
+     "backend": "cuda",
+     "integrated": false,
+     "source": "nvidia-smi",
+     "reserve_gb": 1.0,
+     "usable_gb": 7.0
+    }
+   ],
+   "gpu_error": "",
+   "disk_free_gb": 300.0,
+   "models_dir": "C:\\Users\\me\\.ollama\\models",
+   "ollama": {
+    "reachable": true,
+    "version": "0.34.0",
+    "installed": [],
+    "vulkan_enabled": false,
+    "vulkan_setting": ""
+   }
+  },
+  "recommendation": {
+   "mode": "local",
+   "model_key": "qwen3.5-4b",
+   "ollama_tag": "qwen3.5:4b",
+   "num_ctx": 32768,
+   "installed": false,
+   "confidence": "memory_only",
+   "reasons": [
+    "NVIDIA GeForce RTX 4060 · 쓸 수 있는 메모리 약 7GB (화면 출력이 같은 카드라 1GB 를 비워 둡니다)",
+    "Qwen 3.5 4B · 컨텍스트 32K 는 올리면 4.2GB 입니다 — 여유 있게 들어갑니다.",
+    "메모리는 실제로 쟀지만, 컨텍스트 32K 에서 일 성공률은 아직 안 쟀습니다."
+   ],
+   "warnings": [],
+   "fixes": [],
+   "alternatives": [],
+   "budget_gb": 7.0,
+   "tier_gb": 8,
+   "picks": [
+    {
+     "kind": "verified",
+     "model_key": "qwen3.5-4b",
+     "name": "Qwen 3.5 4B",
+     "ollama_tag": "qwen3.5:4b",
+     "num_ctx": 32768,
+     "vram_gb": 4.2,
+     "download_gb": 3.4,
+     "installed": false,
+     "confidence": "memory_only",
+     "license": "Apache 2.0",
+     "chain": null
+    },
+    {
+     "kind": "external",
+     "model_key": "granite4.1-8b",
+     "name": "Granite 4.1 8B",
+     "ollama_tag": "granite4.1:8b",
+     "num_ctx": 32768,
+     "vram_estimate_gb": 6.3,
+     "download_gb": 5.3,
+     "installed": false,
+     "license": "Apache 2.0",
+     "evidence": [
+      "IBM 공식 문서: 지원 언어에 한국어 · 함수 호출 명시",
+      "Hugging Face 최근 30일 다운로드 약 21만"
+     ],
+     "caution": "이미지는 못 읽습니다",
+     "links": [
+      {
+       "label": "Ollama",
+       "url": "https://ollama.com/library/granite4.1"
+      },
+      {
+       "label": "Hugging Face",
+       "url": "https://huggingface.co/ibm-granite/granite-4.1-8b"
+      }
+     ],
+     "checked_at": "2026-09-15"
+    }
+   ],
+   "card": {
+    "name": "NVIDIA GeForce RTX 4060",
+    "vendor": "nvidia",
+    "backend": "cuda",
+    "vram_total_gb": 8.0
+   }
+  },
+  "models": [
+   {
+    "key": "gemma4-26b-qat",
+    "name": "Gemma 4 26B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:26b-a4b-it-qat",
+    "download_gb": 14.56,
+    "vram_gb": {
+     "131072": 15.5
+    },
+    "chain": {
+     "ok": 8,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "화면 읽기까지 한 모델로 됩니다. 그래픽카드 24GB 급에 맞습니다.",
+    "sources": [
+     "git d375897c — 같은 밤 같은 10과제로 26B·9B 대조"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "qwen3.5-9b",
+    "name": "Qwen 3.5 9B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:9b",
+    "download_gb": 6.14,
+    "vram_gb": {
+     "16384": 5.76,
+     "32768": 6.15,
+     "65536": 6.79,
+     "131072": 8.9
+    },
+    "chain": {
+     "ok": 9,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "문서 만들기에서 26B 와 동급으로 쟀습니다. 12GB 이상을 권하며 적용 때 이 PC에서 다시 잽니다.",
+    "sources": [
+     "bench/browser_agents/results/multiturn_9b_2026-09-11.json",
+     "git d375897c"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 12.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 65536
+   },
+   {
+    "key": "qwen3.5-4b",
+    "name": "Qwen 3.5 4B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:4b",
+    "download_gb": 3.4,
+    "vram_gb": {
+     "32768": 4.2
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "노트북 RTX 5050 8GB에서 32K·100% GPU·60.4 tok/s를 확인했습니다. 일 성공률은 아직 안 쟀습니다.",
+    "sources": [
+     "docs/인수인계_2026-09-19_새벽.ko.md §4 — 노트북 /api/ps 4,197,596,527 bytes"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 696만 · 좋아요 924",
+     "Ollama 공식: 도구 호출 · 이미지 · 생각 모드"
+    ],
+    "caution": "평: Hugging Face 토론에 빈 생각 블록 템플릿 수정 제안(#14)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/Qwen/Qwen3.5-4B"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": true,
+    "memory_device": "RTX 5050 Laptop 8GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "qwen3.5-2b",
+    "name": "Qwen 3.5 2B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:2b",
+    "download_gb": 2.7,
+    "vram_gb": {
+     "32768": 3.7
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "4B도 그래픽카드에 전부 안 올라갈 때 32K를 유지하며 실제로 재볼 후보입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Qwen 3.5 작은 모델 사다리 — 적용 시 토큰 생성과 GPU 적재 비율을 검증"
+    ],
+    "caution": "메모리는 추정이며 한국어 작업 성공률은 아직 안 쟀습니다.",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5:2b"
+     }
+    ],
+    "checked_at": "",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "granite4.1-8b",
+    "name": "Granite 4.1 8B",
+    "vendor": "IBM",
+    "ollama_tag": "granite4.1:8b",
+    "download_gb": 5.3,
+    "vram_gb": {
+     "32768": 6.3
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "지원 언어에 한국어, 기능에 함수 호출을 공식으로 적은 가벼운 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "IBM 공식 문서: 지원 언어에 한국어 · 함수 호출 명시",
+     "Hugging Face 최근 30일 다운로드 약 21만"
+    ],
+    "caution": "이미지는 못 읽습니다",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/granite4.1"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/ibm-granite/granite-4.1-8b"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "gemma4-e4b-qat",
+    "name": "Gemma 4 E4B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:e4b-it-qat",
+    "download_gb": 6.1,
+    "vram_gb": {
+     "32768": 7.1
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "작은 카드에서 이미지·오디오까지 되는 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 462만 · 좋아요 1,559",
+     "구글 공식 QAT 버전"
+    ],
+    "caution": "평: 여러 턴 도구 사용에서 이전 추론이 다시 들어가 반복한다는 제보(HF 토론 #37)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-E4B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "gemma4-12b-qat",
+    "name": "Gemma 4 12B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:12b-it-qat",
+    "download_gb": 7.2,
+    "vram_gb": {
+     "32768": 8.2
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "12B 급에서 네이티브 함수 호출과 긴 컨텍스트를 가진 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 296만 · 좋아요 1,560",
+     "구글 공식 QAT GGUF 약 78만 다운로드"
+    ],
+    "caution": "평: 긴 에이전트 프롬프트에서 생각 반복 제보(HF 토론 #38·#41) — Sonjari의 누출 방지로 막히는지 재는 중",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-12B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "gemma4-31b-qat",
+    "name": "Gemma 4 31B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:31b-it-qat",
+    "download_gb": 19.0,
+    "vram_gb": {
+     "32768": 20.0
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "26B(MoE)보다 느리지만 품질을 우선한 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 좋아요 3,829 — Gemma 4 가운데 가장 많음",
+     "최근 30일 다운로드 약 882만"
+    ],
+    "caution": "우리 26B 와 같은 과제로 비교한 적 없음",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-31B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   }
+  ],
+  "installed_models": []
+ },
+ "3050-laptop": {
+  "profile": {
+   "measured_at": "2026-09-15T18:00:00",
+   "os": "Windows-11",
+   "cpu": "x86_64",
+   "ram_gb": 16.0,
+   "gpus": [
+    {
+     "index": 0,
+     "name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+     "vram_total_gb": 6.0,
+     "vram_used_gb": 0.4,
+     "driver": "610.88",
+     "display_active": true,
+     "vendor": "nvidia",
+     "backend": "cuda",
+     "integrated": false,
+     "source": "nvidia-smi",
+     "reserve_gb": 1.0,
+     "usable_gb": 5.0
+    }
+   ],
+   "gpu_error": "",
+   "disk_free_gb": 120.0,
+   "models_dir": "C:\\Users\\me\\.ollama\\models",
+   "ollama": {
+    "reachable": true,
+    "version": "0.34.0",
+    "installed": [],
+    "vulkan_enabled": false,
+    "vulkan_setting": ""
+   }
+  },
+  "recommendation": {
+   "mode": "local",
+   "model_key": "qwen3.5-4b",
+   "ollama_tag": "qwen3.5:4b",
+   "num_ctx": 32768,
+   "installed": false,
+   "confidence": "memory_only",
+   "reasons": [
+    "NVIDIA GeForce RTX 3050 6GB Laptop GPU · 쓸 수 있는 메모리 약 5GB (화면 출력이 같은 카드라 1GB 를 비워 둡니다)",
+    "Qwen 3.5 4B · 컨텍스트 32K 는 올리면 4.2GB 입니다 — 여유 있게 들어갑니다.",
+    "메모리는 실제로 쟀지만, 컨텍스트 32K 에서 일 성공률은 아직 안 쟀습니다."
+   ],
+   "warnings": [],
+   "fixes": [],
+   "alternatives": [],
+   "budget_gb": 5.0,
+   "tier_gb": 6,
+   "picks": [
+    {
+     "kind": "verified",
+     "model_key": "qwen3.5-4b",
+     "name": "Qwen 3.5 4B",
+     "ollama_tag": "qwen3.5:4b",
+     "num_ctx": 32768,
+     "vram_gb": 4.2,
+     "download_gb": 3.4,
+     "installed": false,
+     "confidence": "memory_only",
+     "license": "Apache 2.0",
+     "chain": null
+    }
+   ],
+   "card": {
+    "name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+    "vendor": "nvidia",
+    "backend": "cuda",
+    "vram_total_gb": 6.0
+   }
+  },
+  "models": [
+   {
+    "key": "gemma4-26b-qat",
+    "name": "Gemma 4 26B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:26b-a4b-it-qat",
+    "download_gb": 14.56,
+    "vram_gb": {
+     "131072": 15.5
+    },
+    "chain": {
+     "ok": 8,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "화면 읽기까지 한 모델로 됩니다. 그래픽카드 24GB 급에 맞습니다.",
+    "sources": [
+     "git d375897c — 같은 밤 같은 10과제로 26B·9B 대조"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "qwen3.5-9b",
+    "name": "Qwen 3.5 9B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:9b",
+    "download_gb": 6.14,
+    "vram_gb": {
+     "16384": 5.76,
+     "32768": 6.15,
+     "65536": 6.79,
+     "131072": 8.9
+    },
+    "chain": {
+     "ok": 9,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "문서 만들기에서 26B 와 동급으로 쟀습니다. 12GB 이상을 권하며 적용 때 이 PC에서 다시 잽니다.",
+    "sources": [
+     "bench/browser_agents/results/multiturn_9b_2026-09-11.json",
+     "git d375897c"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 12.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "qwen3.5-4b",
+    "name": "Qwen 3.5 4B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:4b",
+    "download_gb": 3.4,
+    "vram_gb": {
+     "32768": 4.2
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "노트북 RTX 5050 8GB에서 32K·100% GPU·60.4 tok/s를 확인했습니다. 일 성공률은 아직 안 쟀습니다.",
+    "sources": [
+     "docs/인수인계_2026-09-19_새벽.ko.md §4 — 노트북 /api/ps 4,197,596,527 bytes"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 696만 · 좋아요 924",
+     "Ollama 공식: 도구 호출 · 이미지 · 생각 모드"
+    ],
+    "caution": "평: Hugging Face 토론에 빈 생각 블록 템플릿 수정 제안(#14)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/Qwen/Qwen3.5-4B"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": true,
+    "memory_device": "RTX 5050 Laptop 8GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "qwen3.5-2b",
+    "name": "Qwen 3.5 2B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:2b",
+    "download_gb": 2.7,
+    "vram_gb": {
+     "32768": 3.7
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "4B도 그래픽카드에 전부 안 올라갈 때 32K를 유지하며 실제로 재볼 후보입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Qwen 3.5 작은 모델 사다리 — 적용 시 토큰 생성과 GPU 적재 비율을 검증"
+    ],
+    "caution": "메모리는 추정이며 한국어 작업 성공률은 아직 안 쟀습니다.",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5:2b"
+     }
+    ],
+    "checked_at": "",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "granite4.1-8b",
+    "name": "Granite 4.1 8B",
+    "vendor": "IBM",
+    "ollama_tag": "granite4.1:8b",
+    "download_gb": 5.3,
+    "vram_gb": {
+     "32768": 6.3
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "지원 언어에 한국어, 기능에 함수 호출을 공식으로 적은 가벼운 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "IBM 공식 문서: 지원 언어에 한국어 · 함수 호출 명시",
+     "Hugging Face 최근 30일 다운로드 약 21만"
+    ],
+    "caution": "이미지는 못 읽습니다",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/granite4.1"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/ibm-granite/granite-4.1-8b"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "gemma4-e4b-qat",
+    "name": "Gemma 4 E4B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:e4b-it-qat",
+    "download_gb": 6.1,
+    "vram_gb": {
+     "32768": 7.1
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "작은 카드에서 이미지·오디오까지 되는 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 462만 · 좋아요 1,559",
+     "구글 공식 QAT 버전"
+    ],
+    "caution": "평: 여러 턴 도구 사용에서 이전 추론이 다시 들어가 반복한다는 제보(HF 토론 #37)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-E4B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "gemma4-12b-qat",
+    "name": "Gemma 4 12B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:12b-it-qat",
+    "download_gb": 7.2,
+    "vram_gb": {
+     "32768": 8.2
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "12B 급에서 네이티브 함수 호출과 긴 컨텍스트를 가진 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 296만 · 좋아요 1,560",
+     "구글 공식 QAT GGUF 약 78만 다운로드"
+    ],
+    "caution": "평: 긴 에이전트 프롬프트에서 생각 반복 제보(HF 토론 #38·#41) — Sonjari의 누출 방지로 막히는지 재는 중",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-12B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "gemma4-31b-qat",
+    "name": "Gemma 4 31B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:31b-it-qat",
+    "download_gb": 19.0,
+    "vram_gb": {
+     "32768": 20.0
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "26B(MoE)보다 느리지만 품질을 우선한 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 좋아요 3,829 — Gemma 4 가운데 가장 많음",
+     "최근 30일 다운로드 약 882만"
+    ],
+    "caution": "우리 26B 와 같은 과제로 비교한 적 없음",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-31B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   }
+  ],
+  "installed_models": []
+ },
+ "rx7800xt": {
+  "profile": {
+   "measured_at": "2026-09-15T18:00:00",
+   "os": "Windows-11",
+   "cpu": "x86_64",
+   "ram_gb": 32.0,
+   "gpus": [
+    {
+     "index": 0,
+     "name": "AMD Radeon RX 7800 XT",
+     "vram_total_gb": 16.0,
+     "vram_used_gb": null,
+     "driver": "",
+     "display_active": true,
+     "vendor": "amd",
+     "backend": "rocm",
+     "integrated": false,
+     "source": "registry",
+     "reserve_gb": 1.0,
+     "usable_gb": 15.0
+    },
+    {
+     "index": 1,
+     "name": "AMD Radeon(TM) Graphics",
+     "vram_total_gb": 0.5,
+     "vram_used_gb": null,
+     "driver": "",
+     "display_active": true,
+     "vendor": "amd",
+     "backend": "vulkan",
+     "integrated": true,
+     "source": "registry",
+     "reserve_gb": 1.0,
+     "usable_gb": 0.0
+    }
+   ],
+   "gpu_error": "nvidia_smi_missing",
+   "disk_free_gb": 500.0,
+   "models_dir": "C:\\Users\\me\\.ollama\\models",
+   "ollama": {
+    "reachable": true,
+    "version": "0.34.0",
+    "installed": [
+     "qwen3.5:9b"
+    ],
+    "vulkan_enabled": false,
+    "vulkan_setting": ""
+   }
+  },
+  "recommendation": {
+   "mode": "local",
+   "model_key": "qwen3.5-9b",
+   "ollama_tag": "qwen3.5:9b",
+   "num_ctx": 131072,
+   "installed": true,
+   "confidence": "measured",
+   "reasons": [
+    "AMD Radeon RX 7800 XT · 쓸 수 있는 메모리 약 15GB (화면 출력이 같은 카드라 1GB 를 비워 둡니다)",
+    "이 카드는 Ollama 가 ROCm 으로 돌립니다 — 받은 뒤 실제로 돌려 그래픽카드에 올라가는지 확인합니다.",
+    "Qwen 3.5 9B · 컨텍스트 128K 는 올리면 8.9GB 입니다 — 여유 있게 들어갑니다.",
+    "조사해서 문서까지 만드는 우리 벤치에서 9/10 판을 해냈습니다."
+   ],
+   "warnings": [],
+   "fixes": [],
+   "alternatives": [
+    {
+     "model_key": "qwen3.5-9b",
+     "num_ctx": 65536,
+     "vram_gb": 6.79
+    },
+    {
+     "model_key": "qwen3.5-9b",
+     "num_ctx": 32768,
+     "vram_gb": 6.15
+    },
+    {
+     "model_key": "qwen3.5-4b",
+     "num_ctx": 32768,
+     "vram_gb": 4.2
+    },
+    {
+     "model_key": "qwen3.5-9b",
+     "num_ctx": 16384,
+     "vram_gb": 5.76
+    }
+   ],
+   "budget_gb": 15.0,
+   "tier_gb": 16,
+   "picks": [
+    {
+     "kind": "verified",
+     "model_key": "qwen3.5-9b",
+     "name": "Qwen 3.5 9B",
+     "ollama_tag": "qwen3.5:9b",
+     "num_ctx": 131072,
+     "vram_gb": 8.9,
+     "download_gb": 6.14,
+     "installed": true,
+     "confidence": "measured",
+     "license": "Apache 2.0",
+     "chain": {
+      "ok": 9,
+      "total": 10,
+      "ctx": 131072
+     }
+    },
+    {
+     "kind": "external",
+     "model_key": "gemma4-12b-qat",
+     "name": "Gemma 4 12B (QAT)",
+     "ollama_tag": "gemma4:12b-it-qat",
+     "num_ctx": 32768,
+     "vram_estimate_gb": 8.2,
+     "download_gb": 7.2,
+     "installed": false,
+     "license": "Apache 2.0",
+     "evidence": [
+      "Hugging Face 최근 30일 다운로드 약 296만 · 좋아요 1,560",
+      "구글 공식 QAT GGUF 약 78만 다운로드"
+     ],
+     "caution": "평: 긴 에이전트 프롬프트에서 생각 반복 제보(HF 토론 #38·#41) — Sonjari의 누출 방지로 막히는지 재는 중",
+     "links": [
+      {
+       "label": "Ollama",
+       "url": "https://ollama.com/library/gemma4"
+      },
+      {
+       "label": "Hugging Face",
+       "url": "https://huggingface.co/google/gemma-4-12B-it"
+      }
+     ],
+     "checked_at": "2026-09-15"
+    }
+   ],
+   "card": {
+    "name": "AMD Radeon RX 7800 XT",
+    "vendor": "amd",
+    "backend": "rocm",
+    "vram_total_gb": 16.0
+   }
+  },
+  "models": [
+   {
+    "key": "gemma4-26b-qat",
+    "name": "Gemma 4 26B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:26b-a4b-it-qat",
+    "download_gb": 14.56,
+    "vram_gb": {
+     "131072": 15.5
+    },
+    "chain": {
+     "ok": 8,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "화면 읽기까지 한 모델로 됩니다. 그래픽카드 24GB 급에 맞습니다.",
+    "sources": [
+     "git d375897c — 같은 밤 같은 10과제로 26B·9B 대조"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "qwen3.5-9b",
+    "name": "Qwen 3.5 9B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:9b",
+    "download_gb": 6.14,
+    "vram_gb": {
+     "16384": 5.76,
+     "32768": 6.15,
+     "65536": 6.79,
+     "131072": 8.9
+    },
+    "chain": {
+     "ok": 9,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "문서 만들기에서 26B 와 동급으로 쟀습니다. 12GB 이상을 권하며 적용 때 이 PC에서 다시 잽니다.",
+    "sources": [
+     "bench/browser_agents/results/multiturn_9b_2026-09-11.json",
+     "git d375897c"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 12.0,
+    "installed": true,
+    "fits": true,
+    "largest_fitting_ctx": 131072
+   },
+   {
+    "key": "qwen3.5-4b",
+    "name": "Qwen 3.5 4B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:4b",
+    "download_gb": 3.4,
+    "vram_gb": {
+     "32768": 4.2
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "노트북 RTX 5050 8GB에서 32K·100% GPU·60.4 tok/s를 확인했습니다. 일 성공률은 아직 안 쟀습니다.",
+    "sources": [
+     "docs/인수인계_2026-09-19_새벽.ko.md §4 — 노트북 /api/ps 4,197,596,527 bytes"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 696만 · 좋아요 924",
+     "Ollama 공식: 도구 호출 · 이미지 · 생각 모드"
+    ],
+    "caution": "평: Hugging Face 토론에 빈 생각 블록 템플릿 수정 제안(#14)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/Qwen/Qwen3.5-4B"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": true,
+    "memory_device": "RTX 5050 Laptop 8GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "qwen3.5-2b",
+    "name": "Qwen 3.5 2B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:2b",
+    "download_gb": 2.7,
+    "vram_gb": {
+     "32768": 3.7
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "4B도 그래픽카드에 전부 안 올라갈 때 32K를 유지하며 실제로 재볼 후보입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Qwen 3.5 작은 모델 사다리 — 적용 시 토큰 생성과 GPU 적재 비율을 검증"
+    ],
+    "caution": "메모리는 추정이며 한국어 작업 성공률은 아직 안 쟀습니다.",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5:2b"
+     }
+    ],
+    "checked_at": "",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "granite4.1-8b",
+    "name": "Granite 4.1 8B",
+    "vendor": "IBM",
+    "ollama_tag": "granite4.1:8b",
+    "download_gb": 5.3,
+    "vram_gb": {
+     "32768": 6.3
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "지원 언어에 한국어, 기능에 함수 호출을 공식으로 적은 가벼운 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "IBM 공식 문서: 지원 언어에 한국어 · 함수 호출 명시",
+     "Hugging Face 최근 30일 다운로드 약 21만"
+    ],
+    "caution": "이미지는 못 읽습니다",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/granite4.1"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/ibm-granite/granite-4.1-8b"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "gemma4-e4b-qat",
+    "name": "Gemma 4 E4B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:e4b-it-qat",
+    "download_gb": 6.1,
+    "vram_gb": {
+     "32768": 7.1
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "작은 카드에서 이미지·오디오까지 되는 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 462만 · 좋아요 1,559",
+     "구글 공식 QAT 버전"
+    ],
+    "caution": "평: 여러 턴 도구 사용에서 이전 추론이 다시 들어가 반복한다는 제보(HF 토론 #37)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-E4B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "gemma4-12b-qat",
+    "name": "Gemma 4 12B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:12b-it-qat",
+    "download_gb": 7.2,
+    "vram_gb": {
+     "32768": 8.2
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "12B 급에서 네이티브 함수 호출과 긴 컨텍스트를 가진 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 296만 · 좋아요 1,560",
+     "구글 공식 QAT GGUF 약 78만 다운로드"
+    ],
+    "caution": "평: 긴 에이전트 프롬프트에서 생각 반복 제보(HF 토론 #38·#41) — Sonjari의 누출 방지로 막히는지 재는 중",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-12B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": true,
+    "largest_fitting_ctx": 32768
+   },
+   {
+    "key": "gemma4-31b-qat",
+    "name": "Gemma 4 31B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:31b-it-qat",
+    "download_gb": 19.0,
+    "vram_gb": {
+     "32768": 20.0
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "26B(MoE)보다 느리지만 품질을 우선한 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 좋아요 3,829 — Gemma 4 가운데 가장 많음",
+     "최근 30일 다운로드 약 882만"
+    ],
+    "caution": "우리 26B 와 같은 과제로 비교한 적 없음",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-31B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   }
+  ],
+  "installed_models": [
+   {
+    "name": "qwen3.5:9b",
+    "size_gb": 6.14,
+    "capabilities": [
+     "completion",
+     "vision",
+     "tools",
+     "thinking"
+    ],
+    "tools": true,
+    "embedding_only": false,
+    "catalog_key": "qwen3.5-9b",
+    "status": "verified"
+   }
+  ]
+ },
+ "gtx1650": {
+  "profile": {
+   "measured_at": "2026-09-15T18:00:00",
+   "os": "Windows-11",
+   "cpu": "x86_64",
+   "ram_gb": 16.0,
+   "gpus": [
+    {
+     "index": 0,
+     "name": "NVIDIA GeForce GTX 1650",
+     "vram_total_gb": 4.0,
+     "vram_used_gb": 0.4,
+     "driver": "610.88",
+     "display_active": true,
+     "vendor": "nvidia",
+     "backend": "cuda",
+     "integrated": false,
+     "source": "nvidia-smi",
+     "reserve_gb": 1.0,
+     "usable_gb": 3.0
+    }
+   ],
+   "gpu_error": "",
+   "disk_free_gb": 200.0,
+   "models_dir": "C:\\Users\\me\\.ollama\\models",
+   "ollama": {
+    "reachable": true,
+    "version": "0.34.0",
+    "installed": [],
+    "vulkan_enabled": false,
+    "vulkan_setting": ""
+   }
+  },
+  "recommendation": {
+   "mode": "too_small",
+   "model_key": null,
+   "num_ctx": null,
+   "confidence": "hardware",
+   "reasons": [
+    "NVIDIA GeForce GTX 1650 의 쓸 수 있는 메모리가 약 3GB 입니다.",
+    "Sonjari가 권하는 가장 작은 모델도 여유 있게 안 들어갑니다.",
+    "그래픽카드 메모리 8GB 이상을 권합니다."
+   ],
+   "warnings": [],
+   "fixes": [],
+   "alternatives": [],
+   "budget_gb": 3.0,
+   "tier_gb": 6,
+   "picks": [],
+   "card": {
+    "name": "NVIDIA GeForce GTX 1650",
+    "vendor": "nvidia",
+    "backend": "cuda",
+    "vram_total_gb": 4.0
+   }
+  },
+  "models": [
+   {
+    "key": "gemma4-26b-qat",
+    "name": "Gemma 4 26B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:26b-a4b-it-qat",
+    "download_gb": 14.56,
+    "vram_gb": {
+     "131072": 15.5
+    },
+    "chain": {
+     "ok": 8,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "화면 읽기까지 한 모델로 됩니다. 그래픽카드 24GB 급에 맞습니다.",
+    "sources": [
+     "git d375897c — 같은 밤 같은 10과제로 26B·9B 대조"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "qwen3.5-9b",
+    "name": "Qwen 3.5 9B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:9b",
+    "download_gb": 6.14,
+    "vram_gb": {
+     "16384": 5.76,
+     "32768": 6.15,
+     "65536": 6.79,
+     "131072": 8.9
+    },
+    "chain": {
+     "ok": 9,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "문서 만들기에서 26B 와 동급으로 쟀습니다. 12GB 이상을 권하며 적용 때 이 PC에서 다시 잽니다.",
+    "sources": [
+     "bench/browser_agents/results/multiturn_9b_2026-09-11.json",
+     "git d375897c"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 12.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "qwen3.5-4b",
+    "name": "Qwen 3.5 4B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:4b",
+    "download_gb": 3.4,
+    "vram_gb": {
+     "32768": 4.2
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "노트북 RTX 5050 8GB에서 32K·100% GPU·60.4 tok/s를 확인했습니다. 일 성공률은 아직 안 쟀습니다.",
+    "sources": [
+     "docs/인수인계_2026-09-19_새벽.ko.md §4 — 노트북 /api/ps 4,197,596,527 bytes"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 696만 · 좋아요 924",
+     "Ollama 공식: 도구 호출 · 이미지 · 생각 모드"
+    ],
+    "caution": "평: Hugging Face 토론에 빈 생각 블록 템플릿 수정 제안(#14)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/Qwen/Qwen3.5-4B"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": true,
+    "memory_device": "RTX 5050 Laptop 8GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "qwen3.5-2b",
+    "name": "Qwen 3.5 2B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:2b",
+    "download_gb": 2.7,
+    "vram_gb": {
+     "32768": 3.7
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "4B도 그래픽카드에 전부 안 올라갈 때 32K를 유지하며 실제로 재볼 후보입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Qwen 3.5 작은 모델 사다리 — 적용 시 토큰 생성과 GPU 적재 비율을 검증"
+    ],
+    "caution": "메모리는 추정이며 한국어 작업 성공률은 아직 안 쟀습니다.",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5:2b"
+     }
+    ],
+    "checked_at": "",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "granite4.1-8b",
+    "name": "Granite 4.1 8B",
+    "vendor": "IBM",
+    "ollama_tag": "granite4.1:8b",
+    "download_gb": 5.3,
+    "vram_gb": {
+     "32768": 6.3
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "지원 언어에 한국어, 기능에 함수 호출을 공식으로 적은 가벼운 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "IBM 공식 문서: 지원 언어에 한국어 · 함수 호출 명시",
+     "Hugging Face 최근 30일 다운로드 약 21만"
+    ],
+    "caution": "이미지는 못 읽습니다",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/granite4.1"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/ibm-granite/granite-4.1-8b"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "gemma4-e4b-qat",
+    "name": "Gemma 4 E4B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:e4b-it-qat",
+    "download_gb": 6.1,
+    "vram_gb": {
+     "32768": 7.1
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "작은 카드에서 이미지·오디오까지 되는 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 462만 · 좋아요 1,559",
+     "구글 공식 QAT 버전"
+    ],
+    "caution": "평: 여러 턴 도구 사용에서 이전 추론이 다시 들어가 반복한다는 제보(HF 토론 #37)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-E4B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "gemma4-12b-qat",
+    "name": "Gemma 4 12B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:12b-it-qat",
+    "download_gb": 7.2,
+    "vram_gb": {
+     "32768": 8.2
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "12B 급에서 네이티브 함수 호출과 긴 컨텍스트를 가진 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 296만 · 좋아요 1,560",
+     "구글 공식 QAT GGUF 약 78만 다운로드"
+    ],
+    "caution": "평: 긴 에이전트 프롬프트에서 생각 반복 제보(HF 토론 #38·#41) — Sonjari의 누출 방지로 막히는지 재는 중",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-12B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "gemma4-31b-qat",
+    "name": "Gemma 4 31B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:31b-it-qat",
+    "download_gb": 19.0,
+    "vram_gb": {
+     "32768": 20.0
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "26B(MoE)보다 느리지만 품질을 우선한 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 좋아요 3,829 — Gemma 4 가운데 가장 많음",
+     "최근 30일 다운로드 약 882만"
+    ],
+    "caution": "우리 26B 와 같은 과제로 비교한 적 없음",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-31B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   }
+  ],
+  "installed_models": []
+ },
+ "no-gpu": {
+  "profile": {
+   "measured_at": "2026-09-15T18:00:00",
+   "os": "Windows-11",
+   "cpu": "x86_64",
+   "ram_gb": 16.0,
+   "gpus": [
+    {
+     "index": 0,
+     "name": "Intel(R) Iris(R) Xe Graphics",
+     "vram_total_gb": 1.0,
+     "vram_used_gb": null,
+     "driver": "",
+     "display_active": true,
+     "vendor": "intel",
+     "backend": "vulkan",
+     "integrated": true,
+     "source": "registry",
+     "reserve_gb": 1.0,
+     "usable_gb": 0.0
+    }
+   ],
+   "gpu_error": "nvidia_smi_missing",
+   "disk_free_gb": 200.0,
+   "models_dir": "C:\\Users\\me\\.ollama\\models",
+   "ollama": {
+    "reachable": true,
+    "version": "0.34.0",
+    "installed": [],
+    "vulkan_enabled": false,
+    "vulkan_setting": ""
+   }
+  },
+  "recommendation": {
+   "mode": "no_gpu",
+   "model_key": null,
+   "num_ctx": null,
+   "confidence": "hardware",
+   "reasons": [
+    "Intel(R) Iris(R) Xe Graphics 은 내장 그래픽이라 AI 모델을 올릴 전용 메모리가 없습니다.",
+    "Sonjari는 그래픽카드에서 도는 로컬 AI 가 필요합니다 — 그래픽카드 메모리 8GB 이상을 권합니다."
+   ],
+   "warnings": [],
+   "fixes": [],
+   "alternatives": [],
+   "budget_gb": 0.0,
+   "tier_gb": null,
+   "picks": [],
+   "card": null
+  },
+  "models": [
+   {
+    "key": "gemma4-26b-qat",
+    "name": "Gemma 4 26B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:26b-a4b-it-qat",
+    "download_gb": 14.56,
+    "vram_gb": {
+     "131072": 15.5
+    },
+    "chain": {
+     "ok": 8,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "화면 읽기까지 한 모델로 됩니다. 그래픽카드 24GB 급에 맞습니다.",
+    "sources": [
+     "git d375897c — 같은 밤 같은 10과제로 26B·9B 대조"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "qwen3.5-9b",
+    "name": "Qwen 3.5 9B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:9b",
+    "download_gb": 6.14,
+    "vram_gb": {
+     "16384": 5.76,
+     "32768": 6.15,
+     "65536": 6.79,
+     "131072": 8.9
+    },
+    "chain": {
+     "ok": 9,
+     "total": 10,
+     "ctx": 131072
+    },
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "문서 만들기에서 26B 와 동급으로 쟀습니다. 12GB 이상을 권하며 적용 때 이 PC에서 다시 잽니다.",
+    "sources": [
+     "bench/browser_agents/results/multiturn_9b_2026-09-11.json",
+     "git d375897c"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [],
+    "caution": "",
+    "links": [],
+    "checked_at": "",
+    "vram_measured": true,
+    "memory_device": "RTX 3090 24GB",
+    "minimum_vram_gb": 12.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "qwen3.5-4b",
+    "name": "Qwen 3.5 4B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:4b",
+    "download_gb": 3.4,
+    "vram_gb": {
+     "32768": 4.2
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "노트북 RTX 5050 8GB에서 32K·100% GPU·60.4 tok/s를 확인했습니다. 일 성공률은 아직 안 쟀습니다.",
+    "sources": [
+     "docs/인수인계_2026-09-19_새벽.ko.md §4 — 노트북 /api/ps 4,197,596,527 bytes"
+    ],
+    "status": "verified",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 696만 · 좋아요 924",
+     "Ollama 공식: 도구 호출 · 이미지 · 생각 모드"
+    ],
+    "caution": "평: Hugging Face 토론에 빈 생각 블록 템플릿 수정 제안(#14)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/Qwen/Qwen3.5-4B"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": true,
+    "memory_device": "RTX 5050 Laptop 8GB",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "qwen3.5-2b",
+    "name": "Qwen 3.5 2B",
+    "vendor": "Alibaba",
+    "ollama_tag": "qwen3.5:2b",
+    "download_gb": 2.7,
+    "vram_gb": {
+     "32768": 3.7
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": true,
+    "blurb": "4B도 그래픽카드에 전부 안 올라갈 때 32K를 유지하며 실제로 재볼 후보입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Qwen 3.5 작은 모델 사다리 — 적용 시 토큰 생성과 GPU 적재 비율을 검증"
+    ],
+    "caution": "메모리는 추정이며 한국어 작업 성공률은 아직 안 쟀습니다.",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/qwen3.5:2b"
+     }
+    ],
+    "checked_at": "",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "granite4.1-8b",
+    "name": "Granite 4.1 8B",
+    "vendor": "IBM",
+    "ollama_tag": "granite4.1:8b",
+    "download_gb": 5.3,
+    "vram_gb": {
+     "32768": 6.3
+    },
+    "chain": null,
+    "roles": [
+     "chat"
+    ],
+    "vision": false,
+    "blurb": "지원 언어에 한국어, 기능에 함수 호출을 공식으로 적은 가벼운 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "IBM 공식 문서: 지원 언어에 한국어 · 함수 호출 명시",
+     "Hugging Face 최근 30일 다운로드 약 21만"
+    ],
+    "caution": "이미지는 못 읽습니다",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/granite4.1"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/ibm-granite/granite-4.1-8b"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "gemma4-e4b-qat",
+    "name": "Gemma 4 E4B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:e4b-it-qat",
+    "download_gb": 6.1,
+    "vram_gb": {
+     "32768": 7.1
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "작은 카드에서 이미지·오디오까지 되는 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 462만 · 좋아요 1,559",
+     "구글 공식 QAT 버전"
+    ],
+    "caution": "평: 여러 턴 도구 사용에서 이전 추론이 다시 들어가 반복한다는 제보(HF 토론 #37)",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-E4B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "gemma4-12b-qat",
+    "name": "Gemma 4 12B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:12b-it-qat",
+    "download_gb": 7.2,
+    "vram_gb": {
+     "32768": 8.2
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "12B 급에서 네이티브 함수 호출과 긴 컨텍스트를 가진 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 최근 30일 다운로드 약 296만 · 좋아요 1,560",
+     "구글 공식 QAT GGUF 약 78만 다운로드"
+    ],
+    "caution": "평: 긴 에이전트 프롬프트에서 생각 반복 제보(HF 토론 #38·#41) — Sonjari의 누출 방지로 막히는지 재는 중",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-12B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   },
+   {
+    "key": "gemma4-31b-qat",
+    "name": "Gemma 4 31B (QAT)",
+    "vendor": "Google",
+    "ollama_tag": "gemma4:31b-it-qat",
+    "download_gb": 19.0,
+    "vram_gb": {
+     "32768": 20.0
+    },
+    "chain": null,
+    "roles": [
+     "chat",
+     "vision"
+    ],
+    "vision": true,
+    "blurb": "26B(MoE)보다 느리지만 품질을 우선한 구글 모델입니다.",
+    "sources": [],
+    "status": "external",
+    "license": "Apache 2.0",
+    "evidence": [
+     "Hugging Face 좋아요 3,829 — Gemma 4 가운데 가장 많음",
+     "최근 30일 다운로드 약 882만"
+    ],
+    "caution": "우리 26B 와 같은 과제로 비교한 적 없음",
+    "links": [
+     {
+      "label": "Ollama",
+      "url": "https://ollama.com/library/gemma4"
+     },
+     {
+      "label": "Hugging Face",
+      "url": "https://huggingface.co/google/gemma-4-31B-it"
+     }
+    ],
+    "checked_at": "2026-09-15",
+    "vram_measured": false,
+    "memory_device": "",
+    "minimum_vram_gb": 0.0,
+    "installed": false,
+    "fits": false,
+    "largest_fitting_ctx": null
+   }
+  ],
+  "installed_models": []
+ },
+  "5080-16gb": {"profile": {"measured_at": "2026-09-15T18:00:00", "os": "Windows-11", "cpu": "x86_64", "ram_gb": 64.0, "gpus": [{"index": 0, "name": "NVIDIA GeForce RTX 5080", "vram_total_gb": 15.9, "vram_used_gb": 1.0, "driver": "610.88", "display_active": true, "vendor": "nvidia", "backend": "cuda", "integrated": false, "source": "nvidia-smi", "reserve_gb": 1.0, "usable_gb": 14.9}, {"index": 1, "name": "Intel(R) UHD Graphics 770", "vram_total_gb": 2.0, "vram_used_gb": null, "driver": "", "display_active": true, "vendor": "intel", "backend": "vulkan", "integrated": true, "source": "registry", "reserve_gb": 1.0, "usable_gb": 1.0}], "gpu_error": "", "disk_free_gb": 180.0, "models_dir": "C:\\Users\\me\\.ollama\\models", "ollama": {"reachable": true, "version": "0.34.0", "installed": ["gemma4:26b-a4b-it-qat", "translategemma:4b", "bge-m3:latest"], "vulkan_enabled": false, "vulkan_setting": ""}}, "recommendation": {"mode": "local", "model_key": "gemma4-26b-qat", "ollama_tag": "gemma4:26b-a4b-it-qat", "num_ctx": 131072, "installed": true, "confidence": "measured", "reasons": ["NVIDIA GeForce RTX 3090 · 쓸 수 있는 메모리 약 23.5GB", "Gemma 4 26B (QAT) · 컨텍스트 128K 는 올리면 15.5GB 입니다 — 여유 있게 들어갑니다.", "조사해서 문서까지 만드는 우리 벤치에서 8/10 판을 해냈습니다."], "warnings": ["NVIDIA 카드와 내장 그래픽이 같이 있습니다 — 모델을 올리기 전에 Ollama 가 NVIDIA 카드만 쓰도록 Sonjari가 맞춥니다."], "fixes": ["ollama_gpu_only"], "alternatives": [{"model_key": "qwen3.5-9b", "num_ctx": 131072, "vram_gb": 8.9}, {"model_key": "qwen3.5-9b", "num_ctx": 65536, "vram_gb": 6.79}, {"model_key": "qwen3.5-9b", "num_ctx": 32768, "vram_gb": 6.15}, {"model_key": "qwen3.5-4b", "num_ctx": 32768, "vram_gb": 4.2}, {"model_key": "qwen3.5-9b", "num_ctx": 16384, "vram_gb": 5.76}], "budget_gb": 23.5, "tier_gb": 24, "picks": [{"kind": "verified", "model_key": "gemma4-26b-qat", "name": "Gemma 4 26B (QAT)", "ollama_tag": "gemma4:26b-a4b-it-qat", "num_ctx": 131072, "vram_gb": 15.5, "download_gb": 14.56, "installed": true, "confidence": "measured", "license": "Apache 2.0", "chain": {"ok": 8, "total": 10, "ctx": 131072}}, {"kind": "external", "model_key": "gemma4-31b-qat", "name": "Gemma 4 31B (QAT)", "ollama_tag": "gemma4:31b-it-qat", "num_ctx": 32768, "vram_estimate_gb": 20.0, "download_gb": 19.0, "installed": false, "license": "Apache 2.0", "evidence": ["Hugging Face 좋아요 3,829 — Gemma 4 가운데 가장 많음", "최근 30일 다운로드 약 882만"], "caution": "우리 26B 와 같은 과제로 비교한 적 없음", "links": [{"label": "Ollama", "url": "https://ollama.com/library/gemma4"}, {"label": "Hugging Face", "url": "https://huggingface.co/google/gemma-4-31B-it"}], "checked_at": "2026-09-15"}], "card": {"name": "NVIDIA GeForce RTX 3090", "vendor": "nvidia", "backend": "cuda", "vram_total_gb": 24.0}}, "models": [{"key": "gemma4-26b-qat", "name": "Gemma 4 26B (QAT)", "vendor": "Google", "ollama_tag": "gemma4:26b-a4b-it-qat", "download_gb": 14.56, "vram_gb": {"131072": 15.5}, "chain": {"ok": 8, "total": 10, "ctx": 131072}, "roles": ["chat", "vision"], "vision": true, "blurb": "화면 읽기까지 한 모델로 됩니다. 그래픽카드 24GB 급에 맞습니다.", "sources": ["git d375897c — 같은 밤 같은 10과제로 26B·9B 대조"], "status": "verified", "license": "Apache 2.0", "evidence": [], "caution": "", "links": [], "checked_at": "", "vram_measured": true, "memory_device": "RTX 3090 24GB", "minimum_vram_gb": 0.0, "installed": true, "fits": true, "largest_fitting_ctx": 131072}, {"key": "qwen3.5-9b", "name": "Qwen 3.5 9B", "vendor": "Alibaba", "ollama_tag": "qwen3.5:9b", "download_gb": 6.14, "vram_gb": {"16384": 5.76, "32768": 6.15, "65536": 6.79, "131072": 8.9}, "chain": {"ok": 9, "total": 10, "ctx": 131072}, "roles": ["chat"], "vision": false, "blurb": "문서 만들기에서 26B 와 동급으로 쟀습니다. 12GB 이상을 권하며 적용 때 이 PC에서 다시 잽니다.", "sources": ["bench/browser_agents/results/multiturn_9b_2026-09-11.json", "git d375897c"], "status": "verified", "license": "Apache 2.0", "evidence": [], "caution": "", "links": [], "checked_at": "", "vram_measured": true, "memory_device": "RTX 3090 24GB", "minimum_vram_gb": 12.0, "installed": false, "fits": true, "largest_fitting_ctx": 131072}, {"key": "qwen3.5-4b", "name": "Qwen 3.5 4B", "vendor": "Alibaba", "ollama_tag": "qwen3.5:4b", "download_gb": 3.4, "vram_gb": {"32768": 4.2}, "chain": null, "roles": ["chat"], "vision": true, "blurb": "노트북 RTX 5050 8GB에서 32K·100% GPU·60.4 tok/s를 확인했습니다. 일 성공률은 아직 안 쟀습니다.", "sources": ["docs/인수인계_2026-09-19_새벽.ko.md §4 — 노트북 /api/ps 4,197,596,527 bytes"], "status": "verified", "license": "Apache 2.0", "evidence": ["Hugging Face 최근 30일 다운로드 약 696만 · 좋아요 924", "Ollama 공식: 도구 호출 · 이미지 · 생각 모드"], "caution": "평: Hugging Face 토론에 빈 생각 블록 템플릿 수정 제안(#14)", "links": [{"label": "Ollama", "url": "https://ollama.com/library/qwen3.5"}, {"label": "Hugging Face", "url": "https://huggingface.co/Qwen/Qwen3.5-4B"}], "checked_at": "2026-09-15", "vram_measured": true, "memory_device": "RTX 5050 Laptop 8GB", "minimum_vram_gb": 0.0, "installed": false, "fits": true, "largest_fitting_ctx": 32768}, {"key": "qwen3.5-2b", "name": "Qwen 3.5 2B", "vendor": "Alibaba", "ollama_tag": "qwen3.5:2b", "download_gb": 2.7, "vram_gb": {"32768": 3.7}, "chain": null, "roles": ["chat"], "vision": true, "blurb": "4B도 그래픽카드에 전부 안 올라갈 때 32K를 유지하며 실제로 재볼 후보입니다.", "sources": [], "status": "external", "license": "Apache 2.0", "evidence": ["Qwen 3.5 작은 모델 사다리 — 적용 시 토큰 생성과 GPU 적재 비율을 검증"], "caution": "메모리는 추정이며 한국어 작업 성공률은 아직 안 쟀습니다.", "links": [{"label": "Ollama", "url": "https://ollama.com/library/qwen3.5:2b"}], "checked_at": "", "vram_measured": false, "memory_device": "", "minimum_vram_gb": 0.0, "installed": false, "fits": true, "largest_fitting_ctx": 32768}, {"key": "granite4.1-8b", "name": "Granite 4.1 8B", "vendor": "IBM", "ollama_tag": "granite4.1:8b", "download_gb": 5.3, "vram_gb": {"32768": 6.3}, "chain": null, "roles": ["chat"], "vision": false, "blurb": "지원 언어에 한국어, 기능에 함수 호출을 공식으로 적은 가벼운 모델입니다.", "sources": [], "status": "external", "license": "Apache 2.0", "evidence": ["IBM 공식 문서: 지원 언어에 한국어 · 함수 호출 명시", "Hugging Face 최근 30일 다운로드 약 21만"], "caution": "이미지는 못 읽습니다", "links": [{"label": "Ollama", "url": "https://ollama.com/library/granite4.1"}, {"label": "Hugging Face", "url": "https://huggingface.co/ibm-granite/granite-4.1-8b"}], "checked_at": "2026-09-15", "vram_measured": false, "memory_device": "", "minimum_vram_gb": 0.0, "installed": false, "fits": true, "largest_fitting_ctx": 32768}, {"key": "gemma4-e4b-qat", "name": "Gemma 4 E4B (QAT)", "vendor": "Google", "ollama_tag": "gemma4:e4b-it-qat", "download_gb": 6.1, "vram_gb": {"32768": 7.1}, "chain": null, "roles": ["chat", "vision"], "vision": true, "blurb": "작은 카드에서 이미지·오디오까지 되는 구글 모델입니다.", "sources": [], "status": "external", "license": "Apache 2.0", "evidence": ["Hugging Face 최근 30일 다운로드 약 462만 · 좋아요 1,559", "구글 공식 QAT 버전"], "caution": "평: 여러 턴 도구 사용에서 이전 추론이 다시 들어가 반복한다는 제보(HF 토론 #37)", "links": [{"label": "Ollama", "url": "https://ollama.com/library/gemma4"}, {"label": "Hugging Face", "url": "https://huggingface.co/google/gemma-4-E4B-it"}], "checked_at": "2026-09-15", "vram_measured": false, "memory_device": "", "minimum_vram_gb": 0.0, "installed": false, "fits": true, "largest_fitting_ctx": 32768}, {"key": "gemma4-12b-qat", "name": "Gemma 4 12B (QAT)", "vendor": "Google", "ollama_tag": "gemma4:12b-it-qat", "download_gb": 7.2, "vram_gb": {"32768": 8.2}, "chain": null, "roles": ["chat", "vision"], "vision": true, "blurb": "12B 급에서 네이티브 함수 호출과 긴 컨텍스트를 가진 구글 모델입니다.", "sources": [], "status": "external", "license": "Apache 2.0", "evidence": ["Hugging Face 최근 30일 다운로드 약 296만 · 좋아요 1,560", "구글 공식 QAT GGUF 약 78만 다운로드"], "caution": "평: 긴 에이전트 프롬프트에서 생각 반복 제보(HF 토론 #38·#41) — Sonjari의 누출 방지로 막히는지 재는 중", "links": [{"label": "Ollama", "url": "https://ollama.com/library/gemma4"}, {"label": "Hugging Face", "url": "https://huggingface.co/google/gemma-4-12B-it"}], "checked_at": "2026-09-15", "vram_measured": false, "memory_device": "", "minimum_vram_gb": 0.0, "installed": false, "fits": true, "largest_fitting_ctx": 32768}, {"key": "gemma4-31b-qat", "name": "Gemma 4 31B (QAT)", "vendor": "Google", "ollama_tag": "gemma4:31b-it-qat", "download_gb": 19.0, "vram_gb": {"32768": 20.0}, "chain": null, "roles": ["chat", "vision"], "vision": true, "blurb": "26B(MoE)보다 느리지만 품질을 우선한 구글 모델입니다.", "sources": [], "status": "external", "license": "Apache 2.0", "evidence": ["Hugging Face 좋아요 3,829 — Gemma 4 가운데 가장 많음", "최근 30일 다운로드 약 882만"], "caution": "우리 26B 와 같은 과제로 비교한 적 없음", "links": [{"label": "Ollama", "url": "https://ollama.com/library/gemma4"}, {"label": "Hugging Face", "url": "https://huggingface.co/google/gemma-4-31B-it"}], "checked_at": "2026-09-15", "vram_measured": false, "memory_device": "", "minimum_vram_gb": 0.0, "installed": false, "fits": true, "largest_fitting_ctx": 32768}], "installed_models": [{"name": "gemma4:26b-a4b-it-qat", "size_gb": 14.56, "capabilities": ["completion", "vision", "tools", "thinking"], "tools": true, "embedding_only": false, "catalog_key": "gemma4-26b-qat", "status": "verified"}, {"name": "translategemma:4b", "size_gb": 3.1, "capabilities": ["completion", "vision"], "tools": false, "embedding_only": false, "catalog_key": "", "status": "unlisted"}, {"name": "bge-m3:latest", "size_gb": 1.1, "capabilities": ["embedding"], "tools": false, "embedding_only": true, "catalog_key": "", "status": "unlisted"}]}
+}

@@ -1,0 +1,17 @@
+{
+ "site": "wishket",
+ "url": "https://www.wishket.com/project/?search=AI 에이전트",
+ "landed": "https://www.wishket.com/project/?search=AI%20%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8",
+ "title": "프로젝트 찾기 · 위시켓(Wishket)",
+ "why": "프로젝트 목록 — 카드형",
+ "captured_at": "2026-08-13T11:40:16",
+ "links": 65,
+ "stylesheets_inlined": 13,
+ "stylesheets_missing": 0,
+ "scripts_stripped": 74,
+ "bytes_gz": 147445,
+ "expect_top1_contains": "Python LangChain",
+ "expect_min_items": 8,
+ "observed_items": 10,
+ "note": ""
+}

@@ -1,0 +1,35 @@
+{
+  "name": "texture_audit",
+  "title": "텍스처 설정 점검",
+  "description": "폴더 안 텍스처의 가져오기 설정을 읽어, 최대 크기가 기준을 넘거나 압축을 안 하거나 Read/Write 가 켜진 것(메모리 두 배)을 찾는다. 설정은 바꾸지 않는다.",
+  "plain": "너무 크거나 압축이 꺼져 메모리를 많이 먹는 텍스처를 찾습니다. 설정은 바꾸지 않습니다.",
+  "ask": "유니티 프로젝트 텍스처 점검해 줘",
+  "method": "Sonjari.Recipes.TextureAudit.Run",
+  "risk": "L1",
+  "params": {
+    "folder": {
+      "type": "string",
+      "default": "Assets",
+      "asset_folder": true,
+      "description": "점검할 폴더. 'Assets' 또는 'Assets/...'"
+    },
+    "max_size": {
+      "type": "integer",
+      "default": 2048,
+      "min": 32,
+      "max": 16384,
+      "description": "픽셀 단위 한 변 길이(예: 2048). 가져오기 최대 크기나 원본 한 변이 이것을 넘으면 걸러낸다. MB 가 아니다"
+    },
+    "limit": {
+      "type": "integer",
+      "default": 200,
+      "min": 1,
+      "max": 2000,
+      "description": "결과에 담을 항목 수 상한 — 파일이 큰 순서로 담는다(총 개수는 따로 센다)"
+    }
+  },
+  "_why": "게임 팩 첫 레시피(2026-09-27). 텍스처 설정은 빌드 크기와 메모리를 직접 바꾸는데 에셋이 수천 개라 눈으로는 못 본다 — 규칙이 분명해 결정론으로 박기 좋다.",
+  "watch": {
+    "flagged_total": "문제 텍스처"
+  }
+}

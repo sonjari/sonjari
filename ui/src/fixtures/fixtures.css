@@ -1,0 +1,79 @@
+/* 리허설 조종대 전용. 제품 스타일과 섞이면 안 되므로 클래스 접두사를 고정한다.
+   여기 있는 값은 디자인 토큰을 따르지 않는다 — 이 막대는 제품이 아니다. */
+
+.fixture-bar {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 999;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  font: 12px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color: #0f172a;
+}
+
+.fixture-toggle {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+  color: #0f172a;
+  background: #fde68a;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.fixture-body {
+  width: 300px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  background: #f8fafc;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, .45);
+}
+
+.fixture-body select {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: white;
+  font: inherit;
+}
+
+.fixture-speeds {
+  display: flex;
+  gap: 5px;
+}
+
+.fixture-speeds button {
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font: inherit;
+}
+
+.fixture-speeds button.on {
+  border-color: #0f172a;
+  background: #0f172a;
+  color: white;
+}
+
+.fixture-speeds .fixture-replay {
+  margin-left: auto;
+  font-weight: 700;
+}
+
+.fixture-body p {
+  margin: 0;
+  color: #475569;
+  font-size: 11px;
+}

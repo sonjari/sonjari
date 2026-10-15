@@ -1,0 +1,9 @@
+{
+  "_note": "Microsoft Store product identity for Sonjari (reserved 2026-10-01 in Partner Center, Product identity page; replaces the 2026-09-23 'Ontelic' reservation 9MZHKFJZVNZ3, which stays in the account unused). Not secret. Read from partner.microsoft.com/en-US/dashboard/products/9N458V8HPTR2/identity. Same publisher CN as before, so the PFN hash (qe52nfz6fmh9c) is unchanged.",
+  "IdentityName": "RoboMetaFit.Sonjari",
+  "Publisher": "CN=ACF5DBAD-47DE-49AD-88DC-F00AFB4E403D",
+  "PublisherDisplayName": "RoboMetaFit",
+  "PackageFamilyName": "RoboMetaFit.Sonjari_qe52nfz6fmh9c",
+  "PackageSID": "S-1-15-2-1477744252-4123179780-441850242-232365829-2582723423-2385127819-1642991470",
+  "StoreId": "9N458V8HPTR2"
+}

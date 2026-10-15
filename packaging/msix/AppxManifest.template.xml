@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ontelic app package (W1-7; renamed 2026-09-15). build_app_package.ps1 fills {{...}}.
+     No restricted capability except runFullTrust (desktop app). File-write virtualization stays ON (Store default).
+     One Application entry (App, the Tauri window). StartupTask declared disabled; the user turns it on in the setup wizard.
+     It also carries the MCP execution alias: bundled python.exe behind an alias so outside MCP clients can launch it
+     over stdio (probe 2026-09-15: alias passes args and pipes, and the child runs with package identity).
+     Until 2026-10-01 the alias sat on a second hidden Application; the Store refused it as a headless app. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  IgnorableNamespaces="uap uap3 uap5 rescap desktop desktop4">
+  <Identity Name="{{IDENTITY}}" Publisher="{{PUBLISHER}}" Version="{{VERSION}}" ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>{{DISPLAY}}</DisplayName>
+    <PublisherDisplayName>RoboMetaFit</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="ko-kr" />
+    <Resource Language="en-us" />
+  </Resources>
+  <Applications>
+    <!-- SupportsMultipleInstances: required by the console-subsystem MCP alias below (makeappx 0x80080204 without it).
+         The Tauri window keeps its own single-window rule (checked by e2e "one_window_after_second_launch"). -->
+    <Application Id="App" Executable="{{EXE}}" EntryPoint="Windows.FullTrustApplication" desktop4:SupportsMultipleInstances="true">
+      <uap:VisualElements DisplayName="{{DISPLAY}}" Description="Local AI desktop assistant (uses the local AI engine Ollama)"
+        BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <desktop:Extension Category="windows.startupTask" Executable="{{EXE}}" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="OntelicStartup" Enabled="false" DisplayName="{{DISPLAY}}" />
+        </desktop:Extension>
+        <!-- 2026-10-01: the MCP alias used to live on a second Application hidden from the app list. The Store
+             rejects that as a "headless app" without the HeadlessAppBypass waiver, so the alias now hangs off the main
+             App and points at the bundled python.exe (an alias extension may name its own Executable - wt.exe does). -->
+        <uap5:Extension Category="windows.appExecutionAlias" Executable="backend\python\python.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap5:AppExecutionAlias desktop4:Subsystem="console">
+            <uap5:ExecutionAlias Alias="{{ALIAS}}" />
+            <uap5:ExecutionAlias Alias="{{LEGACY_ALIAS}}" />
+          </uap5:AppExecutionAlias>
+        </uap5:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

@@ -1,0 +1,75 @@
+/* 지금 읽는 그림 조각 — LookingAt.tsx 의 머리말에 뜻이 있다.
+   색은 tokens.css 의 역할 토큰만 쓴다. 기계 쪽 바닥 위에 놓고, 유채색은 brand 하나. */
+
+.looking-at {
+  --looking-w: 132px;
+  display: flex; align-items: stretch; gap: 10px;
+  /* 말 줄(.workspace-narration)의 글자와 왼쪽을 맞춘다 — 번호 동그라미 폭만큼 들여 쓴다. 대화 폭을 다 쓰지 않는다. */
+  max-width: 440px; margin: 4px 0 12px 26px; padding: 10px 14px 10px 10px;
+  border: 1px solid rgb(var(--machine-line)); border-radius: var(--r-2);
+  background: rgb(var(--machine-1));
+}
+
+/* 긴 그림 한 장의 축소판. 칸 하나가 조각 하나다. */
+.looking-rail {
+  flex: 0 0 4px; display: flex; flex-direction: column; gap: 3px;
+  margin: 0; padding: 0; list-style: none;
+}
+.looking-rail li {
+  flex: 1 1 0; min-height: 3px; border-radius: var(--r-0);
+  background: rgb(var(--machine-line-strong));
+  transition: background-color 240ms var(--ease);
+}
+.looking-rail li.read { background: rgb(var(--brand) / .5); }
+.looking-rail li.now { background: rgb(var(--brand-bright)); }
+
+.looking-frame {
+  position: relative; flex: 0 0 var(--looking-w);
+  width: var(--looking-w); height: var(--looking-h);
+  overflow: hidden; border-radius: var(--r-1);
+  border: 1px solid rgb(var(--machine-line-strong));
+  background: rgb(var(--machine-2));
+  transition: height 240ms var(--ease);
+}
+.looking-frame img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  /* 긴 조각은 위쪽부터 보인다 — 읽는 순서가 위에서 아래다. 흰 바탕 그림이 어두운 화면에서 번쩍이지 않게 살짝 누른다. */
+  object-fit: cover; object-position: top center;
+  opacity: .93; user-select: none;
+}
+
+/* 읽는 줄. 선 하나와, 선 위로 지나간 자리의 옅은 잔상. */
+.looking-scan {
+  position: absolute; left: 0; right: 0; top: 0; height: 30px;
+  transform: translateY(-30px);
+  border-bottom: 1px solid rgb(var(--brand-bright) / .9);
+  background: linear-gradient(180deg, rgb(var(--brand) / 0), rgb(var(--brand) / .2));
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .looking-scan { animation: looking-scan 2.6s cubic-bezier(.45, 0, .55, 1) infinite; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .looking-scan { display: none; }
+  .looking-rail li, .looking-frame { transition: none; }
+}
+@keyframes looking-scan {
+  from { transform: translateY(-30px); }
+  to { transform: translateY(var(--looking-h)); }
+}
+
+.looking-at figcaption {
+  min-width: 0; flex: 1 1 0;
+  display: flex; flex-direction: column; gap: 4px; padding: 2px 0;
+}
+.looking-at figcaption strong {
+  color: rgb(var(--m-text-1)); font-size: var(--fs-2); font-weight: var(--fw-mid); line-height: 1.35;
+}
+.looking-count {
+  color: rgb(var(--brand-bright)); font-family: var(--font-mono); font-size: var(--fs-1);
+  font-variant-numeric: tabular-nums; letter-spacing: .02em;
+}
+.looking-at figcaption small {
+  margin-top: auto; color: rgb(var(--m-text-2)); font-size: var(--fs-1); line-height: 1.5;
+  text-wrap: pretty;
+}

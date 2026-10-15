@@ -1,0 +1,17 @@
+{
+ "site": "kyobo",
+ "url": "https://search.kyobobook.co.kr/search?keyword=회계",
+ "landed": "https://search.kyobobook.co.kr/search?keyword=%ED%9A%8C%EA%B3%84",
+ "title": "회계 검색결과 | 교보문고",
+ "why": "판마다 1번이 갈린다(진짜 책 ↔ 바로펀딩) — 원인 미상",
+ "captured_at": "2026-08-13T11:39:27",
+ "links": 361,
+ "stylesheets_inlined": 9,
+ "stylesheets_missing": 0,
+ "scripts_stripped": 78,
+ "bytes_gz": 188576,
+ "expect_top1_contains": "해커스 주택관리사",
+ "expect_min_items": 15,
+ "observed_items": 20,
+ "note": "판마다 1번이 진짜 책 ↔ '바로펀딩'으로 갈린다고 보고됐다. 이 표본은 **제대로 나온 판**을 얼린 것이다."
+}

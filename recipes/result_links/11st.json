@@ -1,0 +1,7 @@
+{
+  "name": "11st",
+  "hosts": ["search.11st.co.kr"],
+  "detail_url_contains": ["www.11st.co.kr/products/"],
+  "why": "검색 결과 맨 위와 사이사이에 광고 묶음(「…도 둘러보세요!」 · 「함께 보면 좋은 상품이에요」)이 끼어 있고, 그 카드가 결과 순위에 들었다. 「닌텐도 스위치 2 본체」를 찾은 화면의 첫 묶음이 「2 본체도 둘러보세요! 광고」의 조립 PC 넉 장이었다(「본체」라는 낱말에 붙은 광고). 2026-10-12 창 32K 의 9B 판(a0d3a51b)이 「검색 결과 열기」로 그 조립 PC 를 열어 읽었다(걸음 13 · 14). 같은 날 가게별로 세어 보니 창 32K 세 판의 11번가 온전한 줄이 0/9 였다(다나와 5/9). 광고를 고른 것은 모델이 아니라 순위를 건넨 우리 도구였다.",
+  "checked": "2026-10-12 그 검색 화면을 직접 열어 묶음마다 링크 모양을 셌다 — 광고 묶음(section_collectionModule) 둘은 전부 https://action.adoffice.11st.co.kr/act/click/… 이고, 진짜 목록(section_list) · 최저가 묶음 · 백화점관은 https://www.11st.co.kr/products/<번호> 였다. 판매자 가게 링크는 https://shop.11st.co.kr/stores/<번호>."
+}

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+src-tauri/target/
+# MSIX 빌드는 CARGO_TARGET_DIR 을 따로 둔다(target-msix). 정확히 `target/` 만 잡던 규칙이
+# 5.2GB·3,000여 파일을 통과시켰다 — `git add -A` 한 번에 커밋될 뻔했다(2026-09-21).
+src-tauri/target-*/
+src-tauri/gen/
+src-tauri/icons/android/
+src-tauri/icons/ios/
+src-tauri/icons/Square*.png
+src-tauri/icons/StoreLogo.png
+src-tauri/icons/msix/
+src-tauri/icons/*.icns
+*.log
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+.env
+.env.local

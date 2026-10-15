@@ -1,0 +1,4 @@
+RoboMetaFit 자체 저작물 (2026).
+
+`vendor/` 아래에 두는 이유는 로더가 그 폴더만 읽기 때문이다(`skills.py:load_skills`).
+밖에서 가져온 것이 아니다.

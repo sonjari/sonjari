@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>손자리(Sonjari) 설치</title>
+</head>
+<body>
+<h1>손자리(Sonjari) 설치</h1>
+<p>버전 <strong>{{VERSION}}</strong> · {{PUBLISHED}} 올림</p>
+<!-- ★ 2026-09-29 밤 AWS 깨끗한 윈도우 첫 실행에서 이 페이지가 세 번 막혔다:
+     ① 첫 링크(.appinstaller)가 윈도우 서버·「앱 설치 관리자」 없는 PC 에서 「Windows can't open this type of file」
+     ② 엣지 SmartScreen 「could harm your device」(시험 서명이라 마이크로소프트 서명이 없다)
+     ③ .msix 더블클릭도 같은 이유로 안 열림 — 그래서 PowerShell 한 줄을 같이 적는다. -->
+
+<h2>처음 설치할 때 (한 번만)</h2>
+<ol>
+  <li>
+    <p><a href="Ontelic-test-signing.cer">인증서 받기</a> — 이 앱이 우리가 만든 것임을 윈도우에 알려 주는 파일입니다.</p>
+    <p>시작 메뉴에서 <strong>PowerShell</strong> 을 오른쪽 클릭 → <strong>관리자로 실행</strong> 한 뒤 아래 한 줄을 붙여 넣습니다.</p>
+    <pre>Import-Certificate -FilePath "$env:USERPROFILE\Downloads\Ontelic-test-signing.cer" -CertStoreLocation Cert:\LocalMachine\TrustedPeople</pre>
+  </li>
+  <li>
+    <p><a href="Ontelic.appinstaller">설치 파일 받기 (Ontelic.appinstaller)</a> — 받은 파일을 더블클릭하고 <strong>설치</strong> 를 누릅니다.</p>
+    <p>이렇게 설치하면 <strong>다음부터는 앱을 켤 때 윈도우가 알아서 새 버전으로 바꿔 줍니다.</strong></p>
+    <p>「이 형식의 파일을 열 수 없습니다(Windows can't open this type of file)」가 뜨면 이 PC 에 「앱 설치 관리자」가 없는 것입니다
+      (윈도우 서버 등). 아래 <a href="#direct">「직접 설치」</a> 로 하세요.</p>
+  </li>
+  <li><p>시작 메뉴에서 <strong>Sonjari Beta</strong> 를 켜고, 첫 화면의 <strong>「이 PC 에 맞게 설정 시작」</strong> 을 누릅니다.</p></li>
+</ol>
+
+<h2>받을 때 엣지가 경고하면</h2>
+<p>엣지가 「장치에 해를 끼칠 수 있습니다(could harm your device)」라고 하면, 다운로드 목록의 그 줄에서 <strong>… → 유지</strong>,
+  한 번 더 물으면 <strong>자세히 표시 → 그래도 유지</strong> 를 누릅니다. 시험판이라 아직 마이크로소프트 서명이 없어서 뜨는 경고입니다.</p>
+
+<h2 id="direct">직접 설치 (앱 설치 관리자가 없거나 자동 업데이트가 안 될 때)</h2>
+<ol>
+  <li><p>위 1번의 인증서를 먼저 등록합니다.</p></li>
+  <li><p><a href="{{MSIX}}">패키지 받기 ({{MSIX}})</a></p></li>
+  <li>
+    <p>관리자 PowerShell 에 아래 한 줄을 붙여 넣습니다(더블클릭은 앱 설치 관리자가 있어야 열립니다).</p>
+    <pre>Add-AppxPackage -Path "$env:USERPROFILE\Downloads\{{MSIX}}"</pre>
+  </li>
+</ol>
+<p>이 방법으로 깔면 자동 업데이트는 안 됩니다 — 새 버전이 나오면 같은 방법으로 다시 받아 덮어씁니다.</p>
+
+<h2>이미 USB 로 설치했다면</h2>
+<p>지우지 않아도 됩니다. 위 2번의 설치 파일을 한 번만 열면 이 주소에서 업데이트를 받도록 바뀝니다.</p>
+
+<h2>브라우저</h2>
+<p>손자리는 크롬으로 웹 일을 합니다. 크롬이 없는 PC 에서는 엣지로 합니다(2026-09-29 이후 판).</p>
+
+<hr>
+<p>이 주소는 가족·시험용입니다. 다른 사람에게 보내지 마세요.</p>
+</body>
+</html>

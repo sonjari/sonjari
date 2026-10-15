@@ -1,0 +1,8 @@
+.venv/
+data/
+outputs/
+*.pyc
+__pycache__/
+.pytest_cache/
+*.egg-info/
+packaging/msix/secret_prefixes.local.txt

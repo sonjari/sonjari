@@ -1,0 +1,29 @@
+{
+  "name": "scene_stats",
+  "title": "씬 성능 점검",
+  "description": "씬마다 오브젝트·렌더러·삼각형·조명(실시간·그림자)·재질·카메라·파티클 수를 세어 무거운 씬부터 보여 준다. 씬을 열어 보지만 저장하지 않는다.",
+  "plain": "씬마다 오브젝트 · 삼각형 · 조명 수를 세어 무거운 씬부터 보여 줍니다. 저장하지 않습니다.",
+  "ask": "유니티 프로젝트 씬 성능 점검해 줘",
+  "method": "Sonjari.Recipes.SceneStats.Run",
+  "risk": "L1",
+  "params": {
+    "folder": {
+      "type": "string",
+      "default": "Assets",
+      "asset_folder": true,
+      "description": "씬을 찾을 폴더"
+    },
+    "limit": {
+      "type": "integer",
+      "default": 30,
+      "min": 1,
+      "max": 500,
+      "description": "보여 줄 씬 수"
+    }
+  },
+  "_why": "게임 팩(2026-09-27). 「이 씬 왜 무겁지」 — 실시간 그림자 조명·삼각형 수는 프로파일러를 켜기 전에 먼저 보는 숫자다.",
+  "watch": {
+    "max:scenes.triangles": "가장 무거운 씬의 삼각형",
+    "sum:scenes.realtime_lights": "실시간 조명(전체 씬)"
+  }
+}

@@ -1,0 +1,46 @@
+name: A run went wrong
+description: Sonjari said or did something wrong on a real task. 한국어로 적으셔도 됩니다.
+labels: ["run-report"]
+body:
+  - type: textarea
+    id: asked
+    attributes:
+      label: What you asked
+      description: The sentence you gave it, as you typed it.
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: What it did or said. "It said done but it was not" and "the number in the file is not on the page" are the reports we care about most.
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model and context size
+      description: Shown at the top of the window, e.g. "Gemma 4 · 128K".
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and VRAM
+      placeholder: RTX 4070 12 GB
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Sonjari version
+      description: Settings › General.
+  - type: input
+    id: site
+    attributes:
+      label: Site, if one was involved
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: A screenshot of "Sonjari's computer" or the steps list helps. Remove anything private first.

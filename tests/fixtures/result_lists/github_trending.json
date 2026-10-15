@@ -1,0 +1,18 @@
+{
+ "site": "github_trending",
+ "url": "https://github.com/trending/python",
+ "landed": "https://github.com/trending/python",
+ "title": "Trending Python repositories on GitHub today · GitHub",
+ "why": "카드마다 짧은 부속 링크 셋(Star·별 수·포크) — 평균 글자수에 걸려 목록이 통째로 빠졌다(0줄)",
+ "route": "direct",
+ "captured_at": "2026-10-05T06:45:16",
+ "links": 1232,
+ "stylesheets_inlined": 22,
+ "stylesheets_missing": 0,
+ "scripts_stripped": 10,
+ "bytes_gz": 534646,
+ "expect_top1_contains": "text-to-cad",
+ "expect_min_items": 10,
+ "observed_items": 13,
+ "note": "고치기 전 0건: 칸마다 「Star」·제목·별 수·포크 넷을 내서 링크 평균 9.3자 → 메뉴로 보고 통째로 뺐다. 칸마다 제일 긴 글자로 보면 23.8자(2026-10-05)."
+}

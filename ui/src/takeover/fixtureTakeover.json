@@ -1,0 +1,145 @@
+{
+ "sessions": {
+  "sessions": [
+   {
+    "request_count": 2,
+    "tool": "claude_code",
+    "tool_name": "Claude Code",
+    "session_id": "demo-1",
+    "session_path": "D:\\work\\.claude\\projects\\shop\\demo-1.jsonl",
+    "title": "주문 합계에 쿠폰 할인 넣기",
+    "cwd": "D:\\work\\shop-backend",
+    "stop_kind": "rate_limit",
+    "stopped_minutes_ago": 33,
+    "resets_at": null,
+    "stop_message": "You've hit your limit · resets 6pm",
+    "first_request": "주문 합계 계산에 쿠폰 할인을 넣어 줘. 정률·정액 둘 다.",
+    "last_request": "좋아, 정액 쿠폰은 합계보다 클 때 0원으로 막아 줘",
+    "last_reply": "쿠폰 인자를 추가했습니다. 이제 정률·정액 계산을 넣고 시험을 붙이겠습니다.",
+    "files": [
+     "orders.py"
+    ],
+    "recent_commands": [
+     "python -m pytest tests/test_orders.py -q"
+    ],
+    "open_tasks": [
+     "정률·정액 계산",
+     "시험 추가"
+    ],
+    "git": {
+     "repo": true,
+     "root": "D:\\work\\shop-backend",
+     "branch": "master",
+     "head": "8e203c0",
+     "changed_count": 1,
+     "changed": [
+      "orders.py"
+     ],
+     "untracked_count": 0
+    },
+    "read_gaps": {
+     "unreadable_lines": 0,
+     "skipped_bytes": 0
+    }
+   },
+   {
+    "request_count": 1,
+    "tool": "codex",
+    "tool_name": "Codex",
+    "session_id": "c-demo",
+    "session_path": "D:\\work\\.codex\\sessions\\2026\\09\\14\\rollout-demo.jsonl",
+    "title": "회의록 정리 스크립트 만들어",
+    "cwd": "D:\\work\\notes",
+    "stop_kind": "none",
+    "stopped_minutes_ago": 13,
+    "resets_at": null,
+    "stop_message": "",
+    "first_request": "회의록 정리 스크립트 만들어",
+    "last_request": "회의록 정리 스크립트 만들어",
+    "last_reply": "",
+    "files": [],
+    "recent_commands": [],
+    "open_tasks": [],
+    "git": {
+     "repo": false,
+     "reason": "not_a_git_repo"
+    },
+    "read_gaps": {
+     "unreadable_lines": 0,
+     "skipped_bytes": 0
+    }
+   }
+  ],
+  "cursor_supported": false,
+  "note": "커서는 대화가 공개 형식이 아니라 아직 읽지 않습니다."
+ },
+ "records": [
+  {
+   "id": 1,
+   "stop_key": "D:\\work\\.claude\\projects\\shop\\demo-1.jsonl|1789321874",
+   "tool": "claude_code",
+   "session_path": "D:\\work\\.claude\\projects\\shop\\demo-1.jsonl",
+   "cwd": "D:\\work\\shop-backend",
+   "status": "review_pending",
+   "chat_session": "",
+   "branch": "jarvis/takeover-1-1789323857",
+   "worktree": "D:\\work\\out\\workspace\\takeover\\1-1789323857",
+   "base_ref": "c47f93a7690a6cd156fe532040245808aa581b33",
+   "job_id": "job-demo",
+   "created_at": 1789323857.7152443,
+   "updated_at": 1789323860.292913,
+   "card": {
+    "request_count": 2,
+    "tool": "claude_code",
+    "tool_name": "Claude Code",
+    "session_id": "demo-1",
+    "session_path": "D:\\work\\.claude\\projects\\shop\\demo-1.jsonl",
+    "title": "주문 합계에 쿠폰 할인 넣기",
+    "cwd": "D:\\work\\shop-backend",
+    "stop_kind": "rate_limit",
+    "stopped_minutes_ago": 33,
+    "resets_at": null,
+    "stop_message": "You've hit your limit · resets 6pm",
+    "first_request": "주문 합계 계산에 쿠폰 할인을 넣어 줘. 정률·정액 둘 다.",
+    "last_request": "좋아, 정액 쿠폰은 합계보다 클 때 0원으로 막아 줘",
+    "last_reply": "쿠폰 인자를 추가했습니다. 이제 정률·정액 계산을 넣고 시험을 붙이겠습니다.",
+    "files": [
+     "orders.py"
+    ],
+    "recent_commands": [
+     "python -m pytest tests/test_orders.py -q"
+    ],
+    "open_tasks": [
+     "정률·정액 계산",
+     "시험 추가"
+    ],
+    "git": {
+     "repo": true,
+     "root": "D:\\work\\shop-backend",
+     "branch": "master",
+     "head": "8e203c0",
+     "changed_count": 1,
+     "changed": [
+      "orders.py"
+     ],
+     "untracked_count": 0
+    },
+    "read_gaps": {
+     "unreadable_lines": 0,
+     "skipped_bytes": 0
+    }
+   },
+   "result": {
+    "job_status": "completed",
+    "head": "56be1c4a26ef1344a175ea06a45550a5ebd05275",
+    "changed_files": [
+     "orders.py",
+     "test_orders.py"
+    ],
+    "diffstat_tail": " 2 files changed, 8 insertions(+), 1 deletion(-)",
+    "summary": "(리허설) 정률·정액 쿠폰 계산을 넣고 시험 파일을 추가했습니다. 시험은 돌리지 않았습니다."
+   }
+  }
+ ],
+ "card_answer": "D:\\work\\shop-backend\n처음 요청: 주문 합계 계산에 쿠폰 할인을 넣어 줘. 정률·정액 둘 다.\n마지막 요청: 좋아, 정액 쿠폰은 합계보다 클 때 0원으로 막아 줘\n멈추기 직전 답: 쿠폰 인자를 추가했습니다. 이제 정률·정액 계산을 넣고 시험을 붙이겠습니다.\n남은 할 일(기록 기준):\n- 정률·정액 계산\n- 시험 추가\n바뀌어 있거나 만지던 파일:\n- orders.py\n\n규칙:\n1. 먼저 git diff 로 이미 바뀐 것을 읽고, 마지막 요청이 어디까지 됐는지 판단한다.\n2. 남은 일만 한다. 이미 된 것을 다시 하지 않는다.\n3. 고친 뒤 이 저장소의 시험을 돌려 결과를 적는다. 못 돌렸으면 못 돌렸다고 적는다.\n4. 끝나면 무엇을 했고 무엇이 남았는지 짧게 적는다 — 한도가 풀린 원래 도구가 검토한다."
+}

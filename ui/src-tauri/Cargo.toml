@@ -1,0 +1,38 @@
+[package]
+name = "alture-jarvis-hud"
+version = "0.4.0"
+description = "ALTURE JARVIS local desktop HUD"
+authors = ["ALTURE"]
+edition = "2021"
+
+[features]
+default = []
+pilot = []
+
+[lib]
+name = "alture_jarvis_hud_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+rfd = "0.15"
+ureq = { version = "2.12", features = ["json"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Dwm", "Win32_UI_Input_KeyboardAndMouse"] }
+# MSIX: 패키지 신원 확인 + StartupTask(자동 시작). tauri 가 이미 끌어오는 0.61 과 같은 판.
+windows = { version = "0.61", features = ["ApplicationModel", "Foundation", "Win32_Foundation", "Win32_Storage_Packaging_Appx"] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

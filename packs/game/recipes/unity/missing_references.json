@@ -1,0 +1,34 @@
+{
+  "name": "missing_references",
+  "title": "빠진 참조 찾기",
+  "description": "프리팹과 씬에서 스크립트가 사라진 컴포넌트(Missing Script)와 대상이 사라진 참조 칸(Missing reference)을 찾는다. 씬을 열어 보지만 저장하지 않는다.",
+  "plain": "프리팹과 씬에서 「Missing」으로 뜨는 칸(사라진 스크립트 · 끊어진 연결)을 한 번에 찾습니다. 저장하지 않습니다.",
+  "ask": "유니티 프로젝트에서 빠진 참조 찾아 줘",
+  "method": "Sonjari.Recipes.MissingReferences.Run",
+  "risk": "L1",
+  "params": {
+    "folder": {
+      "type": "string",
+      "default": "Assets",
+      "asset_folder": true,
+      "description": "점검할 폴더. 'Assets' 또는 'Assets/...'"
+    },
+    "include_scenes": {
+      "type": "boolean",
+      "default": true,
+      "description": "씬도 열어서 볼지"
+    },
+    "limit": {
+      "type": "integer",
+      "default": 200,
+      "min": 1,
+      "max": 2000,
+      "description": "결과에 담을 항목 수 상한(총 개수는 따로 센다)"
+    }
+  },
+  "_why": "게임 팩 레시피(2026-09-27). 빠진 참조는 런타임에야 터지는 버그의 흔한 뿌리인데 에디터는 하나씩 열어야 보인다.",
+  "watch": {
+    "missing_scripts": "빠진 스크립트",
+    "missing_references": "끊긴 참조"
+  }
+}

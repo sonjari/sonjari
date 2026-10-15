@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/sonjari/sonjari/discussions
+    about: Ask a question, share how you use it, or float an idea before it becomes an issue.
+  - name: Security problem
+    url: https://github.com/sonjari/sonjari/blob/main/SECURITY.md
+    about: Please do not report vulnerabilities in a public issue.

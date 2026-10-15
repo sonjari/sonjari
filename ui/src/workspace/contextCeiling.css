@@ -1,0 +1,39 @@
+/* 컨텍스트 상한 칸 — 모델 고르개(작업대)와 설치 마법사가 같이 쓴다. 그래서 컴포넌트가 직접 불러온다.
+   (마법사 창은 workspace.css 를 안 불러온다.) */
+.context-ceiling { flex: none; margin: 6px 0 2px; padding: 10px 9px 8px; border-top: 1px solid rgb(var(--line) / .75); display: flex; flex-direction: column; gap: 8px; }
+.context-ceiling-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.context-ceiling-head > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.context-ceiling-head strong { color: rgb(var(--text-2)); font-size: var(--fs-2); }
+.context-ceiling-head strong span { margin-left: 4px; color: rgb(var(--brand-bright)); }
+.context-ceiling-head small { color: rgb(var(--text-4)); font-size: var(--fs-1); }
+.context-ceiling button { height: 28px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; flex: none; border: 1px solid rgb(var(--line-strong)); border-radius: var(--r-2); color: rgb(var(--text-2)); background: rgb(var(--surface-2)); font-size: var(--fs-1); cursor: pointer; }
+.context-ceiling button:disabled { opacity: .5; cursor: default; }
+.context-ceiling button.primary { align-self: flex-end; border-color: rgb(var(--brand-bright) / .35); color: rgb(var(--text-1)); background: rgb(var(--brand) / .16); }
+.context-ceiling button.context-summary { height: auto; min-height: 24px; padding: 3px 7px; justify-content: flex-start; border-color: transparent; background: transparent; color: rgb(var(--text-3)); text-align: left; line-height: 1.45; }
+.context-ceiling button.context-summary u { color: rgb(var(--text-4)); text-underline-offset: 2px; }
+/* 잰 칸마다 알약 버튼(09-29) — 줄바꿈되어 낮게 앉는다. 샌 칸은 신호색, 고른 칸은 브랜드 테두리. */
+.context-choices { display: flex; flex-wrap: wrap; gap: 5px; }
+.context-ceiling .context-choices button { height: auto; min-height: 36px; padding: 4px 9px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; font-variant-numeric: tabular-nums; }
+.context-choices button b { color: rgb(var(--text-2)); font-size: var(--fs-1); font-weight: var(--fw-mid); }
+.context-choices button small { color: rgb(var(--text-4)); font-size: 10.5px; white-space: nowrap; }
+.context-choices button.passed small { color: rgb(var(--ok)); }
+.context-choices button.failed small { color: rgb(var(--signal-bright, var(--signal))); }
+.context-ceiling .context-choices button.selected { border-color: rgb(var(--brand-bright) / .7); background: rgb(var(--brand) / .18); box-shadow: 0 0 0 1px rgb(var(--brand-bright) / .35); }
+.context-rungs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-1); }
+.context-rungs li { display: grid; grid-template-columns: 42px 16px 1fr; align-items: center; gap: 4px; color: rgb(var(--text-3)); font-variant-numeric: tabular-nums; }
+.context-rungs b { color: rgb(var(--text-2)); font-weight: var(--fw-mid); }
+.context-rungs li.passed svg { color: rgb(var(--ok)); }
+.context-rungs li.failed { color: rgb(var(--signal-bright, var(--signal))); }
+.context-rungs li.failed svg { color: rgb(var(--signal)); }
+.context-rungs li.loading { color: rgb(var(--text-4)); }
+.context-note { margin: 0; color: rgb(var(--text-4)); font-size: var(--fs-1); line-height: 1.5; }
+/* 모델 칩의 작은 점 — 감시가 「카드 사정이 바뀌었다」고 할 때. 깜빡이지 않는다. */
+.model-chip-dot { width: 6px; height: 6px; margin-left: 5px; display: inline-block; flex: none; border-radius: 50%; background: rgb(var(--brand-bright)); box-shadow: 0 0 0 3px rgb(var(--brand) / .18); }
+.context-note.hint { color: rgb(var(--brand-bright)); }
+.context-note.warn { color: rgb(var(--signal-bright, var(--signal))); }
+.context-apply { display: flex; flex-direction: column; gap: 7px; padding: 8px; border: 1px solid rgb(var(--line) / .8); border-radius: 9px; background: rgb(var(--surface-2) / .6); }
+.context-apply p { margin: 0; color: rgb(var(--text-2)); font-size: var(--fs-1); }
+.context-apply label { display: flex; align-items: flex-start; gap: 7px; color: rgb(var(--text-3)); font-size: var(--fs-1); cursor: pointer; }
+.context-apply label input { margin-top: 2px; accent-color: rgb(var(--brand-bright)); }
+.context-apply label span { display: flex; flex-direction: column; gap: 2px; }
+.context-apply label small { color: rgb(var(--text-5, var(--text-4))); line-height: 1.45; }

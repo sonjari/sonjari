@@ -1,0 +1,7 @@
+{
+  "name": "naver_news",
+  "hosts": ["news.naver.com"],
+  "detail_url_contains": ["/article/"],
+  "why": "섹션 목록의 카드마다 기사 링크 옆에 「N개의 관련뉴스 더보기」(/cluster/…)가 있어 순위 2번이 그것이 됐다(2026-10-05 9B 판 5fc96f5e).",
+  "checked": "2026-10-05 news.naver.com/section/105 — 기사 링크는 https://n.news.naver.com/mnews/article/<언론사>/<번호>"
+}

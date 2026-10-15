@@ -1,0 +1,17 @@
+{
+ "site": "daangn",
+ "url": "https://www.daangn.com/kr/buy-sell/s/?search=책상",
+ "landed": "https://www.daangn.com/kr/buy-sell/s/?in=%ED%95%9C%EB%82%A8%EB%8F%99-50&search=%EC%B1%85%EC%83%81",
+ "title": "책상 중고거래 검색결과 | 당근",
+ "why": "슬러그 주소 + 목록이 세 덩어리로 쪼개짐",
+ "captured_at": "2026-08-13T11:39:47",
+ "links": 196,
+ "stylesheets_inlined": 16,
+ "stylesheets_missing": 0,
+ "scripts_stripped": 21,
+ "bytes_gz": 118543,
+ "expect_top1_contains": "원목 책상",
+ "expect_min_items": 40,
+ "observed_items": 60,
+ "note": "슬러그 주소 + 목록이 세 덩어리로 쪼개진 곳. 앞 두 칸으로 자기페이지를 판정하면 여기 60건이 통째로 사라진다."
+}
