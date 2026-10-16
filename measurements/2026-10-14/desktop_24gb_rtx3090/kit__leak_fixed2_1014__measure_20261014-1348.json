@@ -1,0 +1,149 @@
+{
+  "kit": 3,
+  "started": "2026-10-14 13:31",
+  "price": [
+    {
+      "task": "mouse",
+      "round": 1,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "G마켓": "온전",
+        "11번가": "온전",
+        "다나와": "온전"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "whole_rows": 3,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 381,
+      "steps": 16,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 92844,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 55.1,
+      "prefill_tokens_per_sec": 8654.2,
+      "closed_tabs": 1
+    },
+    {
+      "task": "buds",
+      "round": 1,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "G마켓": "온전",
+        "11번가": "온전",
+        "다나와": "온전"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "whole_rows": 3,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 336,
+      "steps": 14,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 95527,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 53.0,
+      "prefill_tokens_per_sec": 6825.0,
+      "closed_tabs": 1
+    },
+    {
+      "task": "switch",
+      "round": 1,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "G마켓": "온전",
+        "11번가": "온전",
+        "다나와": "온전"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "whole_rows": 3,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 291,
+      "steps": 16,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 93880,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 56.6,
+      "prefill_tokens_per_sec": 8589.7,
+      "closed_tabs": 0
+    }
+  ],
+  "chain": [],
+  "skipped": 0,
+  "price_summary": {
+    "per_round": [
+      9
+    ],
+    "out_of": 9,
+    "incomplete_rounds": 0,
+    "mean": 9.0,
+    "spread": null,
+    "median": 9.0,
+    "low": 9,
+    "high": 9,
+    "causes": {},
+    "cause_groups": {},
+    "sec_median": 336.0,
+    "gen_tokens_per_sec_median": 55.1,
+    "prefill_tokens_per_sec_median": 8589.7,
+    "rounds_to_tell": null,
+    "short_rows": {}
+  },
+  "pc": {
+    "windows": "Windows-10-10.0.26200-SP0",
+    "cards": [
+      {
+        "name": "NVIDIA GeForce RTX 3090",
+        "total_mb": 24576,
+        "used_mb": 19424
+      },
+      {
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_mb": 12288,
+        "used_mb": 2600
+      }
+    ],
+    "cards_before_start": [
+      {
+        "name": "NVIDIA GeForce RTX 3090",
+        "total_mb": 24576,
+        "used_mb": 19424
+      },
+      {
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_mb": 12288,
+        "used_mb": 2837
+      }
+    ],
+    "model": "7B-GSQ-RCO-GGUF:Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+    "window": 131072,
+    "model_on_card_mb": 12863,
+    "model_total_mb": 12863,
+    "on_card_share": 1.0,
+    "screen_and_others_mb": null,
+    "sonjari_build": "d2f84111016a"
+  },
+  "finished": "2026-10-14 13:48"
+}

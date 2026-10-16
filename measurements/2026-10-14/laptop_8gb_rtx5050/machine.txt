@@ -1,0 +1,5 @@
+﻿gpu: NVIDIA GeForce RTX 5050 Laptop GPU, 8151 MiB, 616.92
+ram_gb: 15.6
+windows: Microsoft Windows 11 Home 26200
+ollama: 0.34.3
+sonjari_beta: 0.4.26287.1615

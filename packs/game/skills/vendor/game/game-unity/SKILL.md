@@ -57,7 +57,7 @@ description: 유니티 프로젝트를 다루는 게임 팩. 텍스처 설정 �
 ## 답하는 모양
 
 ```
-[프로젝트] E:\UnityProjects\OntelicPlayground (Unity 6000.6.3f1 · URP)
+[프로젝트] E:\UnityProjects\MyGame (Unity 6000.6.3f1 · URP)
 [안 쓰는 에셋] 707개 중 361개 · 117.5MB — 빌드 씬 4개 기준
   - Assets/FPS/Scenes/SecondaryScene.unity  39.7MB (빌드 목록에 없는 씬)
   - Assets/FPS/Art/Textures/VFX/ExplosionRange.bmp  16MB

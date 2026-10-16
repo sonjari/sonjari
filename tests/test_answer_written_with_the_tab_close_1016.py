@@ -101,3 +101,28 @@ def test_words_said_with_a_reading_tool_are_still_not_the_answer(tmp_path) -> No
 
     assert "가장 겹치는 쪽은" not in answer
     assert "agent_answer_from_wrap_up" not in events
+
+
+def _verification(tmp_path, model) -> dict:
+    config = JarvisConfig(runtime_root=tmp_path, data_dir=tmp_path / "data", output_dir=tmp_path / "outputs",
+                          browser_enabled=True, browser_task_timeout_sec=60)
+    store = JobStore(tmp_path / "j.db")
+    from test_agent import FakeBrowser
+
+    agent = BrowserAgent(config, model, _Gateway(), FakeBrowser(), _Tools(), store, EventBus())
+    job = store.create_job("chat", "agent", {"prompt": "둘 중 어느 쪽이 우리와 더 겹치나 찾아봐"})
+    store.claim_next()
+    return agent.run("둘 중 어느 쪽이 우리와 더 겹치나 찾아봐", job_id=job["id"], origin="chat").verification
+
+
+def test_the_record_keeps_how_long_the_words_with_the_close_were(tmp_path) -> None:
+    """10-14 대표 판 셋은 같은 고장이었는데, 탭 닫기와 같이 쓴 글이 기록에 없어 고침이 들었을지 알 수 없었다 (2026-10-16)."""
+    used = _verification(tmp_path / "a", _Model(with_close=SUMMARY, final="브라우저 닫았습니다."))["wrap_up"]
+    assert used == {"turns": [{"step": 2, "chars": len(SUMMARY), "held": True}], "used_as_answer": True}
+
+    short = _verification(tmp_path / "b", _Model(with_close="다 읽었으니 탭을 닫겠습니다.", final="정리: " + "가" * 60))["wrap_up"]
+    assert short["used_as_answer"] is False
+    assert short["turns"] == [{"step": 2, "chars": len("다 읽었으니 탭을 닫겠습니다."), "held": False}]
+
+    none = _verification(tmp_path / "c", _Model(with_close=SUMMARY, final="짧은 마무리.", close_tool="browser_search"))["wrap_up"]
+    assert none == {"turns": [], "used_as_answer": False}
