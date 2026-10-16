@@ -1,6 +1,7 @@
 import { t } from "../i18n";
 import { Bug, FolderCode, FolderOpen, Globe, ScanSearch, Table2 } from "lucide-react";
 import type { WorkspaceMode } from "../types";
+import type { ReactNode } from "react";
 
 /**
  * 대화가 하나도 없을 때. 빈 화면은 무엇을 하라는 초대여야 한다.
@@ -52,8 +53,10 @@ export function paramsInTag(tag: string): number {
   return found.length ? Math.max(...found) : 0;
 }
 
-export function Welcome({ onSuggestion, mode = "cowork", codeWorkspace = "", codeModel = "" }: {
+export function Welcome({ onSuggestion, mode = "cowork", codeWorkspace = "", codeModel = "", quests }: {
   onSuggestion: (value: string) => void;
+  /** 처음 쓰는 사람의 퀘스트 판(튜토리얼) — 제안 칸보다 먼저 보인다. */
+  quests?: ReactNode;
   mode?: WorkspaceMode;
   codeWorkspace?: string;
   /** 코드 탭에서 쓰는 모델 — 작으면 시작 전에 무엇을 잘하고 무엇을 클로드에게 맡길지 한 줄 알린다(§55-13 기대 맞추기 2). */
@@ -81,6 +84,7 @@ export function Welcome({ onSuggestion, mode = "cowork", codeWorkspace = "", cod
         </p>
       )}
 
+      {quests}
       <div className="suggestion-grid">
         {suggestions.map(({ icon: Icon, label, text }) => (
           <button key={text} onClick={() => onSuggestion(text)}>

@@ -1,4 +1,4 @@
-import { t } from "./i18n";
+import { lang, t } from "./i18n";
 import { isFailureNotice, jobFailureText } from "./workspace/jobFailure";
 import { NO_PAINT, SETTLE_MAX_MS, isSettling, onAnswerPainted, onAnswerReset, onHeadJobDone, type PaintState } from "./workspace/settling";
 import { AnimatePresence, motion } from "framer-motion";
@@ -64,6 +64,10 @@ const COMMIT_TOOL_NAMES = new Set([
   "google_calendar_delete", "naver_blog_save_draft", "naver_blog_publish",
 ]);
 import "./workspace.css";
+import "./tutorial/tutorial.css";
+import { QuestBoard } from "./tutorial/QuestBoard";
+import { CoachBubble } from "./tutorial/CoachBubble";
+import { useTutorial } from "./tutorial/useTutorial";
 
 type LocalAttachment = ChatAttachment & { size: number };
 
@@ -919,6 +923,7 @@ export function WorkspaceApp() {
         // 끝나는 사건은 대기열 어느 것이든 받는다. 맨 앞만 보면, 시작도 못 하고 실패한
         // 뒤쪽 작업이 영영 대기열에 남아 입력이 잠긴 것처럼 보인다.
         if (event.event === "job_completed" || event.event === "job_failed" || event.event === "job_cancelled") {
+          tutorialRef.current.onJobEnded(event.event === "job_completed" ? "completed" : event.event === "job_failed" ? "failed" : "cancelled", jobId);
           setLooking((rows) => applyLooking(rows, jobId, { done: true }));
           // 궤적은 닫기만 한다. 지우면 답 옆에서 근거가 사라진다.
           // ★ 2026-09-20 노트북: 이 창이 보내지 않은 작업(원격 API·MCP·다른 창)은 아래 대기열 검사에서 걸러져
@@ -977,6 +982,7 @@ export function WorkspaceApp() {
         }
         if (jobId !== activeJobRef.current) return;
         if (event.event === "agent_started") {
+          tutorialRef.current.onAgentStarted(jobId, String(payload.origin ?? ""));
           setThinkingText("");
           setThinkingKo("");
           // The workspace used to minimize itself here and hand the screen to
@@ -1252,6 +1258,28 @@ export function WorkspaceApp() {
   );
   const [stageHold, setStageHold] = useState(false);
   const [stageOverride, setStageOverride] = useState<boolean | null>(null);
+  // ★ 튜토리얼(퀘스트 판 · 2026-10-16 · docs/설계_튜토리얼_퀘스트판_2026-10-16.ko.md). 첫 화면의 「처음 해 볼 것」과 화면을 짚는 말풍선.
+  const tutorial = useTutorial({
+    english: lang() === "en",
+    setDraft,
+    focusDraft: () => draftRef.current?.focus(),
+    setStage: setStageOverride,
+    openReport: () => setReportOpen(true),
+  });
+  const tutorialRef = useRef(tutorial);
+  tutorialRef.current = tutorial;
+  const [tierGb, setTierGb] = useState<number | undefined>(undefined);
+  const [claudeConnected, setClaudeConnected] = useState(false);
+  useEffect(() => {
+    if (!setupApi || !tutorial.showBoard) return;
+    let alive = true;
+    void setupApi.recommendation().then((rec) => { if (alive) setTierGb(rec?.tier_gb || rec?.card?.vram_total_gb || undefined); }).catch(() => null);
+    // 퀘스트 ③ 은 클로드가 이어진 PC 에서만 보인다.
+    void setupApi.connectScan().then((scan) => {
+      if (alive) setClaudeConnected(scan.clients.some((client) => client.id.startsWith("claude") && client.registered === true));
+    }).catch(() => null);
+    return () => { alive = false; };
+  }, [setupApi, tutorial.showBoard]);
   const [browserControl, setBrowserControl] = useState(false);
   // ★ 2026-09-30: 새 일이 시작되면 앞 일이 켜 둔 무대를 **먼저 내린다.** 아래 5초 타이머는 「일이 없을 때」만 돌아서,
   //   앞 일이 끝나고 5초 안에 다음 일이 시작되면(줄 선 일·연달아 보낸 말) 타이머가 취소된 채 무대가 켜진 채로 남았다 —
@@ -1443,6 +1471,7 @@ export function WorkspaceApp() {
     const prompt = (override ?? draft).trim();
     const client = clientRef.current;
     if (!prompt || !client) return;
+    if (override === undefined) tutorialRef.current.onSent();
     const sending = override === undefined ? attachments : [];
     // 화면·기록에 남는 것 — 원본 바이트는 빼고 미리보기·크기만.
     const files = sending.map(({ data_base64: _data, ...shown }) => shown);
@@ -1962,7 +1991,11 @@ export function WorkspaceApp() {
           onKeyDown={markUserScrolling}
         >
           {renderedMessages.length === 0 ? (
-            <Welcome onSuggestion={setDraft} mode={workspaceMode} codeWorkspace={codeWorkspace} codeModel={activeModel} />
+            <Welcome onSuggestion={setDraft} mode={workspaceMode} codeWorkspace={codeWorkspace} codeModel={activeModel}
+              quests={workspaceMode === "cowork" && tutorial.showBoard ? (
+                <QuestBoard state={tutorial.quests} tierGb={tierGb} english={lang() === "en"} claudeConnected={claudeConnected}
+                  onStart={tutorial.start} onDismiss={tutorial.dismiss} onCardSeen={tutorial.cardSeen} />
+              ) : null} />
           ) : (
             <div className="message-column has-spine" ref={columnRef}>
               {timeline.map((entry) => (entry.kind === "message"
@@ -2263,6 +2296,7 @@ export function WorkspaceApp() {
       />
       <SettingsScreen client={clientRef.current} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       {FixtureBar && <Suspense fallback={null}><FixtureBar /></Suspense>}
+      {tutorial.bubble && <CoachBubble step={tutorial.bubble} onSkip={tutorial.stop} />}
     </main>
   );
 }

@@ -109,6 +109,8 @@ const components: Components = {
         target="_blank"
         rel="noreferrer"
         onClick={(event) => {
+          // 튜토리얼이 「사람이 읽은 곳을 직접 열어 확인했다」를 알 수 있게 알린다(2026-10-16 · 퀘스트 ①). 여는 길은 그대로다.
+          if (url) window.dispatchEvent(new CustomEvent("sonjari:link-opened", { detail: { url } }));
           if (!url || !isTauri()) return;
           event.preventDefault();
           void invoke("open_external_url", { url }).catch(() => window.open(url, "_blank", "noreferrer"));

@@ -1,0 +1,126 @@
+/*
+ * 튜토리얼 — 퀘스트 판과 말풍선. 새 색은 없다(tokens.css 의 뜻 그대로).
+ *
+ *   signal(노랑)  사람이 눌러야 움직인다 — 말풍선이 짚은 곳의 고리 · 「시작」
+ *   ok(초록)      확인됐다 — 끝낸 퀘스트의 도장
+ *   고정폭        기계가 한 일 · 잰 값 · 열어 본 주소
+ *
+ * 퀘스트 판은 사람 쪽(따뜻한 흑연) 카드다. 첫 화면의 제안 칸과 같은 폭 · 같은 모서리에 앉는다.
+ */
+
+/* ── 퀘스트 판 ─────────────────────────────────────────────────────────── */
+.quest-board {
+  width: 100%;
+  margin-top: 32px;
+  padding: 16px 18px 14px;
+  box-sizing: border-box;
+  border: 1px solid rgb(var(--line) / .8);
+  border-radius: var(--r-3);
+  background: rgb(var(--surface-3));
+  text-align: left;
+}
+.quest-board header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.quest-board h2 { margin: 0; font-size: var(--fs-3); font-weight: var(--fw-mid); color: rgb(var(--text-1)); }
+.quest-count { font-family: var(--font-mono); font-size: var(--fs-1); color: rgb(var(--text-5)); }
+.quest-later {
+  margin-left: auto; padding: 4px 8px; border: 0; border-radius: var(--r-1);
+  background: none; color: rgb(var(--text-4)); font-size: var(--fs-2); cursor: pointer;
+}
+.quest-later:hover { color: rgb(var(--text-1)); background: rgb(var(--surface-4)); }
+
+.quest-board ul { margin: 0; padding: 0; list-style: none; }
+.quest-row { display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-top: 1px solid rgb(var(--line) / .7); }
+.quest-row:first-child { border-top: 0; }
+
+/* 할 일 표시 — 순서가 없으니 번호가 아니라 동그라미. 끝나면 초록 체크. */
+.quest-mark {
+  flex: none; width: 16px; height: 16px; box-sizing: border-box;
+  border: 1.5px solid rgb(var(--text-5)); border-radius: 50%;
+}
+.quest-row.is-done .quest-mark {
+  border-color: rgb(var(--ok));
+  background: rgb(var(--ok)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.4l2.6 2.6L12 5.6' fill='none' stroke='%23141210' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+}
+
+.quest-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.quest-text strong { font-size: var(--fs-2); font-weight: var(--fw-mid); color: rgb(var(--text-1)); }
+.quest-text > span { font-size: var(--fs-2); line-height: 1.5; color: rgb(var(--text-4)); }
+.quest-row.is-done .quest-text strong { color: rgb(var(--text-3)); }
+
+/* 도장 — 이 판의 기억거리. 사람이 확인한 것과 그 주소(고정폭). */
+.quest-text .quest-stamp {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 7px;
+  margin-top: 2px; padding: 2px 8px; border: 1px solid rgb(var(--ok) / .45); border-radius: var(--r-0);
+  color: rgb(var(--ok-bright)); background: rgb(var(--ok-dim) / .35);
+  font-size: var(--fs-1); font-weight: var(--fw-mid); letter-spacing: .02em;
+}
+.quest-stamp code { font-family: var(--font-mono); font-weight: var(--fw-body); color: rgb(var(--ok-bright)); }
+
+.quest-start {
+  flex: none; padding: 6px 14px; border: 1px solid rgb(var(--signal) / .55); border-radius: var(--r-pill);
+  background: rgb(var(--signal-dim) / .35); color: rgb(var(--signal-bright));
+  font-size: var(--fs-2); font-weight: var(--fw-mid); cursor: pointer;
+  transition: background var(--t-move) var(--ease), border-color var(--t-move) var(--ease);
+}
+.quest-start:hover { background: rgb(var(--signal-dim) / .6); border-color: rgb(var(--signal)); }
+/* 읽기만 하는 일(카드 소개)은 사람이 「움직여야」 하는 일이 아니라 노랑을 쓰지 않는다. */
+.quest-start.quest-quiet { border-color: rgb(var(--line-strong)); background: none; color: rgb(var(--text-3)); }
+.quest-start.quest-quiet:hover { color: rgb(var(--text-1)); background: rgb(var(--surface-4)); }
+
+.quest-card-facts {
+  margin-top: 6px; padding: 12px 14px; border-radius: var(--r-2);
+  background: rgb(var(--surface-2)); font-size: var(--fs-2); line-height: 1.6; color: rgb(var(--text-3));
+}
+.quest-card-facts p { margin: 0; }
+.quest-card-facts strong { color: rgb(var(--text-1)); font-weight: var(--fw-mid); }
+.quest-card-facts dl { margin: 8px 0 0; display: grid; gap: 4px; }
+.quest-card-facts dl div { display: flex; justify-content: space-between; gap: 12px; }
+.quest-card-facts dt { color: rgb(var(--text-4)); }
+.quest-card-facts dd { margin: 0; }
+.quest-card-facts code { font-family: var(--font-mono); font-size: var(--fs-2); color: rgb(var(--text-1)); }
+.quest-card-facts .quest-card-source { margin-top: 8px; font-size: var(--fs-1); color: rgb(var(--text-5)); }
+
+/* ── 말풍선 ───────────────────────────────────────────────────────────── */
+.coach-ring {
+  position: fixed; z-index: 70; pointer-events: none; box-sizing: border-box;
+  border: 2px solid rgb(var(--signal)); border-radius: var(--r-2);
+  box-shadow: 0 0 0 4px rgb(var(--signal) / .18);
+  animation: coach-breathe 1.8s var(--ease) infinite;
+}
+@keyframes coach-breathe { 50% { box-shadow: 0 0 0 9px rgb(var(--signal) / .06); } }
+
+.coach-bubble {
+  position: fixed; z-index: 71; box-sizing: border-box; padding: 12px 14px 12px;
+  border: 1px solid rgb(var(--line-strong)); border-radius: var(--r-2);
+  background: rgb(var(--surface-4)); box-shadow: var(--lift-3);
+  text-align: left; animation: coach-in var(--t-enter) var(--ease) both;
+}
+@keyframes coach-in { from { opacity: 0; transform: translateY(4px); } }
+.coach-head { display: flex; align-items: center; margin-bottom: 6px; }
+.coach-step { font-family: var(--font-mono); font-size: var(--fs-1); color: rgb(var(--signal-bright)); }
+.coach-skip {
+  margin-left: auto; padding: 2px 6px; border: 0; border-radius: var(--r-0);
+  background: none; color: rgb(var(--text-4)); font-size: var(--fs-1); cursor: pointer;
+}
+.coach-skip:hover { color: rgb(var(--text-1)); }
+.coach-title { margin: 0; font-size: var(--fs-3); font-weight: var(--fw-mid); line-height: 1.45; color: rgb(var(--text-1)); }
+.coach-body { margin: 6px 0 0; font-size: var(--fs-2); line-height: 1.6; color: rgb(var(--text-3)); }
+.coach-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.coach-actions button {
+  padding: 6px 12px; border: 1px solid rgb(var(--line-strong)); border-radius: var(--r-pill);
+  background: none; color: rgb(var(--text-2)); font-size: var(--fs-2); cursor: pointer;
+}
+.coach-actions button:hover { color: rgb(var(--text-1)); background: rgb(var(--surface-3)); }
+.coach-actions .coach-primary { border-color: rgb(var(--signal) / .6); color: rgb(var(--signal-bright)); background: rgb(var(--signal-dim) / .35); }
+.coach-actions .coach-primary:hover { background: rgb(var(--signal-dim) / .6); }
+
+.quest-board button:focus-visible,
+.coach-bubble button:focus-visible { outline: 2px solid rgb(var(--signal)); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-ring { animation: none; }
+  .coach-bubble { animation: none; }
+}
+@media (max-width: 820px) {
+  .quest-row { flex-wrap: wrap; }
+}

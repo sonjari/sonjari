@@ -744,6 +744,8 @@ def _is_action_count(compact: str, target: int) -> bool:
 #   그렇다고 개수 요구를 지우면 2026-08-13 의 병이 돌아온다(3개 시키고 1개 받기).
 #   그래서 **두 길 중 하나면 충족**으로 바꾼다 — 충분히 읽었거나, 답이 실제로
 #   N개를 담았거나.
+#: 「**1. 제목**」(제목까지 굵게)은 세지 않는다 — 단락 제목(「**1. 확인된 내용**」 · 「**2. 실패한 작업**」)과 모양이 같아서, 세면
+#: 「3개 중 2개」 답이 단락 제목 덕에 통과한다(2026-10-16 옛 · 새 대조: 운영 답 4,149개 중 93개가 바뀌었고 상당수가 단락 제목).
 _LISTED_ITEM = re.compile(r"^\s*(?:[-*•]|\d{1,2}\s*[.)]|\*\*\d{1,2}\s*[.)]?\*\*)\s+\S")
 
 
@@ -1952,6 +1954,10 @@ def pages_results_were_opened_from(steps: list[dict[str, Any]]) -> set[str]:
     return listings
 
 
+#: 검색 엔진의 바탕 주소. 이것을 「○○에서 하기」로 지목한 요청은 「거기서 찾아라」이지 「그 주소의 글만」이 아니다(`check`).
+_SEARCH_PORTAL_DOMAINS = frozenset({"naver.com", "google.com", "daum.net", "bing.com", "duckduckgo.com"})
+
+
 def check(
     requirements: list[Requirement],
     *,
@@ -1975,12 +1981,22 @@ def check(
     # 복합 작업의 입력 자료를 결과 개수로 섞지 않는다. 예: Drive 이력서 1건을 읽고
     # 사람인 공고 2건을 읽은 판이 "공고 3개"로 통과했다. 사용자가 사이트를 지목한
     # 개수 요구는 그 사이트들에서 실제로 읽은 주소만 센다.
+    # ★ **검색 엔진 자체를 지목한 것은 장소가 아니다** (2026-10-16 튜토리얼 후보 측정 · 185f5208).
+    #   「네이버에서 오늘 국내 뉴스 세 개」 — 검색 결과는 언론사 누리집으로 나간다. 기사 12곳을 열어 읽었는데 네이버 주소만
+    #   세서 「1개 읽음」이 됐고, 되받기에 밀려 기사를 더 열다 걸음 한도(48)에 닿아 「덜 끝남」으로 닫혔다(답은 멀쩡했다).
+    #   같은 문장 둘째 판은 기사 둘이 `n.news.naver.com` 에 걸려 통과했다 — 운이 판정을 갈랐다.
+    #   `agent.site_first_target` 은 이미 「"네이버에서 찾아줘"는 검색엔진으로 가라는 뜻」으로 다룬다. 바탕 주소(`naver.com`)
+    #   그대로일 때만 푼다 — 「네이버 블로그」(`blog.naver.com`)처럼 서비스를 지목한 것은 그대로 그 주소만 센다.
     named_hosts = tuple(
         str(host).lower()
         for req in requirements
         if req.kind == "site"
         for host in (req.target if isinstance(req.target, (list, tuple)) else ())
     )
+    # 검색 엔진을 하나라도 지목했으면 주소로 가르지 않는다 — 「크몽 후기를 네이버에서 찾아서」의 크몽은 주제다(옛 · 새 대조 edcaf090:
+    # 네이버만 빼면 크몽 주소만 세서 더 엉뚱해졌다).
+    if any(host in _SEARCH_PORTAL_DOMAINS for host in named_hosts):
+        named_hosts = ()
     counted_sources = (
         [
             source
