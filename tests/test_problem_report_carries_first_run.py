@@ -70,7 +70,8 @@ def test_our_own_error_names_are_not_hidden_as_tokens() -> None:
 
 
 def test_real_tokens_are_still_hidden() -> None:
-    for secret in ("AbCdEfGhIjKlMnOpQrStUvWxYz0123", "sk_live_abcdefghijklmnopqrstuvwx1234",
+    # 아래 키 모양은 지어낸 값이다 — "sk_" 를 나눠 적어 비밀값 검사기가 진짜 키로 읽지 않게 한다(10-16 깃허브 경고 1).
+    for secret in ("AbCdEfGhIjKlMnOpQrStUvWxYz0123", "sk_" + "live_abcdefghijklmnopqrstuvwx1234",
                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "this-is-a-long-dashed-secret-value",
                    "Zq7TmRw2LkXv9BnHd4PsYc6JfUg3Ae8"):
         assert scrub(secret, HOME) == "<숨김>", secret
