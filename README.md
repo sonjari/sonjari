@@ -7,9 +7,9 @@
 
 <p align="center">
   <b>Your PC does the work. You get the proof.</b><br>
-  A free local AI agent for Windows that works right on your own PC. It researches the web in your real Chrome,<br>
-  builds Excel and Word documents, and reads and fixes code. It works on its own, and it takes on tasks<br>
-  handed off by Claude or Codex. No subscription, no usage meter.
+  It works right in front of you, in your own Chrome and your own files — and leaves the proof.<br>
+  A free local AI agent for Windows: it researches the web, builds Excel and Word files, and reads and fixes code —<br>
+  on its own, or as the hands for Claude Code, Codex and Cursor. No subscription, no usage meter.
 </p>
 
 <p align="center">
@@ -31,6 +31,8 @@
 
 ## What it does
 
+- **Proof you can check.** Every run leaves its steps, the pages it read and where each value came from. A number that no
+  tool returned is flagged, and a job that did not finish says what it did and where it stopped.
 - **Research → file.** Hand it one sentence — *"Open github.com/trending/python, read the top 3 repositories, and save a table
   of name, stars and description as an Excel file"* — and it opens the pages itself, reads them, and writes the table and the file.
 - **You can watch it.** "Sonjari's computer" shows the page it is on and how much of the request is done. Add a note mid-task
@@ -38,7 +40,8 @@
 - **Your browser, your logins.** It works in a Chrome profile on your PC. When a page needs a login, a CAPTCHA or payment
   details, it stops and hands the screen to you.
 - **The hands for your AI.** Claude Code, Claude Desktop, Codex and Cursor can hand it whole tasks over MCP (`sonjari_task`).
-  The reading happens on your PC; only the result goes back into the host's context.
+  The pages it reads stay on your PC; only the result goes back into the host's context, with a one-line receipt of which
+  requested items were filled and what was masked (personal numbers, emails, keys).
 - **Picks up where Claude Code stopped.** When Claude Code stops at a usage limit, Sonjari finds how far it got from the
   records left on this PC and asks how to continue. Code changes go to a separate branch; the original folder is not touched.
 - **Documents on this PC.** Reads and writes docx / xlsx / pptx / hwpx / pdf inside folders you allow.
@@ -93,28 +96,47 @@ We publish the runs that went badly too. These are small numbers; read them as t
 
 In none of those runs did it report an unfinished job as finished.
 
-A longer task — visit three shops, compare prices, write an Excel file (9 rows is a full score) — came out like this. The
-small-model rows were measured **on a 24 GB card with only the small-card conditions imitated** (small model, small context).
+### The same price task, on real cards
 
-| Setup | Task | Result |
-|---|---|---|
-| Largest model (27B), 24 GB | prices from three shops → Excel | one round: 9 of 9 rows, 5 to 6.5 minutes per task |
-| Small model (4B), small-card conditions, with the price-research skill pack | same task | three rounds: 3, 7 and 4 rows. All three produced the file |
-| Small model (4B), small-card conditions, no skill pack | same task | one round: 1 row |
-| Small model (4B), small-card conditions | research → apply to a comparison → write a document → revise (four follow-ups) | after the last fix, all three chains wrote a file with content and stayed on topic. Of the eight chains before it, two lost the topic and two ended without a file |
+Visit three shops (Danawa, 11st, Gmarket), find the same product, and write name, price, shipping and the product-page
+address into an Excel file. A row counts only if the value is on the page Sonjari actually read. Three products a round.
+
+| Card · model | Rounds | Whole rows | Time per task |
+|---|---|---|---|
+| RTX 3090 24 GB · 27B | 3 | 26 of 27 | about 6 minutes (median) |
+| RTX 5050 Laptop 8 GB · 9B, compressed, text only | 7 | 37 of 63 | about 7.5 minutes |
+| RTX 3050 Laptop 6 GB · 4B, compressed, text only | 7 | 10 of 63 — weak (before a memory-leak fix) | — |
+
+With picture reading on, neither small model fully fit on its card, which is why small cards default to text only. If you
+send what you measure on your card, this table gets filled in — see [Contributing](CONTRIBUTING.md), door 1.
+
+### With Claude Code — same task, clean setup
+
+Claude Code (`claude-sonnet-5`) drove all four arms, each run in a clean folder with no instruction files above it. Sonjari
+ran the 27B on an RTX 3090. 3 products × 3 rounds = 27 rows per arm.
+
+| Arm | Whole rows | Claude cost per whole row | Median time per task |
+|---|---|---|---|
+| Claude Code + Sonjari's browser tools | 23 of 27 | $0.074 | 401 s |
+| Claude Code hands the whole task to Sonjari | 18 of 27 | $0.075 | 391 s |
+| Claude Code alone (web fetch and search) | 15 of 27 | $0.246 | 96 s |
+| Claude Code + Playwright MCP | 11 of 27 | $0.635 | 162 s |
+
+- At this size only "Sonjari's tools vs Playwright" is a clear difference (13 rows only Sonjari got, 1 only Playwright got;
+  exact sign test p ≈ 0.002). Against Claude alone it is borderline (9 vs 1, p ≈ 0.02 before correcting for several
+  comparisons). The rest is within noise.
+- It is slow: 6–7 minutes a task against about 1.5 for Claude alone.
+- 6 of the handoff arm's 9 misses were the agent waiting for an approval nobody was there to give; 3 were one shop page that
+  never finished loading. Playwright lost most of its rows to one shop's bot block.
+- Our own grader was wrong several times while we built this; each fix was re-run over every past row. Three of the 36
+  cells were confirmed by hand, because the pages Sonjari had read were no longer stored at the time.
 
 Where it falls short:
 
 - **On a small card, long research gets about halfway.** Comparing across several shops tends to lose one or two of them.
   Finding one place, reading it and writing a document works.
-- **Measured on real small cards (the same three-shop task, 7 rounds each, 63 rows):** an 8 GB laptop (RTX 5050 Laptop) with
-  the 9B, compressed and text only, got 37 of 63 rows at about 7.5 minutes per task. A 6 GB laptop (RTX 3050 Laptop) with the
-  4B got 10 of 63 — weak (those runs were before a memory-leak fix). With picture reading on, neither model fully fit on its card,
-  which is why small cards default to text only. If you send what you measure on your card, this table gets filled in — see
-  [Contributing](CONTRIBUTING.md), door 1.
 - **Left alone, it can stop and wait for you.** If a task asks it to save a file outside the folders it may write to, it waits
   for your approval in the app. That is on purpose, but an unattended run sits there until you answer.
-
 - **A wrong number can still land in a table.** One of the seven 9B runs wrote 8,000 where the page said 91.2k stars. The number
   was on the page (a different column), so the evidence check could not catch it. Check what matters against the sources it shows.
 - **Fiddly page controls fail often.** Autocomplete boxes, date pickers and cookie overlays are where it breaks. On Online-Mind2Web
@@ -136,6 +158,12 @@ Where it falls short:
   window. They cannot be approved from an outside AI.
 
 ## Contributing
+
+> **Whatever your work is, your field experience is Sonjari's teacher.**
+> Every failure you report becomes a test Sonjari must pass, forever.
+
+That is already how it is built: tests are named after the day a real run failed — `test_an_unresponsive_runner_is_asked_once_more_1015`
+is a 6 GB laptop that lost a task one night in October.
 
 Five ways in, easiest first — details in [CONTRIBUTING.md](CONTRIBUTING.md):
 

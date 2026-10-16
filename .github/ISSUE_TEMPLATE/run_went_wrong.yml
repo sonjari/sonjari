@@ -20,7 +20,7 @@ body:
     id: model
     attributes:
       label: Model and context size
-      description: Shown at the top of the window, e.g. "Gemma 4 · 128K".
+      description: Shown at the top of the window, e.g. "Swift 27B · 128K" or "Qwen3.5 9B · 48K".
     validations:
       required: true
   - type: input

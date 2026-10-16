@@ -2,6 +2,9 @@
 
 한국어: [CONTRIBUTING.ko.md](CONTRIBUTING.ko.md)
 
+> **Whatever your work is, your field experience is Sonjari's teacher.**
+> Every failure you report becomes a test Sonjari must pass, forever.
+
 Sonjari is maintained by two people. **For now the door is wide open.** When enough people arrive that we can no longer
 measure everything ourselves, changes to the core will move to "talk first, then send" — we are writing that down now so it
 is not a change of story later.
