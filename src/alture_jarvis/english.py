@@ -421,6 +421,8 @@ COMPUTE_VERB = re.compile(
     r"|how\s+much|tally|organi[sz]e|put|tabulate)\b",
     re.I,
 )
+#: COMPUTE_VERB 중 **만드는·옮기는** 동사 — 셈이 아니라 파일·표에 담으라는 말일 수 있다(`plan._a_listed_column` 와 짝).
+ARRANGE_VERB = re.compile(r"(?:make|create|generate|save|output|print|organi[sz]e|put|tabulate)", re.I)
 ARTIFACT_TARGET = re.compile(
     r"\b(?:excel|xlsx|spreadsheets?|csv|word\s+file|docx|document\s+file|graph|chart|plot|simulation"
     r"|as\s+a\s+file|(?:in|into|as)\s+a\s+table)\b",

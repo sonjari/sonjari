@@ -2618,6 +2618,30 @@ _COMPUTE_VERB = re.compile(
     r"|정리해\s*(?:서|줘)|저장해|출력해"
     r"|구해|구하|셈해|산출|답해|답하|얼마(?:인가|야|예요|입니까))"
 )
+#: `_COMPUTE_VERB` 중 **만드는·옮기는** 동사. 셈 낱말과 짝지어도 「그 값을 파일·표에 담아라」일 수 있다 — 아래 `_a_listed_column`.
+_ARRANGE_VERB = re.compile(r"만들어|만들자|생성해?|뽑아(?:줘)?|정리해\s*(?:서|줘)|저장해|출력해")
+
+# ★ 늘어놓은 칸 이름 (2026-10-16 r/LLMDevs 판 · job 759ba894). 「25개의 제목 · 점수(업보트) · 댓글 수 · 올린 지 얼마나
+#   됐는지를 엑셀 파일 하나로 정리해 줘」에 「직접 계산해 보기」가 요구로 붙어 ❌ 로 남고 판이 partial 이 됐다 — 셈 대상
+#   낱말표의 「점수」와 「정리해 줘」가 짝지어졌다(「얼마나」는 낱말표에 없다). 그 「점수」는 화면에 적힌 값을 옮길 **칸 이름**이다.
+#   낱말을 빼지 않는다(「평균 점수를 계산해줘」는 셈이다). 모양으로 가른다: 만드는 동사와만 짝지었고, 그 낱말이 구분자
+#   (· , 、 / 와·과·랑)로 **늘어놓은 항목 중 하나**면 칸 이름이다. 셈 동사(계산해 · 구해 · 얼마야)와 짝지으면 그대로 셈이다.
+_LIST_SEP = r"[·・,、/]"
+_LIST_ITEM = r"[^\s·・,、/]+"
+#: 쉼표 앞 낱말이 이것으로 끝나면 목록이 아니라 절을 이은 쉼표다(「페이지를 열고, 평균을 …」).
+_CLAUSE_END = re.compile(r"(?:고|서|면|며|데|요|다)$")
+
+
+def _a_listed_column(compact: str, start: int, end: int, *, english: bool) -> bool:
+    """`compact[start:end]`(셈 낱말)가 「A · B · C」처럼 늘어놓은 이름 중 하나인가 — 이웃 항목이 짧은 이름이어야 한다."""
+    sep = rf"(?:{_LIST_SEP}|\s(?:and|or)\s)" if english else rf"(?:{_LIST_SEP}|(?<=[가-힣])(?:와|과|랑|이랑|하고)\s)"
+    before = re.search(rf"({_LIST_ITEM})\s*{sep}\s*(?:{_LIST_ITEM}\s+){{0,2}}$", compact[max(0, start - 40):start], re.I)
+    if before and (english or not _CLAUSE_END.search(before.group(1))):
+        return True
+    # 뒤: 붙은 풀이(「점수(업보트)」) · 이어지는 낱말 둘까지 지나 구분자가 오고, 그 뒤에 이름이 있다.
+    return bool(re.match(rf"\s*(?:\([^)]{{0,20}}\))?\s*(?:{_LIST_ITEM}\s+){{0,2}}?{sep}\s*{_LIST_ITEM}",
+                         compact[end:end + 40], re.I))
+
 
 # 산출물은 셈과 다른 갈래다. 대상 하나만으로 열면 "보고서 작성법을 조사해줘"까지
 # 파일 만들기로 새고, 동사 하나만으로 열면 평범한 글쓰기 대화가 전부 도구 판이 된다.
@@ -3568,8 +3592,12 @@ def wants_a_computation(prompt: str) -> bool:
     # 멀리 떨어진 '만들어'와 '확률'을 짝지으면 UI 작업에 sandbox 계산 요구가 생긴다.
     # 영어는 같은 뜻이 더 길다(「몇 시간…답해라」 ↔ 「How many hours … Answer with the number」) — 창을 넓힌다.
     reach = 60 if english else 40
+    arrange = _en.ARRANGE_VERB if english else _ARRANGE_VERB
     return any(
         max(target.start(), verb.start()) - min(target.end(), verb.end()) <= reach
+        # 만드는 동사 + 늘어놓은 칸 이름 = 화면의 값을 옮겨 담는 일이다(셈 아님) — `_a_listed_column`.
+        and not (arrange.fullmatch(verb.group(0).strip())
+                 and _a_listed_column(compact, target.start(), target.end(), english=english))
         for target in targets
         for verb in verbs
     )

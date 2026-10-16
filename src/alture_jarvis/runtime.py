@@ -4838,7 +4838,7 @@ class JarvisRuntime:
                 # 출처 도장 — 기록에 남겨야 다시 열어도 찍혀 있다.
                 "grounding": grounding,
                 # 바깥 AI 에게 무엇이 나갔나 — 한 줄 영수증(2026-10-15 · §55-32). 이 PC 의 기록은 원문 그대로 남는다.
-                **({"outbound": record} if (record := outbound_record(answer, payload)) else {}),
+                **({"outbound": record} if (record := outbound_record(answer, payload, files=created_outputs)) else {}),
             },
         )
         # 사실 뽑기 (P2). 실패해도 대화는 끝난 것이다 — 안에서 다 삼킨다.
