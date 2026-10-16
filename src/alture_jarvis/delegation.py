@@ -732,7 +732,7 @@ def summarize_job(
     #   숫자를 지워 근거 없는 숫자를 숨기지 않게. 나가는 글만 다듬는다.
     needs = clean_needs(payload.get("needs"))
     answer, refined = refine(answer, needs=needs)
-    needs_checked = check_needs(needs, answer) if needs else None
+    needs_checked = check_needs(needs, answer, files=files) if needs else None
     summary.update({
         # ★ `partial` 은 상태를 안 바꾸고 메모로만 싣는다 — 운영 잡 178개 중 68개(38%)가 partial 이라
         #   상태에 섞으면 needs_review 가 늘 켜져 아무도 안 본다(경보줄이 길어 안 읽힌 사고와 같은 모양).

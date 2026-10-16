@@ -5,13 +5,15 @@
 
 - **무엇이 민감한가를 작은 모델에게 묻지 않는다.** 모양으로 가린다(정규식). 주민등록번호 · 카드 번호 · 비밀 키는 늘 가리고,
   전화번호 · 메일 주소는 맡긴 쪽이 `needs` 로 밝혔을 때만 내보낸다 — 밝힌 조건이라 「이것 없이는 못 끝낸다」가 참이다.
-- 「돌려받아야 할 것」은 답의 표 머리 또는 「이름: 값」 줄로 가린다. 낱말 뜻을 짐작하지 않는다.
+- 「돌려받아야 할 것」은 답의 표 머리 또는 「이름: 값」 줄로 가린다 — 이 판이 만든 파일(엑셀 · csv · 워드 표)의 머리글도 본다.
+  낱말 뜻을 짐작하지 않는다.
 - 이 PC 의 파일은 건드리지 않는다 — 나가는 글(답)만 다듬는다. 파일은 이 PC 에 남고 경로만 나간다.
 """
 
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 __all__ = ["clean_needs", "check_needs", "refine", "receipt", "outbound_record", "outbound_job_view"]
@@ -133,18 +135,93 @@ def _under_heading(want: str, answer: str) -> bool:
     return False
 
 
-def check_needs(needs: list[str], answer: str) -> list[dict[str, Any]]:
+#: 만든 파일에서 머리글과 값을 볼 때 읽는 줄 수 — 「값이 하나라도 있는가」만 보면 되니 앞쪽이면 충분하다.
+_FILE_ROWS = 200
+
+
+def _file_tables(path: str) -> list[tuple[list[str], list[list[str]]]]:
+    """만든 파일(.xlsx 시트 · .csv/.tsv · .docx 표 · .md/.txt 의 마크다운 표) → (머리, 줄들). 못 열면 빈 목록.
+
+    머리는 **값이 든 첫 줄**이다 — 시트 위에 빈 줄을 두고 쓴 파일도 있다.
+    """
+    file = Path(str(path or ""))
+    suffix = file.suffix.lower()
+    try:
+        if not file.is_file():
+            return []
+        if suffix == ".xlsx":
+            from openpyxl import load_workbook
+
+            book = load_workbook(file, read_only=True, data_only=True)
+            try:
+                found = []
+                for sheet in book.worksheets:
+                    lines = []
+                    for row in sheet.iter_rows(values_only=True):
+                        cells = ["" if cell is None else str(cell).strip() for cell in row]
+                        if any(cells):
+                            lines.append(cells)
+                        if len(lines) > _FILE_ROWS:
+                            break
+                    if lines:
+                        found.append((lines[0], lines[1:]))
+                return found
+            finally:
+                book.close()
+        if suffix in {".csv", ".tsv"}:
+            import csv
+
+            with file.open("r", encoding="utf-8-sig", errors="replace", newline="") as stream:
+                lines = [[cell.strip() for cell in row] for _, row in zip(range(_FILE_ROWS + 1),
+                         csv.reader(stream, delimiter="\t" if suffix == ".tsv" else ","))]
+            lines = [row for row in lines if any(row)]
+            return [(lines[0], lines[1:])] if lines else []
+        if suffix == ".docx":
+            from docx import Document
+
+            found = []
+            for table in Document(str(file)).tables:
+                lines = [[cell.text.strip() for cell in row.cells] for row in table.rows[: _FILE_ROWS + 1]]
+                lines = [row for row in lines if any(row)]
+                if lines:
+                    found.append((lines[0], lines[1:]))
+            return found
+        if suffix in {".md", ".txt"}:
+            return _tables(file.read_text(encoding="utf-8", errors="replace"))
+    except Exception:  # noqa: BLE001 — 못 여는 파일은 아무 칸도 채우지 않는다(없는 칸을 세지 않는다)
+        return []
+    return []
+
+
+def _same_column(want: str, name: str) -> bool:
+    """머리 이름이 항목 이름과 같은 칸인가 — 서로 담거나, 괄호 풀이(「점수(업보트)」의 「(업보트)」)를 떼고 담는다."""
+    have = _norm(name)
+    if not have:
+        return False
+    if want in have or have in want:
+        return True
+    core = _norm(re.sub(r"[(\[（【][^)\]）】]*[)\]）】]", "", str(name or "")))
+    return bool(core) and (want in core or core in want)
+
+
+def check_needs(needs: list[str], answer: str, *, files: list[str] | tuple[str, ...] = ()) -> list[dict[str, Any]]:
     """항목마다 채웠는가: 표 머리에 그 이름이 있고 그 칸에 값이 하나라도 있다 · 표의 첫 칸이 그 이름이고 옆 칸에 값이 있다 ·
-    그 이름을 담은 제목 아래 내용이 있다 · 또는 「이름: 값」 줄이 있다."""
+    그 이름을 담은 제목 아래 내용이 있다 · 또는 「이름: 값」 줄이 있다.
+
+    ★ 2026-10-16 r/LLMDevs 판(job 759ba894): 엑셀에 머리글과 25줄이 다 있었는데 「필요한 것 0/4」였다 — 답은 파일 경로만
+      적었고 검사는 답 글만 봤다. 표를 파일로 만들라고 시킨 일은 **파일의 표가 답**이다. `files`(이 판이 만든 파일)의
+      표도 같은 규칙(머리 이름 + 그 칸에 값)으로 본다.
+    """
     tables = _tables(answer)
+    for path in files or ():
+        tables.extend(_file_tables(path))
     checked: list[dict[str, Any]] = []
     for label in needs:
         want = _norm(label)
         met = False
         for head, rows in tables:
             for index, name in enumerate(head):
-                have = _norm(name)
-                if not have or not (want in have or have in want):
+                if not _same_column(want, name):
                     continue
                 if any(len(row) > index and row[index].strip().strip("*").strip().casefold() not in _BLANK for row in rows):
                     met = True
@@ -189,7 +266,7 @@ def receipt(needs: list[dict[str, Any]] | None, refined: list[dict[str, Any]], *
     return {"needs_total": total, "needs_met": met, "refined": hidden, "line": " · ".join(parts)}
 
 
-def outbound_record(answer: str, payload: dict[str, Any] | None) -> dict[str, Any] | None:
+def outbound_record(answer: str, payload: dict[str, Any] | None, *, files: list[str] | tuple[str, ...] = ()) -> dict[str, Any] | None:
     """바깥 AI 가 맡긴 판의 답 기록에 붙일 영수증 — 화면이 「손자리의 답」 아래 한 줄로 그린다.
 
     상태 조회(`delegation.summarize_job`)와 **같은 함수**로 만든다 — 화면과 바깥 AI 가 받은 것이 갈리지 않게.
@@ -200,7 +277,7 @@ def outbound_record(answer: str, payload: dict[str, Any] | None) -> dict[str, An
         return None
     needs = clean_needs(payload.get("needs"))
     cleaned, refined = refine(answer, needs=needs)
-    checked = check_needs(needs, cleaned) if needs else []
+    checked = check_needs(needs, cleaned, files=files) if needs else []
     made = receipt(checked, refined, host=str(payload.get("caller") or ""))
     return {"host": str(payload.get("caller") or "")[:80], "needs": checked, "refined": refined,
             "needs_total": made["needs_total"], "needs_met": made["needs_met"], "refined_count": made["refined"]}
