@@ -192,4 +192,5 @@ cd ui; npm ci; npm run build
 Apache License 2.0 — [LICENSE](LICENSE) · [NOTICE](NOTICE).
 외부 부품은 각자의 라이선스를 따릅니다(`packaging/THIRD_PARTY_NOTICES.md`).
 선택 설치인 카메라 모듈은 Ultralytics YOLO(AGPL-3.0)를 쓰며 **기본 설치에는 들어가지 않습니다.**
-「Sonjari」와 「손자리」는 배포사의 상표입니다. 라이선스는 코드에 대한 것이고 이름에 대한 것이 아닙니다.
+「Sonjari」 · 「손자리」와 손자리 로고는 배포사의 상표입니다. 라이선스는 코드에 대한 것이고 이름 · 로고에 대한 것이 아닙니다
+(Apache-2.0 제6조). 갈래(fork)는 다른 이름으로 얼마든지 환영합니다.

@@ -198,4 +198,5 @@ collaborator — commits carry a `Co-Authored-By` line — and every change is r
 Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 Third-party components keep their own licenses; see `packaging/THIRD_PARTY_NOTICES.md`.
 The optional camera module uses Ultralytics YOLO (AGPL-3.0); it is **not** installed by default.
-"Sonjari" and "손자리" are trademarks of the publisher; the license covers the code, not the name.
+"Sonjari", "손자리" and the Sonjari logo are trademarks of the publisher. The license covers the code, not the name or logo
+(Apache-2.0, section 6). Forks are welcome under a different name.
