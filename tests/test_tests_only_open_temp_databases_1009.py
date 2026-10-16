@@ -48,8 +48,10 @@ def test_importing_the_api_module_builds_nothing() -> None:
     done = subprocess.run(
         [sys.executable, "-c",
          "import alture_jarvis.api as m; print(m.__file__); print('built' if 'app' in vars(m) else 'nothing')"],
-        capture_output=True, text=True, timeout=120,
-        env={**os.environ, "PYTHONPATH": source},
+        # 자식은 UTF-8 로 쓰고 이쪽도 UTF-8 로 읽는다 — 경로에 한글이 있어서, 셸에 `PYTHONIOENCODING=utf-8` 이 걸려 있으면
+        # 자식만 UTF-8 로 쓰고 이쪽은 cp949 로 읽다 깨져 stdout 이 None 이 됐다(2026-10-16).
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+        env={**os.environ, "PYTHONPATH": source, "PYTHONIOENCODING": "utf-8"},
     )
     assert done.returncode == 0, done.stderr[-400:]
     loaded, verdict = done.stdout.strip().splitlines()[-2:]

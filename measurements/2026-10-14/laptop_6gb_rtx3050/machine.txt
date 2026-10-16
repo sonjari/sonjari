@@ -1,0 +1,5 @@
+﻿gpu: NVIDIA GeForce RTX 3050 6GB Laptop GPU, 6144 MiB, 610.74
+ram_gb: 23.7
+windows: Microsoft Windows 11 Home 26200
+ollama: 
+sonjari_beta: 0.4.26286.1918

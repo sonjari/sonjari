@@ -58,21 +58,25 @@ def _added_on(path: pathlib.Path) -> dt.date | None:
     return _ADDED.get(path.name)
 
 
-def _forbidden() -> list:
-    """공개본 내보내기(`scripts/export_public.py`)의 금지 목록 그대로 — 사람 이름 · 신상 · 남의 이름."""
+def _forbidden() -> tuple[list, object]:
+    """공개본 내보내기(`scripts/export_public.py`)의 금지 목록과 바꾸기 그대로 — 사람 이름 · 신상 · 남의 이름.
+
+    바꾸기를 먼저 거친다(2026-10-16): 공개본의 시험 파일은 내보낼 때 사람 이름이 든 설명이 바뀐 글로 나간다.
+    성장 기록만 바꾸지 않고 검사하면 그 줄이 통째로 가려진다 — 공개본에 실린 설명과 같은 글을 싣는다.
+    """
     import importlib.util  # noqa: PLC0415
 
     spec = importlib.util.spec_from_file_location("export_public", ROOT / "scripts" / "export_public.py")
     module = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(module)  # type: ignore[union-attr]
-        return [pattern for _label, pattern in getattr(module, "FORBIDDEN", [])]
+        return [pattern for _label, pattern in getattr(module, "FORBIDDEN", [])], module.transform
     except Exception:  # noqa: BLE001 — 못 읽으면 설명을 싣지 않는 쪽으로 간다
-        return [re.compile(r".")]
+        return [re.compile(r".")], (lambda text: text)
 
 
 def build() -> tuple[list[dict], list[dict]]:
-    forbidden = _forbidden()
+    forbidden, transform = _forbidden()
     rows, odd = [], []
     for path in sorted((ROOT / "tests").glob("test_*.py")):
         match = _DATED.match(path.name)
@@ -87,7 +91,7 @@ def build() -> tuple[list[dict], list[dict]]:
             named = dt.date(year, month, day)
         except ValueError:
             continue
-        line = _first_line(path)
+        line = transform(_first_line(path))
         if any(pattern.search(line) for pattern in forbidden):
             line = "(설명에 공개 금지 낱말 — 공개 전 손볼 것)"
         row = {"date": named, "what": line, "test": path.name, "added": added}
@@ -98,21 +102,40 @@ def build() -> tuple[list[dict], list[dict]]:
     return rows, odd
 
 
+#: 「날짜 = 실패에서 왔다」를 양쪽으로 잰 표본 (2026-10-16 · 씨앗 1016 · 사람이 시험 설명을 읽고 가름).
+#:   날짜 단 시험 194개 중 30개 → 27개가 실패에서 왔다(나머지: 새 기능 · 밖에서 받은 가설 · 속도 견주기 뒤 군살 빼기).
+#:   날짜 없는 시험 중 9월 이후에 들어온 368개 중 30개 → 17개도 실패에서 왔다.
+#:   숫자를 바꾸려면 다시 재고 날짜를 바꿀 것 — 표가 커져도 이 숫자는 저절로 안 바뀐다.
+_SAMPLED = {"on": "2026-10-16", "dated": (27, 30), "undated": (17, 30), "undated_pool": 368}
+
+
 def render(rows: list[dict], odd: list[dict]) -> str:
-    out = ["# 성장 기록 (초안 · 자동 생성)", "",
+    dated_hit, dated_n = _SAMPLED["dated"]
+    undated_hit, undated_n = _SAMPLED["undated"]
+    out = ["# 성장 기록 · Growth log (자동 생성 · generated)", "",
            "> 어떤 일을 하시든, 당신의 현장이 손자리의 선생입니다.",
            "> 당신이 알려 준 실패는 손자리가 앞으로 영원히 통과해야 할 시험이 됩니다.", "",
-           f"날짜를 이름에 단 시험 {len(rows)}개. 손으로 쓰지 않았다 — `scripts/growth_ledger.py` 가 시험 파일에서 뽑았다.", "",
-           "**이 표의 한계 (역검증 2026-10-15 · 공개 전에 사람이 볼 것)**",
-           "- 날짜를 단 시험이 전부 실패에서 온 것은 아니다 — 새 기능의 시험도 섞여 있다(예: `test_needs_refine_receipt_1015.py`).",
-           "- 실패에서 왔는데 날짜를 안 단 시험도 있다(예: `test_failed_site_search_points_at_the_recipe.py` · 2026-08-16 실사용 실패).",
-           "- 그래서 「실패에서 온 시험」만 고르는 일은 낱말로 짐작하지 않고 사람이 한다.", "",
+           "> *Whatever your work is, your field experience is Sonjari's teacher.*",
+           "> *Every failure you report becomes a test Sonjari must pass, forever.*", "",
+           f"날짜를 이름에 단 시험 {len(rows)}개. 손으로 쓰지 않았다 — `scripts/growth_ledger.py` 가 시험 파일의 이름 · 첫 줄 설명 · "
+           "git 이 그 파일을 처음 들인 날에서 뽑았다. 시험은 지금도 매번 돈다.", "",
+           f"*{len(rows)} tests carry the date of the day something went wrong in their file name. Generated from each test's name, "
+           "the first line of its description (in Korean — that is the source) and the day git first saw it. Every one of them "
+           "still runs on every change.*", "",
+           f"**이 표가 맞는 정도 · How far to trust this list** (사람이 표본을 읽고 가름 · {_SAMPLED['on']})",
+           f"- 날짜 단 시험 {dated_n}개 표본 중 **{dated_hit}개가 실제 실패에서 왔다.** 나머지는 새 기능 · 밖에서 받은 가설 · "
+           "속도를 견준 뒤 군살 빼기였다.",
+           f"- 날짜 없는 시험(9월 이후 {_SAMPLED['undated_pool']}개) 표본 {undated_n}개 중 **{undated_hit}개도 실패에서 왔다** — "
+           "그래서 이 표는 실패에서 온 시험의 **절반쯤만** 담는다. 낱말로 짐작해 채우지 않았다.",
+           f"- *Sampled by reading the tests: {dated_hit} of {dated_n} dated tests came from a real failure (the rest: a new feature, "
+           f"an outside hypothesis, a speed clean-up). But {undated_hit} of {undated_n} undated tests also came from failures — so this "
+           "list holds only about half of them. We did not guess the rest from keywords.*", "",
            "| 날짜 | 무엇을 지키나 | 시험 | git 에 들어온 날 |", "|---|---|---|---|"]
     for row in reversed(rows):
         what = row["what"].replace("|", "\\|") or "(설명 없음)"
-        out.append(f"| {row['date']:%Y-%m-%d} | {what} | `{row['test']}` | {row['added'] or '?'} |")
+        out.append(f"| {row['date']:%Y-%m-%d} | {what} | [`{row['test']}`](tests/{row['test']}) | {row['added'] or '?'} |")
     if odd:
-        out += ["", f"## 날짜 어긋남 {len(odd)}개 — 이름의 날짜와 git 에 들어온 날이 사흘 넘게 다르다(공개 전 확인)", ""]
+        out += ["", f"## 날짜 어긋남 {len(odd)}개 — 이름의 날짜와 git 에 들어온 날이 사흘 넘게 다르다", ""]
         out += [f"- `{row['test']}` — 이름 {row['date']} · 들어온 날 {row['added']}" for row in odd]
     return "\n".join(out) + "\n"
 

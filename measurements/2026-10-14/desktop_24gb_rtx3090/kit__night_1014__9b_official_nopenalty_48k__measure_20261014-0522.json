@@ -1,0 +1,3748 @@
+{
+  "kit": 3,
+  "started": "2026-10-14 03:10",
+  "price": [
+    {
+      "task": "mouse",
+      "round": 1,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "읽고 잃음",
+        "11번가": "읽고 잃음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 401,
+      "steps": 24,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 42442,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 82.6,
+      "prefill_tokens_per_sec": 6381.2,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 1,
+      "made_sheet": true,
+      "rows": 6,
+      "shops": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "값 없음"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 421,
+      "steps": 27,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 42349,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 81.6,
+      "prefill_tokens_per_sec": 7059.5,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "switch",
+      "round": 1,
+      "made_sheet": true,
+      "rows": 2,
+      "shops": {
+        "다나와": "값이 글에 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "잘못 읽음",
+        "11번가": "읽고 잃음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 401,
+      "steps": 34,
+      "stop_reason": "wrapped_up:goal_met",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 43235,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 84.0,
+      "prefill_tokens_per_sec": 6200.3,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 2,
+      "made_sheet": true,
+      "rows": 7,
+      "shops": {
+        "G마켓": "온전",
+        "다나와": "온전",
+        "11번가": "주소 틀림"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "목록에서 못 엶",
+        "G마켓": "온전"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 341,
+      "steps": 28,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 43031,
+      "refused_steps": 2,
+      "gen_tokens_per_sec": 83.7,
+      "prefill_tokens_per_sec": 6134.6,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_load_more",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 2,
+      "made_sheet": false,
+      "rows": 0,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "가려다 막힘",
+        "11번가": "표 없이 끝남",
+        "G마켓": "표 없이 끝남"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 547,
+      "steps": 49,
+      "stop_reason": "wrapped_up:autonomous_step_cap",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 42402,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 82.0,
+      "prefill_tokens_per_sec": 6014.8,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "switch",
+      "round": 2,
+      "made_sheet": false,
+      "rows": 0,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "안 감",
+        "11번가": "안 감",
+        "G마켓": "안 감"
+      },
+      "whole_rows": 0,
+      "status": "failed",
+      "state": "",
+      "asked": false,
+      "sec": 85,
+      "steps": 14,
+      "stop_reason": "",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 0,
+      "refused_steps": 0,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 3,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "다나와": "온전",
+        "G마켓": "값 없음",
+        "11번가": "주소 틀림"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "잘못 읽음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 1,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 386,
+      "steps": 26,
+      "stop_reason": "wrapped_up:goal_met",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 42205,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 83.2,
+      "prefill_tokens_per_sec": 6590.0,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 3,
+      "made_sheet": true,
+      "rows": 4,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "읽고 잃음",
+        "11번가": "읽고 잃음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 396,
+      "steps": 31,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 43241,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 82.8,
+      "prefill_tokens_per_sec": 7165.7,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "switch",
+      "round": 3,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "G마켓": "온전",
+        "11번가": "온전",
+        "다나와": "주소 틀림"
+      },
+      "causes": {
+        "다나와": "가려다 막힘",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 306,
+      "steps": 32,
+      "stop_reason": "model_stopped_early",
+      "pushbacks": 1,
+      "largest_prompt_tokens": 43263,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 82.3,
+      "prefill_tokens_per_sec": 6973.5,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 4,
+      "made_sheet": false,
+      "rows": 0,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "표 없이 끝남",
+        "11번가": "표 없이 끝남",
+        "G마켓": "표 없이 끝남"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 426,
+      "steps": 28,
+      "stop_reason": "wrapped_up:no_progress_for_remaining_goal",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 41358,
+      "refused_steps": 5,
+      "gen_tokens_per_sec": 85.0,
+      "prefill_tokens_per_sec": 6729.1,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_search",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 4,
+      "made_sheet": true,
+      "rows": 4,
+      "shops": {
+        "11번가": "온전",
+        "다나와": "온전",
+        "G마켓": "주소 틀림"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "잘못 읽음"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 391,
+      "steps": 33,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 42175,
+      "refused_steps": 2,
+      "gen_tokens_per_sec": 82.9,
+      "prefill_tokens_per_sec": 6472.1,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "switch",
+      "round": 4,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 291,
+      "steps": 26,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 43179,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 83.2,
+      "prefill_tokens_per_sec": 6363.2,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 5,
+      "made_sheet": true,
+      "rows": 6,
+      "shops": {
+        "다나와": "값 없음",
+        "11번가": "값 없음",
+        "G마켓": "값 없음"
+      },
+      "causes": {
+        "다나와": "읽고 잃음",
+        "11번가": "읽고 잃음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 466,
+      "steps": 31,
+      "stop_reason": "wrapped_up:goal_met",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 42908,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 82.8,
+      "prefill_tokens_per_sec": 6413.9,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 5,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "whole_rows": 3,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 246,
+      "steps": 16,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 40960,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 83.1,
+      "prefill_tokens_per_sec": 8134.4,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "switch",
+      "round": 5,
+      "made_sheet": true,
+      "rows": 2,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "안 감",
+        "11번가": "열고 안 읽음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 190,
+      "steps": 21,
+      "stop_reason": "wrapped_up:no_progress",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 38238,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 86.3,
+      "prefill_tokens_per_sec": 15390.3,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_read",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 6,
+      "made_sheet": true,
+      "rows": 5,
+      "shops": {
+        "다나와": "온전",
+        "G마켓": "주소 틀림",
+        "11번가": "온전"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "잘못 읽음"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 391,
+      "steps": 24,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 42107,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 82.4,
+      "prefill_tokens_per_sec": 7001.6,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 6,
+      "made_sheet": true,
+      "rows": 2,
+      "shops": {
+        "11번가": "주소 틀림",
+        "다나와": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "가려다 막힘",
+        "11번가": "목록에서 못 엶",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 436,
+      "steps": 49,
+      "stop_reason": "wrapped_up:autonomous_step_cap",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 41673,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 82.7,
+      "prefill_tokens_per_sec": 7011.0,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": false,
+          "error": "Page.goto:"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "switch",
+      "round": 6,
+      "made_sheet": true,
+      "rows": 4,
+      "shops": {
+        "11번가": "온전",
+        "다나와": "온전",
+        "G마켓": "값 없음"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 452,
+      "steps": 31,
+      "stop_reason": "wrapped_up:goal_met",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 43021,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 81.8,
+      "prefill_tokens_per_sec": 6218.5,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_read_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 7,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 436,
+      "steps": 27,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 41442,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 82.4,
+      "prefill_tokens_per_sec": 7080.0,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 7,
+      "made_sheet": false,
+      "rows": 0,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "표 없이 끝남",
+        "11번가": "표 없이 끝남",
+        "G마켓": "표 없이 끝남"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 391,
+      "steps": 25,
+      "stop_reason": "wrapped_up:no_progress_for_remaining_goal",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 42430,
+      "refused_steps": 5,
+      "gen_tokens_per_sec": 85.9,
+      "prefill_tokens_per_sec": 6112.3,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "not_this_stage"
+        }
+      ]
+    },
+    {
+      "task": "switch",
+      "round": 7,
+      "made_sheet": true,
+      "rows": 7,
+      "shops": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "whole_rows": 3,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 316,
+      "steps": 26,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 42268,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 82.8,
+      "prefill_tokens_per_sec": 6320.5,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_read",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    }
+  ],
+  "chain": [],
+  "skipped": 0,
+  "price_summary": {
+    "per_round": [
+      2,
+      2,
+      3,
+      4,
+      3,
+      4,
+      5
+    ],
+    "out_of": 9,
+    "incomplete_rounds": 0,
+    "mean": 3.3,
+    "spread": 1.1,
+    "median": 3.0,
+    "low": 2,
+    "high": 5,
+    "causes": {
+      "읽고 잃음": 18,
+      "표 없이 끝남": 8,
+      "안 감": 4,
+      "잘못 읽음": 4,
+      "가려다 막힘": 3,
+      "목록에서 못 엶": 2,
+      "열고 안 읽음": 1
+    },
+    "cause_groups": {
+      "읽고 잃음": 18,
+      "못 찾음": 10,
+      "표 없이 끝남": 8,
+      "잘못 읽음": 4
+    },
+    "sec_median": 391.0,
+    "gen_tokens_per_sec_median": 82.8,
+    "prefill_tokens_per_sec_median": 6531.1,
+    "rounds_to_tell": {
+      "2": 5,
+      "3": 3
+    },
+    "short_rows": {
+      "줄 없음": 27,
+      "값 없음": 6,
+      "주소 틀림": 6,
+      "값이 글에 없음": 1
+    }
+  },
+  "pc": {
+    "windows": "Windows-10-10.0.26200-SP0",
+    "cards": [
+      {
+        "name": "NVIDIA GeForce RTX 3090",
+        "total_mb": 24576,
+        "used_mb": 7848
+      },
+      {
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_mb": 12288,
+        "used_mb": 3673
+      }
+    ],
+    "cards_before_start": [
+      {
+        "name": "NVIDIA GeForce RTX 3090",
+        "total_mb": 24576,
+        "used_mb": 7728
+      },
+      {
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_mb": 12288,
+        "used_mb": 3599
+      }
+    ],
+    "model": "sonjari-probe-qwen3.5-9b-nopenalty:latest",
+    "window": 49152,
+    "model_on_card_mb": 6440,
+    "model_total_mb": 6440,
+    "on_card_share": 1.0,
+    "screen_and_others_mb": null,
+    "sonjari_build": "f49b157d7b4f"
+  },
+  "finished": "2026-10-14 05:22"
+}

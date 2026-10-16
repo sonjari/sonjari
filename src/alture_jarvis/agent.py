@@ -6885,6 +6885,10 @@ class BrowserAgent:
         content_cuts: list[dict[str, Any]] = []
         #: 마무리 도구(탭 닫기)를 부르며 같이 쓴 **긴 글** — 모델이 답을 거기 써 버린 판의 답 후보(`_WRAP_UP_TOOLS`).
         wrap_up_said = ""
+        #: 마무리 도구만 부르며 글을 쓴 턴마다 몇 자였나 · 답 후보로 쥐었나 — 판 기록(`verification.wrap_up`)에 남긴다.
+        #: 2026-10-16: 10-14 대표 판 셋이 같은 고장이었는데, 그 글이 기록에 안 남아 「200자 넘었나(고침이 들었을까)」를 알 수 없었다.
+        wrap_up_turns: list[dict[str, Any]] = []
+        answer_from_wrap_up = False
         completed_claude_answer = ""
         #: 큰 코드 갈림길에서 「클로드에 붙여 넣을 글 받기」를 골라 글만 내고 끝낸 판(`big_code`).
         big_code_handed_over = False
@@ -8163,6 +8167,9 @@ class BrowserAgent:
                 #   증거가 아니다(아래 주석) — 마무리 도구는 새로 읽는 것이 없어서, 그 앞까지 읽은 것으로 쓴 글이다.
                 if calls and {str((call.get("function") or {}).get("name") or "") for call in calls} <= _WRAP_UP_TOOLS:
                     said_in_full = str(message.get("content") or "").strip()
+                    if said_in_full:
+                        wrap_up_turns.append({"step": len(steps) + 1, "chars": len(said_in_full),
+                                              "held": len(said_in_full) >= _WRAP_UP_ANSWER_MIN_CHARS})
                     if len(said_in_full) >= _WRAP_UP_ANSWER_MIN_CHARS:
                         wrap_up_said = said_in_full
                 if calls and (said := clean_narration(message.get("content"))):
@@ -8235,6 +8242,7 @@ class BrowserAgent:
                         {"job_id": job_id, "final_chars": len(answer), "wrap_up_chars": len(wrap_up_said)},
                     )
                     answer = wrap_up_said
+                    answer_from_wrap_up = True
                 code_verified = any(
                     step.get("ok")
                     and (
@@ -10531,6 +10539,8 @@ class BrowserAgent:
             "thinking_chars": thinking_chars,
             "thinking_budget_hits": thinking_budget_hits[-12:],
             "content_cuts": content_cuts[-12:],
+            # 마무리 도구(탭 닫기)만 부르며 쓴 글 — 턴마다 글자 수 · 답 후보였나, 그리고 그 글이 답이 됐나(`wrap_up_said`).
+            "wrap_up": {"turns": wrap_up_turns[-6:], "used_as_answer": answer_from_wrap_up},
             "inference_observations": inference_observations[-12:],
             # 시간이 어디로 갔나 — 호출마다 오는 숫자를 판 하나로 합쳐 둔다. 예전에는 이 값이
             # 걸음 기록 안에만 흩어져 있어서 「느리다」에 답하려면 매번 손으로 더해야 했다.

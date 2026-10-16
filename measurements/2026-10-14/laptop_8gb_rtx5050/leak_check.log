@@ -1,0 +1,23 @@
+﻿10-14 15:02:36 start: beta 0.4.26287.1400 rounds=5
+10-14 15:02:37 before handles=1370 private_mb=3280.4 threads=21 | ledger=16 reconnects=2 last=4550/3953ms | ram_free=7.6GB llama_private=7,403MB
+10-14 15:07:39 during handles=8646 private_mb=3374.1 threads=21 | ledger=3815 reconnects=3 last=4269/7453ms | ram_free=3.3GB llama_private=10,557MB
+10-14 15:12:41 during handles=6320 private_mb=3541.1 threads=21 | ledger=2649 reconnects=3 last=4269/7453ms | ram_free=3.3GB llama_private=10,873MB
+10-14 15:17:43 during handles=8504 private_mb=3641.1 threads=21 | ledger=3734 reconnects=4 last=4771/2328ms | ram_free=4.9GB llama_private=9,124MB
+10-14 15:22:45 during handles=2836 private_mb=3756.0 threads=23 | ledger=910 reconnects=5 last=4068/2453ms | ram_free=2.2GB llama_private=11,591MB
+10-14 15:27:47 during handles=1357 private_mb=3774.7 threads=22 | ledger=181 reconnects=6 last=4147/2515ms | ram_free=4.4GB llama_private=9,497MB
+10-14 15:32:50 during handles=7006 private_mb=3908.6 threads=22 | ledger=2993 reconnects=7 last=4154/2657ms | ram_free=2.4GB llama_private=11,146MB
+10-14 15:37:53 during handles=4522 private_mb=4051.2 threads=23 | ledger=1740 reconnects=7 last=4154/2657ms | ram_free=4.5GB llama_private=9,373MB
+10-14 15:42:57 during handles=5491 private_mb=4163.7 threads=23 | ledger=2225 reconnects=7 last=4154/2657ms | ram_free=2.5GB llama_private=11,454MB
+10-14 15:48:01 during handles=8827 private_mb=4233.3 threads=23 | ledger=3893 reconnects=8 last=4124/2922ms | ram_free=2.5GB llama_private=10,767MB
+10-14 15:53:05 during handles=3567 private_mb=4298.0 threads=22 | ledger=1273 reconnects=9 last=4236/2688ms | ram_free=2.7GB llama_private=10,677MB
+10-14 15:58:09 during handles=2829 private_mb=4433.5 threads=23 | ledger=907 reconnects=10 last=4421/3063ms | ram_free=2.9GB llama_private=10,532MB
+10-14 16:03:13 during handles=3759 private_mb=4521.2 threads=24 | ledger=1368 reconnects=11 last=4368/3094ms | ram_free=2.6GB llama_private=10,843MB
+10-14 16:08:17 during handles=2419 private_mb=4666.2 threads=24 | ledger=698 reconnects=12 last=4446/3156ms | ram_free=3.2GB llama_private=10,413MB
+10-14 16:13:22 during handles=7862 private_mb=4802.3 threads=23 | ledger=3390 reconnects=12 last=4446/3156ms | ram_free=3.2GB llama_private=9,775MB
+10-14 16:18:27 during handles=6629 private_mb=4852.9 threads=23 | ledger=2788 reconnects=13 last=4459/3250ms | ram_free=3.2GB llama_private=9,775MB
+10-14 16:23:32 during handles=2854 private_mb=4987.8 threads=23 | ledger=917 reconnects=14 last=4103/3656ms | ram_free=1.9GB llama_private=10,993MB
+10-14 16:28:37 during handles=2513 private_mb=5084.2 threads=23 | ledger=752 reconnects=14 last=4103/3656ms | ram_free=4.0GB llama_private=9,319MB
+10-14 16:33:41 during handles=979 private_mb=5227.2 threads=21 | ledger=0 reconnects=14 last=4103/3656ms | ram_free=2.2GB llama_private=10,904MB
+10-14 16:38:47 during handles=8876 private_mb=5276.1 threads=23 | ledger=3907 reconnects=15 last=4195/6188ms | ram_free=2.6GB llama_private=10,341MB
+10-14 16:43:52 during handles=3600 private_mb=5434.1 threads=23 | ledger=1296 reconnects=16 last=4390/4141ms | ram_free=1.4GB llama_private=11,141MB
+10-14 16:46:05 stopped by hand to install the fixed build (baseline enough)

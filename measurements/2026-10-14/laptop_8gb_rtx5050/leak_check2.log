@@ -1,0 +1,22 @@
+﻿10-14 16:50:36 start: beta 0.4.26287.1615 rounds=3 label=leak_check2_9b
+10-14 16:50:37 before handles=828 private_mb=2699.2 objects=156622 winfunctype=1391 uia=True | ledger=0 reconnects=0 | ram_free=4.0GB llama_private=10,130MB
+10-14 16:55:38 during handles=2617 private_mb=2753.4 objects=184816 winfunctype=1391 uia=True | ledger=858 reconnects=1 | ram_free=3.6GB llama_private=10,280MB
+10-14 17:00:38 during handles=5913 private_mb=2759.8 objects=219179 winfunctype=1391 uia=True | ledger=2488 reconnects=2 | ram_free=3.1GB llama_private=10,937MB
+10-14 17:05:39 during handles=1710 private_mb=2761.8 objects=199143 winfunctype=1391 uia=True | ledger=407 reconnects=3 | ram_free=3.5GB llama_private=10,979MB
+10-14 17:10:40 during handles=1218 private_mb=2779.3 objects=203446 winfunctype=1391 uia=True | ledger=16 reconnects=3 | ram_free=4.8GB llama_private=10,712MB
+10-14 17:15:41 during handles=4598 private_mb=2779.6 objects=237293 winfunctype=1391 uia=True | ledger=1848 reconnects=4 | ram_free=3.4GB llama_private=10,985MB
+10-14 17:20:41 during handles=4088 private_mb=2780.4 objects=236650 winfunctype=1391 uia=True | ledger=1581 reconnects=4 | ram_free=5.6GB llama_private=9,186MB
+10-14 17:25:42 during handles=5718 private_mb=2791.7 objects=252707 winfunctype=1391 uia=True | ledger=2406 reconnects=5 | ram_free=3.6GB llama_private=10,786MB
+10-14 17:30:43 during handles=8207 private_mb=2785.3 objects=278241 winfunctype=1391 uia=True | ledger=3609 reconnects=5 | ram_free=3.4GB llama_private=10,942MB
+10-14 17:35:44 during handles=7526 private_mb=2789.9 objects=274332 winfunctype=1391 uia=True | ledger=3304 reconnects=6 | ram_free=4.1GB llama_private=10,216MB
+10-14 17:40:44 during handles=2721 private_mb=2790.1 objects=237492 winfunctype=1391 uia=True | ledger=910 reconnects=7 | ram_free=3.3GB llama_private=10,838MB
+10-14 17:45:45 during handles=5663 private_mb=2800.1 objects=265629 winfunctype=1391 uia=True | ledger=2347 reconnects=8 | ram_free=3.1GB llama_private=11,011MB
+10-14 17:50:46 during handles=4395 private_mb=2786.8 objects=257256 winfunctype=1391 uia=True | ledger=1750 reconnects=10 | ram_free=5.2GB llama_private=9,191MB
+10-14 17:55:47 during handles=921 private_mb=2790.9 objects=230456 winfunctype=1391 uia=True | ledger=18 reconnects=11 | ram_free=5.7GB llama_private=9,376MB
+10-14 18:00:48 during handles=9448 private_mb=2798.4 objects=307379 winfunctype=1391 uia=True | ledger=4252 reconnects=11 | ram_free=3.5GB llama_private=10,878MB
+10-14 18:05:48 during handles=3672 private_mb=2807.0 objects=262829 winfunctype=1391 uia=True | ledger=1377 reconnects=13 | ram_free=3.8GB llama_private=10,897MB
+10-14 18:10:49 during handles=2842 private_mb=2822.0 objects=264320 winfunctype=1391 uia=True | ledger=966 reconnects=14 | ram_free=3.9GB llama_private=10,743MB
+10-14 18:15:50 during handles=1892 private_mb=2805.0 objects=261463 winfunctype=1391 uia=True | ledger=500 reconnects=15 | ram_free=3.4GB llama_private=11,358MB
+10-14 18:20:51 during handles=1255 private_mb=2821.1 objects=257579 winfunctype=1391 uia=True | ledger=15 reconnects=15 | ram_free=4.8GB llama_private=10,770MB
+10-14 18:21:21 after handles=1259 private_mb=2808.8 objects=257534 winfunctype=1391 uia=True | ledger=15 reconnects=15 | ram_free=4.8GB llama_private=10,770MB
+10-14 18:21:21 end

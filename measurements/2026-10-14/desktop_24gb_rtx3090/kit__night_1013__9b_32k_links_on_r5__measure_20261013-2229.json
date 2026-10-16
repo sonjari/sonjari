@@ -1,0 +1,561 @@
+{
+  "kit": 3,
+  "started": "2026-10-13 22:14",
+  "price": [
+    {
+      "task": "mouse",
+      "round": 1,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "다나와": "값 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "읽고 잃음",
+        "11번가": "읽고 잃음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 235,
+      "steps": 21,
+      "stop_reason": "model_done",
+      "pushbacks": 1,
+      "largest_prompt_tokens": 25269,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 89.6,
+      "prefill_tokens_per_sec": 6604.5,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "site_list",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_read",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_load_more",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_edit_spreadsheet",
+          "ok": false,
+          "error": "sheet_not_found"
+        },
+        {
+          "tool": "local_edit_spreadsheet",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 1,
+      "made_sheet": true,
+      "rows": 8,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "목록에서 못 엶",
+        "11번가": "읽고 잃음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 296,
+      "steps": 27,
+      "stop_reason": "model_done",
+      "pushbacks": 2,
+      "largest_prompt_tokens": 24849,
+      "refused_steps": 2,
+      "gen_tokens_per_sec": 89.2,
+      "prefill_tokens_per_sec": 5972.9,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "site_list",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_links",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_edit_spreadsheet",
+          "ok": false,
+          "error": "sheet_not_found"
+        }
+      ]
+    },
+    {
+      "task": "switch",
+      "round": 1,
+      "made_sheet": false,
+      "rows": 0,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "표 없이 끝남",
+        "11번가": "표 없이 끝남",
+        "G마켓": "표 없이 끝남"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 336,
+      "steps": 31,
+      "stop_reason": "wrapped_up:no_progress_for_remaining_goal",
+      "pushbacks": 2,
+      "largest_prompt_tokens": 25925,
+      "refused_steps": 5,
+      "gen_tokens_per_sec": 91.2,
+      "prefill_tokens_per_sec": 5583.9,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "site_list",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": false,
+          "error": "not_this_stage"
+        }
+      ]
+    }
+  ],
+  "chain": [],
+  "skipped": 0,
+  "price_summary": {
+    "per_round": [
+      0
+    ],
+    "out_of": 9,
+    "incomplete_rounds": 0,
+    "mean": 0.0,
+    "spread": null,
+    "median": 0.0,
+    "low": 0,
+    "high": 0,
+    "causes": {
+      "읽고 잃음": 5,
+      "표 없이 끝남": 3,
+      "목록에서 못 엶": 1
+    },
+    "cause_groups": {
+      "읽고 잃음": 5,
+      "표 없이 끝남": 3,
+      "못 찾음": 1
+    },
+    "sec_median": 296.0,
+    "gen_tokens_per_sec_median": 89.6,
+    "prefill_tokens_per_sec_median": 5972.9,
+    "rounds_to_tell": null,
+    "short_rows": {
+      "줄 없음": 8,
+      "값 없음": 1
+    }
+  },
+  "pc": {
+    "windows": "Windows-10-10.0.26200-SP0",
+    "cards": [
+      {
+        "name": "NVIDIA GeForce RTX 3090",
+        "total_mb": 24576,
+        "used_mb": 7258
+      },
+      {
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_mb": 12288,
+        "used_mb": 3484
+      }
+    ],
+    "cards_before_start": [
+      {
+        "name": "NVIDIA GeForce RTX 3090",
+        "total_mb": 24576,
+        "used_mb": 7258
+      },
+      {
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_mb": 12288,
+        "used_mb": 3494
+      }
+    ],
+    "model": "qwen3.5:9b",
+    "window": 32768,
+    "model_on_card_mb": 5864,
+    "model_total_mb": 5864,
+    "on_card_share": 1.0,
+    "screen_and_others_mb": null,
+    "sonjari_build": "23f6ec941b2c"
+  },
+  "finished": "2026-10-13 22:29"
+}

@@ -1,0 +1,3 @@
+﻿10-14 14:52:44 start: beta 0.4.26287.1400 rounds=5
+10-14 14:52:46 before handles=5577 private_mb=3025.5 threads=21 | ledger=2288 reconnects=1 last=4094/4078ms | ram_free=8.3GB llama_private=0MB
+10-14 14:57:47 during handles=1266 private_mb=3169.3 threads=20 | ledger=16 reconnects=2 last=4550/3953ms | ram_free=3.3GB llama_private=12,859MB

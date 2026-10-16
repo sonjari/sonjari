@@ -1,0 +1,2597 @@
+{
+  "kit": 3,
+  "started": "2026-10-14 02:05",
+  "price": [
+    {
+      "task": "mouse",
+      "round": 1,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "다나와": "값 없음",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "causes": {
+        "다나와": "읽고 잃음",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 266,
+      "steps": 29,
+      "stop_reason": "model_done",
+      "pushbacks": 1,
+      "largest_prompt_tokens": 25129,
+      "refused_steps": 2,
+      "gen_tokens_per_sec": 122.3,
+      "prefill_tokens_per_sec": 9149.6,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_close",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": false,
+          "error": "not_on_a_site"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_read_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 1,
+      "made_sheet": false,
+      "rows": 0,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "안 감",
+        "11번가": "안 감",
+        "G마켓": "안 감"
+      },
+      "whole_rows": 0,
+      "status": "waiting_approval",
+      "state": "",
+      "asked": true,
+      "sec": 10,
+      "steps": 0,
+      "stop_reason": "",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 0,
+      "refused_steps": 0,
+      "closed_tabs": 1,
+      "tools": []
+    },
+    {
+      "task": "switch",
+      "round": 1,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "11번가": "온전",
+        "다나와": "온전",
+        "G마켓": "값이 글에 없음"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "잘못 읽음"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 100,
+      "steps": 13,
+      "stop_reason": "model_done",
+      "pushbacks": 1,
+      "largest_prompt_tokens": 24674,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 124.7,
+      "prefill_tokens_per_sec": 9985.8,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_read",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_read",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 2,
+      "made_sheet": true,
+      "rows": 2,
+      "shops": {
+        "G마켓": "온전",
+        "11번가": "값이 글에 없음",
+        "다나와": "줄 없음"
+      },
+      "causes": {
+        "다나와": "목록에서 못 엶",
+        "11번가": "잘못 읽음",
+        "G마켓": "온전"
+      },
+      "whole_rows": 1,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 200,
+      "steps": 26,
+      "stop_reason": "model_done",
+      "pushbacks": 2,
+      "largest_prompt_tokens": 25705,
+      "refused_steps": 3,
+      "gen_tokens_per_sec": 122.2,
+      "prefill_tokens_per_sec": 8137.7,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": false,
+          "error": "not_on_a_site"
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "host_does_not_exist:search.shopping.daum"
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "host_does_not_exist:shopping.daum.net"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 2,
+      "made_sheet": false,
+      "rows": 0,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "안 감",
+        "11번가": "안 감",
+        "G마켓": "안 감"
+      },
+      "whole_rows": 0,
+      "status": "waiting_approval",
+      "state": "",
+      "asked": true,
+      "sec": 20,
+      "steps": 0,
+      "stop_reason": "",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 0,
+      "refused_steps": 0,
+      "closed_tabs": 1,
+      "tools": []
+    },
+    {
+      "task": "switch",
+      "round": 2,
+      "made_sheet": true,
+      "rows": 20,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "읽고 잃음",
+        "11번가": "읽고 잃음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 151,
+      "steps": 18,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 25424,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 121.8,
+      "prefill_tokens_per_sec": 9855.4,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 3,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "주소 틀림"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "잘못 읽음"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 180,
+      "steps": 22,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 25768,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 120.4,
+      "prefill_tokens_per_sec": 9313.7,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "site_under_maintenance:www.nate.com"
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_read",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_read_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 3,
+      "made_sheet": false,
+      "rows": 0,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "안 감",
+        "11번가": "안 감",
+        "G마켓": "안 감"
+      },
+      "whole_rows": 0,
+      "status": "waiting_approval",
+      "state": "",
+      "asked": true,
+      "sec": 25,
+      "steps": 0,
+      "stop_reason": "",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 0,
+      "refused_steps": 0,
+      "closed_tabs": 1,
+      "tools": []
+    },
+    {
+      "task": "switch",
+      "round": 3,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "G마켓": "온전",
+        "11번가": "값 없음",
+        "다나와": "값 없음"
+      },
+      "causes": {
+        "다나와": "목록에서 못 엶",
+        "11번가": "목록에서 못 엶",
+        "G마켓": "온전"
+      },
+      "whole_rows": 1,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 105,
+      "steps": 18,
+      "stop_reason": "wrapped_up:goal_met",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 24542,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 123.3,
+      "prefill_tokens_per_sec": 14540.6,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": false,
+          "error": "not_on_a_site"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_find",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_click",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_read_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 4,
+      "made_sheet": false,
+      "rows": 0,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "안 감",
+        "11번가": "안 감",
+        "G마켓": "안 감"
+      },
+      "whole_rows": 0,
+      "status": "waiting_approval",
+      "state": "",
+      "asked": true,
+      "sec": 45,
+      "steps": 0,
+      "stop_reason": "",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 0,
+      "refused_steps": 0,
+      "closed_tabs": 1,
+      "tools": []
+    },
+    {
+      "task": "buds",
+      "round": 4,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "다나와": "값 없음",
+        "11번가": "주소 틀림",
+        "G마켓": "온전"
+      },
+      "causes": {
+        "다나와": "안 감",
+        "11번가": "잘못 읽음",
+        "G마켓": "온전"
+      },
+      "whole_rows": 1,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 170,
+      "steps": 28,
+      "stop_reason": "model_stopped_early",
+      "pushbacks": 1,
+      "largest_prompt_tokens": 23709,
+      "refused_steps": 5,
+      "gen_tokens_per_sec": 122.9,
+      "prefill_tokens_per_sec": 11816.6,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "host_does_not_exist:www.gmarket.com.co"
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_read_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "page_not_found:smartstore.naver.com/earl"
+        },
+        {
+          "tool": "local_edit_spreadsheet",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "page_not_found:smartstore.naver.com/earl"
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "page_not_found:smartstore.naver.com/reca"
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "page_not_found:smartstore.naver.com/reca"
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "switch",
+      "round": 4,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "다나와": "온전",
+        "G마켓": "온전",
+        "11번가": "온전"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "whole_rows": 3,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 135,
+      "steps": 14,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 24818,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 122.4,
+      "prefill_tokens_per_sec": 8456.5,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 5,
+      "made_sheet": true,
+      "rows": 20,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "읽고 잃음",
+        "11번가": "읽고 잃음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 246,
+      "steps": 32,
+      "stop_reason": "model_done",
+      "pushbacks": 1,
+      "largest_prompt_tokens": 24996,
+      "refused_steps": 5,
+      "gen_tokens_per_sec": 119.6,
+      "prefill_tokens_per_sec": 11269.7,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": false,
+          "error": "site_search_box_not_found:shopping.nate."
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_close",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "browser_close",
+          "ok": false,
+          "error": "not_this_stage"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 5,
+      "made_sheet": true,
+      "rows": 4,
+      "shops": {
+        "다나와": "온전",
+        "11번가": "주소 틀림",
+        "G마켓": "온전"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "목록에서 못 엶",
+        "G마켓": "온전"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 135,
+      "steps": 15,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 26022,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 118.9,
+      "prefill_tokens_per_sec": 8456.9,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "switch",
+      "round": 5,
+      "made_sheet": true,
+      "rows": 20,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "읽고 잃음",
+        "11번가": "목록에서 못 엶",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 120,
+      "steps": 19,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 24787,
+      "refused_steps": 2,
+      "gen_tokens_per_sec": 121.7,
+      "prefill_tokens_per_sec": 9995.1,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_close",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "url_required"
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": false,
+          "error": "not_on_a_site"
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_read_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 6,
+      "made_sheet": true,
+      "rows": 2,
+      "shops": {
+        "G마켓": "온전",
+        "다나와": "값이 글에 없음",
+        "11번가": "줄 없음"
+      },
+      "causes": {
+        "다나와": "잘못 읽음",
+        "11번가": "열고 안 읽음",
+        "G마켓": "온전"
+      },
+      "whole_rows": 1,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 322,
+      "steps": 41,
+      "stop_reason": "model_done",
+      "pushbacks": 2,
+      "largest_prompt_tokens": 25156,
+      "refused_steps": 4,
+      "gen_tokens_per_sec": 122.0,
+      "prefill_tokens_per_sec": 8029.1,
+      "closed_tabs": 2,
+      "tools": [
+        {
+          "tool": "browser_close",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_close",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "host_does_not_exist:www.gmarket.com.co"
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": false,
+          "error": "site_search_box_not_found:brand.naver.co"
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "host_does_not_exist:shopping.coupang.com"
+        },
+        {
+          "tool": "clipboard_write",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_click",
+          "ok": false,
+          "error": "invalid_element_ref"
+        },
+        {
+          "tool": "browser_snapshot",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_find",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 6,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "11번가": "온전",
+        "다나와": "값 없음",
+        "G마켓": "값 없음"
+      },
+      "causes": {
+        "다나와": "읽고 잃음",
+        "11번가": "온전",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 1,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 231,
+      "steps": 28,
+      "stop_reason": "model_done",
+      "pushbacks": 1,
+      "largest_prompt_tokens": 25251,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 121.1,
+      "prefill_tokens_per_sec": 8669.0,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "host_does_not_exist:search11.com"
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "switch",
+      "round": 6,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "G마켓": "온전",
+        "다나와": "값이 글에 없음",
+        "11번가": "온전"
+      },
+      "causes": {
+        "다나와": "열고 안 읽음",
+        "11번가": "온전",
+        "G마켓": "온전"
+      },
+      "whole_rows": 2,
+      "status": "completed",
+      "state": "complete",
+      "asked": false,
+      "sec": 175,
+      "steps": 28,
+      "stop_reason": "wrapped_up:goal_met",
+      "pushbacks": 1,
+      "largest_prompt_tokens": 24659,
+      "refused_steps": 8,
+      "gen_tokens_per_sec": 123.2,
+      "prefill_tokens_per_sec": 14620.3,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": false,
+          "error": "not_on_a_site"
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "page_not_found:search.danawa.com/goods/니"
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "page_not_found:search.danawa.com/goods/닌"
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "page_not_found:search.danawa.com/goods/닌"
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "site_under_maintenance:search.nate.com"
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "host_does_not_exist:shop11.co.kr"
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "host_does_not_exist:www.shop11.co.kr"
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "host_does_not_exist:shop11.co.kr"
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_edit_spreadsheet",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_edit_spreadsheet",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "mouse",
+      "round": 7,
+      "made_sheet": true,
+      "rows": 3,
+      "shops": {
+        "다나와": "온전",
+        "11번가": "값 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "온전",
+        "11번가": "읽고 잃음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 1,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 271,
+      "steps": 24,
+      "stop_reason": "wrapped_up:goal_met",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 24845,
+      "refused_steps": 0,
+      "gen_tokens_per_sec": 122.4,
+      "prefill_tokens_per_sec": 8526.9,
+      "closed_tabs": 2,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_close",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    },
+    {
+      "task": "buds",
+      "round": 7,
+      "made_sheet": false,
+      "rows": 0,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "안 감",
+        "11번가": "안 감",
+        "G마켓": "안 감"
+      },
+      "whole_rows": 0,
+      "status": "waiting_approval",
+      "state": "",
+      "asked": true,
+      "sec": 25,
+      "steps": 0,
+      "stop_reason": "",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 0,
+      "refused_steps": 0,
+      "closed_tabs": 1,
+      "tools": []
+    },
+    {
+      "task": "switch",
+      "round": 7,
+      "made_sheet": true,
+      "rows": 19,
+      "shops": {
+        "다나와": "줄 없음",
+        "11번가": "줄 없음",
+        "G마켓": "줄 없음"
+      },
+      "causes": {
+        "다나와": "목록에서 못 엶",
+        "11번가": "읽고 잃음",
+        "G마켓": "읽고 잃음"
+      },
+      "whole_rows": 0,
+      "status": "completed",
+      "state": "partial",
+      "asked": false,
+      "sec": 135,
+      "steps": 20,
+      "stop_reason": "model_done",
+      "pushbacks": 0,
+      "largest_prompt_tokens": 24617,
+      "refused_steps": 1,
+      "gen_tokens_per_sec": 122.3,
+      "prefill_tokens_per_sec": 8665.4,
+      "closed_tabs": 1,
+      "tools": [
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": false,
+          "error": "host_does_not_exist:item.danawa.com"
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_site_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_search",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_page_data",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_write_document",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_open_result",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "browser_extract",
+          "ok": true,
+          "error": ""
+        },
+        {
+          "tool": "local_read_document",
+          "ok": true,
+          "error": ""
+        }
+      ]
+    }
+  ],
+  "chain": [],
+  "skipped": 0,
+  "price_summary": {
+    "per_round": [
+      4,
+      1,
+      3,
+      4,
+      2,
+      4,
+      1
+    ],
+    "out_of": 9,
+    "incomplete_rounds": 0,
+    "mean": 2.7,
+    "spread": 1.4,
+    "median": 3.0,
+    "low": 1,
+    "high": 4,
+    "causes": {
+      "안 감": 16,
+      "읽고 잃음": 15,
+      "목록에서 못 엶": 6,
+      "잘못 읽음": 5,
+      "열고 안 읽음": 2
+    },
+    "cause_groups": {
+      "못 찾음": 24,
+      "읽고 잃음": 15,
+      "잘못 읽음": 5
+    },
+    "sec_median": 135.0,
+    "gen_tokens_per_sec_median": 122.2,
+    "prefill_tokens_per_sec_median": 9231.7,
+    "rounds_to_tell": {
+      "2": 8,
+      "3": 4
+    },
+    "short_rows": {
+      "줄 없음": 30,
+      "값 없음": 7,
+      "값이 글에 없음": 4,
+      "주소 틀림": 3
+    }
+  },
+  "pc": {
+    "windows": "Windows-10-10.0.26200-SP0",
+    "cards": [
+      {
+        "name": "NVIDIA GeForce RTX 3090",
+        "total_mb": 24576,
+        "used_mb": 4730
+      },
+      {
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_mb": 12288,
+        "used_mb": 3945
+      }
+    ],
+    "cards_before_start": [
+      {
+        "name": "NVIDIA GeForce RTX 3090",
+        "total_mb": 24576,
+        "used_mb": 4636
+      },
+      {
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_mb": 12288,
+        "used_mb": 3676
+      }
+    ],
+    "model": "qwen3.5:4b",
+    "window": 32768,
+    "model_on_card_mb": 3623,
+    "model_total_mb": 3623,
+    "on_card_share": 1.0,
+    "screen_and_others_mb": null,
+    "sonjari_build": "23f6ec941b2c"
+  },
+  "finished": "2026-10-14 03:00"
+}
