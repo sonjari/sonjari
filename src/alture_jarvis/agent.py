@@ -1633,6 +1633,12 @@ def untouched_sites(plan_results: list[tuple[Any, bool, str]]) -> list[str]:
     return [str(req.label) for req, met, saw in sites if not met and "아무것도 안 함" in str(saw)]
 
 
+#: 새로 읽는 것이 없는 마무리 도구. 이것만 부르며 쓴 긴 글은 답 후보다(`wrap_up_said`).
+_WRAP_UP_TOOLS = frozenset({"browser_close"})
+#: 「하는 말」은 한 문장이다(`narration.NARRATION_INSTRUCTION`). 이보다 길면 답을 쓴 것으로 본다.
+_WRAP_UP_ANSWER_MIN_CHARS = 200
+
+
 class BrowserAgent:
     def __init__(
         self,
@@ -6877,6 +6883,8 @@ class BrowserAgent:
         thinking_budget_hits: list[dict[str, Any]] = []
         # 답 글을 스트림에서 끊은 턴(되풀이 · 도구 목록 아래 속도 붕괴). 2026-10-04 — 12분 선 판은 기록이 없어 서버 로그로 찾았다.
         content_cuts: list[dict[str, Any]] = []
+        #: 마무리 도구(탭 닫기)를 부르며 같이 쓴 **긴 글** — 모델이 답을 거기 써 버린 판의 답 후보(`_WRAP_UP_TOOLS`).
+        wrap_up_said = ""
         completed_claude_answer = ""
         #: 큰 코드 갈림길에서 「클로드에 붙여 넣을 글 받기」를 골라 글만 내고 끝낸 판(`big_code`).
         big_code_handed_over = False
@@ -8148,6 +8156,15 @@ class BrowserAgent:
                 #   ⚠ 이 말은 **증거가 아니다.** 원장에도 답에도 안 들어간다 — 실측에서
                 #     「'weekly_fee' 같은 이름을 찾아봤습니다」(찾아본 적 없음)가 나왔다.
                 #     무엇을 봤는지는 도구 결과가 말한다. 여기 것은 화면의 「하는 말」일 뿐이다.
+                # ★ **답을 탭 닫기와 같이 써 버린 판** (2026-10-16 대표 화면 4d808ace · 10-09 b5df5e5d).
+                #   모델이 다 읽은 뒤 「정리 + 탭 닫기」를 한 응답에 냈다. 도구를 부르며 한 말은 아래에서 400자로 잘려 「하는 말」로만
+                #   나가고 답에는 안 들어가서, 마지막 답은 「브라우저 닫았습니다. 위에서 정리한 대로…」 한두 줄만 남았다 — 정리는 사라졌다.
+                #   부른 도구가 **마무리 도구뿐**이고 글이 한 문장보다 길면 그 글을 답 후보로 쥔다. 읽기 · 검색과 같이 낸 말은 여전히
+                #   증거가 아니다(아래 주석) — 마무리 도구는 새로 읽는 것이 없어서, 그 앞까지 읽은 것으로 쓴 글이다.
+                if calls and {str((call.get("function") or {}).get("name") or "") for call in calls} <= _WRAP_UP_TOOLS:
+                    said_in_full = str(message.get("content") or "").strip()
+                    if len(said_in_full) >= _WRAP_UP_ANSWER_MIN_CHARS:
+                        wrap_up_said = said_in_full
                 if calls and (said := clean_narration(message.get("content"))):
                     self.events.publish(
                         "agent_says",
@@ -8212,6 +8229,12 @@ class BrowserAgent:
                     )
             if not calls:
                 answer = str(message.get("content") or "").strip()
+                if wrap_up_said and len(wrap_up_said) > len(answer):
+                    self.events.publish(
+                        "agent_answer_from_wrap_up",
+                        {"job_id": job_id, "final_chars": len(answer), "wrap_up_chars": len(wrap_up_said)},
+                    )
+                    answer = wrap_up_said
                 code_verified = any(
                     step.get("ok")
                     and (
