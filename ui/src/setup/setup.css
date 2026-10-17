@@ -36,6 +36,36 @@
   min-width: 0;
 }
 
+.setup-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 첫 단계의 화면 언어 고르기 — 단계 줄 오른쪽에 작게(2026-10-17). */
+.setup-lang {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid rgb(var(--line-strong));
+  border-radius: 999px;
+  overflow: hidden;
+  font-size: var(--fs-1);
+}
+
+.setup-lang button {
+  padding: 3px 10px;
+  border: 0;
+  background: transparent;
+  color: rgb(var(--text-4));
+  cursor: pointer;
+}
+
+.setup-lang button.is-on {
+  background: rgb(var(--text-1) / 0.12);
+  color: rgb(var(--text-1));
+}
+
 .setup-steps {
   display: flex;
   gap: 18px;

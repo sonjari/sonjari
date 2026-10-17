@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { t } from "../i18n";
 import type { CoachStep } from "./CoachBubble";
-import { EXCEL_FOLLOW_KO, FIRST_TASKS_KO, hostOf, lastAnswerLink, loadQuests, saveQuests, type QuestId, type QuestState } from "./tutorialState";
+import { EXCEL_FOLLOW_EN, EXCEL_FOLLOW_KO, FIRST_TASKS_EN, FIRST_TASKS_KO, hostOf, lastAnswerLink, loadQuests, saveQuests, type QuestId, type QuestState } from "./tutorialState";
 
 /** 답 속 링크를 사람이 눌렀을 때 `MarkdownView` 가 보내는 창 사건. */
 export const LINK_OPENED_EVENT = "sonjari:link-opened";
@@ -47,7 +47,7 @@ export function useTutorial({ english, setDraft, focusDraft, setStage, openRepor
 
   const ready = useCallback((index: number) => {
     taskRef.current = index;
-    if (!english) setDraft(FIRST_TASKS_KO[index].prompt);
+    setDraft((english ? FIRST_TASKS_EN : FIRST_TASKS_KO)[index].prompt);
     setPhase("ready");
     window.setTimeout(focusDraft, 0);
   }, [english, setDraft, focusDraft]);
@@ -65,7 +65,7 @@ export function useTutorial({ english, setDraft, focusDraft, setStage, openRepor
   const cardSeen = useCallback(() => finish("card"), [finish]);
 
   const excelReady = useCallback(() => {
-    if (!english) setDraft(EXCEL_FOLLOW_KO);
+    setDraft(english ? EXCEL_FOLLOW_EN : EXCEL_FOLLOW_KO);
     setPhase("excelReady");
     window.setTimeout(focusDraft, 0);
   }, [english, setDraft, focusDraft]);
@@ -124,11 +124,8 @@ export function useTutorial({ english, setDraft, focusDraft, setStage, openRepor
 
   let bubble: CoachStep | null = null;
   if (phase === "ready") {
-    bubble = english
-      ? { target: ".workspace-composer textarea", step: [1, 4], title: t("찾아볼 것을 적고 보내 보세요."),
-          body: t("손자리가 이 컴퓨터의 크롬을 직접 움직여 찾아요.") }
-      : { target: ".send-button", step: [1, 4], title: t("이 문장을 그대로 보내 보세요."),
-          body: t("손자리가 이 컴퓨터의 크롬을 직접 움직여 찾아요.") };
+    bubble = { target: ".send-button", step: [1, 4], title: t("이 문장을 그대로 보내 보세요."),
+      body: t("손자리가 이 컴퓨터의 크롬을 직접 움직여 찾아요.") };
   } else if (phase === "running") {
     bubble = { target: ".computer-pane", step: [2, 4], title: t("지금 손자리가 크롬에서 찾고 있어요."),
       body: t("로그인된 사이트도 그대로 보여요. 멈추고 싶으면 「여기서 멈추기」를 누르세요.") };
@@ -140,15 +137,13 @@ export function useTutorial({ english, setDraft, focusDraft, setStage, openRepor
       body: t("읽은 곳은 언제든 직접 열어 볼 수 있어요. 이어서 찾은 것을 엑셀로 받아 볼까요?"),
       actions: [{ label: t("엑셀로 받아 보기"), primary: true, onClick: excelReady }, { label: t("나중에"), onClick: stop }] };
   } else if (phase === "excelReady") {
-    bubble = english
-      ? { target: ".workspace-composer textarea", title: t("방금 찾은 것을 엑셀로 달라고 적어 보내 보세요.") }
-      : { target: ".send-button", title: t("이 문장을 그대로 보내 보세요."), body: t("같은 대화에서 이어 물으면 앞에서 찾은 것을 씁니다.") };
+    bubble = { target: ".send-button", title: t("이 문장을 그대로 보내 보세요."), body: t("같은 대화에서 이어 물으면 앞에서 찾은 것을 씁니다.") };
   } else if (phase === "excelDone") {
     bubble = { title: t("엑셀 파일을 만들었어요."), body: t("답에 적힌 자리에서 열 수 있어요. 손자리가 만든 파일은 문서 폴더의 Sonjari 안에 모여요."),
       actions: [{ label: t("다 했어요"), primary: true, onClick: stop }] };
   } else if (phase === "failed") {
     // 둘째 문장(날씨)이 남아 있을 때만 「다른 문장으로」를 준다 — 둘 다 안 되면 더 권하지 않는다.
-    const retry = !english && taskRef.current === 0;
+    const retry = taskRef.current === 0;
     bubble = { title: t("이번엔 끝내지 못했어요."),
       body: failure === "nolink" ? t("이번 답에는 열어 볼 주소가 없었어요. 잘된 척하지 않고 그대로 보여 드려요.")
         : t("손자리가 이 일을 끝내지 못했어요. 무엇이 있었는지 알려 주시면 고쳐서 다음 판에 넣어요."),

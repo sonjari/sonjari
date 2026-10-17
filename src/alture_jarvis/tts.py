@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from . import english as _english
 from .config import JarvisConfig
 
 
@@ -49,11 +50,19 @@ class SupertonicTTS:
                 "error": str(exc),
             }
 
+    def _lang_for(self, text: str) -> str:
+        """읽을 글의 언어 — **영어 글은 en 으로** 읽힌다 (2026-10-17 영어판 점검).
+
+        설정값(`supertonic_language`, 기본 ko)만 보냈더니 영어 화면 · 영어 질문의 영어 답도 한국어 규칙으로 읽었다 — 화면 글은
+        나가는 순간 번역되는데(`ui_i18n`) 음성만 언어를 몰랐다. 음성 서버는 en 을 받는다(이 PC 에서 확인). 그 밖은 설정값 그대로.
+        """
+        return "en" if _english.english_dominant(" ".join(str(text or "").split())) else self.config.supertonic_language
+
     def _request_audio(self, text: str) -> bytes:
         body = {
             "text": text,
             "voice": self.config.supertonic_voice,
-            "lang": self.config.supertonic_language,
+            "lang": self._lang_for(text),
             "steps": self.steps,
             "speed": self.speed,
             "response_format": "wav",
@@ -88,7 +97,7 @@ class SupertonicTTS:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         key = hashlib.sha256(
             (
-                f"v2|{self.config.supertonic_voice}|{self.config.supertonic_language}|"
+                f"v2|{self.config.supertonic_voice}|{self._lang_for(clean)}|"
                 f"{self.steps}|{self.speed:.3f}|{clean}"
             ).encode("utf-8")
         ).hexdigest()[:24]

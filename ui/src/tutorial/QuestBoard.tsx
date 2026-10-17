@@ -8,13 +8,13 @@ import { cardFacts, type QuestId, type QuestState } from "./tutorialState";
  * 할 일에는 순서가 없어서 번호 대신 동그라미를 쓴다(아무 때나 · 아무 순서로). 끝낸 일에는 초록 도장 「직접 확인함」과
  * 사용자가 실제로 열어 본 주소를 고정폭으로 남긴다 — 손자리가 한 일이 아니라 **사람이 확인한 것**이 이 판의 기억거리다.
  */
-export function QuestBoard({ state, tierGb, english, claudeConnected = false, onStart, onDismiss, onCardSeen }: {
+export function QuestBoard({ state, tierGb, claudeConnected = false, onStart, onDismiss, onCardSeen }: {
   state: QuestState;
   /** 클로드(데스크톱 · 코드)가 손자리에 이어져 있나 — 아니면 퀘스트 ③ 을 아예 안 보인다(「못 한 퀘스트」를 만들지 않는다). */
   claudeConnected?: boolean;
   tierGb?: number;
-  /** 영어 화면 — 첫 일 문장을 아직 안 쟀다. */
-  english: boolean;
+  /** 영어 화면 — 10-17 부터 영어 첫 일도 재서 넣었기에 판의 글은 같다(부르는 쪽 호환으로 남김). */
+  english?: boolean;
   onStart: (quest: "watch" | "excel") => void;
   onDismiss: () => void;
   onCardSeen: () => void;
@@ -51,9 +51,7 @@ export function QuestBoard({ state, tierGb, english, claudeConnected = false, on
         <button type="button" className="quest-later" onClick={onDismiss}>{t("다음에 하기")}</button>
       </header>
       <ul>
-        {row("watch", t("크롬이 움직이는 걸 보기"), english
-          ? t("아직 영어 첫 일 문장은 재 보지 않았어요. 찾아볼 것을 직접 적어 보세요.")
-          : t("손자리가 이 컴퓨터의 크롬으로 찾아 읽어요. 끝나면 읽은 페이지를 직접 열어 확인해요."),
+        {row("watch", t("크롬이 움직이는 걸 보기"), t("손자리가 이 컴퓨터의 크롬으로 찾아 읽어요. 끝나면 읽은 페이지를 직접 열어 확인해요."),
         <button type="button" className="quest-start" onClick={() => onStart("watch")}>{t("시작")}</button>)}
         {row("excel", t("엑셀로 받아 보기"), t("찾은 것을 엑셀 파일로 받아요."),
           <button type="button" className="quest-start" onClick={() => onStart("excel")}>{t("시작")}</button>)}

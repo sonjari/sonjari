@@ -48,6 +48,21 @@ export const FIRST_TASKS_KO = [
   { prompt: "네이버에서 오늘 서울 날씨를 찾아 최고 기온과 최저 기온을 알려 줘", host: "naver.com" },
 ] as const;
 
+/**
+ * 영어 화면의 첫 일 (2026-10-17 · 이 PC 흉내 24GB · 8GB · 6GB 3판씩 · 결과 `문서\Sonjari-measure\tutorial_en_1017`).
+ * 에펠탑(위키백과)은 맞혔지만 같은 질문을 다시 하면 지난 대화에서 답해 크롬이 안 움직여서 뺐다 — 별 수 · 날씨처럼 매번 바뀌는 값이라야
+ * 다시 해도 크롬이 움직인다.
+ * GitHub 은 정답(라이선스 MIT)으로 매겨 24GB 3/3 · 8GB 3/3 · 6GB 2/3(한 판이 「Apache 2.0」). 날씨는 답을 열어 보니 9판 중 8판이
+ * 오늘 기온(6GB 한 판은 10월 평균)이고, 한국 새벽엔 런던 날짜가 하루 늦어 16 · 17일이 섞인다 — 그래서 둘째(다시 해 보기)로 둔다.
+ * 한국어 첫 일(책 9/9)보다 약하다. 더 나은 영어 첫 일은 다음 측정 거리.
+ */
+export const FIRST_TASKS_EN = [
+  { prompt: "Find the ollama/ollama repository on GitHub and tell me its license and how many stars it has", host: "github.com" },
+  { prompt: "Look up today's weather in London and tell me the high and low temperatures", host: "" },
+] as const;
+
+export const EXCEL_FOLLOW_EN = "Turn what you just found into an Excel file";
+
 /** 퀘스트 ② — 같은 대화에서 이어 묻는다(24GB 3/3 · 6GB 흉내 3/3 · 8GB 흉내 2/3 — 진 판은 앞 판이 브라우저 고장으로 멈춘 판). */
 export const EXCEL_FOLLOW_KO = "방금 찾은 것을 엑셀 파일로 만들어 줘";
 

@@ -52,7 +52,13 @@ NARRATION_INSTRUCTION = (
     "도구를 부르기 전에, 직전 결과에서 무엇을 봤는지와 지금 무엇을 왜 하는지를 "
     "사용자에게 **한 문장**으로 먼저 말해라. 그 문장을 content 에 담고, **같은 응답에서 "
     "tool_calls 도 반드시 함께** 낸다. 말만 하고 도구를 안 부르면 안 된다. "
-    "아직 안 한 일을 했다고 적지 마라 — 본 것만 말해라."
+    "아직 안 한 일을 했다고 적지 마라 — 본 것만 말해라. "
+    # ★ 2026-10-17: 위의 「말만 하고 도구를 안 부르면 안 된다」가 **최종 답에도** 걸렸다 — 최종 답은 원래 도구 없이 말만 하는
+    #   차례다. 모델이 다 읽은 뒤 정리를 쓰면서 탭 닫기를 같이 붙였고, 도구와 같이 쓴 글은 화면에 한 줄로 지나갈 뿐이라 정리가
+    #   사라졌다(10-16 4d808ace · 실사용 5판). 레딧 댓글(rahul_watertech)이 짚은 대로 지시와 하네스 양쪽에 건다 — 하네스 쪽은
+    #   `agent._FINAL_TOO_SHORT_RATIO`.
+    "단, 일을 다 마치고 **최종 답**을 쓸 때는 도구를 부르지 말고 그 답만 따로, 그것만 읽어도 되게 완전하게 써라 — "
+    "도구와 같이 쓴 글은 사용자에게 답으로 가지 않는다."
 )
 
 #: 같은 지시의 영어판. **영어로 시킨 판**에 쓴다 (2026-10-05 AWS 영어 윈도우 첫 실행).
@@ -60,7 +66,9 @@ NARRATION_INSTRUCTION = (
 NARRATION_INSTRUCTION_EN = (
     "Before calling a tool, first tell the user in **one English sentence** what you saw in the previous result "
     "and what you are doing now and why. Put that sentence in content, and **always send tool_calls in the same "
-    "response**. Never speak without calling a tool. Do not claim work you have not done — say only what you saw."
+    "response**. Never speak without calling a tool. Do not claim work you have not done — say only what you saw. "
+    "Except when the work is done and you write the **final answer**: then call no tool and write that answer on its own, "
+    "complete enough to read by itself — text sent together with a tool call never reaches the user as the answer."
 )
 
 #: 한 번에 내보낼 말의 최대 길이. 길면 그건 답이지 나레이션이 아니다.

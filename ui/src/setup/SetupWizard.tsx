@@ -17,7 +17,7 @@
  * - 아직 없는 기능(MCP 연결)은 누를 수 있는 척하지 않는다.
  * - 지침 가져오기(P4)는 3단계 왼쪽이 고르고 누르는 곳, 오른쪽이 「어디를 여는지」와 걷은 결과.
  */
-import { t } from "../i18n";
+import { lang, setLang, t } from "../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri, loadBootstrap } from "../backend";
@@ -444,13 +444,28 @@ export default function SetupWizard() {
         </div>
       )}
       <section className="setup-human" aria-live="polite">
-        <ol className="setup-steps" aria-label={t("설정 단계")}>
-          {STEPS.map((label, index) => (
-            <li key={label} className={index === step ? "is-now" : index < step ? "is-done" : ""} aria-current={index === step ? "step" : undefined}>
-              {label}
-            </li>
-          ))}
-        </ol>
+        <div className="setup-head">
+          <ol className="setup-steps" aria-label={t("설정 단계")}>
+            {STEPS.map((label, index) => (
+              <li key={label} className={index === step ? "is-now" : index < step ? "is-done" : ""} aria-current={index === step ? "step" : undefined}>
+                {label}
+              </li>
+            ))}
+          </ol>
+          {/* ★ 화면 언어를 **첫 단계에서** 고른다 (2026-10-17 영어 마법사 점검). 처음 값은 윈도우 언어를 따르는데, 언어를 바꾸는 단추는
+              설정 화면에만 있어서 한국어 윈도우를 쓰는 외국인은 마법사를 한국어로 끝내야 바꿀 수 있었다. 바꾸면 화면을 다시 여니
+              (`setLang`) 고른 것이 사라지지 않는 첫 단계에서만 보인다. 이름은 각자 자기 말로 적는다. */}
+          {step === 0 && (
+            <div className="setup-lang" role="radiogroup" aria-label={t("화면 언어")}>
+              {(["ko", "en"] as const).map((code) => (
+                <button key={code} type="button" role="radio" aria-checked={lang() === code}
+                  className={lang() === code ? "is-on" : ""} onClick={() => { if (lang() !== code) setLang(code); }}>
+                  {code === "ko" ? "한국어" : "English"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {error && (
           <div className="setup-error" role="alert">

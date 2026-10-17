@@ -18,7 +18,7 @@ from ctypes import wintypes
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
-from .brand import product_dir
+from .brand import documents_product_dir
 from .config import JarvisConfig
 from .grounding_scout import find_anchor as scout_find_anchor
 from .code_index import CodeIndex
@@ -1086,6 +1086,112 @@ def repair_glued_path(path: Path, *, allow_missing_leaf: bool = False) -> Path |
     return current if changed else None
 
 
+#: 이름으로 켜도 되는 윈도우 기본 프로그램 — (부르는 이름들, System32 안의 실행 파일). 목록 밖은 예전대로 막는다(2026-10-17).
+_SYSTEM_APPS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("notepad", "메모장"), "notepad.exe"),
+    (("calc", "calculator", "계산기"), "calc.exe"),
+    (("mspaint", "paint", "그림판"), "mspaint.exe"),
+    (("taskmgr", "task manager", "작업 관리자", "작업관리자"), "Taskmgr.exe"),
+)
+#: 따로 깔리는 프로그램 — 윈도우가 「App Paths」에 적어 둔 자리에서만 찾는다(경로를 모델 글에서 받지 않는다).
+_REGISTERED_APPS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("hwp", "한글", "한컴오피스 한글", "hancom hwp"), "Hwp.exe"),
+)
+
+
+def _app_paths_lookup(exe: str) -> str:
+    """윈도우 「App Paths」에 등록된 실행 파일 자리. 없으면 빈 글."""
+    try:
+        import winreg  # noqa: PLC0415 — 윈도우에서만
+    except ImportError:
+        return ""
+    for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        for root in (r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths",
+                     r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"):
+            try:
+                with winreg.OpenKey(hive, rf"{root}\{exe}") as key:
+                    value = str(winreg.QueryValue(key, None) or "").strip().strip('"')
+            except OSError:
+                continue
+            if value and Path(value).is_file():
+                return value
+    # 한컴 오피스는 「App Paths」에 안 적는 판이 있다(이 PC 의 한글 2022). 설치 폴더 안에서만 찾는다.
+    if exe.casefold() == "hwp.exe":
+        for base in (os.environ.get("ProgramFiles(x86)") or r"C:\Program Files (x86)", os.environ.get("ProgramFiles") or r"C:\Program Files"):
+            for vendor in ("HNC", "Hnc", "Hancom"):
+                hits = sorted(Path(base, vendor).glob("Office */HOffice*/Bin/Hwp.exe"), reverse=True)
+                if hits:
+                    return str(hits[0])
+    return ""
+
+
+def _visible_windows() -> dict[int, str]:
+    """지금 화면에 보이는 맨 위 창들 — {창 번호: 제목}. 윈도우가 아니면 빈 것."""
+    if os.name != "nt":
+        return {}
+    found: dict[int, str] = {}
+    user32 = ctypes.windll.user32
+    callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+    def collect(hwnd: Any, _param: Any) -> bool:
+        if user32.IsWindowVisible(hwnd):
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length > 0:
+                buffer = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(hwnd, buffer, length + 1)
+                found[int(hwnd)] = buffer.value
+        return True
+
+    user32.EnumWindows(callback_type(collect), 0)
+    return found
+
+
+def _wait_for_new_window(before: dict[int, str], *, timeout: float = 12.0) -> dict[str, Any]:
+    """연 뒤 **새로 뜬 창**을 기다려 그 번호 · 제목을 돌려준다 (2026-10-17 한글 → PDF 측정).
+
+    한글이 뜨는 몇 초 동안 모델이 창 목록 보기와 `tasklist` 를 여섯 번 되풀이했다. 여기서 기다려 주면 한 걸음이다.
+    시간 안에 안 뜨면(이미 떠 있던 프로그램이 새 창 없이 앞으로 왔을 수도 있다) 빈 것을 돌려준다 — 그때는 창 목록으로 본다.
+    """
+    deadline = time.monotonic() + max(0.0, timeout)
+    while time.monotonic() < deadline:
+        time.sleep(0.5)
+        now = _visible_windows()
+        fresh = {hwnd: title for hwnd, title in now.items() if hwnd not in before and title.strip()}
+        if fresh:
+            hwnd, title = next(iter(fresh.items()))
+            return {"window_id": hwnd, "window_title": title[:300]}
+    return {}
+
+
+def launchable_app(requested: str) -> str | None:
+    """「메모장」 · `notepad.exe` · `C:\\Windows\\System32\\notepad.exe` 처럼 정해 둔 프로그램을 부른 것이면 그 실행 파일 자리, 아니면 None.
+
+    전체 경로로 부른 것은 **그 자리가 실제 자리와 같을 때만** 받는다 — 다른 폴더의 같은 이름 실행 파일은 받지 않는다.
+    """
+    text = str(requested or "").strip().strip('"').strip()
+    if not text:
+        return None
+    lowered = text.casefold()
+    name = Path(text).name.casefold()
+    stem = name[:-4] if name.endswith(".exe") else name
+    system = Path(os.environ.get("SystemRoot") or r"C:\Windows") / "System32"
+    for names, exe in _SYSTEM_APPS:
+        target = system / exe
+        if lowered in names or stem in names or name == exe.casefold():
+            if ("\\" in text or "/" in text) and Path(text).resolve() != target.resolve():
+                return None
+            return str(target) if target.is_file() else None
+    for names, exe in _REGISTERED_APPS:
+        if lowered in names or stem in names or name == exe.casefold():
+            found = _app_paths_lookup(exe)
+            if not found:
+                return None
+            if ("\\" in text or "/" in text) and Path(text).resolve() != Path(found).resolve():
+                return None
+            return found
+    return None
+
+
 class LocalComputerTools:
     def __init__(
         self,
@@ -1116,7 +1222,7 @@ class LocalComputerTools:
         #   자비스가 **자기 결과물 폴더에 못 쓴다** — 검사가 그렇게 걸렸다.
         #   자리를 옮길 수 있게 만들었으면 따라와야 할 것도 같이 옮겨야 한다.
         documents_root = Path(
-            getattr(config, "documents_dir", None) or product_dir(Path.home() / "Documents")
+            getattr(config, "documents_dir", None) or documents_product_dir(Path.home() / "Documents")
         ).resolve(strict=False)
         if documents_root not in self.allowed_roots:
             self.allowed_roots.append(documents_root)
@@ -1434,7 +1540,7 @@ class LocalComputerTools:
             ),
             self._function(
                 "windows_open_path",
-                "허용된 로컬 폴더 또는 파일을 Windows 기본 앱으로 연다. 실제 프로그램 실행이므로 화면 승인이 필요하다.",
+                "허용된 로컬 폴더 또는 파일을 Windows 기본 앱으로 연다. 메모장 · 계산기 · 그림판 · 작업 관리자 · 한글(HWP) 은 path 에 이름만 적으면 켠다(예: \"메모장\", \"taskmgr\"). 실제 프로그램 실행이므로 화면 승인이 필요하다.",
                 {"path": {"type": "string"}},
                 ["path"],
             ),
@@ -2182,7 +2288,7 @@ class LocalComputerTools:
         는 탐색기에서 바로 보이고, 이미 읽기 허용 루트 안이라 다음 턴에 다시 읽을
         수도 있다.
         """
-        root = Path(getattr(self.config, "documents_dir", None) or product_dir(Path.home() / "Documents"))
+        root = Path(getattr(self.config, "documents_dir", None) or documents_product_dir(Path.home() / "Documents"))
         root.mkdir(parents=True, exist_ok=True)
         return root
 
@@ -4522,11 +4628,22 @@ class LocalComputerTools:
     def open_path(self, arguments: dict[str, Any]) -> dict[str, Any]:
         if os.name != "nt" or not self.config.windows_control_enabled:
             raise RuntimeError("windows_control_unavailable")
+        # ★ **정해 둔 윈도우 프로그램은 이름으로 연다** (2026-10-17 메모장 판 d4c7eb06). 「메모장을 열어」에 모델은
+        #   `C:\Windows\System32\notepad.exe` 를 열려 했고, 시스템 폴더라 막히자 System32 를 작업 자리로 달라고 했다가 또 막혀
+        #   두 걸음을 버렸다(결국 셸 명령으로 열었다 — 셸은 사람 승인이 드는 더 넓은 문이다). 시스템 폴더를 여는 대신 실행 파일
+        #   **이름 몇 개만** 받는다. 인자는 넘기지 않는다 — 프로그램을 켜는 것뿐이고, 무엇을 할지는 그다음 창 조작이 한다.
+        app = launchable_app(str(arguments.get("path") or ""))
+        if app is not None:
+            before = _visible_windows()
+            os.startfile(app)  # noqa: S606 — 목록에 있는 실행 파일만(`launchable_app`)
+            return {"action": "windows_open_path", "path": app, "type": "app", "opened_with": Path(app).name,
+                    **_wait_for_new_window(before)}
         # ★ 파일을 여는 것은 그 파일의 앱을 **실행**하는 것이다. 좁은 쪽으로 푼다 (2026-09-20).
         path = self._resolve(str(arguments.get("path") or ""), write=True)
         from .file_open import open_file
         from .msix import external_path
 
+        before = _visible_windows()
         opened_with = open_file(external_path(path))
         return {"action": "windows_open_path", "path": str(path), "type": "directory" if path.is_dir() else "file",
-                "opened_with": opened_with}
+                "opened_with": opened_with, **_wait_for_new_window(before)}

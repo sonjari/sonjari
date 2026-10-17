@@ -82,7 +82,12 @@ _COUNT = re.compile(
     #   실측: 프롬프트 382개에 새로 잡히는 것 2건(둘 다 진짜), 기존 개수와 충돌 0.
     #   「1순위」는 1 이라 `1 < value` 에서 걸러진다 — 순서를 말하는 것이지
     #   개수가 아니기 때문이다. 「5순위까지」만 5 로 선다.
-    r"\s*(?:개|곳|건|군데|권|명|순위)(?![월년국인])(\s*이상)?"
+    # ★ 「글」·「편」을 넣었다 (2026-10-17 운영 판 9f8645bd). 「목록에서 아래 다섯 글을 찾아 하나씩 열어 읽어 줘 ①…⑤ …
+    #   글마다 … 댓글 위쪽 세 개」가 단위를 못 알아봐 「다섯 글」을 건너뛰고 「세 개」(글마다 볼 댓글 수)를 집었다 →
+    #   「3개 이상 직접 열어 읽기」. 넷을 읽자 「목표 채움」으로 접혀, 마지막 「⑤번을 열겠습니다」 한 줄이 답이 됐다(읽은 넷의 정리 없음).
+    #   「세 글자」·「두 글씨」는 개수가 아니다. 숫자와 **띄어 쓴** 「글」·「편」만 본다 — 붙이면 「한글 파일」이 「한(1) 글」,
+    #   「한편」이 「한(1) 편」으로 읽힌다(처음엔 안 띄운 것도 봤다가 운영 요청 2,167개 대조에서 「한글 파일」 둘이 바뀌어 좁힘).
+    r"\s*(?:개|곳|건|군데|권|명|순위|(?<=\s)편|(?<=\s)글(?![자씨]))(?![월년국인])(\s*이상)?"
 )
 
 
@@ -1031,6 +1036,16 @@ def _without_quoted_sentences(compact: str) -> str:
     return _QUOTED_SPAN.sub(blank, compact)
 
 
+#: 읽을 곳이 **내 PC 의 프로그램 창**인 요청 — 「작업 관리자를 열어서」·「메모장 창에서」·「한글 프로그램 화면에서 읽어」.
+#: 프로그램 이름만으로는 안 건다(「엑셀로 정리해 줘」는 만들 형식이다) — 열거나 · 창 · 화면이 같이 와야 한다.
+_DESKTOP_SOURCE = re.compile(
+    r"(?:작업\s*관리자|메모장|그림판|계산기|한글\s*프로그램|엑셀\s*프로그램|워드\s*프로그램|제어판|설정\s*앱)"
+    r"[^.!?\n]{0,12}(?:열어|열고|켜서|켜고|창|화면)"
+    r"|(?:프로그램|앱)\s*창(?:에서|을|의)"
+    r"|(?i:\b(?:task\s*manager|notepad)\b)"
+)
+
+
 def extract(
     prompt: str,
     *,
@@ -1145,6 +1160,12 @@ def extract(
         read_count_context = False
     # 긴 글의 진술 문장에 든 개수(붙여넣은 글의 내용)는 읽을 개수가 아니다 — `_count_only_in_a_statement`.
     if read_count_context and _count_only_in_a_statement(compact):
+        read_count_context = False
+    # ★ **읽을 곳이 내 PC 의 프로그램 창이면 그 개수는 웹 자료 개수가 아니다** (2026-10-17 화면 자동화 측정 5f7d4d63).
+    #   「작업 관리자를 열어서 메모리를 가장 많이 쓰는 프로그램 다섯 개를 … 화면에서 읽어서 알려 줘」가 「5개 이상 직접 열어 읽기」가
+    #   되어 판 전체가 웹 조사 갈래로 묶였다 — 작업 관리자를 여는 손이 「이 갈래가 아니다」로 막혔고, 끝에는 「5개를 열어 보라고
+    #   하셨는데 하나도 안 열었다」 헛경고가 붙고 모델은 엉뚱하게 웹 결과 열기를 시도했다. 사이트나 주소를 댄 요청은 그대로 센다.
+    if read_count_context and not has_named_source and _DESKTOP_SOURCE.search(compact) and not _EMBEDDED_ADDRESS.search(compact):
         read_count_context = False
     if target and _is_action_count(outside_quotes, target):
         # 행위에 붙은 개수. **한 횟수로만** 센다 — 적어 놓는 것으로는 못 채운다.
@@ -1703,25 +1724,63 @@ def _footnotes_in(path: Path) -> int:
         return 0
 
 
+#: 프로그램 창에서 실행한 동작 — 그 **뒤에** 생긴 파일만 창으로 만든 산출물 후보다.
+_GUI_ACTION_TOOLS = frozenset({"windows_execute_preview"})
+#: 그 파일을 실제로 **열어 본** 걸음 — 이름만 짐작한 파일은 세지 않는다.
+_GUI_MADE_READERS = frozenset({"local_read_document", "local_read_text_file"})
+
+
+def _gui_made_paths(steps: list[dict[str, Any]]) -> list[Path]:
+    """**프로그램 창으로 만든 파일** — 창 동작을 실행한 뒤 손자리가 직접 열어 읽었고, 그 동작 뒤에 쓰인 파일 (2026-10-17).
+
+    한글을 메뉴로 조작해 PDF 를 저장하고 그 PDF 를 열어 5쪽까지 확인한 판(화면 자동화 측정)에 「❌ 실제 산출물 파일 만들기 —
+    열 수 있는 산출물 없음」이 붙었다 — 산출물은 파일 쓰기 도구가 선언한 경로만 셌다. 지어낸 파일이 끼지 않게 셋을 다 본다:
+    창 동작이 먼저 있었고 · 그 파일을 실제로 읽었고(성공) · 파일이 첫 창 동작보다 나중에 쓰였다.
+    """
+    started = [
+        float((step.get("evidence") or {}).get("executed_at") or 0)
+        for step in steps
+        if step.get("ok") and str(step.get("tool") or "") in _GUI_ACTION_TOOLS
+    ]
+    started = [value for value in started if value > 0]
+    if not started:
+        return []
+    since = min(started) - 2.0
+    made: list[Path] = []
+    for step in steps:
+        if not step.get("ok") or str(step.get("tool") or "") not in _GUI_MADE_READERS:
+            continue
+        raw = str((step.get("arguments") or {}).get("path") or "").strip()
+        if not raw:
+            continue
+        path = Path(raw)
+        try:
+            if path.is_file() and path.stat().st_mtime >= since:
+                made.append(path)
+        except OSError:
+            continue
+    return list(dict.fromkeys(made))
+
+
 def _open_artifacts(
     steps: list[dict[str, Any]], extensions: tuple[str, ...]
 ) -> list[Path]:
     opened: list[Path] = []
     wanted = {suffix.lower() for suffix in extensions}
-    for step in steps:
-        for path in _step_output_paths(step):
-            try:
-                if wanted and path.suffix.lower() not in wanted:
-                    continue
-                if not path.is_file():
-                    continue
-                # 존재 확인과 열기 확인은 다르다. 잠긴 파일·깨진 경로를 성공으로 세지
-                # 않도록 실제로 파일 핸들을 연다. 내용 품질은 이 눈금의 범위가 아니다.
-                with path.open("rb") as stream:
-                    stream.read(1)
-            except OSError:
+    candidates = [path for step in steps for path in _step_output_paths(step)] + _gui_made_paths(steps)
+    for path in candidates:
+        try:
+            if wanted and path.suffix.lower() not in wanted:
                 continue
-            opened.append(path)
+            if not path.is_file():
+                continue
+            # 존재 확인과 열기 확인은 다르다. 잠긴 파일·깨진 경로를 성공으로 세지
+            # 않도록 실제로 파일 핸들을 연다. 내용 품질은 이 눈금의 범위가 아니다.
+            with path.open("rb") as stream:
+                stream.read(1)
+        except OSError:
+            continue
+        opened.append(path)
     return list(dict.fromkeys(opened))
 
 
@@ -2749,7 +2808,14 @@ _FORMAT_IS_SOURCE = re.compile(
 #: 이름이 붙은 파일(「매출표.xlsx」 · 「INSTRUCTIONS.md」)은 **읽는 말이 분명할 때만** 재료다.
 #: 「tidy.py 에 있는 함수를 완성해줘」의 `tidy.py` 는 고칠 파일이다 — 「에 있는」 · 「에서」로는 재료라고 못 한다
 #: (운영 요청에 대 보니 그 모양이 코드 과제에 있었다).
-_NAMED_FILE_IS_READ = re.compile(r"\s*(?:파일|문서)?\s*(?:을|를)\s*(?:읽|열어\s*보|보고|참고|분석)")
+_NAMED_FILE_IS_READ = re.compile(
+    r"[」』\"'”’)\]]?\s*(?:파일|문서)?\s*(?:을|를)\s*"
+    r"(?:읽|열어\s*보|보고|참고|분석"
+    # ★ 「「…welcome.hwp」 파일을 한글 프로그램으로 **열어서** PDF로 저장해 줘」 (2026-10-17 화면 자동화 측정) — 원본 이름을 만들 형식으로
+    #   읽어 「.hwp 산출물」을 찾았고, PDF 를 만들어 열어 읽은 세 판 모두 「❌ 열 수 있는 산출물 없음」이 붙었다. 닫는 따옴표와
+    #   「(프로그램으로) 열어」를 재료로 본다. 사이에 만들기 · 저장 말이 끼면 그것은 만들 파일이다(「결과.md 를 만들어서 열어 줘」).
+    r"|(?:(?!만들|저장|작성|써)[^,.。!?]){0,24}?(?:열어|열고|띄워))"
+)
 
 
 def _format_is_source(compact: str, end: int, *, named_file: bool = False) -> bool:
@@ -2788,6 +2854,10 @@ def _artifact_extensions(prompt: str) -> tuple[str, ...]:
     if named:
         return tuple(dict.fromkeys(named))
     rules: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] = _en.EXTENSION_RULES if _en.english_dominant(compact) else (
+        # ★ PDF 규칙이 **아예 없었다** (2026-10-17 화면 자동화 측정). 「한글 창에서 … PDF로 저장해 줘」가 앞의 「한글」로 흘러갔다.
+        #   PDF 는 읽을 재료로 훨씬 자주 나온다(「이 PDF 요약해 줘」) — 그래서 **만들 형식 자리**(로 저장 · 변환 · 내보내기)일 때만 잡는다.
+        (re.compile(r"(?<![A-Za-z])pdf(?![A-Za-z])\s*(?:파일|문서)?\s*(?:로|으로)\s*(?:저장|만들|변환|바꿔|바꾸|내보내|뽑|출력|인쇄)", re.I),
+         (".pdf",)),
         (re.compile(r"엑셀|스프레드시트", re.I), (".xlsx",)),
         (re.compile(r"(?<![A-Za-z])csv(?![A-Za-z])", re.I), (".csv",)),
         (re.compile(r"워드", re.I), (".docx",)),
@@ -2979,8 +3049,20 @@ def _prohibition_object_switched(matched: str) -> bool:
     head = _PROHIBITION_HEAD.match(matched)
     if not head:
         return False
-    verb = _PROHIBITED_VERB.search(matched, head.end())
-    return bool(verb and _INNER_OBJECT.search(matched[head.end():verb.start()]))
+    # ★ 첫 동사가 아니라 **금지 꼬리(「~지 말고」) 바로 앞의 동사**까지 본다 (2026-10-17 화면 자동화 첫 시험 d079f8b8).
+    #   「메모장으로 저장해 줘. **파일을** 바로 **쓰는** 도구는 쓰지 말고 메모장 창을 조작해서」 — 첫 동사(「쓰는」 · 도구를 꾸미는 말)
+    #   앞에는 다른 대상이 없어서 판 전체 쓰기 금지가 됐고, 손자리는 메모장을 열지도 않았다. 금지된 것은 끝의 「쓰지 말고」이고 그 앞에
+    #   「도구는」이 끼어 있다 — 「쓰다」가 「사용하다」인 문장이다.
+    tail = _NEGATION_TAIL.search(matched, head.end())
+    stop = tail.start() if tail else len(matched)
+    verbs = [found for found in _PROHIBITED_VERB.finditer(matched, head.end()) if found.start() < stop]
+    if not verbs:
+        return False
+    return bool(_INNER_OBJECT.search(matched[head.end():verbs[-1].start()]))
+
+
+#: 금지 꼬리 — 「하지 마」·「지는 말고」·「지 말고」·「말고」·「금지」·「않게」.
+_NEGATION_TAIL = re.compile(r"(?:하지|지는|지도|지)\s*(?:마|말)|말고|말아|금지|않(?:게|고|도록)")
 
 
 def write_prohibition_scope(prompt: str) -> str:
