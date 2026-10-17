@@ -131,6 +131,22 @@ ran the 27B on an RTX 3090. 3 products × 3 rounds = 27 rows per arm.
 - Our own grader was wrong several times while we built this; each fix was re-run over every past row. Three of the 36
   cells were confirmed by hand, because the pages Sonjari had read were no longer stored at the time.
 
+### Driving desktop apps through their own windows
+
+Ten everyday jobs in ten apps (Notepad, Calculator, Paint, Excel, Word, PowerPoint, Hangul → PDF, File Explorer, VS Code,
+Task Manager), each done through the app's own window, three runs each. A run passes only if the output is really there
+(the file with the right content, or the right value), the window was actually operated, and the agent did not quietly
+write the file with its own tool instead. 27B on an RTX 3090; approvals were auto-passed for the test.
+
+| | Passed |
+|---|---|
+| Before the fixes (one run per app) | 5 of 10 |
+| After the fixes (three runs per app) | 30 of 30 |
+
+It is slow: 1.5–3 minutes for most jobs, 5–10 for Excel, where a person needs under a minute. In normal use Sonjari writes
+files directly and only drives a window when nothing else reaches. What broke and what changed:
+[measurements/2026-10-17-desktop-apps](measurements/2026-10-17-desktop-apps/README.md).
+
 Where it falls short:
 
 - **On a small card, long research gets about halfway.** Comparing across several shops tends to lose one or two of them.
