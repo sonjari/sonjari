@@ -1747,6 +1747,17 @@ def _gui_made_paths(steps: list[dict[str, Any]]) -> list[Path]:
         return []
     since = min(started) - 2.0
     made: list[Path] = []
+    # 저장 창이 닫힌 뒤 창 도구가 **그 자리에 파일이 실제로 생긴 것을 확인해** 적은 경로(`saved_file` · 5046e2e7)도 센다
+    # (2026-10-17 앱 묶음 · 그림판 cf93ca97 — 저장하고 폴더 목록만 본 판에 「산출물 없음」). 도구가 적은 값이라 모델 말이 아니다.
+    for step in steps:
+        if step.get("ok") and str(step.get("tool") or "") in _GUI_ACTION_TOOLS:
+            saved = str((step.get("evidence") or {}).get("saved_file") or "").strip()
+            if saved:
+                try:
+                    if Path(saved).is_file():
+                        made.append(Path(saved))
+                except OSError:
+                    continue
     for step in steps:
         if not step.get("ok") or str(step.get("tool") or "") not in _GUI_MADE_READERS:
             continue
@@ -1953,6 +1964,8 @@ def _rows_in_file(path: Path) -> int:
 
 
 #: 화면의 칸에 **값을 넣는** 도구 — 성공했으면 그 화면을 보고 한 일이다.
+#: 열린 프로그램 창을 **읽는** 도구 — 내 PC 를 보는 판의 「읽기」로 센다(`answer_claims._DESKTOP_READ_TOOLS` 와 같은 둘).
+_WINDOW_READ_TOOLS = frozenset({"windows_uia_snapshot", "windows_copy_from_window"})
 _DATA_ENTRY_TOOLS = frozenset({
     "browser_fill", "browser_fill_form", "browser_select_option", "browser_pick_suggestion", "browser_type_at",
     "browser_file_upload",
@@ -2204,6 +2217,13 @@ def check(
             entered = sum(1 for step in steps if step.get("ok") and str(step.get("tool") or "") in _DATA_ENTRY_TOOLS)
             if read < 1 and entered:
                 out.append((req, True, f"{_ENTERED_ON_SCREEN} {entered}번"))
+                continue
+            # ★ **내 PC 를 보는 판에서는 프로그램 창을 읽은 것도 본 것이다** (2026-10-17 앱 묶음 측정 · 그림판 cf93ca97). 파일을 그림판으로
+            #   열어 창을 읽고 다뤘는데 「근거가 되는 대상 실제로 읽기 — 0개」가 붙었다. 웹을 보라는 판(대상이 웹)은 그대로 둔다 —
+            #   창 하나 읽고 기억으로 웹 조사 답을 쓰는 판이 통과하면 안 된다.
+            window_reads = sum(1 for step in steps if step.get("ok") and str(step.get("tool") or "") in _WINDOW_READ_TOOLS)
+            if read < 1 and window_reads and str(req.target or "") == "local":
+                out.append((req, True, f"프로그램 창 {window_reads}번 읽음"))
                 continue
             out.append((req, read >= 1, f"{read}개 실제로 읽음"))
         elif req.kind == "filter":
@@ -2809,7 +2829,8 @@ _FORMAT_IS_SOURCE = re.compile(
 #: 「tidy.py 에 있는 함수를 완성해줘」의 `tidy.py` 는 고칠 파일이다 — 「에 있는」 · 「에서」로는 재료라고 못 한다
 #: (운영 요청에 대 보니 그 모양이 코드 과제에 있었다).
 _NAMED_FILE_IS_READ = re.compile(
-    r"[」』\"'”’)\]]?\s*(?:파일|문서)?\s*(?:을|를)\s*"
+    # 「…png」 **그림을** 그림판으로 열어서 (2026-10-17 앱 묶음 측정 cf93ca97) — 파일 · 문서 말고도 그림 · 사진 · 이미지 · 표가 재료 이름 자리에 온다.
+    r"[」』\"'”’)\]]?\s*(?:파일|문서|그림|사진|이미지|표)?\s*(?:을|를)\s*"
     r"(?:읽|열어\s*보|보고|참고|분석"
     # ★ 「「…welcome.hwp」 파일을 한글 프로그램으로 **열어서** PDF로 저장해 줘」 (2026-10-17 화면 자동화 측정) — 원본 이름을 만들 형식으로
     #   읽어 「.hwp 산출물」을 찾았고, PDF 를 만들어 열어 읽은 세 판 모두 「❌ 열 수 있는 산출물 없음」이 붙었다. 닫는 따옴표와
@@ -3475,9 +3496,15 @@ _INTO_PAGE_FORM = re.compile(
 _MAKES_A_FILE = re.compile(r"(?:만들(?:어|고|어서|자)|생성해|작성해|파일로\s*저장)")
 
 
+#: 이름 안에 「파일」이 든 앱 — 산출물 낱말 판정 전에 지운다(`wants_an_artifact`).
+_APP_NAMES_WITH_FILE = re.compile(r"파일\s*탐색기|\bfile\s+explorer\b", re.I)
+
+
 def wants_an_artifact(prompt: str) -> bool:
     """말이 아니라 파일·코드·문서 같은 산출물을 요구했는가."""
-    compact = " ".join(prompt.split())
+    # ★ 「**파일** 탐색기」는 앱 이름이다 (2026-10-17 앱 묶음 · 탐색기 b09c6f60). 「파일 탐색기로 … 새 폴더를 만들어 줘」가 「파일 + 만들어」로
+    #   산출물 요구가 되어, 폴더를 창으로 제대로 만든 판이 시키지 않은 결과 문서(.md)를 하나 더 만들었다.
+    compact = _APP_NAMES_WITH_FILE.sub("탐색기", " ".join(prompt.split()))
     if forbids_writes(compact):
         return False
     if wants_code(compact):

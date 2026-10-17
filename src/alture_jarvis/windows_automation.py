@@ -160,6 +160,37 @@ def _task_manager_values(rows: list[tuple[int, str, int]] | None = None, gpus_te
     return out
 
 
+def _item_matches(item: str, wanted: str) -> bool:
+    """목록 항목이 넣으려던 값과 같은가 — 글자 그대로, 아니면 앞 낱말(「JPEG (*.jpg…)」의 「JPEG」)이 같으면."""
+    a, b = " ".join(str(item).split()).casefold(), " ".join(str(wanted).split()).casefold()
+    if not a or not b:
+        return False
+    if a == b or a.startswith(b) or b.startswith(a):
+        return True
+    head = b.split(" (")[0].split("(")[0].strip()
+    return bool(head) and (a.split(" (")[0].split("(")[0].strip() == head)
+
+
+def _select_combo_item(control: Any, wanted: str) -> str | None:
+    """목록 칸(ComboBox)에서 넣으려는 값과 맞는 항목을 **골라** 넣는다. 맞는 항목이 없거나 고르지 못하면 None — 그때는 글자로 넣는다.
+
+    파일 이름 칸처럼 글자를 쓰는 목록 칸은 넣을 값(「그림_1.jpg」)이 항목과 안 맞아 None 이 되고, 원래 길(붙여넣기)로 간다.
+    """
+    try:
+        items = [str(text) for text in (control.texts() or []) if str(text).strip()]
+    except Exception:
+        items = []
+    match = next((item for item in items if " ".join(item.split()).casefold() == " ".join(str(wanted).split()).casefold()), None)
+    match = match or next((item for item in items if _item_matches(item, wanted)), None)
+    if match is None:
+        return None
+    try:
+        control.select(match)
+    except Exception:
+        return None
+    return match
+
+
 def _menu_item_on_screen(control: Any) -> bool:
     """화면에 보이는 메뉴 항목인가 — 그때만 invoke 를 실제 클릭으로 바꾼다(닫힌 메뉴 속 항목은 클릭할 자리가 없다)."""
     try:
@@ -173,6 +204,58 @@ def _menu_item_on_screen(control: Any) -> bool:
         return bool(properties.get("is_visible", True)) and bool(properties.get("is_enabled", True))
     except Exception:
         return False
+
+
+#: 파일 앞부분으로 아는 형식 — (확장자들, 맞는 머리 바이트들). 이름만 바꾸고 형식은 그대로 저장한 것을 잡는다.
+_FORMAT_HEADS: tuple[tuple[tuple[str, ...], tuple[bytes, ...], str], ...] = (
+    ((".jpg", ".jpeg", ".jpe", ".jfif"), (bytes([0xFF, 0xD8, 0xFF]),), "JPEG"),
+    ((".png",), (bytes([0x89]) + b"PNG",), "PNG"),
+    ((".gif",), (b"GIF8",), "GIF"),
+    ((".bmp",), (b"BM",), "BMP"),
+    ((".pdf",), (b"%PDF",), "PDF"),
+)
+
+
+def _sniff_format(head: bytes) -> str:
+    for _exts, heads, label in _FORMAT_HEADS:
+        if any(head.startswith(mark) for mark in heads):
+            return label
+    if head[4:8] == b"ftyp":
+        return "HEIC/AVIF/MP4 계열"
+    return "알 수 없음"
+
+
+def _format_mismatch(path: Path) -> dict[str, Any]:
+    """확장자가 말하는 형식과 파일 실제 형식이 다르면 알린다 (2026-10-17 앱 묶음 · 그림판 cf93ca97).
+
+    저장 창의 「파일 형식」은 못 바꾸고 이름만 .jpg 로 저장해 **속은 HEIC 인 .jpg** 가 생겼고, 답은 「JPEG 로 저장했다」고 했다.
+    창이 닫힌 바로 그때 알려 주면 모델이 형식을 다시 고를 수 있다. 모르는 확장자는 보지 않는다.
+    """
+    suffix = path.suffix.casefold()
+    expected = next(((heads, label) for exts, heads, label in _FORMAT_HEADS if suffix in exts), None)
+    if expected is None:
+        return {}
+    try:
+        with path.open("rb") as handle:
+            head = handle.read(16)
+    except OSError:
+        return {}
+    heads, label = expected
+    if any(head.startswith(mark) for mark in heads):
+        return {}
+    actual = _sniff_format(head)
+    return {"saved_format_mismatch": f"이름은 {suffix} 인데 파일 실제 형식은 {actual} 입니다 — 저장 창의 「파일 형식」에서 {label} 를 고르고 다시 저장하세요."}
+
+
+#: 대화 창(다른 이름으로 저장 · 열기)을 **열려고** 누르는 키 — 눌러도 아무 창이 안 뜨면 알린다(`_after_action`).
+_DIALOG_KEYS = frozenset({"ctrl+shift+s", "f12", "ctrl+o", "ctrl+f12"})
+
+
+def _dialog_key(preview: Any) -> str:
+    if str(getattr(preview, "action", "")) != "key":
+        return ""
+    combo = "+".join(part.strip() for part in str(getattr(preview, "value", "") or "").casefold().split("+"))
+    return combo if combo in _DIALOG_KEYS else ""
 
 
 def _compact_element(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -962,7 +1045,8 @@ class WindowsAutomationTools:
                 "sent": sent,
                 "target": preview.target,
                 "executed_at": time.time(),
-                **self._after_action(preview.window_id, before, wait=2.0 if preview.action in {"key", "invoke", "click", "double_click"} else 0.3),
+                **self._after_action(preview.window_id, before, wait=2.0 if preview.action in {"key", "invoke", "click", "double_click"} else 0.3,
+                                 dialog_key=_dialog_key(preview)),
             }
 
         checked: dict[str, Any] = {}
@@ -978,32 +1062,42 @@ class WindowsAutomationTools:
                 # ★ **사람처럼 고르고 · 다 고르고 · 붙여 넣는다** (2026-10-17 메모장 판 ac3f08b7). 값을 바로 바꿔 넣었더니(`set_edit_text`)
                 #   다시 읽은 칸은 「화면측정_13545.txt」로 맞았는데, 윈도우 저장 창은 그 값을 받지 않고 첫 줄 이름으로 저장했다 —
                 #   파일 대화 창은 키 입력으로 들어온 값만 제 것으로 친다. 붙여넣기가 안 되는 칸이면 예전 방식으로 넣는다.
-                self._prepare_com_cache()
-                from pywinauto import keyboard
-
-                self._wait_for_hands_off("값 넣기")
-                previous = ""
-                try:
-                    previous = _clipboard_get()
-                except Exception:
-                    previous = ""
-                try:
-                    control.set_focus()
-                    time.sleep(0.1)
-                    keyboard.send_keys("^a")
-                    _clipboard_set(preview.value)
-                    keyboard.send_keys("^v")
+                # ★ **목록에서 고르는 칸은 고른다** (2026-10-17 앱 묶음 측정 · 그림판 cf93ca97). 저장 창의 「파일 형식」에 「JPEG (*.jpg…)」를
+                #   넣으려다 'ComboBoxWrapper' 에 글자 넣기가 없어 오류가 났고, 목록을 열어 누르려니 항목이 두 번 사라졌다. 결국 형식은
+                #   그대로 둔 채 이름만 .jpg 로 저장해 **HEIC 파일에 .jpg 이름**이 붙었다. 넣을 값이 그 칸의 항목과 맞으면 그 항목을 고른다.
+                picked = _select_combo_item(control, preview.value) if str(preview.target.get("control_type") or "") == "ComboBox" else None
+                if picked is not None:
                     time.sleep(0.2)
-                finally:
+                    after = _control_value(control) or picked
+                    checked = {"value_after": after, "selected_item": picked,
+                               "value_matches": _item_matches(after, preview.value) or _item_matches(picked, preview.value)}
+                else:
+                    self._prepare_com_cache()
+                    from pywinauto import keyboard
+
+                    self._wait_for_hands_off("값 넣기")
+                    previous = ""
                     try:
-                        _clipboard_set(previous)
+                        previous = _clipboard_get()
                     except Exception:
-                        pass
-                if _control_value(control).strip() != str(preview.value).strip():
-                    control.set_edit_text(preview.value)
-                time.sleep(0.1)
-                after = _control_value(control)
-                checked = {"value_after": after, "value_matches": after.strip() == str(preview.value).strip()}
+                        previous = ""
+                    try:
+                        control.set_focus()
+                        time.sleep(0.1)
+                        keyboard.send_keys("^a")
+                        _clipboard_set(preview.value)
+                        keyboard.send_keys("^v")
+                        time.sleep(0.2)
+                    finally:
+                        try:
+                            _clipboard_set(previous)
+                        except Exception:
+                            pass
+                    if _control_value(control).strip() != str(preview.value).strip() and hasattr(control, "set_edit_text"):
+                        control.set_edit_text(preview.value)
+                    time.sleep(0.1)
+                    after = _control_value(control)
+                    checked = {"value_after": after, "value_matches": after.strip() == str(preview.value).strip()}
             elif preview.action == "toggle":
                 control.toggle()
             elif preview.action == "select":
@@ -1041,7 +1135,8 @@ class WindowsAutomationTools:
             "executed_at": time.time(),
             **checked,
             **self._saved_file(save_target),
-            **self._after_action(preview.window_id, before, wait=2.0 if preview.action in {"key", "invoke", "click", "double_click"} else 0.3),
+            **self._after_action(preview.window_id, before, wait=2.0 if preview.action in {"key", "invoke", "click", "double_click"} else 0.3,
+                                 dialog_key=_dialog_key(preview)),
         }
 
     #: 저장 대화 창의 제목 — 윈도우 기본 「다른 이름으로 저장」과 한글의 「PDF로 저장하기」.
@@ -1085,16 +1180,16 @@ class WindowsAutomationTools:
         path = Path(target)
         try:
             if path.is_file():
-                return {"saved_file": str(path)}
+                return {"saved_file": str(path), **_format_mismatch(path)}
             if not path.suffix:
                 hits = sorted(path.parent.glob(path.name + ".*"), key=lambda item: item.stat().st_mtime, reverse=True)
                 if hits and time.time() - hits[0].stat().st_mtime < 30:
-                    return {"saved_file": str(hits[0])}
+                    return {"saved_file": str(hits[0]), **_format_mismatch(hits[0])}
         except OSError:
             return {}
         return {}
 
-    def _after_action(self, window_id: int, before: dict[int, str], *, wait: float = 2.0) -> dict[str, Any]:
+    def _after_action(self, window_id: int, before: dict[int, str], *, wait: float = 2.0, dialog_key: str = "") -> dict[str, Any]:
         """동작 뒤 그 창의 제목과 **새로 뜬 창**(저장 창 · 대화 창).
 
         ★ 2026-10-17 한글 → PDF 측정(5d5b9d82): 「PDF로 저장하기」를 누르면 그 대화 창은 **따로 뜨는 새 창**인데, 원래 한글 창의
@@ -1116,4 +1211,10 @@ class WindowsAutomationTools:
             out.update({"window_title_after": "", "window_closed_after": True})
         if fresh:
             out["new_windows"] = [{"window_id": hwnd, "title": title[:200]} for hwnd, title in list(fresh.items())[:3]]
+        # ★ **창을 열려고 누른 키가 아무것도 안 열었으면 바로 말한다** (2026-10-17 앱 묶음 · 엑셀 ec55f971). 엑셀에서 Ctrl+Shift+S 는
+        #   아무 일도 안 해서 「파일」 탭 저장 화면으로 돌아갔고, 거기에 전체 경로를 넣다 오류 창 두 번 · 폴더 하나씩 들어가기로 15걸음을 썼다.
+        #   Tab · Enter 처럼 원래 창이 안 바뀌는 키는 보지 않는다 — 대화 창을 여는 키만.
+        elif dialog_key and out.get("window_title_after") == before.get(window_id, out.get("window_title_after")):
+            out["no_window_opened"] = (f"{dialog_key} 뒤에 새 창이 뜨지 않았고 창 제목도 그대로입니다 — 이 프로그램에서는 그 창을 여는 키가 "
+                                       "다를 수 있습니다(오피스 엑셀 · 워드 · 파워포인트의 「다른 이름으로 저장」 창은 F12, 「열기」 창은 Ctrl+F12).")
         return out

@@ -248,7 +248,9 @@ def _row_was_seen(values: list[str], seen: str) -> bool:
 #:   덜 끝남이었고, 시간 상한(1,500초)은 한 번도 일하지 않았다(230~660초에 끊겼다) — 낮은 쪽만 일하고 있었다.
 #:   상한이 막으려는 것은 **헛도는 조사**(새 쪽을 계속 여는 꼬리)다. 그래서 열기 · 읽기 · 검색 · 누르기는 지금처럼 다 센다 —
 #:   조사 판은 예전 그대로 48 에서 멈춘다. 보기만 되풀이하는 판이 끝없이 가지 않게, 안 세는 몫은 상한의 절반까지다(48 이면 72걸음).
-_LOOK_ONLY_TOOLS = frozenset({"browser_snapshot", "browser_find", "browser_links", "browser_annotate"})
+#: ★ 2026-10-17 앱 묶음(엑셀 45f19094): 창 미리보기 · 창 읽기도 바꾸는 것이 없는 「보기」다 — 칸 넷을 채우는 판이 이것들까지 상한에 세여 저장 직전에 멈췄다.
+_LOOK_ONLY_TOOLS = frozenset({"browser_snapshot", "browser_find", "browser_links", "browser_annotate",
+                              "windows_uia_preview", "windows_visual_preview", "windows_uia_snapshot"})
 
 
 def steps_against_cap(steps: list[dict[str, Any]], cap: int) -> int:
