@@ -81,6 +81,41 @@ the window on purpose.
 - **Opening a file in a chosen app.** Opening a PNG launched the default viewer, so the agent reached for the shell to start
   Paint. The open tool now takes an app name.
 
+## Same jobs, normal wording (later the same night)
+
+The runs above forced the window on purpose. Then the same ten jobs were asked the way a person would ("make a Word file
+with this sentence", no "operate the window"), three runs each. A run passes when the output is really there; the agent may
+use any route.
+
+| App | Normal wording | Route the agent chose |
+|---|---|---|
+| Excel | 20 s | its own file tool, 3 of 3 |
+| Word | 16 s | its own file tool, 3 of 3 |
+| PowerPoint | 16–20 s | its own file tool, 3 of 3 |
+| Calculator | 28–36 s | computed it, 3 of 3 |
+| File Explorer | 40–44 s | its own file tool, 3 of 3 |
+| Notepad | 92–144 s | the window, 3 of 3 |
+| Paint | 84–160 s | the window in 2 of 3 |
+| VS Code | 132–161 s | the window, 3 of 3 |
+| Hangul to PDF | 145–281 s | the window, 3 of 3 |
+| Task Manager | 56–164 s | its value-reading tool |
+
+All 30 passed. For four apps the agent still drove the window and took minutes.
+
+**Fix 1: naming an app means the result's format.** If the request names Notepad, Paint, VS Code or Hangul and does not ask
+to operate the window, the agent is told to write the file with its file tools and offer to open it in that app afterwards.
+Three runs each: Notepad 24–52 s, Paint 60–96 s, VS Code 24–28 s, all by file tools, all passed.
+
+**Fix 2: Hangul to PDF got its own tool.** It copies the file, opens it in a hidden Hangul instance (never the user's open
+window), saves as PDF and checks the result really starts with `%PDF`. The first three runs after adding it went **0 of 3**:
+the tool was registered and its tests passed, but a routing rule classified "save this .hwp as PDF" as web research, and that
+route drops the Hangul tools from the list the model sees. Asked directly, the model said the tool wasn't in its list. After
+routing Hangul file jobs as local work: 3 of 3 in 40–76 s, but each was marked "partly done" because the planner read the
+source `.hwp` as the format to produce. After fixing that: **3 of 3 in 20–24 s, one step.**
+
+Lesson: a tool that passes its own tests can still be invisible to the model. Checking what the model actually receives
+caught it in one run; the unit tests never could.
+
 ## Caveats
 
 - One PC, the largest model, three runs per app. Smaller cards were not measured on these jobs.
@@ -92,3 +127,6 @@ the window on purpose.
 - `runs.json` — one entry per run: phase, app, round, passed, output verified, number of executed window actions, whether the
   agent used its own file tool or a shell instead, seconds, steps, why it stopped, and model prefill / generation seconds.
   **Numbers and yes/no only**: no prompts, answers, file paths or page text.
+- `runs-normal-wording.json` — the normal-wording runs and the fixes after them, one entry per run: phase, app, round,
+  passed, route the agent chose (window / its own tool / hwp_export_pdf), window actions, seconds, steps, why it stopped,
+  whether the agent's own plan check called it done, and model prefill / generation seconds. Same rule: numbers only.
