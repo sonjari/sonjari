@@ -49,6 +49,10 @@ _ARTIFACT_STAGE_SUPPORT = frozenset({
     "ask_user", "local_request_path_access", "skill_read",
     "sandbox_run", "browser_screenshot", "local_apply_edit",
     "hwp_list_open", "hwp_read", "hwp_preview_edit",
+    # ★ 프로그램 창을 조작해 파일을 만드는 일(한글 → PDF 저장 · 메모장 저장)은 창 손이 곧 파일 쓰는 손이다 (2026-10-17 화면 자동화 측정).
+    #   파일 만들 차례가 걸리면 이 손들이 「이 차례가 아니다」로 막혀 저장 창 앞에서 멈출 자리였다.
+    "windows_list_open_windows", "windows_focus_window", "windows_open_path", "windows_uia_snapshot",
+    "windows_uia_preview", "windows_execute_preview", "windows_copy_from_window",
 })
 
 _ARTIFACT_WRITE_TOOLS = frozenset({

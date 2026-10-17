@@ -141,7 +141,39 @@ def _derivable(target: float, places: int, grounded: list[float], counts: list[i
         # 「나머지 73%(701~2582줄)」 — (2582-701)/2582. 같은 줄의 두 수로 낸 나머지 비율도 계산이다.
         if any(0 < a < b and round(100 * (b - a) / b, places) == target for b in nums for a in nums):
             return True
+        # ⑤ **같은 대상을 적은 다른 줄**의 두 수 비율 (2026-10-17 작업 관리자 판 ac57f00e). 「RTX 3090은 VRAM의 약 79%」의 두 수는
+        #   위 표 줄 「RTX 3090 | 19,392 MiB | 24,576 MiB」에 있다(78.9%). 아무 줄의 아무 쌍이나 받으면 거의 모든 정수 %가 만들어지니,
+        #   비율 줄과 **이름 낱말(글자 셋 이상)** 이 겹치는 줄만 본다.
+        names = _name_words(line)
+        if not names:
+            continue
+        for other in lines:
+            if other is line or not (names & _name_words(other)):
+                continue
+            nums = [int(n.replace(",", "")) for n in _INT.findall(other)]
+            if any(0 < a <= b and round(100 * a / b, places) == target for b in nums for a in nums):
+                return True
     return False
+
+
+_NAME_WORD = re.compile(r"[A-Za-z][A-Za-z0-9_-]{2,}")
+#: 이름처럼 생겼지만 어느 줄에나 붙는 단위.
+_UNIT_WORDS = frozenset({"mib", "gib", "kib", "tib", "mbps", "gbps", "kbps", "fps", "rpm"})
+
+
+def _name_words(line: str) -> set[str]:
+    """줄에 적힌 **고유 이름 꼴** 낱말 — 대문자 · 숫자 · 붙임표가 섞인 것(RTX · NVIDIA · GeForce · llama-server · msedgewebview2).
+
+    한국어 일반 낱말(「메모리」)과 영어 일반 낱말(「The」 · 「total」)은 어느 줄에나 있어 뺀다. 단위(MiB)도 뺀다.
+    """
+    words: set[str] = set()
+    for word in _NAME_WORD.findall(line):
+        folded = word.casefold()
+        if folded in _UNIT_WORDS:
+            continue
+        if word.isupper() or any(ch.isdigit() or ch == "-" for ch in word) or any(ch.isupper() for ch in word[1:]):
+            words.add(folded)
+    return words
 
 
 def percent_warning(answer: str, seen: set[str], *, english: bool = False) -> str:

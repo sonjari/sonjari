@@ -16,7 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .skills import SKILL_TRIGGERS_KO
+from . import ui_i18n
+from .skills import SKILL_TRIGGERS_EN, SKILL_TRIGGERS_KO
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,10 @@ def allowed_skills(domain_ids: tuple[str, ...] | list[str], served: set[str]) ->
 def catalog(library: Any, selected: tuple[str, ...] | list[str]) -> dict[str, Any]:
     """화면용: 분야마다 실제로 켜질 스킬(이름·한 줄)과 없는 이름."""
     served = {name: doc for name, doc in getattr(library, "skills", {}).items() if doc.served}
+    # ★ 화면이 영어면 **영어 요청에 실제로 쓰는 표**를 보인다 (2026-10-17 영어 마법사 점검). 한국어 표만 보여서 영어 화면에
+    #   「Attached to requests like “문서로」「보고서로」…”」가 나왔다 — 영어 요청은 `SKILL_TRIGGERS_EN` 으로 붙으니 그 낱말이
+    #   약속으로 맞다. 영어 표에 없는 스킬(국내 지원사업 등)은 빈 목록 = 「이름으로 지목하면 씁니다」 — 영어 요청에서 실제로 그렇다.
+    triggers = SKILL_TRIGGERS_EN if ui_i18n.lang() == "en" else SKILL_TRIGGERS_KO
     rows = []
     for domain in DOMAINS:
         present = [name for name in domain.skills if name in served]
@@ -105,7 +110,7 @@ def catalog(library: Any, selected: tuple[str, ...] | list[str]) -> dict[str, An
             "selected": domain.id in selected,
             # ★ 화면에는 영어 설명 대신 **어떤 말에 붙는지**를 보인다. 수확물 설명은 영어 트리거라 사람에게
             #   약속이 되지 못하고, 붙는 낱말은 실제 배급 규칙 그대로다(트리거가 없으면 빈 목록 = 지목해야 쓴다).
-            "skills": [{"name": name, "what": served[name].headline, "triggers": list(SKILL_TRIGGERS_KO.get(name, ()))[:4]}
+            "skills": [{"name": name, "what": served[name].headline, "triggers": list(triggers.get(name, ()))[:4]}
                        for name in present],
             "missing": [name for name in domain.skills if name not in served],
         })

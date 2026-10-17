@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from .answer_hygiene import _ARTIFACT_PROGRESS_TOOLS, _ARTIFACT_STAGE_SUPPORT, _COMMIT_CHAINS
@@ -157,7 +158,23 @@ def _is_web_research_job(plan: list[Any], prompt: str, declared: bool = False) -
     kinds = {str(getattr(item, "kind", "") or "") for item in plan or []}
     if kinds & {"verify", "action"}:
         return False          # 실행·검증이 걸린 판은 코드 쪽 손이 필요하다
+    # ★ **「실제로 읽기」 하나뿐이고 읽을 곳이 내 PC(경로 · 프로그램 창)면 웹 갈래가 아니다** (2026-10-17 화면 자동화 측정 dab5bddc).
+    #   「C:\…\welcome.hwp 를 한글 프로그램으로 열어 PDF 로 저장해 줘」에 「내 PC 를 봐야 한다」 이유로 읽기 요구가 붙었고, 그것만으로
+    #   판 전체가 웹 갈래가 되어 창 도구 · 한글 도구가 `not_this_route` 로 막혔다 — 모델은 「창 조작 도구가 없다」며 첫 걸음에 되물었다.
+    #   사이트 · 개수 · 거르개 요구가 있거나 웹 주소를 댔으면 그대로 웹 갈래다.
+    if (not declared and kinds & {"site", "count", "observe", "filter"} == {"observe"}
+            and _LOCAL_TARGET.search(" ".join((prompt or "").split())) and not _WEB_ADDRESS.search(prompt or "")):
+        return False
     return bool(declared) or bool(kinds & {"site", "count", "observe", "filter"})
+
+
+#: 요청이 **내 PC 의 프로그램 창을 조작하라는** 것인가 — 경로만 댄 파일 요청은 아니다(그 판들은 웹 갈래에서 잘 돈다 ·
+#: 2026-10-17 운영 요청 대조에서 경로 기준은 문서 요약 · 워드 만들기 40건 가까이를 같이 옮겨 좁혔다).
+_LOCAL_TARGET = re.compile(
+    r"(?:작업\s*관리자|메모장|그림판|계산기|한글\s*프로그램|엑셀\s*프로그램|워드\s*프로그램)[^.!?\n]{0,16}(?:열어|열고|켜|창|화면|메뉴)"
+    r"|(?:프로그램|앱|한글|엑셀|워드|메모장)\s*창(?:을|에서|의)?\s*(?:직접\s*)?(?:조작|열어|읽)"
+)
+_WEB_ADDRESS = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(?:com|net|org|co\.kr|kr|io)\b", re.I)
 
 
 def _route_refusals(steps: list[dict[str, Any]]) -> int:

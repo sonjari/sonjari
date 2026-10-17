@@ -7,7 +7,7 @@
  * 분야는 트리거가 아니라 **후보 범위**다. 그래서 문구도 「이 분야의 요청에 맞는 스킬을 골라 붙입니다」라고 말한다 —
  * 「이제 마케팅을 잘합니다」 같은 약속을 하지 않는다.
  */
-import { t } from "../i18n";
+import { lang, t } from "../i18n";
 import { Check, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SkillDomainsView } from "../types";
@@ -107,7 +107,7 @@ export function SkillDomainPicker(props: {
               {chosen.map((skill) => (
                 <li key={skill.name}>
                   <code>{skill.name}</code>
-                  <span>{skill.triggers.length ? t("「{0}」 같은 요청에 붙습니다", skill.triggers.join("」「")) : t("요청 낱말로는 안 붙습니다 — 이름으로 지목하면 씁니다")}</span>
+                  <span>{skill.triggers.length ? t("「{0}」 같은 요청에 붙습니다", skill.triggers.join(lang() === "en" ? "”, “" : "」「")) : t("요청 낱말로는 안 붙습니다 — 이름으로 지목하면 씁니다")}</span>
                 </li>
               ))}
             </ul>

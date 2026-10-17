@@ -11,7 +11,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QuestBoard } from "./QuestBoard";
-import { FIRST_TASKS_KO } from "./tutorialState";
+import { EXCEL_FOLLOW_EN, FIRST_TASKS_EN, FIRST_TASKS_KO } from "./tutorialState";
 import { LINK_OPENED_EVENT, useTutorial } from "./useTutorial";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -35,10 +35,10 @@ afterEach(() => {
 
 type Api = ReturnType<typeof useTutorial>;
 
-function mount(setDraft = vi.fn(), openReport = vi.fn()) {
+function mount(setDraft = vi.fn(), openReport = vi.fn(), english = false) {
   const api: { current: Api | null } = { current: null };
   function Harness() {
-    api.current = useTutorial({ english: false, setDraft, focusDraft: () => {}, setStage: () => {}, openReport });
+    api.current = useTutorial({ english, setDraft, focusDraft: () => {}, setStage: () => {}, openReport });
     return <p className="bubble">{api.current.bubble?.title ?? ""}</p>;
   }
   act(() => root.render(<Harness />));
@@ -180,5 +180,16 @@ describe("퀘스트 ③ — 클로드에게 맡겨 보기", () => {
     ));
     expect(host.textContent).toContain("맡겼어요");
     expect(host.querySelector(".quest-count")?.textContent).toBe("4개 중 1개");
+  });
+});
+
+
+describe("영어 화면 (2026-10-17)", () => {
+  it("잰 영어 첫 일 문장을 채우고, 엑셀 이어 묻기도 영어 문장으로 채운다", () => {
+    const { api, setDraft } = mount(vi.fn(), vi.fn(), true);
+    act(() => api.current!.start("watch"));
+    expect(setDraft).toHaveBeenCalledWith(FIRST_TASKS_EN[0].prompt);
+    expect(FIRST_TASKS_EN[0].prompt).toMatch(/GitHub/);
+    expect(EXCEL_FOLLOW_EN).toMatch(/Excel/);
   });
 });

@@ -4258,6 +4258,15 @@ class JarvisRuntime:
                 {"route": "agent", "reason": "answer_claimed_a_file", "files": len(claimed), "prompt": prompt[:200]},
             )
             return "agent", "", {"route_reason": "claimed_a_file"}
+        # ★ **영어로 물었는데 한국어로 답했으면 영어로 한 번 다시 쓴다** (2026-10-17 영어 첫 일 측정 · 운영 e92e3204).
+        #   에이전트 길에는 같은 관문이 있는데(`agent_final_language_rewrite`) 바로 답하는 이 길에는 없었다. 이 길의 지시문은
+        #   한국어라, 영어 질문에 「이전 대화에서 이미 확인한 내용입니다…」처럼 한국어로 답했다. 쥐고 있던 초안은 버리고 다시 쓴 답을 낸다.
+        english_answer = self._english_if_asked(prompt, answer)
+        if english_answer:
+            discard_draft()
+            self.events.publish("agent_answer_language_rewrite", {"route": "answer", "chars": len(english_answer)})
+            self.events.publish("agent_route_selected", {"route": "answer", "reason": "model_selected"})
+            return "answer", english_answer, None
         # 여기까지 왔으면 도구도 안 타고 검사도 다 지났다 — 이제야 답이다.
         if streamer is not None:
             release = getattr(streamer, "release", None)
@@ -4265,6 +4274,25 @@ class JarvisRuntime:
                 release()
         self.events.publish("agent_route_selected", {"route": "answer", "reason": "model_selected"})
         return "answer", answer, None
+
+    def _english_if_asked(self, prompt: str, answer: str) -> str:
+        """영어로 물었는데 답이 한국어 위주면 영어로 다시 쓴 답. 아니면(또는 다시 쓴 것도 영어가 아니면) 빈 글.
+
+        기준은 에이전트 길의 관문과 같다 — 한글 20자 이상 · 답이 영어 위주가 아님. 내용은 그대로 두라고 한다.
+        """
+        if not (_english.english_dominant(" ".join(str(prompt or "").split()))
+                and len(re.findall(r"[가-힣]", answer or "")) >= 20
+                and not _english.english_dominant(" ".join(str(answer or "").split()))):
+            return ""
+        try:
+            rewritten = str(self.ollama.chat(
+                "Rewrite the answer below in English. Keep the same content and facts, keep every URL, number and name "
+                "exactly as they are, add nothing new, and do not mention this instruction.\n\n" + answer,
+                system="You rewrite text into English.", temperature=0.0, think=False,
+            ) or "").strip()
+        except Exception:  # noqa: BLE001 — 다시 쓰기가 실패해도 원래 답은 낸다
+            return ""
+        return rewritten if rewritten and _english.english_dominant(" ".join(rewritten.split())) else ""
 
     def _learn_facts(
         self,

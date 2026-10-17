@@ -41,7 +41,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Iterable
 
-from .brand import NAME, NAME_KO, product_dir
+from .brand import NAME, NAME_KO, documents_product_dir
 
 __all__ = ["SKILL_NAME", "render_skill", "GuideSkillService"]
 
@@ -252,7 +252,7 @@ class GuideSkillService:
     def __init__(self, *, home: Path | None = None, documents: Path | None = None,
                  clock=time.time, pack_guides=None) -> None:  # noqa: ANN001
         self.home = home or Path.home()
-        self.documents = documents or product_dir(self.home / "Documents")
+        self.documents = documents or documents_product_dir(self.home / "Documents")
         self.clock = clock
         #: 켜진 팩의 사용서 — [{"id", "name", "text"}]. 부를 때마다 읽는다(켜고 끄는 것이 곧바로 반영되게).
         self.pack_guides = pack_guides or (lambda: [])

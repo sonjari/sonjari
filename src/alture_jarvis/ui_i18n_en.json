@@ -2002,7 +2002,6 @@
  "허용된 로컬 PC 폴더의 파일과 하위 폴더 목록을 확인한다. 숨김·비밀 파일은 제외한다.": "Lists the files and subfolders in an allowed local PC folder. Hidden and secret files are excluded.",
  "폴더를 지웠다. 폴더 삭제는 되돌릴 수 없다(백업 없음).": "The folder was deleted. Folder deletion cannot be undone (no backup).",
  "허용된 로컬 파일 하나를 삭제한다. 백업해 두므로 되돌릴 수 있다. 권한 모드와 자리에 따라 화면 승인을 한 번 물을 수 있다. 폴더는 코드 작업 폴더 안에서 **이 작업이 만든 폴더**(예: 방금 생긴 node_modules)와 캐시 폴더(__pycache__ 등)만 지운다 — 폴더 삭제는 되돌릴 수 없어서, 원래 있던 폴더는 지우지 않는다.": "Deletes one allowed local file. It is backed up, so it can be undone. Depending on the permission mode and location, it may ask for on-screen approval once. A folder is deleted only inside the code workspace, and only if **this task created it** (e.g. a node_modules that just appeared) or it is a cache folder (__pycache__ etc.) — folder deletion cannot be undone, so folders that existed before are not deleted.",
- "허용된 로컬 폴더 또는 파일을 Windows 기본 앱으로 연다. 실제 프로그램 실행이므로 화면 승인이 필요하다.": "Opens an allowed local folder or file with the Windows default app. This actually launches a program, so it needs on-screen approval.",
  "허용된 로컬 폴더 안의 이미지 절대경로": "Absolute path of an image in an allowed local folder",
  "허용된 로컬 폴더 안의 첨부파일 절대경로 목록": "List of absolute paths of attachments in allowed local folders",
  "현재 Windows PC에서 화면에 열린 앱 창의 제목과 창 ID를 확인한다.": "Checks the titles and window IDs of app windows currently open on this Windows PC.",
@@ -2319,5 +2318,11 @@
  "6GB 카드에서 그림 읽기를 끄면 창 48K 로 전부 올라갑니다. 2B 로 내려가는 것보다 조사 일을 해냅니다.": "On a 6GB card it fits fully at a 48K window with picture reading off. It gets research done where falling back to 2B does not.",
  "6GB 노트북에서 카드에 전부 올라가는 가장 큰 조합 — 가격 조사 7판 10/63(같은 노트북의 2B 는 첫 네 과제 0)": "The largest setup that fits fully on a 6GB laptop card — 10/63 complete rows over 7 price-research rounds (2B on the same laptop scored 0 on its first four tasks)",
  "큰 모델보다 많이 틀립니다(같은 과제 8GB 의 9B 3비트 37/63) · 글만 읽기로 쓰면 그림을 읽지 못합니다": "Gets more wrong than larger models (9B 3-bit on 8GB scored 37/63 on the same task) · in text-only mode it cannot read pictures",
- "Qwen 3.5 4B (3비트)": "Qwen 3.5 4B (3-bit)"
+ "Qwen 3.5 4B (3비트)": "Qwen 3.5 4B (3-bit)",
+ "사람의 요청을 먼저 하도록 잠시 비켜 줍니다 — 끝나면 여기서 이어서 합니다": "Stepping aside so your request goes first — I'll pick this up again here when it's done",
+ "같은 자리에서 나아가지 못해, 여기까지 한 것으로 정리합니다": "Not getting past the same spot, so I'm wrapping up with what was done so far",
+ "맡긴 쪽이 정한 확인 명령을 돌립니다": "Running the check command set by whoever handed over this task",
+ "정리를 도구와 같이 써 버려서, 답을 따로 다시 씁니다": "The summary was written together with a tool call, so I'm writing the answer again on its own",
+ "표까지 정리해 놓고 파일을 안 만들어서 대신 저장합니다": "The table was ready but no file was made, so I'm saving it for you",
+ "허용된 로컬 폴더 또는 파일을 Windows 기본 앱으로 연다. 메모장 · 계산기 · 그림판 · 작업 관리자 · 한글(HWP) 은 path 에 이름만 적으면 켠다(예: \"메모장\", \"taskmgr\"). 실제 프로그램 실행이므로 화면 승인이 필요하다.": "Opens an allowed local folder or file with the Windows default app. Notepad, Calculator, Paint, Task Manager and Hangul (HWP) can be started by putting just the name in path (for example \"notepad\", \"taskmgr\"). This actually launches a program, so it needs on-screen approval."
 }

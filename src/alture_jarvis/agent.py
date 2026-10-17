@@ -197,7 +197,7 @@ from .tool_gateway import ASK_USER_TOOL, ToolGateway
 
 from .answer_claims import (
     _ANSWERABLE_EVIDENCE, _nothing_to_answer_from, _SUCCESS_CLAIM, _DONE_CLAIM, _SOURCED_CLAIM, _LISTING_TOOLS,
-    _INHOUSE_TOOL_HINTS, _CONTENT_TOOLS, _READ_TOOLS, _SEARCH_HOSTS, _LEFT_OPEN_CLAIM, _MONEY_CLAIM, _POINT_CLAIM,
+    _INHOUSE_TOOL_HINTS, _CONTENT_TOOLS, _DESKTOP_READ_TOOLS, _READ_TOOLS, _SEARCH_HOSTS, _LEFT_OPEN_CLAIM, _MONEY_CLAIM, _POINT_CLAIM,
     _EN_MONEY_CLAIM, _ROW_BODY_HEAD_CHARS, _ROW_VALUE_HEAD_CHARS, _DIGIT_COMMA, _TABLE_ROW, _CLAIMED_READS,
     _CLAIM_UNDONE, _PAGE_TOOLS, _FACT_ROWS_UNDER_ONE_LABEL, _name_words_were_read_together, _is_a_list_of_facts,
     _completion_state, _self_contradiction, mend_day_words, repair_table_rules, TABLE_RULE_TYPO,
@@ -1637,6 +1637,8 @@ def untouched_sites(plan_results: list[tuple[Any, bool, str]]) -> list[str]:
 _WRAP_UP_TOOLS = frozenset({"browser_close"})
 #: 「하는 말」은 한 문장이다(`narration.NARRATION_INSTRUCTION`). 이보다 길면 답을 쓴 것으로 본다.
 _WRAP_UP_ANSWER_MIN_CHARS = 200
+#: 최종 답이 도구와 같이 쓴 가장 긴 글의 이 비율보다 짧으면 끝내기를 한 번 되돌린다(아래 `agent_final_sent_back`).
+_FINAL_TOO_SHORT_RATIO = 0.5
 
 
 class BrowserAgent:
@@ -1763,11 +1765,14 @@ class BrowserAgent:
                 evidence = step.get("evidence")
                 evidence = evidence if isinstance(evidence, dict) else {}
                 action = str(evidence.get("action") or "")
+                # ★ 프로그램 창에서 실제로 실행한 동작(붙여넣기 · 키 · 클릭)도 진척이다 (2026-10-17 메모장 판 d4c7eb06).
+                #   글을 치고 Ctrl+S 로 저장 창까지 띄운 판이 「새 출처 없음」으로 제자리 판정을 받아 연장을 못 받고 12걸음에서 멈췄다.
                 if tool in {
                     "browser_fill", "browser_fill_form", "browser_select_option",
                     "browser_pick_suggestion", "browser_click", "browser_click_confirmed",
                     "browser_click_at", "browser_type_at",
                     "browser_file_upload", "browser_handle_dialog", "browser_press",
+                    "windows_execute_preview",
                 } or action in {
                     "filled", "form_filled", "option_selected", "suggestion_picked",
                     "clicked", "file_uploaded", "dialog_handled",
@@ -3169,7 +3174,8 @@ class BrowserAgent:
         if not _SOURCED_CLAIM.search(answer):
             return ""
         opened = {step["tool"] for step in steps if step["ok"]}
-        if opened & _CONTENT_TOOLS:
+        # 열린 창을 읽은 것도 「본 것」이다(`_DESKTOP_READ_TOOLS` · 2026-10-17 메모장 판의 헛경고).
+        if opened & (_CONTENT_TOOLS | _DESKTOP_READ_TOOLS):
             return ""
         if opened & _LISTING_TOOLS:
             # ★ 목록을 본 것은 **본 것이 아니다.**
@@ -3444,7 +3450,7 @@ class BrowserAgent:
         if len(_TABLE_ROW.findall(answer)) < 3 and not _MONEY_CLAIM.search(answer) and not _EN_MONEY_CLAIM.search(answer):
             return ""
         opened = {step["tool"] for step in steps if step["ok"]}
-        if opened & _CONTENT_TOOLS:
+        if opened & (_CONTENT_TOOLS | _DESKTOP_READ_TOOLS):
             return ""
         where = "·".join(cited[:2])
         if opened & _LISTING_TOOLS:
@@ -5818,6 +5824,24 @@ class BrowserAgent:
         #   던다: 도구가 실제로 무언가를 읽어 왔을 때만 판정한다(위 `if not source`).
         #   읽은 것이 있는데 그중 어느 것도 답에 없으면, 그건 뽑기 실패가 아니라
         #   **답이 딴 데서 왔다**는 뜻이다.
+        # ★ **화면 보기로 본 이름에 「어디에도 없다」고 적지 않는다** (2026-10-17 운영 판 6570adff). 글쓰기 화면에서 「모든 플레어
+        #   보기」를 눌러 본 이름 다섯에 「이번에 읽은 자료 어디에도 없습니다」가 붙었다 — 이름은 화면 보기 결과에 그대로 있었다.
+        #   경고를 낼지 말지는 그대로 둔다(이름 하나뿐인 항목은 구제하지 않는다 · 위 `_row_of_name_was_seen`). 바꾸는 것은 **말**이다:
+        #   전부 화면에서 본 이름이면 「화면 목록에서 옮겼고 그 항목을 따로 열지는 않았다」고 사실대로 적는다. 머리는 그대로 `⚠ **`
+        #   — 화면(`ui/src/workspace/answerChecks.ts`)은 그 모양의 문단만 답 본문 밖(오른쪽 판의 노란 줄)으로 옮긴다(10-13 대표 결정).
+        seen_on_screen = _seen_text("".join(str(m.get("content") or "") for m in messages or [] if m.get("role") == "tool"))
+        if seen_on_screen and all(_seen_text(shown.get(name, name)) in seen_on_screen for name in missing):
+            return _say(
+                "\n\n⚠ **화면 목록에서 옮겨 적은 이름이 있습니다: "
+                + ", ".join(shown.get(name, name) for name in missing[:5])
+                + ".** 이 이름들은 화면에서 본 것이고, 그 항목을 따로 열어 읽지는 않았습니다. 세부 조건·수치가 필요하면 "
+                "그 항목들을 직접 열어 확인해 달라고 시켜 주세요.",
+                "\n\n⚠ **Some names were copied from an on-screen list: "
+                + ", ".join(shown.get(name, name) for name in missing[:5])
+                + ".** They were seen on screen, but those items were not opened and read one by one; ask me to open them "
+                "if you need their details.",
+                answer,
+            )
         return _say(
             "\n\n⚠ **읽지 않고 적은 것이 있습니다: "
             + ", ".join(shown.get(name, name) for name in missing[:5])
@@ -6889,6 +6913,11 @@ class BrowserAgent:
         #: 2026-10-16: 10-14 대표 판 셋이 같은 고장이었는데, 그 글이 기록에 안 남아 「200자 넘었나(고침이 들었을까)」를 알 수 없었다.
         wrap_up_turns: list[dict[str, Any]] = []
         answer_from_wrap_up = False
+        #: 도구를 부르며 쓴 글 가운데 **가장 긴 것**의 길이와 걸음 — 최종 답이 그보다 훨씬 짧으면 끝내기를 한 번 되돌린다(아래
+        #: `_FINAL_TOO_SHORT_RATIO`). 판 기록(`verification.said_with_tools`)에도 남긴다 — 10-16 까지는 이 글이 어디에도 안 남아
+        #: 「답을 도구와 같이 써 버린 판」이 몇이었는지 지난 기록으로 셀 수 없었다.
+        said_with_tools_longest = {"chars": 0, "step": 0}
+        final_sent_back: dict[str, Any] = {}
         completed_claude_answer = ""
         #: 큰 코드 갈림길에서 「클로드에 붙여 넣을 글 받기」를 골라 글만 내고 끝낸 판(`big_code`).
         big_code_handed_over = False
@@ -8172,6 +8201,10 @@ class BrowserAgent:
                                               "held": len(said_in_full) >= _WRAP_UP_ANSWER_MIN_CHARS})
                     if len(said_in_full) >= _WRAP_UP_ANSWER_MIN_CHARS:
                         wrap_up_said = said_in_full
+                if calls:
+                    said_chars = len(str(message.get("content") or "").strip())
+                    if said_chars > said_with_tools_longest["chars"]:
+                        said_with_tools_longest = {"chars": said_chars, "step": len(steps) + 1}
                 if calls and (said := clean_narration(message.get("content"))):
                     self.events.publish(
                         "agent_says",
@@ -10075,6 +10108,45 @@ class BrowserAgent:
             rewritten_final = str(rewrite_message.get("content") or "").strip()
             if rewritten_final and not _only_a_promise(rewritten_final):
                 answer = rewritten_final
+            final_sent_back = {"reason": "promise"}
+        # ★ **끝내기를 한 번 되돌린다** (2026-10-17 · 레딧 r/AI_Agents 글의 댓글 둘 — 「최종 답은 도구 호출이 없는 따로 된 메시지여야
+        #   하고, 아니면 하네스가 그 끝내기를 거절한다」). 도구를 부르며 쓴 글은 화면에 한 줄로 지나갈 뿐 답이 아니다(위 `agent_says`).
+        #   그래서 모델이 정리를 도구와 같이 써 버리면 마지막 답은 「위에서 정리한 대로…」 한 줄만 남는다(10-16 4d808ace — 탭 닫기는
+        #   `wrap_up_said` 가 건지지만, 다른 도구와 같이 쓰면 못 건진다). 「위에서」 같은 낱말로 잡지 않는다 — 9월 뒤 대화 판 2,920개에서
+        #   그 낱말이 든 짧은 답 13개 중 진짜로 답을 잃은 것은 하나였고 나머지는 같은 답 안을 가리켰다. 길이로 본다: 도구와 같이 쓴
+        #   글 가운데 가장 긴 것이 한 문장보다 길고, 최종 답이 그 절반도 안 되면 도구 없이 완전한 답을 다시 쓰게 한 번 돌려보낸다.
+        #   다시 쓴 답이 더 길고 예고가 아닐 때만 바꾼다 — 아니면 원래 답을 둔다. 코드 판은 건드리지 않는다(검증 보고가 짧은 게 정상).
+        elif (answer and steps and not final_sent_back and not answer_from_wrap_up and not restored
+              and model_role != "code" and not self._cancelled(job_id)
+              and said_with_tools_longest["chars"] >= _WRAP_UP_ANSWER_MIN_CHARS
+              and len(answer) < _FINAL_TOO_SHORT_RATIO * said_with_tools_longest["chars"]):
+            self._progress(job_id, "synthesis", "정리를 도구와 같이 써 버려서, 답을 따로 다시 씁니다")
+            self.events.publish("agent_final_sent_back", {
+                "job_id": job_id, "steps": len(steps), "final_chars": len(answer),
+                "said_with_tools_chars": said_with_tools_longest["chars"], "said_step": said_with_tools_longest["step"]})
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({
+                "role": "user",
+                "content": (
+                    "[시스템] 방금 답은 최종 답으로 너무 짧다. 앞에서 도구를 부르며 쓴 글은 사용자에게 답으로 가지 않았다 — "
+                    "사용자는 방금 그 짧은 답만 본다. 더 찾지 말고, 지금까지 **실제로 읽은** 근거로 원래 요구에 대한 완전한 "
+                    "최종 답을 이 메시지 하나에 써라. 「위에서 정리한 대로」처럼 앞을 가리키지 마라. 확인하지 못한 부분은 못 했다고 적어라.\n\n"
+                    "[원래 사용자 요구]\n" + prompt[:6000] + _steer_notes_block(messages)
+                    + "\n\n[시스템] 성공한 읽기 장부:\n" + self._read_ledger_note(steps)
+                ),
+            })
+            resend_message, resend_thinking = self._text_only_message(
+                messages, job_id=job_id, think=False, model_role=model_role, inference_profile=None,
+            )
+            if resend_message.get("_inference"):
+                inference_observations.append(dict(resend_message["_inference"]))
+            thinking_chars += resend_thinking
+            resent_final = str(resend_message.get("content") or "").strip()
+            used = bool(resent_final and len(resent_final) > len(answer) and not _only_a_promise(resent_final))
+            final_sent_back = {"reason": "shorter_than_said_with_tools", "final_chars": len(answer),
+                               "rewritten_chars": len(resent_final), "used": used}
+            if used:
+                answer = resent_final
         # ★ 영어로 시켰는데 답이 한국어 위주면 **한 번** 영어로 다시 쓴다 (2026-10-03 Online-Mind2Web B 판 3차 IGN —
         #   같은 과제가 2차에는 영어, 3차에는 「찾았습니다. IGN에서 …」). 맨 앞·맨 끝 안내만으로는 판마다 흔들린다(사고 R).
         #   내용은 그대로 두라고 하고, 다시 쓴 답이 실제로 영어일 때만 바꾼다 — 아니면 원래 답을 둔다.
@@ -10541,6 +10613,9 @@ class BrowserAgent:
             "content_cuts": content_cuts[-12:],
             # 마무리 도구(탭 닫기)만 부르며 쓴 글 — 턴마다 글자 수 · 답 후보였나, 그리고 그 글이 답이 됐나(`wrap_up_said`).
             "wrap_up": {"turns": wrap_up_turns[-6:], "used_as_answer": answer_from_wrap_up},
+            # 도구를 부르며 쓴 가장 긴 글(길이 · 걸음)과, 끝내기를 되돌렸는지 — 되돌린 까닭 · 다시 쓴 답을 썼는지(10-17).
+            "said_with_tools": dict(said_with_tools_longest),
+            "final_sent_back": final_sent_back,
             "inference_observations": inference_observations[-12:],
             # 시간이 어디로 갔나 — 호출마다 오는 숫자를 판 하나로 합쳐 둔다. 예전에는 이 값이
             # 걸음 기록 안에만 흩어져 있어서 「느리다」에 답하려면 매번 손으로 더해야 했다.

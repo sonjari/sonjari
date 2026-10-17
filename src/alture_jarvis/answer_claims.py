@@ -153,6 +153,11 @@ _CONTENT_TOOLS = frozenset(
 )
 
 _READ_TOOLS = _LISTING_TOOLS | _CONTENT_TOOLS
+#: 열린 프로그램 **창을 읽는** 도구 (2026-10-17 화면 자동화 첫 시험 d4c7eb06). 메모장 창 구조를 읽고 창 내용을 복사해 「18자」까지
+#: 확인한 판에 「무엇도 열어 보지 않고 쓴 것 · 추측」 경고가 붙었다 — 이 검사가 웹 · 파일 읽기만 「읽음」으로 쳤다.
+#: `_CONTENT_TOOLS` 에 섞지 않는다: 거기는 주소(URL · 경로)로 출처를 세고 사이트별 실패를 묶는 자리도 쓰는데, 창에는 주소가 없어
+#: 직전 사이트에 실패가 붙을 수 있다. 「무엇이든 실제로 봤나」를 묻는 경고 검사에서만 같이 센다.
+_DESKTOP_READ_TOOLS = frozenset({"windows_uia_snapshot", "windows_copy_from_window", "windows_list_open_windows"})
 
 # 검색 결과 화면은 출처도 아니고, 못 읽었다고 장부에 적을 곳도 아니다.
 # 여기서 막히는 것은 그 사이트의 절차 문제가 아니라 검색이 막힌 것이고,

@@ -16,6 +16,207 @@ from .tool_gateway import ToolGateway, ToolSpec
 VisualPlanner = Callable[[Path, dict[str, Any], str], dict[str, Any]]
 
 
+# ── 화면 자동화 눈 · 손 (2026-10-17 첫 측정) ─────────────────────────────────
+#
+# 메모장 판: 저장 창에서 「파일 이름」 칸 대신 다른 칸에 값을 넣고 저장해, 파일이 메모장이 미리 채운 이름(첫 줄)으로 저장됐다.
+# 손자리는 그걸 몰랐다 — 창 구조 읽기가 화면 순서로 160개만 담아 긴 폴더 나무 · 파일 목록 뒤의 입력 칸이 밀렸고, 칸의 지금 값이
+# 안 보였고, 값을 넣은 뒤 다시 읽어 보지 않았다. 그래서 (1) 조작할 수 있는 요소를 먼저 담고 (2) 입력 칸의 지금 값을 같이 보이고
+# (3) 값을 넣은 뒤 다시 읽어 맞는지 · 동작 뒤 창 제목을 결과에 적는다.
+
+#: 조작할 수 있는 요소 — 창 구조를 읽을 때 **먼저** 담는다(같은 묶음 안에서는 화면 순서 그대로).
+_INTERACTIVE_TYPES = frozenset({
+    "Edit", "ComboBox", "Button", "CheckBox", "RadioButton", "MenuItem", "TabItem", "Hyperlink",
+    "SplitButton", "Document", "Spinner", "Slider",
+})
+#: 지금 값을 같이 보여 줄 요소.
+_VALUE_TYPES = frozenset({"Edit", "ComboBox", "Document", "Spinner"})
+#: 누르면 프로그램을 **강제로 끄는** 단추 — 손자리는 누르지 않는다(되돌릴 수 없다 · 사람이 직접). 권한 무시 모드에서도.
+_END_TASK_NAMES = frozenset({"작업 끝내기", "프로세스 트리 끝내기", "end task", "end process tree"})
+
+
+def _process_elevated(pid: int) -> bool | None:
+    """그 프로세스가 관리자 권한으로 떠 있나. 못 보면 None."""
+    if os.name != "nt" or pid <= 0:
+        return None
+    import ctypes  # noqa: PLC0415
+    from ctypes import wintypes  # noqa: PLC0415
+
+    kernel32, advapi32 = ctypes.windll.kernel32, ctypes.windll.advapi32
+    handle = kernel32.OpenProcess(0x1000, False, int(pid))  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return None
+    token = wintypes.HANDLE()
+    try:
+        if not advapi32.OpenProcessToken(handle, 0x0008, ctypes.byref(token)):  # TOKEN_QUERY
+            return None
+        try:
+            elevated = wintypes.DWORD()
+            size = wintypes.DWORD()
+            if not advapi32.GetTokenInformation(token, 20, ctypes.byref(elevated), ctypes.sizeof(elevated), ctypes.byref(size)):
+                return None
+            return bool(elevated.value)
+        finally:
+            kernel32.CloseHandle(token)
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+#: 작업 관리자 「프로세스」 탭에 안 나오는 것 — 메모리 순위에서 뺀다. (Secure System 은 나온다 — 2026-10-17 화면과 대 봄)
+_NOT_PROGRAMS = frozenset({"", "memory compression", "system idle process"})
+
+
+def _private_working_sets() -> list[tuple[int, str, int]]:
+    """(PID, 실행 파일 이름, 개인 작업 집합 바이트) — 작업 관리자 「메모리」 열이 쓰는 값. 윈도우 호출 한 번(실측 0.012초).
+
+    `NtQuerySystemInformation(SystemProcessInformation)` 의 `WorkingSetPrivateSize` 칸이다. 관리자 권한 없이 모든 프로세스가 나온다.
+    같은 값을 WMI(`Win32_PerfFormattedData_PerfProc_Process.WorkingSetPrivate`)로 읽으면 8초 걸렸다(2026-10-17 이 PC, 숫자는 같았다).
+    """
+    if os.name != "nt":
+        return []
+    import ctypes  # noqa: PLC0415
+    from ctypes import wintypes  # noqa: PLC0415
+
+    if ctypes.sizeof(ctypes.c_void_p) != 8:  # 칸 위치는 64비트 기준이다
+        return []
+
+    size = 1 << 20
+    for _ in range(6):
+        buffer = ctypes.create_string_buffer(size)
+        needed = wintypes.ULONG()
+        status = ctypes.windll.ntdll.NtQuerySystemInformation(5, buffer, size, ctypes.byref(needed)) & 0xFFFFFFFF
+        if status == 0xC0000004:  # STATUS_INFO_LENGTH_MISMATCH — 그사이 프로세스가 늘었다
+            size = max(size * 2, needed.value + 65536)
+            continue
+        if status != 0:
+            return []
+        break
+    else:
+        return []
+    raw, rows, offset = buffer.raw, [], 0
+    while offset + 88 <= len(raw):
+        following = int.from_bytes(raw[offset:offset + 4], "little")
+        private = int.from_bytes(raw[offset + 8:offset + 16], "little", signed=True)
+        length = int.from_bytes(raw[offset + 56:offset + 58], "little")
+        pointer = int.from_bytes(raw[offset + 64:offset + 72], "little")
+        pid = int.from_bytes(raw[offset + 80:offset + 88], "little")
+        name = ctypes.wstring_at(pointer, length // 2) if pointer and length else ""
+        rows.append((pid, name, max(0, private)))
+        if not following:
+            break
+        offset += following
+    return rows
+
+
+def _is_task_manager(pid: int, title: str) -> bool:
+    try:
+        import psutil  # noqa: PLC0415
+
+        if psutil.Process(int(pid)).name().casefold() == "taskmgr.exe":
+            return True
+    except Exception:
+        pass
+    return title.strip().casefold() in {"작업 관리자", "task manager"}
+
+
+def _task_manager_values(rows: list[tuple[int, str, int]] | None = None, gpus_text: str | None = None) -> dict[str, Any]:
+    """작업 관리자가 보여 주는 값 — 메모리 많이 쓰는 프로그램(이름별 합)과 그래픽카드 메모리.
+
+    ★ 2026-10-17 작업 관리자 측정(5046e2e7 3판): 관리자 권한 창이라 모델이 명령으로 대신 읽었는데, 판마다 명령이 달라
+      llama-server 가 8.1GB · 19.1GB · 13.0GB 로 나왔다(작업 집합 · 이름별 합 · 프로세스 하나). 작업 관리자는 **앱별로 묶고 개인
+      작업 집합**을 보여 준다. 그 기준으로 한 번 읽어 붙인다 — 같은 질문에 같은 기준의 숫자가 나오게.
+      같은 순간 작업 관리자 화면과 대 봄: llama-server 14,896.2MB ↔ 14,896 · Claude(25) 1,785.0 ↔ 1,775 · Chrome 두 묶음 합 2,730.5 ↔ 2,731.
+      작업 관리자는 창(프로필)마다 따로 묶기도 한다 — 여기서는 이름으로 합친다.
+    """
+    rows = _private_working_sets() if rows is None else rows
+    totals: dict[str, list[int]] = {}
+    for _pid, name, private in rows:
+        if name.casefold() in _NOT_PROGRAMS:
+            continue
+        label = name[:-4] if name.casefold().endswith(".exe") else name
+        entry = totals.setdefault(label, [0, 0])
+        entry[0] += private
+        entry[1] += 1
+    top = sorted(totals.items(), key=lambda item: item[1][0], reverse=True)[:10]
+    out: dict[str, Any] = {
+        "basis": "앱 이름별 합 · 개인 작업 집합(작업 관리자 「메모리」 열과 같은 기준). 시스템의 Memory Compression 은 뺐다.",
+        "memory_top": [{"name": name, "mb": round(total / 1048576), "processes": count} for name, (total, count) in top],
+    }
+    if gpus_text is None:
+        try:
+            import subprocess  # noqa: PLC0415
+
+            done = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.used,memory.total", "--format=csv,noheader,nounits"],
+                                  capture_output=True, text=True, timeout=10, creationflags=0x08000000)
+            gpus_text = done.stdout if done.returncode == 0 else ""
+        except Exception:
+            gpus_text = ""
+    gpus = []
+    for line in (gpus_text or "").splitlines():
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) == 3 and parts[1].isdigit() and parts[2].isdigit():
+            gpus.append({"name": parts[0], "used_mib": int(parts[1]), "total_mib": int(parts[2])})
+    if gpus:
+        out["gpus"] = gpus
+    return out
+
+
+def _menu_item_on_screen(control: Any) -> bool:
+    """화면에 보이는 메뉴 항목인가 — 그때만 invoke 를 실제 클릭으로 바꾼다(닫힌 메뉴 속 항목은 클릭할 자리가 없다)."""
+    try:
+        info = control.element_info
+        if str(info.control_type or "") != "MenuItem":
+            return False
+        rect = info.rectangle
+        if int(rect.right) <= int(rect.left) or int(rect.bottom) <= int(rect.top):
+            return False
+        properties = control.get_properties()
+        return bool(properties.get("is_visible", True)) and bool(properties.get("is_enabled", True))
+    except Exception:
+        return False
+
+
+def _compact_element(metadata: dict[str, Any]) -> dict[str, Any]:
+    """모델에게 보내는 요소 한 줄 — 번호 · 이름 · 종류 · 값, 그리고 **평소와 다를 때만** 꺼짐 · 안 보임.
+
+    ★ 2026-10-17 한글 → PDF 측정(23d8ce63): 창을 한 번 읽을 때마다 모델 입력이 7,500~11,000토큰씩 늘었다(31,988 → 42,604 등).
+      요소마다 좌표 네 개 · 내부 이름(class) · 자동화 번호 · 켜짐/보임/암호 칸이 붙어 있었는데, 모델은 번호(ref)로만 누르고
+      그 칸들을 쓰지 않는다. 누를 때 다시 찾는 데 쓰는 전체 정보는 `self._refs` 에 그대로 있다.
+    """
+    row: dict[str, Any] = {"ref": metadata.get("ref", ""), "name": metadata.get("name", ""),
+                           "control_type": metadata.get("control_type", "")}
+    if not row["name"] and metadata.get("automation_id"):
+        row["automation_id"] = metadata["automation_id"]
+    if metadata.get("value"):
+        row["value"] = metadata["value"]
+    if metadata.get("enabled") is False:
+        row["enabled"] = False
+    if metadata.get("visible") is False:
+        row["visible"] = False
+    return row
+
+
+def _visible_windows_now() -> dict[int, str]:
+    """화면에 보이는 맨 위 창들 — `local_computer._visible_windows` 와 같은 것(그쪽 하나를 쓴다)."""
+    try:
+        from .local_computer import _visible_windows  # noqa: PLC0415 — 순환을 피해 쓸 때 부른다
+
+        return _visible_windows()
+    except Exception:
+        return {}
+
+
+def _control_value(control: Any) -> str:
+    """입력 요소의 지금 값(최대 200자). 못 읽으면 빈 글."""
+    for read in (lambda: control.get_value(), lambda: control.iface_value.CurrentValue, lambda: control.window_text()):
+        try:
+            value = read()
+        except Exception:
+            continue
+        if value is not None and str(value) != "":
+            return str(value)[:200]
+    return ""
+
+
 # ── 키 조합 ────────────────────────────────────────────────────────────────
 #
 # 좌표를 쓰지 않는 조작 수단. 구형 프로그램에서는 이게 유일한 손잡이인 경우가 많다
@@ -383,9 +584,21 @@ class WindowsAutomationTools:
 
     def uia_snapshot(self, arguments: dict[str, Any]) -> dict[str, Any]:
         window_id = int(arguments.get("window_id") or 0)
-        maximum = max(1, min(int(arguments.get("max_elements") or 160), 300))
+        # ★ 바닥 150 (2026-10-17 한글 → PDF 측정 f885ea48 2판째). 모델이 입력을 아끼려고 50 · 80 개만 달라고 해서 열린 메뉴의
+        #   「PDF로 저장하기」가 잘렸고, 같은 메뉴를 다시 열기를 되풀이하다 48걸음 상한에 걸렸다. 요소 한 줄이 짧아진 뒤로는(번호 ·
+        #   이름 · 종류 · 값) 150개도 한글 창 기준 약 1만 자다 — 아낄 까닭이 없다.
+        maximum = max(150, min(int(arguments.get("max_elements") or 160), 300))
         window = self._window(window_id)
         controls = [window, *window.descendants()]
+
+        def interactive(control: Any) -> int:
+            try:
+                return 0 if str(control.element_info.control_type or "") in _INTERACTIVE_TYPES else 1
+            except Exception:
+                return 1
+
+        # 조작할 수 있는 요소를 먼저(안정 정렬 — 같은 묶음 안은 화면 순서). 창 자신은 맨 앞 그대로.
+        controls = [controls[0], *sorted(controls[1:], key=interactive)]
         elements: list[dict[str, Any]] = []
         with self._lock:
             for key in [key for key in self._refs if key[0] == window_id]:
@@ -397,13 +610,17 @@ class WindowsAutomationTools:
                     metadata = self._control_metadata(control)
                 except Exception:
                     continue
-                if not metadata["name"] and not metadata["automation_id"]:
+                if metadata["control_type"] in _VALUE_TYPES and not metadata.get("password"):
+                    value = _control_value(control)
+                    if value and value != metadata["name"]:
+                        metadata["value"] = value
+                if not metadata["name"] and not metadata["automation_id"] and not metadata.get("value"):
                     continue
                 ref = f"u{len(elements) + 1}"
                 metadata["ref"] = ref
                 self._refs[(window_id, ref)] = metadata
-                elements.append(metadata)
-        return {
+                elements.append(_compact_element(metadata))
+        result = {
             "action": "windows_uia_snapshot",
             "window_id": window_id,
             "title": str(window.window_text() or "")[:500],
@@ -411,6 +628,25 @@ class WindowsAutomationTools:
             "truncated": len(controls) > len(elements),
             "elements": elements,
         }
+        # ★ **관리자 권한 창은 안을 못 읽는다고 바로 말한다** (2026-10-17 작업 관리자 판 24b0a455). 윈11 작업 관리자는 관리자
+        #   권한으로 뜨고, 일반 권한인 손자리는 그 창의 안(목록 · 칸)을 읽을 수 없다(윈도우 보안 규칙). 구조가 「창 하나」로만 와서
+        #   모델이 복사 · 다시 읽기 · 화면 보고 누르기로 다섯 걸음을 헤맸다. 같은 값을 명령으로 읽으라고 같이 적는다.
+        if len(elements) <= 2:
+            try:
+                pid = int(window.process_id())
+            except Exception:
+                pid = 0
+            if _process_elevated(pid) and not _process_elevated(os.getpid()):
+                result["unreadable_elevated"] = True
+                result["note"] = ("이 창은 관리자 권한으로 떠 있어 손자리가 안의 목록 · 칸을 읽을 수 없습니다. 창을 다시 읽거나 누르지 말고, "
+                                  "같은 값을 명령으로 읽으세요(예: 프로세스 메모리는 Get-Process, 그래픽 메모리는 nvidia-smi).")
+                if _is_task_manager(pid, result["title"]):
+                    values = _task_manager_values()
+                    if values.get("memory_top"):
+                        result["same_values"] = values
+                        result["note"] = ("이 창은 관리자 권한이라 안을 읽을 수 없어, 작업 관리자 「메모리」 열과 같은 기준(앱 이름별 합 · 개인 작업 집합)으로 "
+                                          "손자리가 같은 값을 읽어 same_values 에 붙였습니다. 창을 다시 읽거나 명령을 따로 돌리지 말고 이 값을 쓰세요.")
+        return result
 
     def _find_control(self, window_id: int, target: dict[str, Any]) -> Any:
         window = self._window(window_id)
@@ -680,6 +916,8 @@ class WindowsAutomationTools:
             raise RuntimeError("preview_already_used")
         if preview.expires_at < time.time():
             raise RuntimeError("preview_expired")
+        before = _visible_windows_now()
+        save_target = self._save_dialog_target(preview.window_id) if preview.action in {"invoke", "click", "key"} else ""
 
         if preview.action in {"key", "paste"}:
             # 창(또는 그 안의 컨트롤)에 포커스를 준 뒤 보낸다. 좌표는 쓰지 않는다.
@@ -724,20 +962,58 @@ class WindowsAutomationTools:
                 "sent": sent,
                 "target": preview.target,
                 "executed_at": time.time(),
+                **self._after_action(preview.window_id, before, wait=2.0 if preview.action in {"key", "invoke", "click", "double_click"} else 0.3),
             }
 
+        checked: dict[str, Any] = {}
         if preview.source == "uia":
+            if str(preview.target.get("name") or "").strip().casefold() in _END_TASK_NAMES and preview.action in {"invoke", "click", "double_click"}:
+                raise PermissionError("end_task_blocked: 프로그램을 강제로 끄는 단추는 손자리가 누르지 않습니다 — 사람이 직접 눌러 주세요.")
             control = self._find_control(preview.window_id, preview.target)
             if preview.action == "focus":
                 control.set_focus()
             elif preview.action == "set_value":
                 if preview.target.get("password"):
                     raise PermissionError("password_control_blocked")
-                control.set_edit_text(preview.value)
+                # ★ **사람처럼 고르고 · 다 고르고 · 붙여 넣는다** (2026-10-17 메모장 판 ac3f08b7). 값을 바로 바꿔 넣었더니(`set_edit_text`)
+                #   다시 읽은 칸은 「화면측정_13545.txt」로 맞았는데, 윈도우 저장 창은 그 값을 받지 않고 첫 줄 이름으로 저장했다 —
+                #   파일 대화 창은 키 입력으로 들어온 값만 제 것으로 친다. 붙여넣기가 안 되는 칸이면 예전 방식으로 넣는다.
+                self._prepare_com_cache()
+                from pywinauto import keyboard
+
+                self._wait_for_hands_off("값 넣기")
+                previous = ""
+                try:
+                    previous = _clipboard_get()
+                except Exception:
+                    previous = ""
+                try:
+                    control.set_focus()
+                    time.sleep(0.1)
+                    keyboard.send_keys("^a")
+                    _clipboard_set(preview.value)
+                    keyboard.send_keys("^v")
+                    time.sleep(0.2)
+                finally:
+                    try:
+                        _clipboard_set(previous)
+                    except Exception:
+                        pass
+                if _control_value(control).strip() != str(preview.value).strip():
+                    control.set_edit_text(preview.value)
+                time.sleep(0.1)
+                after = _control_value(control)
+                checked = {"value_after": after, "value_matches": after.strip() == str(preview.value).strip()}
             elif preview.action == "toggle":
                 control.toggle()
             elif preview.action == "select":
                 control.select()
+            elif preview.action == "invoke" and _menu_item_on_screen(control):
+                # ★ **메뉴 항목은 실제로 누른다** (2026-10-17 한글 → PDF 측정 7412255c). 한글의 「파일 > PDF로 저장하기」를 invoke 로
+                #   누르면 오류 없이 **아무 일도 안 일어났다** — 메뉴를 직접 그리는 프로그램은 누름 신호를 무시한다. 모델이 같은 메뉴를
+                #   invoke 로 다섯 번 되풀이하다 41걸음째에 click 으로 바꾸고서야 저장 창이 떴다(46걸음 · 593초). 사람도 메뉴는 클릭한다.
+                control.click_input()
+                checked = {"executed_as": "click"}
             elif preview.action == "invoke":
                 try:
                     control.invoke()
@@ -763,4 +1039,81 @@ class WindowsAutomationTools:
             "executed_action": preview.action,
             "target": preview.target,
             "executed_at": time.time(),
+            **checked,
+            **self._saved_file(save_target),
+            **self._after_action(preview.window_id, before, wait=2.0 if preview.action in {"key", "invoke", "click", "double_click"} else 0.3),
         }
+
+    #: 저장 대화 창의 제목 — 윈도우 기본 「다른 이름으로 저장」과 한글의 「PDF로 저장하기」.
+    _SAVE_DIALOG_TITLES = ("다른 이름으로 저장", "save as", "pdf로 저장하기", "저장하기")
+
+    def _save_dialog_target(self, window_id: int) -> str:
+        """저장 창이면 **누르기 직전** 그 창의 폴더(주소 칸)와 파일 이름 칸으로 저장될 자리를 만든다. 아니면 빈 글.
+
+        ★ 2026-10-17 메모장 측정(cad4f57a): 12걸음째에 저장을 끝내고도 「저장한 자리를 알려 줘」를 채우려고 C 드라이브 폴더를 열 걸음
+          뒤졌다. 그 자리는 저장 창의 주소 칸에 적혀 있었다. 짐작은 하지 않는다 — 창이 닫힌 뒤 그 파일이 실제로 있을 때만 적는다.
+        """
+        try:
+            window = self._window(window_id)
+            title = str(window.window_text() or "").strip().casefold()
+            if not any(mark in title for mark in self._SAVE_DIALOG_TITLES):
+                return ""
+            folder, name = "", ""
+            for control in window.descendants():
+                info = control.element_info
+                label = str(info.name or "")
+                if not folder and (label.startswith("주소: ") or label.startswith("Address: ")):
+                    folder = label.split(": ", 1)[1].strip()
+                if not name and str(info.control_type or "") in {"Edit", "ComboBox"} and (
+                    label.startswith("파일 이름") or label.startswith("File name") or str(info.automation_id or "") == "1001"
+                ):
+                    name = _control_value(control).strip()
+                if folder and name:
+                    break
+            if folder and name and ":" in folder:
+                return str(Path(folder) / name)
+        except Exception:
+            return ""
+        return ""
+
+    @staticmethod
+    def _saved_file(target: str) -> dict[str, Any]:
+        """저장 창이 닫힌 뒤 그 자리에 파일이 **실제로 있으면** 그 경로. 확장자를 안 적은 이름은 같은 이름의 파일을 찾는다."""
+        if not target:
+            return {}
+        time.sleep(0.5)
+        path = Path(target)
+        try:
+            if path.is_file():
+                return {"saved_file": str(path)}
+            if not path.suffix:
+                hits = sorted(path.parent.glob(path.name + ".*"), key=lambda item: item.stat().st_mtime, reverse=True)
+                if hits and time.time() - hits[0].stat().st_mtime < 30:
+                    return {"saved_file": str(hits[0])}
+        except OSError:
+            return {}
+        return {}
+
+    def _after_action(self, window_id: int, before: dict[int, str], *, wait: float = 2.0) -> dict[str, Any]:
+        """동작 뒤 그 창의 제목과 **새로 뜬 창**(저장 창 · 대화 창).
+
+        ★ 2026-10-17 한글 → PDF 측정(5d5b9d82): 「PDF로 저장하기」를 누르면 그 대화 창은 **따로 뜨는 새 창**인데, 원래 한글 창의
+          제목은 그대로라 모델이 「아무 일도 없었다」로 읽고 같은 메뉴를 되풀이하다 48걸음을 다 썼다. 성공한 판은 창 목록을 다시 보고서야
+          그 창을 찾았다. 새 창이 뜨면 그 번호 · 제목을 바로 적는다(최대 2.5초 기다림). 저장 뒤 제목이 시킨 이름과 같은지도 여기서 본다.
+        """
+        out: dict[str, Any] = {}
+        fresh: dict[int, str] = {}
+        deadline = time.monotonic() + max(0.3, wait)
+        while True:
+            time.sleep(0.3)
+            now = _visible_windows_now()
+            fresh = {hwnd: title for hwnd, title in now.items() if hwnd not in before and title.strip()}
+            if fresh or time.monotonic() >= deadline or not before:
+                break
+        try:
+            out["window_title_after"] = str(self._window(window_id).window_text() or "")[:300]
+        except Exception:
+            out.update({"window_title_after": "", "window_closed_after": True})
+        if fresh:
+            out["new_windows"] = [{"window_id": hwnd, "title": title[:200]} for hwnd, title in list(fresh.items())[:3]]
+        return out

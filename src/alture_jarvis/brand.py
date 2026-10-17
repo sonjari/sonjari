@@ -122,8 +122,20 @@ def product_dir(parent: Path) -> Path:
     return Path(parent) / DIR_NAME
 
 
+def documents_product_dir(documents: Path) -> Path:
+    r"""결과물 폴더 `문서\Sonjari`. **새 폴더가 이미 있으면 그쪽** — 옛 폴더는 새 폴더가 없을 때만 이어 쓴다.
+
+    ★ 2026-10-17: 이 PC 는 10-16 에 `문서\JARVIS` 를 `문서\Sonjari` 로 옮겼는데, 옮기기 전부터 떠 있던 프로그램(클로드 앱이 띄운
+      손자리 MCP 서버)이 옛 경로로 쓰면서 `JARVIS` 폴더가 다시 생겼고, 그 뒤 다시 켜진 백엔드는 `product_dir` 규칙대로 그 옛 폴더를
+      골라 결과물이 다시 그리로 갔다(영어 첫 일 측정의 엑셀). 결과물 폴더만 「새 것이 있으면 새 것」으로 본다. 브라우저 프로필 ·
+      코드 사본 같은 다른 자리는 `product_dir` 그대로다 — 거기서 옛 자리를 버리면 로그인 · 작업이 끊긴다.
+    """
+    fresh = Path(documents) / DIR_NAME
+    return fresh if fresh.is_dir() else product_dir(documents)
+
+
 __all__ = [
-    "DIR_NAME", "INSTALL_NAME", "LEGACY_DIR_NAME", "LEGACY_INSTALL_NAME", "LEGACY_MCP_ALIAS", "LEGACY_MCP_SERVER_NAMES",
+    "DIR_NAME", "documents_product_dir", "INSTALL_NAME", "LEGACY_DIR_NAME", "LEGACY_INSTALL_NAME", "LEGACY_MCP_ALIAS", "LEGACY_MCP_SERVER_NAMES",
     "LEGACY_NAMES", "LEGACY_RUNTIME_DIR_NAME", "LEGACY_RUNTIME_DIR_NAMES", "MCP_ALIAS",
     "MCP_SERVER_NAME", "NAME", "NAME_KO", "RUNTIME_DIR_NAME", "SELF_NAMES", "SELF_NAME_PATTERN", "backup_dir",
     "engine_dir",

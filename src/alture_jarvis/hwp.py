@@ -93,11 +93,29 @@ def _replace_active(hwp: Any, old_text: str, new_text: str) -> bool:
     return bool(hwp.HAction.Execute("AllReplace", parameters.HSet))
 
 
+def _late_bound(dispatch: Any) -> Any:
+    """COM 형식 캐시(gen_py)를 **거치지 않고** 묶는다 (2026-10-17 화면 자동화 측정).
+
+    `win32com.client.Dispatch` · `DispatchEx` 는 형식 캐시가 있으면 그것을 쓰는데, 이 PC 의 한글 캐시 폴더는 9월 1일부터
+    **비어 있었고**(만들다 끊긴 것으로 보임) 그 뒤로 `hwp_open` 이 매번 「… has no attribute 'CLSIDToClassMap'」로 죽었다.
+    사용자 PC 에서도 같은 일이 생길 수 있다. 여기서는 한글 상수를 캐시에서 꺼내 쓰지 않으므로 늦은 묶기로 충분하다.
+    """
+    import win32com.client.dynamic  # noqa: PLC0415
+
+    return win32com.client.dynamic.Dispatch(dispatch)
+
+
+def _new_instance(prog_id: str) -> Any:
+    """**새** 인스턴스(`DispatchEx` 와 같은 뜻) — 사용자가 띄워 둔 한글에 붙지 않는다. 묶기는 `_late_bound`."""
+    import pythoncom  # noqa: PLC0415
+
+    return _late_bound(pythoncom.CoCreateInstance(prog_id, None, pythoncom.CLSCTX_SERVER, pythoncom.IID_IDispatch))
+
+
 def _running_hwp_objects(module_name: str) -> tuple[list[tuple[str, Any]], Any]:
     if os.name != "nt":
         raise RuntimeError("windows_only")
     import pythoncom
-    import win32com.client
 
     pythoncom.CoInitialize()
     try:
@@ -118,7 +136,7 @@ def _running_hwp_objects(module_name: str) -> tuple[list[tuple[str, Any]], Any]:
                 continue
             raw = table.GetObject(moniker)
             dispatch = raw.QueryInterface(pythoncom.IID_IDispatch)
-            hwp = win32com.client.Dispatch(dispatch)
+            hwp = _late_bound(dispatch)
             # 한글 2022는 같은 인스턴스에 두 번째로 부르면 False를 돌려준다.
             # 최초 등록·비대화상자 저장은 설치 스파이크에서 따로 검증하고, 여기서는
             # 호출 자체가 COM 오류 없이 끝났는지만 본다. 실제 열기/저장은 아래
@@ -182,9 +200,7 @@ def _worker_operation(payload: dict[str, Any]) -> dict[str, Any]:
             # 새 파일로 **교체**한다(한글 2022 실측). 사용자 원본 인스턴스에서
             # 사본을 열면 원본이 닫혀 apply의 대상까지 사라진다. 사본은 별도 숨김
             # 인스턴스에서만 굽고 그 인스턴스만 종료한다.
-            import win32com.client
-
-            preview_hwp = win32com.client.DispatchEx(_PROG_ID)
+            preview_hwp = _new_instance(_PROG_ID)
             preview_document = None
             try:
                 preview_hwp.RegisterModule(_SECURITY_KIND, module_name)

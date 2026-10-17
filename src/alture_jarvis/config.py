@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from .brand import backup_dir, downloads_dir, engine_dir, product_dir, runtime_dir, update_dir
+from .brand import backup_dir, documents_product_dir, downloads_dir, engine_dir, product_dir, runtime_dir, update_dir
 from .msix import package_full_name
 
 #: 프로세스 환경(os.environ)이 **아닌** 안쪽 보관소. 자식에게 안 넘어간다 (2026-10-09).
@@ -434,7 +434,7 @@ class JarvisConfig:
     # 탐색기에서 바로 보여야 한다. 설정으로 빼 둔 이유는 검사가 진짜 「내 문서」를
     # 더럽히지 않게 하기 위해서다 — 검사가 사람 폴더에 쓰면 그건 검사가 아니다.
     # 새 PC 는 `내 문서\\Ontelic`, 이미 `내 문서\\JARVIS` 가 있는 PC 는 그 자리를 계속 쓴다(brand.py).
-    documents_dir: Path = field(default_factory=lambda: product_dir(Path.home() / "Documents"))
+    documents_dir: Path = field(default_factory=lambda: documents_product_dir(Path.home() / "Documents"))
     control_token: str = ""
     profile_path: Path = field(
         default_factory=lambda: _default_runtime_root() / "data" / "JARVIS_PROFILE.md"
@@ -1362,7 +1362,7 @@ class JarvisConfig:
             data_dir=data_dir,
             output_dir=output_dir,
             documents_dir=Path(
-                _env("JARVIS_DOCUMENTS_DIR", str(product_dir(Path.home() / "Documents")))
+                _env("JARVIS_DOCUMENTS_DIR", str(documents_product_dir(Path.home() / "Documents")))
             ),
             control_token=_env("JARVIS_CONTROL_TOKEN"),
             profile_path=Path(

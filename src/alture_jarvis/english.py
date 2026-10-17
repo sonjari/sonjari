@@ -372,7 +372,8 @@ ARTIFACT_REQUEST_TARGET = re.compile(
 #: 강한 동사 — 대상과 짝이면 산출물이다(한국어 「만들·생성·작성·저장·짜·고쳐·수정·옮기·담아·달아·넣어」).
 ARTIFACT_REQUEST_VERB = re.compile(
     r"\b(?:make|create|generate|write|save|export|draft|produce|build|fix|modify|edit|implement|copy|move"
-    r"|insert|attach|add|convert|turn\s+(?:it|this|them)\s+into)\b",
+    # 「turn ○○ into」 — 사이에 몇 낱말이 와도(「Turn what you just found into an Excel file」 · 2026-10-17 영어 튜토리얼 측정).
+    r"|insert|attach|add|convert|turn\s+(?:[\w'-]+\s+){0,6}?into)\b",
     re.I,
 )
 #: 「정리해줘」류 — **파일 낱말이 있을 때만**, 또는 「문서로」처럼 형식을 댔을 때만 산출물이다.
@@ -437,6 +438,8 @@ NAMED_FILE_IS_READ_BEFORE = re.compile(r"\b(?:read|reading|open|look\s+at|parse|
 
 #: 형식 → 확장자. 한국어 `_artifact_extensions` 의 규칙 순서를 그대로 따른다.
 EXTENSION_RULES: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] = (
+    # 한국어와 같다 — PDF 는 **만들 형식 자리**(save/export/convert … as/to PDF)일 때만 (2026-10-17).
+    (re.compile(r"\b(?:save|export|convert|print|turn)\b[^.!?]{0,40}?\b(?:as|to|into)\s+(?:an?\s+)?pdf\b", re.I), (".pdf",)),
     (re.compile(r"\b(?:excel|spreadsheets?)\b", re.I), (".xlsx",)),
     (re.compile(r"(?<![A-Za-z])csv(?![A-Za-z])", re.I), (".csv",)),
     (re.compile(r"\bWord\b|\bword\s+(?:doc|docs|document|documents|file|files)\b"), (".docx",)),
