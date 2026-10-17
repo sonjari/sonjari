@@ -143,7 +143,8 @@ write the file with its own tool instead. 27B on an RTX 3090; approvals were aut
 | Before the fixes (one run per app) | 5 of 10 |
 | After the fixes (three runs per app) | 30 of 30 |
 
-It is slow: 1.5–3 minutes for most jobs, 5–10 for Excel, where a person needs under a minute. In normal use Sonjari writes
+It is slow: about 1.5–3 minutes for Notepad, Calculator, Paint, File Explorer, Hangul and VS Code, 3.5–8 for Word and
+PowerPoint, 5–10 for Excel, where a person needs under a minute. In normal use Sonjari writes
 files directly and only drives a window when nothing else reaches. What broke and what changed:
 [measurements/2026-10-17-desktop-apps](measurements/2026-10-17-desktop-apps/README.md).
 
