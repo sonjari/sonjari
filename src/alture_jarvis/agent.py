@@ -1637,6 +1637,8 @@ def untouched_sites(plan_results: list[tuple[Any, bool, str]]) -> list[str]:
 _WRAP_UP_TOOLS = frozenset({"browser_close"})
 #: 「하는 말」은 한 문장이다(`narration.NARRATION_INSTRUCTION`). 이보다 길면 답을 쓴 것으로 본다.
 _WRAP_UP_ANSWER_MIN_CHARS = 200
+#: 창 동작을 **미리 보기만** 하는 도구 — 실행이 아니라서 걸음 예산을 깎지 않는다(위 루프의 `preview_grace`).
+_PREVIEW_TOOLS = frozenset({"windows_uia_preview", "windows_visual_preview"})
 #: 최종 답이 도구와 같이 쓴 가장 긴 글의 이 비율보다 짧으면 끝내기를 한 번 되돌린다(아래 `agent_final_sent_back`).
 _FINAL_TOO_SHORT_RATIO = 0.5
 
@@ -2099,6 +2101,10 @@ class BrowserAgent:
                     tool in _ARTIFACT_PROGRESS_TOOLS
                     or evidence.get("output_path")
                     or evidence.get("artifact_path")
+                    # ★ 프로그램 창으로 파일을 만드는 판은 **실행한 창 동작**이 산출물 진척이다 (2026-10-17 앱 묶음 · 엑셀 45f19094).
+                    #   칸 넷을 채우고 저장 창에 이름을 넣던 판이 걸음 경계에서 「남은 목표에 진척 없음」으로 34걸음에 멈췄다 —
+                    #   파일 쓰기 도구만 진척으로 봤다. 미리보기는 세지 않는다(바꾸는 것이 없다).
+                    or tool == "windows_execute_preview"
                 ):
                     return True
 
@@ -7437,6 +7443,7 @@ class BrowserAgent:
         warning_at = deadline - max(5, self.config.agent_time_warning_sec)
         warning_sent = False
         step_limit = len(steps) + self._step_budget(plan, code=model_role == "code")
+        preview_grace = 0  # 창 동작 미리보기는 예산을 깎지 않는다(아래 `_PREVIEW_TOOLS`)
         # 이 판이 **왜 끝났는지.** 빈 값이면 while 조건이 거짓이 돼서 나온 것이다.
         #
         # ★ 이게 없어서 오늘 "왜 절반에서 멈추나"를 코드를 뒤져 가며 답해야 했다.
@@ -9262,6 +9269,12 @@ class BrowserAgent:
                     stage_hands and name not in stage_hands
                     and _repair_read_after_write_feedback(name, arguments, steps)
                 )
+                # ★ **창 동작의 미리보기는 걸음 예산을 깎지 않는다** (2026-10-17 앱 묶음 측정 · 엑셀 278dd090). 칸 넷을 정확히 채우고
+                #   저장 화면에서 파일 이름을 넣는 순간 48걸음 상한에 걸렸다 — 창 동작 하나가 미리보기 + 실행 두 걸음이라 동작 스무 번이면
+                #   마흔 걸음이다. 미리보기는 아무것도 바꾸지 않는 읽기다(실행 걸음은 그대로 센다). 한 판에 40번까지만 돌려준다.
+                if name in _PREVIEW_TOOLS and preview_grace < 40:
+                    preview_grace += 1
+                    step_limit += 1
                 if repair_read and repair_read_grace < 2 * _REPAIR_READ_OPENS + 1:
                     # 여는 걸음·읽는 걸음, 그리고 처음 한 번은 고쳐 쓸 걸음까지 돌려준다.
                     extra = 2 if repair_read_grace == 0 else 1

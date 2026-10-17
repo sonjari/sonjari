@@ -130,46 +130,63 @@ def run_captured(
       돌리면 한 겹 더), 죽지 않은 손자가 출력 통로를 쥐고 있으면 그 읽기가 영원히 안 끝난다. 실제로 모델이 돌린 무거운
       확인용 스크립트 하나에 일꾼 스레드가 14분 넘게 멈췄고(취소해도 안 풀림), 뒤의 판은 시작도 못 했다.
       시간 제한에 걸리면 **프로세스 나무 전체**를 끝내고, 남은 출력은 5초만 기다린다.
+
+    ★ 2026-10-17 (앱 묶음 · VS Code 72b9e9c6): **명령 자체는 끝났는데 그것이 띄운 창 프로그램이 통로를 쥔 경우**도 같은 병이다.
+      `code "파일"` 이 띄운 편집기(이 PC 에서는 Cursor)가 통로를 쥔 채 떠 있어 판이 15분을 매달렸다. 끝까지 다 읽어야 출력을
+      주던 `communicate` 대신 **조금씩 받아 두고**, 직접 띄운 프로세스가 끝나면 3초만 더 기다린 뒤 받아 둔 만큼 돌려준다.
+      통로는 억지로 닫지 않는다(윈도우에서는 다른 스레드가 읽는 통로를 닫는 일 자체가 그 읽기가 끝날 때까지 기다린다).
+      띄운 프로그램은 끄지 않는다 — 사람이 쓸 창이다.
     """
     process = subprocess.Popen(
         executable, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         shell=False, creationflags=creationflags,
     )
+    sinks: dict[str, list[bytes]] = {"out": [], "err": []}
+
+    def pump(pipe: Any, sink: list[bytes]) -> None:
+        try:
+            while True:
+                chunk = pipe.read1(65536) if hasattr(pipe, "read1") else pipe.read(65536)
+                if not chunk:
+                    return
+                sink.append(chunk)
+        except (OSError, ValueError):
+            return
+
+    pumps = [threading.Thread(target=pump, args=(pipe, sink), daemon=True)
+             for pipe, sink in ((process.stdout, sinks["out"]), (process.stderr, sinks["err"])) if pipe is not None]
+    for thread in pumps:
+        thread.start()
+
+    def collected(wait: float) -> tuple[bytes, bytes]:
+        until = time.monotonic() + max(0.0, wait)
+        for thread in pumps:
+            thread.join(max(0.0, until - time.monotonic()))
+        return b"".join(sinks["out"]), b"".join(sinks["err"])
+
     # ★ 2026-10-10: 도는 중에도 「그만」을 듣는다(`stop_commands_when`). 맡긴 판이 3분짜리 시험을 돌리는 동안 사람의 요청이
     #   206초를 기다렸다 — 걸음 사이와 모델이 생각하는 도중에는 비켰지만 명령이 도는 중에는 들을 귀가 없었다.
     #   끊으면 그 명령은 버린다(다시 돌려야 한다). 그래서 귀는 비켜 줄 판에만 달린다 — 평소에는 아무도 안 묻는다.
     should_stop = getattr(_STOP, "check", None)
     deadline = time.monotonic() + max(0.0, float(timeout_sec))
-    try:
-        while True:
-            remaining = deadline - time.monotonic()
-            try:
-                stdout, stderr = process.communicate(
-                    timeout=max(0.05, remaining) if should_stop is None else max(0.05, min(remaining, _STOP_POLL_SEC))
-                )
-                return int(process.returncode), stdout or b"", stderr or b"", False
-            except subprocess.TimeoutExpired:
-                if deadline - time.monotonic() <= 0:
-                    raise
-                if should_stop is not None and _asked_to_stop(should_stop):
-                    getattr(_STOP, "seen", {})["stopped"] = True
-                    kill_process_tree(process)
-                    stdout, stderr = _drain(process)
-                    return STOPPED_EXIT_CODE, stdout, stderr, False
-    except subprocess.TimeoutExpired:
-        kill_process_tree(process)
+    while True:
+        remaining = deadline - time.monotonic()
         try:
-            stdout, stderr = process.communicate(timeout=5)
+            process.wait(timeout=max(0.05, min(remaining, _STOP_POLL_SEC)))
         except subprocess.TimeoutExpired:
-            # 나무 밖으로 떨어져 나간 프로세스가 통로를 쥐고 있다 — 더 기다리지 않는다. 통로를 닫아 읽던 쪽을 놓아준다.
-            stdout, stderr = b"", b""
-            for pipe in (process.stdout, process.stderr):
-                try:
-                    if pipe is not None:
-                        pipe.close()
-                except OSError:
-                    pass
-        return 124, stdout or b"", stderr or b"", True
+            if deadline - time.monotonic() <= 0:
+                kill_process_tree(process)
+                stdout, stderr = collected(5)
+                return 124, stdout, stderr, True
+            if should_stop is not None and _asked_to_stop(should_stop):
+                getattr(_STOP, "seen", {})["stopped"] = True
+                kill_process_tree(process)
+                stdout, stderr = collected(5)
+                return STOPPED_EXIT_CODE, stdout, stderr, False
+            continue
+        # 직접 띄운 프로세스가 끝났다. 남은 출력은 통로가 닫히는 대로 — 손자가 쥐고 있으면 3초만 기다린다.
+        stdout, stderr = collected(3)
+        return int(process.returncode), stdout, stderr, False
 
 
 #: 도는 명령에게 「그만」을 물어볼 것 — 스레드마다 따로 든다(판을 도는 스레드에만 달린다. 다른 요청의 명령은 안 끊긴다).
@@ -204,21 +221,6 @@ def _asked_to_stop(check: Callable[[], bool]) -> bool:
         return bool(check())
     except Exception:  # noqa: BLE001 — 묻다가 틀어지면 끊지 않는다(명령은 끝까지 간다)
         return False
-
-
-def _drain(process: "subprocess.Popen[bytes]") -> tuple[bytes, bytes]:
-    """끝낸 프로세스의 남은 출력을 5초만 기다려 받는다."""
-    try:
-        stdout, stderr = process.communicate(timeout=5)
-        return stdout or b"", stderr or b""
-    except subprocess.TimeoutExpired:
-        for pipe in (process.stdout, process.stderr):
-            try:
-                if pipe is not None:
-                    pipe.close()
-            except OSError:
-                pass
-        return b"", b""
 
 
 def kill_process_tree(process: "subprocess.Popen[bytes]") -> None:
@@ -1092,10 +1094,17 @@ _SYSTEM_APPS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("calc", "calculator", "계산기"), "calc.exe"),
     (("mspaint", "paint", "그림판"), "mspaint.exe"),
     (("taskmgr", "task manager", "작업 관리자", "작업관리자"), "Taskmgr.exe"),
+    (("explorer", "file explorer", "windows explorer", "파일 탐색기", "탐색기"), "explorer.exe"),
 )
 #: 따로 깔리는 프로그램 — 윈도우가 「App Paths」에 적어 둔 자리에서만 찾는다(경로를 모델 글에서 받지 않는다).
+# ★ 2026-10-17 앱 묶음 측정 준비: 엑셀 · 워드 · 파워포인트 · VS Code 를 이름으로 못 열었다(목록에 없음). 넷 다 이 PC 의
+#   「App Paths」에 자리가 적혀 있다. 윈11 그림판은 스토어 앱이라 System32 에 없고 App Paths 에 있다(아래 `launchable_app`).
 _REGISTERED_APPS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("hwp", "한글", "한컴오피스 한글", "hancom hwp"), "Hwp.exe"),
+    (("excel", "엑셀", "microsoft excel", "ms excel"), "excel.exe"),
+    (("word", "워드", "winword", "microsoft word", "ms word"), "winword.exe"),
+    (("powerpoint", "파워포인트", "powerpnt", "ppt", "microsoft powerpoint"), "powerpnt.exe"),
+    (("code", "vscode", "vs code", "visual studio code", "비주얼 스튜디오 코드"), "Code.exe"),
 )
 
 
@@ -1176,11 +1185,19 @@ def launchable_app(requested: str) -> str | None:
     stem = name[:-4] if name.endswith(".exe") else name
     system = Path(os.environ.get("SystemRoot") or r"C:\Windows") / "System32"
     for names, exe in _SYSTEM_APPS:
-        target = system / exe
         if lowered in names or stem in names or name == exe.casefold():
+            # System32 → 윈도우 폴더(explorer.exe) → 실행 별칭 · App Paths(윈11 그림판처럼 스토어 앱이 된 것) 순서로 찾는다.
+            aliases = Path(os.environ.get("LOCALAPPDATA") or "") / "Microsoft" / "WindowsApps"
+            candidates = [system / exe, system.parent / exe, aliases / exe]  # 스토어 앱은 실행 별칭으로 띄운다
+            registered = _app_paths_lookup(exe)
+            if registered:
+                candidates.append(Path(registered))
+            target = next((path for path in candidates if path.is_file()), None)
+            if target is None:
+                return None
             if ("\\" in text or "/" in text) and Path(text).resolve() != target.resolve():
                 return None
-            return str(target) if target.is_file() else None
+            return str(target)
     for names, exe in _REGISTERED_APPS:
         if lowered in names or stem in names or name == exe.casefold():
             found = _app_paths_lookup(exe)
@@ -1540,8 +1557,8 @@ class LocalComputerTools:
             ),
             self._function(
                 "windows_open_path",
-                "허용된 로컬 폴더 또는 파일을 Windows 기본 앱으로 연다. 메모장 · 계산기 · 그림판 · 작업 관리자 · 한글(HWP) 은 path 에 이름만 적으면 켠다(예: \"메모장\", \"taskmgr\"). 실제 프로그램 실행이므로 화면 승인이 필요하다.",
-                {"path": {"type": "string"}},
+                "허용된 로컬 폴더 또는 파일을 Windows 기본 앱으로 연다. 메모장 · 계산기 · 그림판 · 작업 관리자 · 파일 탐색기 · 한글(HWP) · 엑셀 · 워드 · 파워포인트 · VS Code 는 path 에 이름만 적으면 새로 켠다(예: \"엑셀\", \"taskmgr\"). 파일을 기본 앱이 아닌 그 앱들 가운데 하나로 열려면 app 에 앱 이름을 같이 적는다(예: path 에 그림 파일, app 에 \"그림판\"). 실제 프로그램 실행이므로 화면 승인이 필요하다.",
+                {"path": {"type": "string"}, "app": {"type": "string"}},
                 ["path"],
             ),
             self._function(
@@ -4632,6 +4649,22 @@ class LocalComputerTools:
         #   `C:\Windows\System32\notepad.exe` 를 열려 했고, 시스템 폴더라 막히자 System32 를 작업 자리로 달라고 했다가 또 막혀
         #   두 걸음을 버렸다(결국 셸 명령으로 열었다 — 셸은 사람 승인이 드는 더 넓은 문이다). 시스템 폴더를 여는 대신 실행 파일
         #   **이름 몇 개만** 받는다. 인자는 넘기지 않는다 — 프로그램을 켜는 것뿐이고, 무엇을 할지는 그다음 창 조작이 한다.
+        # ★ **이 파일을 이 앱으로 연다** (2026-10-17 앱 묶음 · 그림판 18306ebe). 「PNG 를 그림판으로 열어」에 파일만 열면 기본 앱(사진)이
+        #   떠서, 모델은 셸 명령(`Start-Process mspaint …`)으로 그림판을 띄웠다. 앱은 정해 둔 목록에서만, 파일은 여는 길과 같은 허용
+        #   자리에서만 받고, 셸 없이 그 실행 파일에 파일 하나를 넘긴다.
+        requested_app = str(arguments.get("app") or "").strip()
+        if requested_app:
+            exe = launchable_app(requested_app)
+            if exe is None:
+                raise PermissionError("app_not_allowed: 이름으로 여는 앱(메모장 · 계산기 · 그림판 · 작업 관리자 · 파일 탐색기 · 한글 · "
+                                      "엑셀 · 워드 · 파워포인트 · VS Code)만 고를 수 있습니다.")
+            target = self._resolve(str(arguments.get("path") or ""), write=True)
+            from .msix import external_path
+
+            before = _visible_windows()
+            subprocess.Popen([exe, str(external_path(target))], close_fds=True)  # noqa: S603 — 목록의 실행 파일 + 허용 자리의 파일 하나
+            return {"action": "windows_open_path", "path": str(target), "type": "directory" if target.is_dir() else "file",
+                    "opened_with": Path(exe).name, **_wait_for_new_window(before)}
         app = launchable_app(str(arguments.get("path") or ""))
         if app is not None:
             before = _visible_windows()

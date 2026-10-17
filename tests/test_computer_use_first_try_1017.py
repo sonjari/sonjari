@@ -260,3 +260,178 @@ def test_a_percent_computed_from_the_same_named_row_is_not_flagged() -> None:
     # 이름이 안 겹치는 줄의 숫자로는 못 만든다 — 아무 쌍이나 받지 않는다
     other = "| 항목 | 값 |\n|---|---|\n| 사과 | 19,392 |\n| 배 | 24,576 |\n\n전체의 약 79%가 남았습니다."
     assert ungrounded_percents(other, set()) == ["79"]
+
+
+def test_office_vscode_and_store_paint_open_by_name_from_registered_places(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """엑셀 · 워드 · 파워포인트 · VS Code 는 목록에 없었고, 윈11 그림판은 스토어 앱이라 System32 에 없어 이름으로 못 열었다(앱 묶음 측정 준비)."""
+    from alture_jarvis import local_computer
+
+    registered = {}
+    for exe in ("excel.exe", "winword.exe", "powerpnt.exe", "Code.exe", "mspaint.exe"):
+        fake = tmp_path / exe
+        fake.write_text("", encoding="utf-8")
+        registered[exe.casefold()] = str(fake)
+    monkeypatch.setattr(local_computer, "_app_paths_lookup", lambda exe: registered.get(exe.casefold(), ""))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "nowhere"))
+    for name, exe in (("엑셀", "excel.exe"), ("워드", "winword.exe"), ("파워포인트", "powerpnt.exe"), ("VS Code", "Code.exe")):
+        assert launchable_app(name) == registered[exe.casefold()], name
+    assert launchable_app("그림판") == registered["mspaint.exe"] or launchable_app("그림판").lower().endswith("mspaint.exe")
+    # 등록부에 없는 자리 · 다른 폴더의 같은 이름은 여전히 안 받는다
+    assert launchable_app(r"C:\evil\excel.exe") is None
+    assert launchable_app("cmd") is None
+
+
+class _Combo(_Control):
+    def __init__(self, name: str, items: list[str]) -> None:
+        super().__init__(name, "ComboBox", value=items[0])
+        self._items = items
+        self.chosen: list[str] = []
+
+    def texts(self) -> list[str]:
+        return list(self._items)
+
+    def select(self, item: str) -> None:
+        self.chosen.append(item)
+        self._value = item
+
+
+def test_a_list_box_value_is_picked_not_typed(tmp_path: Path) -> None:
+    """저장 창 「파일 형식」에 글자를 넣으려다 오류가 났고, 이름만 .jpg 로 저장돼 속은 HEIC 인 파일이 생겼다(앱 묶음 cf93ca97)."""
+    from alture_jarvis.windows_automation import _item_matches, _select_combo_item
+
+    combo = _Combo("파일 형식:", ["PNG (*.png)", "JPEG (*.jpg;*.jpeg;*.jpe;*.jfif)", "HEIC (*.heic)"])
+    assert _select_combo_item(combo, "JPEG (*.jpg;*.jpe;*.jfif;*.jif)") == "JPEG (*.jpg;*.jpeg;*.jpe;*.jfif)"
+    assert combo.chosen == ["JPEG (*.jpg;*.jpeg;*.jpe;*.jfif)"]
+    # 파일 이름처럼 항목에 없는 값은 고르지 않는다 — 원래대로 글자로 넣는다
+    assert _select_combo_item(_Combo("파일 이름:", ["옛 이름.png"]), "그림_1.jpg") is None
+    assert _item_matches("JPEG (*.jpg)", "JPEG") and not _item_matches("PNG (*.png)", "JPEG")
+
+
+def test_a_saved_file_whose_bytes_disagree_with_its_name_is_flagged(tmp_path: Path) -> None:
+    from alture_jarvis.windows_automation import _format_mismatch
+
+    heic = tmp_path / "그림.jpg"
+    heic.write_bytes(b"\x00\x00\x00 ftypheic" + b"\x00" * 16)
+    assert "JPEG" in _format_mismatch(heic)["saved_format_mismatch"]
+    jpeg = tmp_path / "맞음.jpg"
+    jpeg.write_bytes(bytes([0xFF, 0xD8, 0xFF, 0xE0]) + b"\x00" * 16)
+    assert _format_mismatch(jpeg) == {}
+    assert _format_mismatch(tmp_path / "없는.xyz") == {}
+
+
+def test_reading_the_program_window_counts_as_reading_on_a_local_job_only() -> None:
+    """그림판 창을 일곱 번 읽고 다뤘는데 「근거 읽기 — 0개」가 붙었다. 웹을 보라는 판은 창 읽기로 채우지 않는다."""
+    steps = [{"tool": "windows_uia_snapshot", "ok": True, "evidence": {}, "arguments": {}}]
+    local = plan.Requirement(kind="observe", label="근거가 되는 대상 실제로 읽기", target="local")
+    web = plan.Requirement(kind="observe", label="근거가 되는 대상 실제로 읽기", target="web")
+    assert plan.check([local], sources=[], steps=steps)[0][1] is True
+    assert plan.check([web], sources=[], steps=steps)[0][1] is False
+
+
+def test_a_named_picture_opened_in_a_program_is_material_and_the_saved_file_counts(tmp_path: Path) -> None:
+    """「「…png」 그림을 그림판으로 열어서 … JPEG(.jpg) 로 저장」에 .png 를 만들 파일로 보고, 저장 창이 확인한 .jpg 도 안 셌다."""
+    prompt = (r"「C:\x\그림_1.png」 그림을 그림판으로 열어서, 그림판의 다른 이름으로 저장 기능으로 같은 폴더에 "
+              "같은 이름의 JPEG(.jpg) 파일로 저장해 줘. 그림판 창을 직접 조작해서 해 줘.")
+    assert plan.artifact_extensions(prompt) == (".jpg",)
+    saved = tmp_path / "그림_1.jpg"
+    saved.write_bytes(bytes([0xFF, 0xD8, 0xFF, 0xE0]))
+    steps = [{"tool": "windows_execute_preview", "ok": True, "arguments": {},
+              "evidence": {"executed_at": 1.0, "saved_file": str(saved)}}]
+    art = plan.Requirement(kind="artifact", label="실제 산출물 파일 만들기", target=(".jpg",))
+    assert plan.check([art], sources=[], steps=steps)[0][1] is True
+
+
+def test_powerpoint_explorer_and_vscode_window_jobs_keep_the_window_hands() -> None:
+    """「파워포인트를 열어 … 파워포인트 창을 직접 조작해서」가 문서 갈래로 가 창 도구가 막혔다(4c9ac3f6 · 자기 도구로 .pptx 를 만듦).
+
+    운영 요청 2,225개 대조: 바뀐 것은 이 측정 요청 하나.
+    """
+    from alture_jarvis.tool_roster import _is_web_research_job
+
+    for prompt in (
+        r"파워포인트를 열어서 새 프레젠테이션 첫 슬라이드의 제목에 「발표」 를 입력하고 「C:\x\a.pptx」 로 저장해 줘. 파워포인트 창을 직접 조작해서 해 줘.",
+        r"파일 탐색기로 「C:\x」 폴더를 열어서, 탐색기의 새 폴더 만들기로 「새것」 이라는 폴더를 만들어 줘. 파일 탐색기 창을 직접 조작해서 해 줘.",
+        r"VS Code 로 「C:\x\a.txt」 파일을 열어서 맨 끝에 한 줄을 추가하고 저장해 줘. VS Code 창을 직접 조작해서 해 줘.",
+    ):
+        observed = plan.extract(prompt, must_observe=True, observe_from=frozenset({"local"}))
+        assert _is_web_research_job(observed, prompt) is False, prompt[:20]
+
+
+def test_a_file_opens_in_the_named_app_without_a_shell(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """「PNG 를 그림판으로 열어」에 파일만 열면 사진 앱이 떠서, 모델은 셸 명령으로 그림판을 띄웠다(18306ebe)."""
+    from alture_jarvis import local_computer
+    from alture_jarvis.local_computer import LocalComputerTools
+
+    picture = tmp_path / "그림.png"
+    picture.write_bytes(b"x")
+    launched: list[list[str]] = []
+    monkeypatch.setattr(local_computer, "launchable_app", lambda name: r"C:\fake\mspaint.exe" if name == "그림판" else None)
+    monkeypatch.setattr(local_computer.subprocess, "Popen", lambda args, **kw: launched.append(list(args)))
+    monkeypatch.setattr(local_computer, "_wait_for_new_window", lambda before, **kw: {})
+    monkeypatch.setattr(local_computer, "_visible_windows", lambda: {})
+    monkeypatch.setattr(local_computer.os, "name", "nt")
+    tools = LocalComputerTools(JarvisConfig(runtime_root=tmp_path, data_dir=tmp_path / "data", output_dir=tmp_path / "outputs",
+                                            windows_control_enabled=True))
+    monkeypatch.setattr(tools, "_resolve", lambda raw, **kw: Path(raw))
+    out = tools.open_path({"path": str(picture), "app": "그림판"})
+    assert launched == [[r"C:\fake\mspaint.exe", str(picture)]] and out["opened_with"] == "mspaint.exe"
+    with pytest.raises(PermissionError, match="app_not_allowed"):
+        tools.open_path({"path": str(picture), "app": "cmd"})
+
+
+def test_window_actions_are_progress_toward_a_file_and_previews_count_less_against_the_cap() -> None:
+    """엑셀 칸 넷을 채우고 저장 창에 이름을 넣던 판이 걸음 경계에서 「진척 없음」으로 34걸음에 멈췄다(45f19094)."""
+    from alture_jarvis.agent import BrowserAgent
+    from alture_jarvis.promise_gate import steps_against_cap
+
+    art = plan.Requirement(kind="artifact", label="실제 산출물 파일 만들기", target=(".xlsx",))
+    acting = [{"tool": "windows_uia_preview", "ok": True}, {"tool": "windows_execute_preview", "ok": True, "evidence": {}}]
+    assert BrowserAgent._progress_matches_remaining_plan(acting, [(art, False, "없음")]) is True
+    only_looking = [{"tool": "windows_uia_snapshot", "ok": True, "evidence": {}}] * 3
+    assert BrowserAgent._progress_matches_remaining_plan(only_looking, [(art, False, "없음")]) is False
+    steps = [{"tool": "windows_uia_preview"}, {"tool": "windows_execute_preview"}] * 10
+    assert steps_against_cap(steps, 48) == 10, "미리보기는 상한에 덜 센다(실행만 센다)"
+
+
+def test_file_explorer_is_an_app_name_not_a_file_request() -> None:
+    """「파일 탐색기로 … 새 폴더를 만들어 줘」가 「파일 + 만들어」로 산출물 요구가 되어 시키지 않은 .md 를 만들었다(b09c6f60).
+
+    운영 요청 2,236개 대조: 바뀐 것은 이 측정 요청 둘.
+    """
+    prompt = (r"파일 탐색기로 「C:\x\앱측정」 폴더를 열어서, 탐색기의 새 폴더 만들기로 「새것」 이라는 폴더를 만들어 줘. "
+              "파일 탐색기 창을 직접 조작해서 해 줘.")
+    assert plan.wants_an_artifact(prompt) is False
+    assert plan.wants_an_artifact("파일 탐색기에서 고른 사진들로 워드 파일을 만들어 줘") is True
+
+
+def test_a_command_that_leaves_a_program_holding_the_output_returns_quickly() -> None:
+    """`code "파일"` 이 띄운 편집기가 출력 통로를 쥔 채 떠 있어 판이 15분을 매달렸다(72b9e9c6). 명령 자체가 끝나면 곧 돌아온다."""
+    import subprocess
+    import sys
+    import time as _time
+
+    from alture_jarvis.local_computer import run_captured
+
+    script = ("import subprocess, sys; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(20)']); "
+              "print('launched', flush=True)")
+    started = _time.monotonic()
+    code, out, _err, timed_out = run_captured([sys.executable, "-c", script], cwd=None, env=None, timeout_sec=60)
+    assert _time.monotonic() - started < 15, "명령이 끝난 뒤 손자가 쥔 통로를 끝까지 기다리지 않는다"
+    assert code == 0 and not timed_out and b"launched" in out
+
+
+def test_a_dialog_key_that_opens_nothing_is_reported(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """엑셀에서 Ctrl+Shift+S 는 아무것도 안 열어 저장 화면을 돌아가느라 15걸음을 썼다(ec55f971). Tab · Enter 는 알리지 않는다."""
+    from types import SimpleNamespace as NS
+
+    from alture_jarvis import windows_automation
+    from alture_jarvis.windows_automation import _dialog_key
+
+    tools = _tools(tmp_path)
+    window = NS(window_text=lambda: "통합 문서1 - Excel")
+    tools._window = lambda window_id: window  # type: ignore[method-assign]
+    monkeypatch.setattr(windows_automation, "_visible_windows_now", lambda: {7: "통합 문서1 - Excel"})
+    before = {7: "통합 문서1 - Excel"}
+    said = tools._after_action(7, before, wait=0.3, dialog_key=_dialog_key(NS(action="key", value="Ctrl+Shift+S")))
+    assert "F12" in said["no_window_opened"]
+    assert "no_window_opened" not in tools._after_action(7, before, wait=0.3, dialog_key=_dialog_key(NS(action="key", value="Tab")))
