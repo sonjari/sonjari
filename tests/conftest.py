@@ -347,3 +347,21 @@ def _tests_never_touch_the_real_bot_token() -> None:
 
 
 _tests_never_touch_the_real_bot_token()
+
+
+# ── 끝나지 않는 시험은 크게 드러낸다 (2026-10-18) ───────────────────────────────────────────
+#
+# 열두 갈래 전체 회귀가 이날 세 번 멈췄다(한 번은 한 시간). 매번 헤드리스 크롬을 띄우는 시험 하나가 돌아오지 않았고,
+# 멈춘 시험은 그때마다 달랐다. 크롬 시험을 한 작업자에 모아 봤더니 이번엔 결과 목록 시험 21개가 조용히 「건너뜀」이
+# 됐다(초록불 · 되돌림). 그래서 막지 않고 드러낸다: 한 시험이 이 시간을 넘으면 그 작업자는 걸린 자리의 스택을 찍고
+# 끝난다 — xdist 는 그 시험을 실패로 적고 작업자를 새로 띄운다. 영원히 기다리지도, 조용히 건너뛰지도 않는다.
+_TEST_HANG_SEC = 300
+
+
+@pytest.fixture(autouse=True)
+def _a_hung_test_fails_loudly():
+    import faulthandler
+
+    faulthandler.dump_traceback_later(_TEST_HANG_SEC, exit=True)
+    yield
+    faulthandler.cancel_dump_traceback_later()

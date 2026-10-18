@@ -13587,14 +13587,40 @@ class BrowserWorker:
 
         받은 파일은 `browser_download_dir` 에 남고, 그 폴더는 로컬 읽기 허용 루트에
         들어 있으므로 곧바로 `local_read_document` 로 읽을 수 있다.
+
+        ★ 2026-10-18 LH 청년전세임대 공고 판(잡 760b04f4 · 413초 · 23걸음) — **받고도 못 읽었다.**
+        「1순위 자격」은 공고의 첨부 PDF 에 있었다. 모델은 14걸음째에 이 도구를 불러 `ok` 를 받았지만, 그 뒤 4분 동안
+        같은 HTML 화면에서 찾기·내리기만 하다가 **읽지 않은 조건**(나이 · 거주)을 답에 적었다(답 스스로 「읽지 않고 적은 것」).
+        파일을 열어 보니 PDF 가 아니라 **공고 화면 HTML(695KB)** 이었다 — 첨부 링크가 `javascript:fileDownLoad('…')`
+        라 모델은 받을 주소를 몰랐고, 화면 주소에 이름만 `.pdf` 로 붙여 넘겼다. 도구는 그걸 `ok` 로 저장해 줬다.
+        「받은 path 를 local_read_document 로 읽어라」는 안내는 있었지만 안 먹었다(사고 R). 그래서 셋을 코드로 박는다.
+
+          ① **링크 ref 로 받는다** — 주소가 없는 첨부(`javascript:`)는 도구가 그 링크를 눌러 내려오는 파일을 붙잡는다.
+          ② **문서라 부른 것이 웹 화면이면 저장하지 않는다** — 「받았다」가 아니라 「받은 것은 화면이다, ref 로 다시」를 준다.
+          ③ **받은 문서는 그 자리에서 읽어 본문을 결과에 싣는다**(`content`) — 읽는 걸음을 모델에게 맡기지 않는다.
         """
-        url = str(arguments.get("url") or "").strip()
-        if not url:
-            raise ValueError("url_required")
-        if not url.lower().startswith(("http://", "https://")):
-            raise ValueError("http_url_required")
         directory = self.config.browser_download_dir
         directory.mkdir(parents=True, exist_ok=True)
+        ref = str(arguments.get("ref") or "").strip()
+        url = str(arguments.get("url") or "").strip()
+        if ref:
+            from urllib.parse import urljoin
+
+            locator = self._ref_locator(page, ref)
+            label = _clean(locator.get_attribute("title") or locator.inner_text(timeout=1000), 200)
+            # 받기는 누르기다 — 결제·삭제처럼 되돌릴 수 없는 이름이 붙은 것은 이 문으로 누르지 않는다(`_click` 과 같은 규칙).
+            if _IRREVERSIBLE_ACTION.search(label):
+                raise RuntimeError(f"irreversible_click_needs_approval:{label}")
+            href = str(locator.get_attribute("href") or "").strip()
+            if href and not href.lower().startswith(("javascript:", "#", "mailto:", "tel:")):
+                # 진짜 주소가 붙은 링크면 세션 요청으로 받는다 — 누르는 것보다 조용하고 같은 자격이다.
+                url = urljoin(str(getattr(page, "url", "") or ""), href)
+            else:
+                return self._download_by_click(page, locator, label, directory, arguments)
+        if not url:
+            raise ValueError("url_or_ref_required")
+        if not url.lower().startswith(("http://", "https://")):
+            raise ValueError("http_url_required")
 
         context = page.context
         response = context.request.get(url, timeout=120_000)
@@ -13617,18 +13643,143 @@ class BrowserWorker:
         name = re.sub(r"[^0-9A-Za-z_.가-힣-]+", "_", name)[:80] or "download"
         if "." not in name:
             name += _EXTENSION_BY_TYPE.get(content_type, ".bin")
+        refused = self._download_is_a_page(name, body[:4096], url=url, status=status, content_type=content_type)
+        if refused is not None:
+            return refused
         path = directory / f"{time.strftime('%Y%m%d_%H%M%S')}_{name}"
         path.write_bytes(body)
+        return self._downloaded(path, url=url, status=status, content_type=content_type, arguments=arguments)
+
+    #: 링크를 눌러 받을 때 파일이 내려오기를 기다리는 시간.
+    _DOWNLOAD_CLICK_TIMEOUT_MS = 60_000
+
+    def _download_by_click(
+        self, page: Any, locator: Any, label: str, directory: Path, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        """주소가 없는 첨부 링크(`javascript:fileDownLoad('…')`)를 눌러 **내려오는 파일을 붙잡는다.**
+
+        공공기관 게시판의 첨부는 거의 이 꼴이다 — 받을 주소가 화면에 없고, 누르면 스크립트가 주소를 만들어 이동한다.
+        누르기만 하면 파일은 조용히 다운로드 폴더로 가고 모델은 「화면에 변화 없음」만 받는다(760b04f4 의 16걸음째).
+        """
+        try:
+            with page.expect_download(timeout=self._DOWNLOAD_CLICK_TIMEOUT_MS) as info:
+                locator.click()
+            download = info.value
+        except Exception as exc:  # noqa: BLE001 — 안 내려온 것은 실패로 알린다, 판을 죽이지 않는다
+            if "timeout" not in type(exc).__name__.lower() and "timeout" not in str(exc).lower():
+                raise
+            return {
+                "action": "browser_download", "ok": False, "label": label,
+                "instruction": (
+                    f"「{label}」를 눌렀지만 {self._DOWNLOAD_CLICK_TIMEOUT_MS // 1000}초 안에 파일이 내려오지 않았다 — "
+                    "새 창 미리보기로 열렸을 수 있다. browser_tabs 로 새 탭을 보고, 그 주소를 browser_download(url=…) 로 넘겨라."
+                ),
+            }
+        name = str(arguments.get("name") or "").strip() or str(getattr(download, "suggested_filename", "") or "")
+        name = re.sub(r"[^0-9A-Za-z_.가-힣-]+", "_", name)[:80] or "download"
+        if "." not in name:
+            name += ".bin"
+        path = directory / f"{time.strftime('%Y%m%d_%H%M%S')}_{name}"
+        download.save_as(str(path))
+        url = str(getattr(download, "url", "") or "")
+        size = path.stat().st_size
+        if size > self._DOWNLOAD_MAX_BYTES:
+            path.unlink(missing_ok=True)
+            raise ValueError(f"download_too_large:{size}")
+        with path.open("rb") as handle:
+            head = handle.read(4096)
+        refused = self._download_is_a_page(name, head, url=url, status=200, content_type="")
+        if refused is not None:
+            path.unlink(missing_ok=True)
+            return refused
+        return self._downloaded(path, url=url, status=200, content_type="", arguments=arguments, label=label)
+
+    #: 그 자리에서 읽어 결과에 싣는 형식. 옛 한글(.hwp)·옛 오피스(.doc/.xls)는 읽는 자가 없어 따로 안내한다.
+    _DOWNLOAD_READABLE = frozenset({
+        ".pdf", ".docx", ".xlsx", ".pptx", ".hwpx", ".odt", ".ods", ".odp", ".epub",
+        ".txt", ".md", ".csv", ".tsv", ".json", ".rtf",
+    })
+    #: 이름이 이 꼴이면 **문서 파일을 받으려 한 것**이다 — 받은 것이 웹 화면이면 저장하지 않는다.
+    _DOWNLOAD_DOCUMENT_SUFFIXES = _DOWNLOAD_READABLE | frozenset({".hwp", ".doc", ".xls", ".ppt", ".zip"})
+    _HTML_HEAD = re.compile(rb"^\s*(?:<!--.*?-->\s*)*<(?:!doctype\s+html|html|head|body)\b", re.I | re.S)
+    #: 받은 그 자리에서 결과에 싣는 본문 글자 수 — 기본은 `browser_extract` 와 같은 20,000. 위로는 도구 결과 한 건
+    #: 상한(`transcript_policy._TOOL_RESULT_MAX_CHARS`)까지만 받는다. 그보다 크게 실으면 그 상한이 조용히 자른다(사고 Q).
+    _DOWNLOAD_READ_CHARS = 20_000
+
+    def _download_is_a_page(
+        self, name: str, head: bytes, *, url: str, status: int, content_type: str
+    ) -> dict[str, Any] | None:
+        """문서라고 받은 것이 **웹 화면(HTML)** 이면 거절 결과를, 아니면 None 을 준다(760b04f4 — 화면을 `.pdf` 로 저장했다)."""
+        suffix = Path(name).suffix.lower()
+        if suffix not in self._DOWNLOAD_DOCUMENT_SUFFIXES:
+            return None
+        is_html = bool(self._HTML_HEAD.match(head.lstrip(b"\xef\xbb\xbf")))
+        not_pdf = suffix == ".pdf" and b"%PDF" not in head[:1024]
+        if not is_html and not (not_pdf and content_type.startswith("text/")):
+            return None
         return {
-            "action": "browser_download",
-            "url": url,
-            "status": status,
-            "ok": True,
-            "path": str(path),
-            "bytes": len(body),
-            "content_type": content_type,
-            "note": "local_read_document 로 이 path 를 읽어라",
+            "action": "browser_download", "url": url, "status": status, "ok": False,
+            "got": "web_page", "content_type": content_type or "text/html",
+            "instruction": (
+                f"받은 것은 {suffix} 문서가 아니라 웹 화면(HTML)이다 — 저장하지 않았다. 이 주소는 문서가 아니라 화면이다. "
+                "첨부가 `javascript:` 링크로 받는 사이트(공공기관 게시판 등)는 주소로 못 받는다: browser_find 로 첨부 "
+                "파일 이름(예: 「.pdf」)을 찾아 그 ref 를 browser_download(ref=…) 로 넘겨라 — 도구가 링크를 눌러 받은 "
+                "파일을 저장하고 본문까지 읽어 준다."
+            ),
         }
+
+    def _downloaded(
+        self, path: Path, *, url: str, status: int, content_type: str, arguments: dict[str, Any], label: str = "",
+    ) -> dict[str, Any]:
+        """저장한 파일의 결과 — 읽을 수 있는 문서면 **본문을 같이 싣는다**(`content`)."""
+        result: dict[str, Any] = {
+            "action": "browser_download", "url": url, "status": status, "ok": True,
+            "path": str(path), "bytes": path.stat().st_size, "content_type": content_type,
+            **({"label": label} if label else {}),
+        }
+        suffix = path.suffix.lower()
+        if suffix == ".hwp":
+            # local_read_document 도 옛 한글은 거절한다 — 갈 길을 같이 준다(local_computer.read_document 와 같은 말).
+            result["instruction"] = (
+                "옛 한글(.hwp)은 그 자리에서 못 읽었다. hwp_export_pdf(path) 로 PDF 로 바꾼 뒤 local_read_document 로 읽어라."
+            )
+            return result
+        if suffix not in self._DOWNLOAD_READABLE:
+            result["note"] = "문서 형식이 아니라 읽지 않았다 — 파일만 저장했다."
+            return result
+        from .document_reader import DocumentReader
+        from .transcript_policy import _TOOL_RESULT_MAX_CHARS
+
+        try:
+            limit = max(1_000, min(int(arguments.get("max_chars") or self._DOWNLOAD_READ_CHARS), _TOOL_RESULT_MAX_CHARS))
+        except (TypeError, ValueError):
+            limit = self._DOWNLOAD_READ_CHARS
+        try:
+            document = DocumentReader().read_path(path)
+        except Exception as exc:  # noqa: BLE001 — 받기는 됐다, 읽기 실패만 알린다
+            result["read_error"] = str(exc)[:200]
+            result["instruction"] = "받았지만 그 자리에서 못 읽었다 — local_read_document 로 path 를 읽어라."
+            return result
+        text = document.text
+        result.update({
+            "format": document.format, "pages": document.pages, "content": text[:limit],
+            "char_count": min(len(text), limit), "total_chars": len(text),
+            "truncated": len(text) > limit or document.truncated,
+        })
+        if document.warnings:
+            result["warnings"] = list(document.warnings)
+        if not text.strip():
+            result["instruction"] = (
+                "받은 문서에 글자 층이 없다(스캔 PDF 일 수 있다). local_read_document 로 path 를 읽으면 그림 판독을 시도한다."
+            )
+        elif len(text) > limit:
+            result["instruction"] = (
+                f"받은 문서의 본문을 content 에 실었다 — 앞 {limit:,}자(전체 {len(text):,}자). 뒷부분이 필요하면 "
+                "local_read_document(path, max_chars) 로 더 읽어라. 화면에서 다시 찾지 마라."
+            )
+        else:
+            result["instruction"] = "받은 문서의 본문 전체를 content 에 실었다 — 이것으로 답하라. 화면에서 다시 찾지 마라."
+        return result
 
     def _screenshot(self, page: Any, arguments: dict[str, Any]) -> dict[str, Any]:
         """A PNG of what is on screen right now, saved to the evidence dir.
@@ -14813,10 +14964,18 @@ class BrowserTools:
             ),
             self._function(
                 "browser_download",
-                "URL 의 PDF·문서·파일을 **지금 브라우저 세션 그대로** 받아 저장한다(로그인 뒤 자료도 된다). "
-                "받은 path 는 local_read_document 로 바로 읽어라. 화면에 띄워 눈으로 읽지 마라.",
-                {"url": {"type": "string"}, "name": {"type": "string", "description": "저장할 파일 이름(생략 가능)"}},
-                ["url"],
+                # ★ 2026-10-18 LH 공고 판(760b04f4): 첨부가 `javascript:` 링크라 주소가 없었고, 모델은 화면 주소를 넘겨
+                #   HTML 을 `.pdf` 로 받았다. 주소를 모르는 첨부는 browser_find 의 ref 로 받는다 — 도구가 눌러 붙잡는다.
+                "PDF·한글·워드·엑셀 같은 **첨부 문서**를 지금 브라우저 세션 그대로 받아 저장하고, 읽을 수 있는 문서면 "
+                "**본문을 결과의 content 에 실어 준다**(로그인 뒤 자료도 된다). 파일 주소를 알면 url, 주소가 안 보이는 "
+                "첨부 링크(공공기관 게시판의 javascript 링크 등)는 browser_find 로 찾은 그 링크의 ref 를 넘겨라. "
+                "웹 화면 주소를 넘기지 마라 — 화면은 문서가 아니다. 화면에 띄워 눈으로 읽지 마라.",
+                {
+                    "url": {"type": "string", "description": "파일 자체의 주소(화면 주소 아님)"},
+                    "ref": {"type": "string", "description": "browser_find 가 준 첨부 링크의 ref — 주소가 없는 첨부는 이것으로"},
+                    "name": {"type": "string", "description": "저장할 파일 이름(생략 가능)"},
+                    "max_chars": {"type": "integer", "description": "결과에 실을 본문 글자 수(기본 20000, 최대 30000)"},
+                },
             ),
             self._function(
                 "browser_screenshot",

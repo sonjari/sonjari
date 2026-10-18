@@ -65,7 +65,7 @@ class FakeDiscord:
             return self.status, {"retry_after": 2.4} if self.status == 429 else {"message": "no"}
         if path == "/applications/@me":
             return 200, {"id": APP_ID, "flags": (1 << 18) if self.intent else 0, "bot": {"username": "내 손자리"},
-                         "owner": {"id": OWNER, "username": "dongju"}, "approximate_guild_count": len(self.guilds)}
+                         "owner": {"id": OWNER, "username": "garam"}, "approximate_guild_count": len(self.guilds)}
         if path == "/users/@me/guilds":
             return 200, [{"id": gid, "name": gid} for gid in self.guilds]
         if path == f"/guilds/{OTHER_GUILD}":

@@ -92,7 +92,7 @@ from .plan import (
 )
 from .plopfit import PlopfitTools
 from .presentation import PresentationPolicy, paint_answer
-from .profile import OperatorProfile
+from .profile import OperatorProfile, profile_block
 from .state_machine import InvalidStateTransition, StateMachine
 from .scheduler import TaskScheduler
 from .self_care import SelfCare
@@ -2141,12 +2141,11 @@ class JarvisRuntime:
                 "사용자가 직접 설정한 호칭은 "
                 f"{self.config.user_label!r}이다. 호칭이 꼭 필요한 문장에서만 사용하라."
             )
-        if self.profile.content:
-            parts.append(
-                "다음은 사용자가 직접 관리하는 신뢰 가능한 상시 프로필이다. "
-                "질문과 관련될 때만 자연스럽게 활용하고, 프로필에 없는 최신 사실은 추정하지 마라.\n"
-                f"<jarvis-profile>\n{self.profile.content}\n</jarvis-profile>"
-            )
+        # ★ 2026-10-18: 이 블록(`<jarvis-profile>`)이 화면의 「나에 대한 지침」이다. 글은 `profile.profile_block` 한 곳에서 만든다 — 설정 화면의
+        #   길이 자가 같은 글을 잰다. 파일이 바뀌면 `content` 가 다시 읽으므로 저장한 다음 턴부터 실린다(다시 켤 필요 없음).
+        profile_text = self.profile.content
+        if profile_text:
+            parts.append(profile_block(profile_text))
         # ── 배운 것 (2026-08-24, P3) ────────────────────────────────────────
         #
         # ★ 프로필 **뒤**다. 앞에 두면 사실이 하나 늘 때마다 프로필까지 프리필

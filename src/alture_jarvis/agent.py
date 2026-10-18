@@ -271,6 +271,7 @@ from .answer_hygiene import (
     _clipboard_overwrote_without_a_file,
     _clipboard_texts,
     _code_text_tool_call,
+    _drop_progress_preamble,
     _offered_link_to_open,
     _strip_schema_labels,
     _strip_schema_labels_in,
@@ -3690,6 +3691,12 @@ class BrowserAgent:
                 and str(evidence.get("tab") or "all").lower() == "all"
                 and len(str(evidence.get("answer_box") or "").strip()) >= _ANSWER_BOX_MIN_CHARS
             ):
+                key = str(evidence.get("url") or "")
+                if key and key not in seen:
+                    seen.append(key)
+                continue
+            # ★ 2026-10-18 LH 공고 판(760b04f4): 받기가 문서를 그 자리에서 읽어 왔으면(char_count) 그것도 읽은 것이다.
+            if step.get("ok") and step.get("tool") == "browser_download" and evidence.get("char_count"):
                 key = str(evidence.get("url") or "")
                 if key and key not in seen:
                     seen.append(key)
@@ -10470,6 +10477,9 @@ class BrowserAgent:
                     "agent_answer_reconciliation_failed",
                     {"job_id": job_id, "error": f"{type(exc).__name__}:{exc}"[:400]},
                 )
+        # ★ 2026-10-18 steamcharts 판: 답 맨 앞의 진행 보고(「PUBG: 482,875 확인했습니다. … 이제 정리하겠습니다.」)를 검사 전에 뗀다.
+        #   예고뿐인 답·마무리 없는 답은 건드리지 않는다(그 아래는 우리가 붙인 안내라 「진짜 답」이 아니다). `_drop_progress_preamble`.
+        answer = answer if (ended_on_promise or no_closing_answer) else _drop_progress_preamble(answer)
         # 재합성으로 답의 항목 수나 이름이 바뀔 수 있다. 초안 대조표를 그대로 쓰면
         # 고친 답을 옛 답의 성적표로 채점한다.
         final_grounding_note = self._grounding_with_carry(answer, messages, steps, job_id, prior_answer if carried_labels else "")

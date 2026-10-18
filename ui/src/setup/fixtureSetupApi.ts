@@ -14,6 +14,8 @@ import type {
   ConnectScan,
   OllamaStatus,
   SetupStateView,
+  AboutMeAnswers,
+  AboutMeView,
   ApplyResult,
   CatalogModel,
   ContextCeiling,
@@ -230,6 +232,36 @@ export function createFixtureSetupApi(name: string): SetupApi | null {
       return row ? { ...c, imported: { import_id: row.import_id, status: row.status } } : c;
     }),
   });
+
+  // 「나에 대한 지침」 리허설(2026-10-18) — 화면 모양만 보려는 것이다. 줄을 만드는 진짜 규칙은 백엔드 `about_me.card_lines`
+  // 한 곳이고, 여기 줄은 그 모양을 흉내 낸 고정 글이다(시험은 이 가짜를 쓰지 않는다).
+  let aboutText = "";
+  let aboutAnswers: AboutMeAnswers = { user_label: "", work_text: "", length: "", tone: "", sites: [], avoid_text: "" };
+  const fakeLines = (a: AboutMeAnswers): string[] => [
+    ...(a.work_text ? [`- 하는 일: ${a.work_text}`] : []),
+    ...(a.length === "short" ? ["- 답은 짧게, 핵심부터."] : a.length === "long" ? ["- 답은 자세히, 까닭과 예를 들어."] : []),
+    ...(a.tone === "casual" ? ["- 말투는 편하게, 딱딱하지 않게."] : a.tone === "polite" ? ["- 말투는 정중하게, 존댓말로."] : []),
+    ...(a.sites.length ? [`- 자주 쓰는 사이트: ${a.sites.join(", ")}`] : []),
+    ...(a.avoid_text ? [`- 하지 말 것: ${a.avoid_text}`] : []),
+  ];
+  const asAnswers = (raw: { sites: string[] | string } & Omit<AboutMeAnswers, "sites">): AboutMeAnswers => ({
+    ...raw, sites: (Array.isArray(raw.sites) ? raw.sites : raw.sites.split(",")).map((x) => x.trim()).filter(Boolean),
+  });
+  const aboutView = (extra: Partial<AboutMeView> = {}): AboutMeView => {
+    const tokens = aboutText ? Math.ceil((aboutText.length + 120) / 2) : 0;
+    return {
+      ok: true, path: "C:\\Users\\you\\AppData\\Local\\Ontelic\\data\\JARVIS_PROFILE.md", exists: Boolean(aboutText),
+      content_raw: aboutText, chars: aboutText.trim().length, max_chars: 6000, truncated: false, has_card: aboutText.includes("sonjari:card"),
+      answers: aboutAnswers, sent_chars: aboutText.length, tokens, num_ctx: 32768,
+      share: tokens / 32768, share_pct: Math.round((tokens / 32768) * 1000) / 10,
+      warn: tokens / 32768 > 0.1, warn_share: 0.1, chars_per_token: 2, ...extra,
+    };
+  };
+  const withCard = (lines: string[]) => {
+    const rest = aboutText.replace(/<!-- sonjari:card[\s\S]*?<!-- \/sonjari:card -->\n?/, "").trim();
+    const card = lines.length ? `<!-- sonjari:card -->\n${lines.join("\n")}\n<!-- /sonjari:card -->\n` : "";
+    return card + (rest ? `${rest}\n` : "");
+  };
 
   // 첫 실행 칸(W2) 리허설 — Ollama 가 이미 있으면 그대로, 없으면 받기→해시 대조→켜기를 흉내 낸다.
   // `&setupOllama=missing` — 다섯 PC 표본이 전부 Ollama 가 있어 버튼 흐름을 볼 표본을 따로 연다.
@@ -637,6 +669,55 @@ export function createFixtureSetupApi(name: string): SetupApi | null {
         }
       }
       return { ok: false, error: "not_found" };
+    },
+    async aboutMe() {
+      await wait(150);
+      return aboutView();
+    },
+    async aboutMeSave(content) {
+      await wait(200);
+      if (content.trim().length > 6000) return aboutView({ ok: false, error: "too_long", chars: content.trim().length });
+      aboutText = content;
+      return aboutView({ saved: true });
+    },
+    async aboutMeCardPreview(answers) {
+      await wait(80);
+      const next = asAnswers(answers);
+      const lines = fakeLines(next);
+      const content = withCard(lines);
+      return { ...aboutView(), ok: true, answers: next, card_lines: lines, content_raw: content, chars: content.trim().length, fits: true };
+    },
+    async aboutMeCardSave(answers) {
+      await wait(250);
+      aboutAnswers = asAnswers(answers);
+      const lines = fakeLines(aboutAnswers);
+      aboutText = withCard(lines);
+      return aboutView({ saved: true, card_lines: lines });
+    },
+    async aboutMeImportLines(importId) {
+      await wait(150);
+      const row = [...stored.values()].find((item) => item.import_id === importId);
+      if (!row) return { ok: false, error: "not_found", import_id: importId, tool_name: "", source_path: "", lines: [], allowed_count: 0 };
+      const present = new Set(aboutText.split("\n").map((line) => line.trim()));
+      const lines = row.text.split("\n").map((raw, index) => {
+        const reason = !raw.trim() ? "blank" as const : raw.includes("[비밀 걷어 냄:") ? "secret" as const
+          : present.has(raw.trim()) ? "already" as const : "" as const;
+        return { index, raw, allowed: !reason, reason };
+      });
+      return { ok: true, import_id: importId, tool_name: row.tool_name, source_path: row.source_path, lines,
+        allowed_count: lines.filter((line) => line.allowed).length };
+    },
+    async aboutMeAppendImport(importId, indexes) {
+      await wait(200);
+      const row = [...stored.values()].find((item) => item.import_id === importId);
+      if (!row) return aboutView({ ok: false, error: "not_found" });
+      const picked = row.text.split("\n").filter((raw, index) => indexes.includes(index) && raw.trim() && !raw.includes("[비밀 걷어 냄:"));
+      if (!picked.length) return aboutView({ ok: false, error: "nothing_to_add" });
+      aboutText = `${aboutText.trim() ? `${aboutText.trim()}\n\n` : ""}<!-- 가져옴: ${row.tool_name} -->\n${picked.join("\n")}\n`;
+      return aboutView({ added: picked.length, refused: [] });
+    },
+    async aboutMeOpen() {
+      return { ok: true };
     },
   };
 }

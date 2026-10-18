@@ -221,7 +221,9 @@ _KEEP_KEYS = frozenset({"prompt", "display_prompt", "model_prompt", "query", "pa
                         "source", "sources", "content_raw", "raw", "html", "code", "diff",
                         "value", "values", "choices", "default", "tag", "model", "session_id",
                         # 사람이 지은 이름 — 모델 별명 · 디스코드 봇 · 채널 (2026-10-18). 바꾸면 그대로 저장돼 돌아온다.
-                        "alias", "default_model_alias", "pc_model", "bot_name", "home_channel_name"})
+                        "alias", "default_model_alias", "pc_model", "bot_name", "home_channel_name",
+                        # 「나에 대한 지침」(2026-10-18) — 파일 원문 · 카드가 만든 줄 · 카드 답. 사용자의 글이라 그대로 오가야 한다.
+                        "content_raw", "card_lines", "user_label", "work_text", "avoid_text", "sites"})
 
 
 def translate_payload(value: Any, *, _key: str = "") -> Any:

@@ -1,7 +1,7 @@
 /**
  * 첫 실행 — 세 단계만 (전략안 §43, P3).
  *
- *     PC 확인  →  모델  →  연결
+ *     PC 확인  →  모델  →  쓰임  →  나에 대해(선택 · 2026-10-18)  →  연결
  *
  * ## 모양의 뜻
  *
@@ -31,6 +31,7 @@ import type { ConnectScan } from "./setupApi";
 import { JarvisMark } from "../workspace/JarvisMark";
 import { ImportPanel } from "./ImportPanel";
 import { ImportPreview } from "./ImportPreview";
+import { AboutMeCard } from "./AboutMeCard";
 import { MemoryRuler } from "./MemoryRuler";
 import { HfPicker, type HfPick } from "./HfPicker";
 import { pollUnlessBusy } from "./poll";
@@ -51,14 +52,16 @@ import {
   type Recommendation,
   type SetupApi,
 } from "./setupApi";
-import type { WayOutInfo } from "./setupApi";
+import type { AboutMeView, WayOutInfo } from "./setupApi";
 import { WayOut, hasWayOut } from "./WayOut";
 import "./setup.css";
 import { ContextCeilingPanel } from "../workspace/ContextCeilingPanel";
 
-type Step = 0 | 1 | 2 | 3;
+type Step = 0 | 1 | 2 | 3 | 4;
 // W4: 「쓰임」 — 주로 무엇에 쓰는지 고르면 그 분야 스킬로 세팅한다. 연결보다 앞이다(연결은 선택, 쓰임은 모두에게).
-const STEPS = [t("PC 확인"), t("모델"), t("쓰임"), t("연결")] as const;
+// ★ 2026-10-18: 「나에 대해」(선택) — 세 질문만, 건너뛸 수 있다. 첫 부탁이 일이면 일부터(OpenClaw BOOTSTRAP 규칙)라서
+//   길게 묻지 않는다. 답은 「나에 대한 지침」 파일 하나에 들어가고 설정 › 나에 대한 지침에서 다시 고친다.
+export const STEPS = [t("PC 확인"), t("모델"), t("쓰임"), t("나에 대해"), t("연결")] as const;
 
 const FIRST_ASKS = [
   t("사람인에서 여수 회계 채용 공고 3개를 찾아서 표로 된 문서로 만들어줘"),
@@ -131,7 +134,7 @@ export default function SetupWizard() {
     }
   }, [api]);
   // 3단계에 들어올 때 찾는다 — 첫 화면부터 지침 파일 자리를 건드릴 이유가 없다.
-  const imp = useInstructionImport(step === 3 ? api : null);
+  const imp = useInstructionImport(step === 4 ? api : null);
 
   useEffect(() => {
     let alive = true;
@@ -399,7 +402,7 @@ export default function SetupWizard() {
   //   켜져 있어 아직 못 이었으면 금색 단추가 「잇고 시작하기」가 된다 — 다음만 눌러도 옳게 끝나게.
   const [connectScan, setConnectScan] = useState<ConnectScan | null>(null);
   const [restartOpen, setRestartOpen] = useState(false);
-  const desktopPending = step === 3 ? desktopAwaitingRestart(connectScan) : null;
+  const desktopPending = step === 4 ? desktopAwaitingRestart(connectScan) : null;
   // 마법사에서 막힌 사람이 보낼 길 — 작업 화면까지 가야만 누를 수 있었다(2026-10-06).
   const [reportOpen, setReportOpen] = useState(false);
   const finish = async (ask: string) => {
@@ -423,6 +426,8 @@ export default function SetupWizard() {
   };
   const [startup, setStartup] = useState(false);
   const [usageSaved, setUsageSaved] = useState(false);
+  const [aboutSaved, setAboutSaved] = useState(false);
+  const [aboutView, setAboutView] = useState<AboutMeView | null>(null);
   const [packaged, setPackaged] = useState(false);
   useEffect(() => {
     if (!isTauri()) return;
@@ -501,7 +506,14 @@ export default function SetupWizard() {
               compact onApplied={() => setUsageSaved(true)} />
           </div>
         )}
-        {step === 3 && (
+        {step === 3 && api && (
+          <div className="setup-say">
+            <h1>{t("나에 대해 (선택)")}</h1>
+            <p className="setup-lead">{t("세 가지만 알려 주시면 매번 그렇게 답합니다. 건너뛰어도 되고, 나중에 설정 › 나에 대한 지침에서 더 고칠 수 있습니다.")}</p>
+            <AboutMeCard api={api} compact onSaved={(view) => { setAboutSaved(true); setAboutView(view); }} />
+          </div>
+        )}
+        {step === 4 && (
           <SetupReadiness
             rows={readinessRows({
               modelName: applied?.ok ? (pickedModel?.name ?? applied.selection?.chat_model ?? "") : "",
@@ -511,8 +523,8 @@ export default function SetupWizard() {
             onFix={(fix) => (fix === "model" ? setStep(1) : setRestartOpen(true))}
           />
         )}
-        {step === 3 && <StepConnectText api={api} imp={imp} pull={pull} applied={applied} applying={applying} onAsk={(ask) => void finish(ask)} onImportOpen={setImportOpen} onScan={setConnectScan} />}
-        {step === 3 && packaged && (
+        {step === 4 && <StepConnectText api={api} imp={imp} pull={pull} applied={applied} applying={applying} onAsk={(ask) => void finish(ask)} onImportOpen={setImportOpen} onScan={setConnectScan} />}
+        {step === 4 && packaged && (
           // 스토어 앱은 스스로 자동 시작을 못 켠다 — 사람이 고른 것만 Windows 확인 창으로 넘긴다(W1-6).
           <label className="firstrun-check">
             <input type="checkbox" checked={startup} onChange={(event) => setStartup(event.target.checked)} />
@@ -525,16 +537,22 @@ export default function SetupWizard() {
         {step === 1 && <FirstRunPanel api={api} onOllamaReady={() => void recheck()} ollamaOnly />}
         {step === 1 && held && <HeldLine ollama={ollamaNow} />}
         {step === 1 && <GpuFixLine fix={gpuFix} />}
-        {(step === 1 || (step === 2 && (pull?.status === "pulling" || applying))) && (
+        {(step === 1 || ((step === 2 || step === 3) && (pull?.status === "pulling" || applying))) && (
           <ApplyLine pull={pull} applying={applying} applied={applied} api={api} onRetry={retryApply} onSmaller={applySmaller} />
         )}
         <div className="setup-actions">
           {step === 2 && (
             <button type="button" className="setup-btn-go" onClick={() => setStep(3)}>
-              {usageSaved ? t("연결로 넘어가기") : t("건너뛰고 연결로")}
+              {usageSaved ? t("다음으로") : t("건너뛰고 다음으로")}
             </button>
           )}
           {step === 3 && (
+            // 저장은 카드 안의 「이대로 저장」이다. 여기 단추는 넘어가기만 한다 — 안 채웠으면 「건너뛰고」가 그대로 적힌다.
+            <button type="button" className={aboutSaved ? "setup-btn-go" : "setup-btn-quiet"} onClick={() => setStep(4)}>
+              {aboutSaved ? t("연결로 넘어가기") : t("건너뛰고 연결로")}
+            </button>
+          )}
+          {step === 4 && (
             // ★ 2026-09-16 노트북: 연결까지 마쳤는데 **끝내는 버튼이 없었다.** 마법사를 닫는 길이 맨 아래 예시 부탁
             //   칩뿐이었고, 지침·연결 칸 아래로 밀려 안 보여서 「더 이상 안 넘어간다」가 됐다.
             desktopPending ? (
@@ -653,14 +671,23 @@ export default function SetupWizard() {
         )}
 
         {step === 0 && <Facts profile={profile} />}
-        {step === 3 && importOpen && <ImportPreview imp={imp} />}
-        {step === 3 && !importOpen && (
+        {step === 4 && importOpen && <ImportPreview imp={imp} />}
+        {step === 4 && !importOpen && (
           // 지침 가져오기를 접어 둔 동안 오른쪽은 **이 단계에서 온텔릭이 바꾸는 것**만 말한다.
           <dl className="setup-facts">
             <div><dt>{t("잇는 것")}</dt><dd>{t("설치된 Claude 의 설정에 Sonjari 한 줄을 더합니다. 원래 설정은 백업합니다")}</dd></div>
             <div><dt>{t("안 하는 것")}</dt><dd>{t("비밀번호·토큰은 설정에 넣지 않습니다. 다른 설정은 한 글자도 바꾸지 않습니다")}</dd></div>
             <div><dt>{t("되돌리기")}</dt><dd>{t("각 도구 옆 「풀기」, 또는 설정 › 연결에서 언제든")}</dd></div>
             <div><dt>{t("끝나면")}</dt><dd>{t("「Sonjari 시작하기」를 누르면 방금 적용한 모델로 Sonjari가 열립니다")}</dd></div>
+          </dl>
+        )}
+        {step === 3 && (
+          // 기계 쪽: 이 답이 **어디에** 남고 매 대화에 얼마나 먹는지. 약속을 부풀리지 않는다.
+          <dl className="setup-facts">
+            <div><dt>{t("어디에")}</dt><dd>{t("이 PC 의 「나에 대한 지침」 파일 하나에 사람이 읽는 줄로 남습니다")}</dd></div>
+            <div><dt>{t("얼마나")}</dt><dd>{aboutView ? t("매 대화에 실려 창의 {0}% 를 씁니다", aboutView.share_pct) : t("짧은 줄 몇 개 — 매 대화에 실립니다")}</dd></div>
+            <div><dt>{t("안 하는 것")}</dt><dd>{t("어디로도 보내지 않습니다. 모델이 이 답을 스스로 고치지 않습니다")}</dd></div>
+            <div><dt>{t("나중에")}</dt><dd>{t("설정 › 나에 대한 지침에서 고치거나 파일을 직접 엽니다")}</dd></div>
           </dl>
         )}
         {step === 2 && (

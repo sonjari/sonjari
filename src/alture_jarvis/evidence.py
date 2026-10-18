@@ -96,6 +96,12 @@ MANIFEST: dict[str, _Spec] = {
     "browser_extract": _Spec(
         EFFECT_READ_WEB, TYPE_BODY_READ, ("url",), ("text", "content"), "url"
     ),
+    # ★ 2026-10-18 LH 공고 판(760b04f4): 받기가 그 자리에서 문서를 읽어 본문(`content`)을 싣는다 — 그건 읽은 것이다.
+    #   이 표에 없으면 받은 PDF 로 맞게 답해도 근거 대조의 원문이 0 건이라 「읽지 않고 적었다」가 선다.
+    #   본문 없이 파일만 받은 판(압축·실행 파일 · 못 읽은 문서)은 `_split_by_result` 가 「연 것」으로 내린다.
+    "browser_download": _Spec(
+        EFFECT_READ_WEB, TYPE_BODY_READ, ("path",), ("content",), "path"
+    ),
     # ── 열었다 (본문은 아직 없다) ─────────────────────────────────────
     # ★ 여는 것은 읽는 것이 아니다. 목록에서 눌러 들어간 것뿐이다.
     # 목록에서 **후보를 눌러 들어간 것.** 이걸 읽지 않으면 그게 사고다.
@@ -669,6 +675,13 @@ def _split_by_result(tool: str, spec: _Spec, evidence: dict[str, Any]) -> _Spec:
         if evidence.get("saved_to") or evidence.get("outputs"):
             return _Spec(EFFECT_WRITE_LOCAL, TYPE_ARTIFACT, ("run_id",), (), "path")
         return _Spec(EFFECT_READ_LOCAL, TYPE_VERIFICATION, ("run_id",), ("stdout",), "path")
+    if tool == "browser_download":
+        # 본문을 실어 왔을 때만 읽은 것이다. 파일만 받았으면 연 것까지다(2026-10-18 · 위 표의 설명).
+        content = evidence.get("content")
+        if isinstance(content, str) and content.strip():
+            return spec
+        # 출처는 저장한 파일뿐이다 — 못 받은 판(경로 없음)은 증거를 만들지 않는다.
+        return _Spec(EFFECT_READ_WEB, TYPE_PAGE_OPEN, ("path",), (), "path")
     if tool != "site_run":
         return spec
     if evidence.get("undo_action"):

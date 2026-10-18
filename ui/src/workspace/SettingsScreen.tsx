@@ -15,7 +15,7 @@ import { lang, setLang, t, type Lang } from "../i18n";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Archive, Brain, Cpu, FlaskConical, Link2, Loader2, MessagesSquare, Mic, RotateCcw, Settings2, ShieldCheck,
-  Sparkles, Stethoscope, Undo2, Workflow, X, FileInput, Package, MessageCircle,
+  Sparkles, Stethoscope, Undo2, Workflow, X, FileInput, Package, MessageCircle, UserRound,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { isTauri, loadBootstrap, type JarvisClient } from "../backend";
@@ -31,6 +31,7 @@ import type { BackupSummary, SettingRow, SettingValue, SettingsView } from "../t
 import { LearnedPanel } from "./LearnedPanel";
 import { PacksSection } from "./PacksSection";
 import { DiscordSection } from "./DiscordSection";
+import { AboutMeSection } from "./AboutMeSection";
 
 type Section = string;
 type FieldStatus = { state: "saving" | "saved" | "error"; message: string };
@@ -42,6 +43,9 @@ const GROUP_ICON: Record<string, ReactNode> = {
 };
 
 const EXTRA_SECTIONS: { id: Section; label: string; heading: string; icon: ReactNode }[] = [
+  // ★ 2026-10-18: 매 턴 실리는 프로필 파일에 화면이 없었다. 사용자 지침은 이 한 곳(파일 하나)에 모은다 — 「지침 가져오기」도
+  //   여기로 줄을 골라 올린다. 맨 위에 둔다: 손자리가 「나」를 어떻게 대하는지가 사용자 지정의 첫 칸이다.
+  { id: "about_me", label: t("나에 대한 지침"), heading: t("사용자 지정"), icon: <UserRound size={15} /> },
   { id: "packs", label: t("팩"), heading: t("사용자 지정"), icon: <Package size={15} /> },
   { id: "connect", label: t("연결"), heading: t("사용자 지정"), icon: <Link2 size={15} /> },
   // ★ 2026-10-18: 폰 디스코드로 일 시키기 — 명령 창 마법사를 쓸 수 없는 스토어판 사람이 클릭 몇 번으로 잇는다.
@@ -283,6 +287,7 @@ export function SettingsScreen({ client, open, onClose, initialSection = "genera
             <div className="settings-block"><LearnedPanel client={client} open /></div>
           )}
 
+          {section === "about_me" && <AboutMeSection api={setupApi} />}
           {section === "packs" && client && <PacksSection client={client} />}
           {section === "connect" && <div className="settings-block"><ConnectPanel api={setupApi} /></div>}
           {section === "discord" && client && <DiscordSection client={client} />}

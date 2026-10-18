@@ -1,0 +1,59 @@
+/* 「나에 대한 지침」 (2026-10-18) — 첫 실행 카드 · 설정 칸 · 가져온 줄 고르기가 같이 쓴다. tokens.css 의 역할 토큰만. */
+
+.aboutme { display: flex; flex-direction: column; gap: 14px; }
+.aboutme-q { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.aboutme-q > label, .aboutme-q > legend { font-size: var(--fs-2); font-weight: var(--fw-mid); color: rgb(var(--text-2)); padding: 0; }
+.aboutme-q small { font-size: var(--fs-1); color: rgb(var(--text-4)); }
+.aboutme-q input[type="text"] {
+  height: 34px; padding: 0 10px; border: 1px solid rgb(var(--line-strong)); border-radius: var(--r-2);
+  background: rgb(var(--surface-3)); color: rgb(var(--text-1)); font: inherit; font-size: var(--fs-2); min-width: 0;
+}
+.aboutme-q input[type="text"]:focus-visible { outline: 2px solid rgb(var(--signal-bright)); outline-offset: 1px; }
+
+.aboutme-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.aboutme-chip {
+  height: 30px; padding: 0 14px; border: 1px solid rgb(var(--line-strong)); border-radius: 999px;
+  background: transparent; color: rgb(var(--text-3)); font: inherit; font-size: var(--fs-2); cursor: pointer;
+}
+.aboutme-chip:hover { color: rgb(var(--text-1)); }
+.aboutme-chip.is-on { border-color: rgb(var(--signal)); color: rgb(var(--text-1)); background: rgb(var(--signal-dim) / .45); }
+.aboutme-chip:focus-visible { outline: 2px solid rgb(var(--signal-bright)); outline-offset: 2px; }
+
+.aboutme-preview {
+  margin: 0; padding: 10px 12px; border: 1px dashed rgb(var(--line-strong)); border-radius: var(--r-2);
+  background: rgb(var(--surface-3)); font-size: var(--fs-2); color: rgb(var(--text-2));
+}
+.aboutme-preview h4 { margin: 0 0 6px; font-size: var(--fs-1); font-weight: var(--fw-mid); color: rgb(var(--text-4)); }
+.aboutme-preview ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.aboutme-preview .is-empty { color: rgb(var(--text-4)); }
+
+.aboutme-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.aboutme-saved { font-size: var(--fs-2); color: rgb(var(--ok-bright)); }
+.aboutme-error { margin: 0; font-size: var(--fs-2); color: rgb(var(--stop-bright)); }
+
+/* 길이 자 — 창의 N% */
+.aboutme-meter { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-2); color: rgb(var(--text-3)); }
+.aboutme-meter-bar { height: 6px; border-radius: 999px; background: rgb(var(--line)); overflow: hidden; }
+.aboutme-meter-bar > span { display: block; height: 100%; background: rgb(var(--ok)); border-radius: inherit; }
+.aboutme-meter.is-warn .aboutme-meter-bar > span { background: rgb(var(--signal)); }
+.aboutme-meter-warn { margin: 0; color: rgb(var(--signal-bright)); }
+
+.aboutme-raw textarea {
+  width: 100%; min-height: 180px; padding: 10px; box-sizing: border-box; border: 1px solid rgb(var(--line-strong));
+  border-radius: var(--r-2); background: rgb(var(--surface-3)); color: rgb(var(--text-1));
+  font-family: var(--font-mono); font-size: var(--fs-1); line-height: 1.55; resize: vertical;
+}
+.aboutme-raw summary { cursor: pointer; font-size: var(--fs-2); color: rgb(var(--text-3)); }
+.aboutme-count { font-size: var(--fs-1); color: rgb(var(--text-4)); }
+.aboutme-count.is-over { color: rgb(var(--stop-bright)); }
+
+/* 가져온 지침에서 줄 고르기 */
+.aboutme-pick { display: flex; flex-direction: column; gap: 8px; }
+.aboutme-pick-note { margin: 0; padding: 8px 10px; border-left: 3px solid rgb(var(--signal)); font-size: var(--fs-2); color: rgb(var(--text-2)); background: rgb(var(--signal-dim) / .2); }
+.aboutme-pick-list { margin: 0; padding: 0; list-style: none; max-height: 360px; overflow-y: auto; border: 1px solid rgb(var(--line)); border-radius: var(--r-2); }
+.aboutme-pick-list li { border-bottom: 1px solid rgb(var(--line)); }
+.aboutme-pick-list li:last-child { border-bottom: 0; }
+.aboutme-pick-list label { display: flex; align-items: flex-start; gap: 8px; padding: 5px 8px; font-family: var(--font-mono); font-size: var(--fs-1); color: rgb(var(--text-2)); cursor: pointer; }
+.aboutme-pick-list li.is-off label { color: rgb(var(--text-5)); cursor: default; }
+.aboutme-pick-list label > span { flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
+.aboutme-pick-list em { font-family: var(--font-ui); font-style: normal; color: rgb(var(--text-4)); white-space: nowrap; }

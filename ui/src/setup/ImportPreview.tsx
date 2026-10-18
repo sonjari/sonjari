@@ -9,6 +9,7 @@
 import { t } from "../i18n";
 import type { ImportedItem, ImportPreviewItem, ImportSegment } from "./setupApi";
 import { importErrorText, secretSentence, shortPath, type ImportState } from "./useInstructionImport";
+import { ImportLinePicker } from "./AboutMeCard";
 
 const MARKER = /\[비밀 걷어 냄: ([^\]]+)\]/g;
 
@@ -130,7 +131,9 @@ function ImportedView({ imp, item }: { imp: ImportState; item: ImportedItem }) {
         <p className="imp-sum is-signal">{t("원본이 가져온 뒤에 바뀌었습니다. 자동으로 따라가지 않습니다 — 왼쪽에서 다시 고르면 새로 가져옵니다.")}</p>
       )}
       <p className={`imp-sum ${item.secret_total ? "is-signal" : "is-ok"}`}>{secretSentence(item.secret_total, item.secrets)}</p>
-      <Doc segments={segmentsFromStored(item.text)} />
+      {/* ★ 2026-10-18 막다른 길을 열었다 — 가져온 글은 그대로는 아무 데도 안 쓰였다. 줄을 골라 「나에 대한 지침」에 더한 것만 쓰인다.
+          문이 없는 화면(옛 리허설)은 예전처럼 걷은 결과만 보인다. */}
+      {imp.api ? <ImportLinePicker api={imp.api} importId={item.import_id} /> : <Doc segments={segmentsFromStored(item.text)} />}
     </div>
   );
 }

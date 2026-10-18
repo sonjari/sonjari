@@ -22,20 +22,46 @@ SARAMIN_LIKE = (
 )
 
 
+#: 진짜 크롬을 띄우는 데 기다릴 최대 시간(초). 넘으면 이 시험은 건너뛴다 — 시험 장치가 멈춘 것이지 코드가 틀린 게 아니다.
+# ★ 2026-10-18: 열두 갈래로 동시에 돌린 전체 회귀가 이 시험에서 두 번 멈췄다(한 번은 한 시간). 헤드리스 크롬 띄우기가
+#   가끔 돌아오지 않는데, Playwright 의 시작 단계(`sync_playwright()`)에는 시간 제한이 없다. 그래서 따로 된 실에서 돌리고 기다림에 끝을 둔다.
+_BROWSER_WAIT_SEC = 90
+
+
 def _extract(html: str) -> str:
+    import threading
+
     playwright_api = pytest.importorskip("playwright.sync_api")
-    with playwright_api.sync_playwright() as p:
+    box: dict[str, object] = {}
+
+    def run() -> None:
         try:
-            browser = p.chromium.launch(headless=True)
+            with playwright_api.sync_playwright() as p:
+                try:
+                    browser = p.chromium.launch(headless=True, timeout=60_000)
+                except Exception as exc:  # noqa: BLE001
+                    box["skip"] = f"chromium not installed: {exc}"
+                    return
+                try:
+                    page = browser.new_page()
+                    page.set_content(html)
+                    found = page.evaluate(_EXTRACT_MAIN_JS)
+                    box["text"] = _clean_lines(found["text"], 10_000)
+                finally:
+                    browser.close()
         except Exception as exc:  # noqa: BLE001
-            pytest.skip(f"chromium not installed: {exc}")
-        try:
-            page = browser.new_page()
-            page.set_content(html)
-            found = page.evaluate(_EXTRACT_MAIN_JS)
-            return _clean_lines(found["text"], 10_000)
-        finally:
-            browser.close()
+            box["error"] = exc
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(_BROWSER_WAIT_SEC)
+    if worker.is_alive():
+        pytest.skip(f"헤드리스 크롬이 {_BROWSER_WAIT_SEC}초 안에 돌아오지 않음(시험 장치가 멈춤)")
+    if "skip" in box:
+        pytest.skip(str(box["skip"]))
+    if "error" in box:
+        raise box["error"]  # type: ignore[misc]
+    return str(box["text"])
 
 
 def test_definition_cells_do_not_run_together() -> None:

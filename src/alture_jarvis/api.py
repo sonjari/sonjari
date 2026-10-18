@@ -1483,6 +1483,66 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             import_id = 0
         return import_service.remove(import_id)
 
+    # ── 「나에 대한 지침」 (2026-10-18) ───────────────────────────────────────────
+    # ★ 매 턴 실리는 프로필 파일(`JARVIS_PROFILE.md`)은 있었는데 화면이 없었고, 지침 가져오기는 화면만 있고 아무 데도 안
+    #   쓰였다(막다른 길). 둘을 이 파일 하나로 모은다 — 설명은 `about_me.py` 머리말. 경로는 받지 않는다(파일은 설정의 한 자리뿐).
+    from .about_me import AboutMe
+
+    about_me = AboutMe(runtime.config, runtime.profile, settings=runtime.settings, imports=import_service)
+
+    def _lang(body: dict[str, Any]) -> str:
+        return "en" if str(body.get("lang") or "") == "en" else "ko"
+
+    @app.get("/v1/about-me", dependencies=[Depends(require_token)])
+    def about_me_view() -> dict[str, Any]:
+        return about_me.view()
+
+    @app.put("/v1/about-me", dependencies=[Depends(require_token)])
+    def about_me_save(body: dict[str, Any]) -> dict[str, Any]:
+        content = body.get("content")
+        if not isinstance(content, str):
+            raise HTTPException(status_code=400, detail="expected_content")
+        return about_me.save(content)
+
+    @app.post("/v1/about-me/card/preview", dependencies=[Depends(require_token)])
+    def about_me_card_preview(body: dict[str, Any]) -> dict[str, Any]:
+        return about_me.preview_card(body.get("answers"), _lang(body))
+
+    @app.post("/v1/about-me/card", dependencies=[Depends(require_token)])
+    def about_me_card_save(body: dict[str, Any]) -> dict[str, Any]:
+        return about_me.save_card(body.get("answers"), _lang(body))
+
+    @app.get("/v1/about-me/import-lines", dependencies=[Depends(require_token)])
+    def about_me_import_lines(import_id: int) -> dict[str, Any]:
+        return about_me.import_lines(import_id)
+
+    @app.post("/v1/about-me/import-lines", dependencies=[Depends(require_token)])
+    def about_me_append_import(body: dict[str, Any]) -> dict[str, Any]:
+        try:
+            import_id = int(body.get("import_id") or 0)
+        except (TypeError, ValueError):
+            import_id = 0
+        return about_me.append_import(import_id, body.get("lines"))
+
+    @app.post("/v1/about-me/open", dependencies=[Depends(require_token)])
+    def about_me_open(request: Request) -> dict[str, Any]:
+        """설정의 파일 **하나만** 연다(경로를 받지 않는다). 연결된 편집기가 없으면 메모장으로(`file_open`)."""
+        import os
+
+        client = request.client.host if request.client else ""
+        if client not in {"127.0.0.1", "::1", "localhost"}:
+            return {"ok": False, "error": "not_this_pc"}
+        path = about_me.ensure_file()
+        from .msix import external_path
+
+        real = external_path(path)
+        if os.name != "nt":
+            return {"ok": False, "error": "not_windows", "path": str(real)}
+        from .file_open import open_file
+
+        open_file(real)
+        return {"ok": True, "path": str(real)}
+
     # ── 첫 실행: 클로드·코덱스·커서에 잇기 (전략안 §43 P5) ─────────────────────────
     # ★ 다른 프로그램의 영구 설정을 바꾸는 문이다. 화면에서 사람이 눌러야 불린다.
     from .mcp_connect import ConnectService
