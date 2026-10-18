@@ -55,7 +55,8 @@ def test_a_made_xlsx_with_the_columns_fills_the_needs(tmp_path: Path) -> None:
 def test_a_made_xlsx_without_the_columns_does_not(tmp_path: Path) -> None:
     made = _xlsx(tmp_path / "다른표.xlsx", ["순위", "주소"], [[1, "https://example.com/a"]])
 
-    assert _met(NEEDS, ANSWER.format(path=made), [str(made)]) == dict.fromkeys(NEEDS, False)
+    # ★ 2026-10-19: 채운 것으로 세지 않는다. 이름 붙은 칸이 없을 뿐 빈 칸을 본 것은 아니라 「확인 못 함(None)」이다.
+    assert _met(NEEDS, ANSWER.format(path=made), [str(made)]) == dict.fromkeys(NEEDS, None)
 
 
 def test_a_column_with_no_values_does_not_count(tmp_path: Path) -> None:
@@ -87,7 +88,10 @@ def test_a_missing_or_broken_file_is_not_counted(tmp_path: Path) -> None:
     broken = tmp_path / "깨짐.xlsx"
     broken.write_bytes(b"not a workbook")
 
-    assert _met(["제목"], "", [str(tmp_path / "없음.xlsx"), str(broken)]) == {"제목": False}
+    # ★ 2026-10-19: 못 여는 파일은 채운 것으로 세지 않는다. 다만 파일은 있으니(못 읽었을 뿐) 「확인 못 함(None)」.
+    assert _met(["제목"], "", [str(tmp_path / "없음.xlsx"), str(broken)]) == {"제목": None}
+    # 답도 비고 만든 파일도 하나도 없으면 — 그때는 아무것도 돌아오지 않은 것이 확실하다(False).
+    assert _met(["제목"], "", [str(tmp_path / "없음.xlsx")]) == {"제목": False}
 
 
 def test_the_job_summary_reads_the_file_it_made(tmp_path: Path) -> None:

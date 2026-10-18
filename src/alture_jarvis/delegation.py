@@ -68,7 +68,9 @@ TASK_TOOL: dict[str, Any] = {
     "parameters": {
         "type": "object",
         "properties": {
-            "task": {"type": "string", "description": "맡길 과제 한 문장(한국어 권장). 최대 4,000자."},
+            # ★ 2026-10-19: 전에는 「(한국어 권장)」이었다 — 영어로 시킨 클로드 코드가 그 말을 따라 과제를 한국어로 넘겼다.
+            #   손자리 모델은 두 언어를 다 읽는다. 사용자의 말로 적게 해야 답도 사용자의 말로 돌아온다.
+            "task": {"type": "string", "description": "맡길 과제 한 문장 — 사용자가 당신과 쓰는 언어로 적으세요. 최대 4,000자."},
             "skill": {"type": "string", "description": "지목할 스킬 이름(선택, skill_list 로 확인). 모르면 비워 두세요."},
             # ★ 코드 일을 맡기는 칸 둘 (2026-10-09). 과제 글에서 짐작하지 않고 **칸으로** 받는다.
             "repo": {"type": "string", "description": (
@@ -83,7 +85,9 @@ TASK_TOOL: dict[str, Any] = {
             #   밝힌 연락처(전화 · 메일)는 정제에서 빼고 내보낸다. 안 밝히면 지금처럼 답 전체 — 연락처 모양은 가려서.
             "needs": {"type": "array", "items": {"type": "string"}, "maxItems": 12, "description": (
                 "선택: 결과로 꼭 돌려받아야 할 항목 이름들(예: [\"상품 이름\", \"가격\", \"주소\"]). 주면 결과의 needs 에 항목마다 "
-                "채웠는지(met)가 옵니다. 답에서 주민번호 · 카드 번호 · 비밀 키는 늘 가리고, 전화번호 · 메일 주소는 여기에 "
+                "채웠는지(met)가 옵니다 — true 는 그 이름의 칸 · 제목 · 「이름: 값」 줄에 값이 있음, false 는 그 자리가 비어 있음, "
+                "null 은 그 이름의 자리를 못 찾아 확인 못 함(비었다는 뜻이 아님 — 답 본문을 직접 보세요). "
+                "답에서 주민번호 · 카드 번호 · 비밀 키는 늘 가리고, 전화번호 · 메일 주소는 여기에 "
                 "밝혔을 때만(예: \"연락처\") 내보냅니다.")},
         },
         "required": ["task"],
@@ -137,6 +141,101 @@ GUIDE_TOOL: dict[str, Any] = {
     "risk_level": "L0",
     "enabled": True,
 }
+
+
+# ★ 영어 연결용 설명 (2026-10-19). 이름 · 칸 · 스키마는 한국어판과 **같은 것**을 쓴다 — 설명 글만 바꿔 끼운다.
+#   한국어판의 말을 더하거나 빼지 않는다(같은 규칙이 두 언어로 갈리면 안 된다 — `test_mcp_language_1019`).
+_EN_DESCRIPTIONS: dict[str, dict[str, str]] = {
+    TASK_TOOL["name"]: {
+        "": (
+            "Hand one whole task to Sonjari, a local AI running on this PC. It works in the user's real Chrome "
+            "(including logged-in sites), files, and Word/Excel/Hangul documents. Examples: \"find 3 marketing jobs in "
+            "Seoul on a job board and put them in a spreadsheet\", \"compare the two contracts in my Documents and write "
+            "a summary\".\n"
+            "Returns a job_id right away. Get the result with sonjari_task_status.\n"
+            "Put what, where, and which file you want back in one sentence. One call here is faster and uses fewer "
+            "tokens than calling low-level tools (browser_*) many times.\n"
+            "Leave the save folder out by default — results go to Sonjari's output folder (under Documents) and the "
+            "path comes back in files. If you name another folder, a person has to approve it in the Sonjari window "
+            "(if nobody is there, the job waits)."
+        ),
+        "task": "The task in one sentence — write it in the language the user is using with you. Up to 4,000 characters.",
+        "skill": "Optional skill name to use (see skill_list). Leave empty if unsure.",
+        "repo": (
+            "Code jobs only: absolute path of a git repository on this PC (or a folder inside it). Sonjari checks out "
+            "a **new branch** of it separately and changes only that — the original folder is untouched. Uncommitted "
+            "changes to tracked files come along. When done, branch in the result lists the changed files and the "
+            "commands to take them."
+        ),
+        "check": (
+            "With repo: one **check command** that decides when the job is done (run in that folder; exit code 0 "
+            "passes). Example: python -m pytest -q tests/test_x.py. With it, Sonjari does not guess requirements from "
+            "the task text — it fixes until the command passes, or reports that it could not."
+        ),
+        "needs": (
+            "Optional: names of items you must get back (e.g. [\"product name\", \"price\", \"address\"]). The result's "
+            "needs then says, item by item, whether it was filled (met): true means a column, heading or \"name: value\" "
+            "line with that name has a value, false means that place is empty, and null means no place with that name "
+            "was found so it could not be checked (not that it is empty — read the answer itself). "
+            "National ID numbers, card numbers and secret "
+            "keys are always masked; phone numbers and email addresses are only returned when you name them here "
+            "(e.g. \"contact\")."
+        ),
+    },
+    STATUS_TOOL["name"]: {
+        "": (
+            "Get the progress or result of a task handed off with sonjari_task. If it is not finished, it waits up "
+            "to wait_sec seconds and returns the current state — then call it again.\n"
+            "status needs_review means the answer or a file contains **numbers no tool ever returned** "
+            "(unsupported_numbers). Do not pass those on as fact; tell the user they need checking.\n"
+            "needs_approval means an irreversible action is waiting for the approval card in the Sonjari window — "
+            "tell the user.\n"
+            "If resume is present, the task is not finished. The addresses in resume.evidence were already read — "
+            "**do not open them again**; continue only with what resume.next lists.\n"
+            "Even when failed or cancelled, files, sources and resume are work done before the failure — use them, "
+            "do not throw them away. unverified_claim is an unchecked last statement; do not pass it on as fact.\n"
+            "While running, pass progress.doing (what it is doing now) and progress.requested (requested n/m) to the "
+            "user in one line — e.g. \"reading job posts on the site now, requested 2/3\". It does not predict time "
+            "left (that has never been measured) — do not make one up.\n"
+            "cost is the record of this errand on this PC (seconds taken, pages read locally, a lower bound from "
+            "counted values and its basis). You can use it when explaining to the user; when you state the lower "
+            "bound, state its basis too. cost.host_context_kept_out.tokens_at_least is a **lower bound** from counted "
+            "values — say \"at least N tokens of page text were read on this PC and kept out of this conversation\", "
+            "and do not inflate it with \"about\" or \"x times\". Do not claim time was saved (local can be slower)."
+        ),
+        "job_id": "The job_id returned by sonjari_task",
+        "wait_sec": (
+            f"Maximum seconds to wait for it to finish. Empty means {CLAUDE_CODE_MAX_WAIT_SEC} s for Claude Code and "
+            f"{MAX_WAIT_SEC} s for other apps (larger values are cut to that app's limit). Leave it empty and do not "
+            "ask often — every call re-reads the whole conversation."
+        ),
+    },
+    GUIDE_TOOL["name"]: {
+        "": (
+            "Returns the Sonjari guide (how to write and hand off a task, how to pass on the result, what to do when "
+            "stuck). Call it once before handing Sonjari its first task. Read-only; changes nothing."
+        ),
+    },
+}
+
+
+def localized_tool(tool: dict[str, Any], lang: str) -> dict[str, Any]:
+    """도구 사전 하나를 그 언어로 — 영어면 설명 글만 바꾼 **새 사전**(원본은 그대로)."""
+    texts = _EN_DESCRIPTIONS.get(str(tool.get("name") or "")) if lang == "en" else None
+    if not texts:
+        return dict(tool)
+    out = dict(tool)
+    out["description"] = texts.get("", out.get("description", ""))
+    params = out.get("parameters")
+    if isinstance(params, dict) and isinstance(params.get("properties"), dict):
+        props = {}
+        for key, spec in params["properties"].items():
+            spec = dict(spec)
+            if key in texts:
+                spec["description"] = texts[key]
+            props[key] = spec
+        out["parameters"] = {**params, "properties": props}
+    return out
 
 
 #: 코드가 든 인자 이름 — 계산 상자(`sandbox_run`)로 파일을 만든 판.
@@ -751,9 +850,15 @@ def summarize_job(
     notes: list[str] = []
     if unsupported:
         notes.append(f"도구가 준 적 없는 숫자 {len(unsupported)}개 — 사실로 전하기 전에 확인하세요.")
-    missing = [item["label"] for item in needs_checked or [] if not item["met"]]
+    # ★ 2026-10-19: met 은 셋이다 — False(이름 붙은 자리가 비었다)만 「비어 있다」고 말한다. None(이름으로 자리를 못 찾음)은
+    #   「확인 못 함」이다. 둘을 섞어 「비어 있는 항목」으로 알리던 탓에 답에 다 있는 판이 0/4 로 나갔다(Ollama FAQ 세 판).
+    missing = [item["label"] for item in needs_checked or [] if item.get("met") is False]
+    unchecked = [item["label"] for item in needs_checked or [] if item.get("met") is None]
     if missing:
         notes.append(f"돌려받아야 할 것 중 비어 있는 항목: {', '.join(missing)} — 이 항목 없이 끝낼 수 있는지, 다시 맡길지 정하세요.")
+    if unchecked:
+        notes.append(f"이름이 붙은 칸 · 제목을 찾지 못해 확인하지 못한 항목: {', '.join(unchecked)} — 비어 있다는 뜻이 아닙니다. "
+                     "답 본문에서 직접 확인하세요.")
     if refined:
         notes.append("답에서 가린 것이 있습니다(" + ", ".join(f"{item['kind']} {item['count']}" for item in refined)
                      + "). 연락처가 꼭 필요하면 needs 에 밝혀 다시 맡기세요 — 주민번호 · 카드 번호 · 비밀 키는 내보내지 않습니다.")

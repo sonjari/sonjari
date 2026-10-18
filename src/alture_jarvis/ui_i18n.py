@@ -82,6 +82,59 @@ _MANUAL = {
     "지금 쓰는 모델이 그림을 읽지 못해 카메라 화면을 볼 수 없습니다. 설정의 모델에서 그림을 읽는 모델을 고르면 볼 수 있습니다.":
         "The current model cannot read pictures, so I cannot look at the camera. "
         "Choose a model that reads pictures under Settings › Model.",
+    # 바깥 AI(MCP) 연결이 영어로 내보낼 때 사전에 없던 것 (2026-10-19 · 운영 맡기기 판 1,481개를 영어로 요약해 본 나머지).
+    #   `mcp_server._english` 가 「 · 」 조각 · 이어 붙은 문장 단위로 찾는다.
+    "바깥 AI": "the outside AI",
+    "{0}개 읽음": "{0} read",
+    "답에 {0}개": "{0} in the answer",
+    "파일 표에 {0}줄": "{0} rows in the file",
+    "{0} 에게 보냄": "Sent to {0}",
+    "필요한 것 {0}/{1}": "needs {0}/{1}",
+    # 확인 못 한 항목이 있을 때의 영수증 조각 (2026-10-19 · `outbound.receipt`) — 분수 대신 셋을 따로 센다.
+    "필요한 것 {0}개": "{0} needs",
+    "채움 {0}": "filled {0}",
+    "비어 있음 {0}": "empty {0}",
+    "확인 못 함 {0}": "not checked {0}",
+    "이름이 붙은 칸 · 제목을 찾지 못해 확인하지 못한 항목: {0} — 비어 있다는 뜻이 아닙니다. 답 본문에서 직접 확인하세요.":
+        "Items that could not be checked because no column or heading with that name was found: {0} — this does not "
+        "mean they are empty. Read the answer itself to check them.",
+    "정제 {0}": "masked {0}",
+    "답 항목 중 읽은 원문에 없는 이름 있음": "some names in the answer are not in the pages read",
+    "{0} (목록 화면 {1}곳은 세지 않음)": "{0} ({1} list pages not counted)",
+    "정렬·필터 안 씀 — 검색어 결과만 봄": "Did not use sort or filters — only looked at the search results",
+    "가지의 변경은 아직 원래 폴더에 없습니다 — branch.take_home 의 명령으로 본 뒤 가져가세요.":
+        "The branch's changes are not in the original folder yet — review them with the commands in branch.take_home, then take them.",
+    "가지에 바뀐 파일이 없습니다.": "No files changed on the branch.",
+    "확인 명령이 통과하지 않은 채 끝났습니다 — 가지의 변경은 미완성입니다. 가져가기 전에 직접 돌려 보세요.":
+        "It ended without the check command passing — the branch's changes are unfinished. Run it yourself before taking them.",
+    "돌려받아야 할 것 중 비어 있는 항목: {0} — 이 항목 없이 끝낼 수 있는지, 다시 맡길지 정하세요.":
+        "Items you asked for that are still empty: {0} — decide whether you can finish without them or hand the task off again.",
+    "답에서 가린 것이 있습니다({0}). 연락처가 꼭 필요하면 needs 에 밝혀 다시 맡기세요 — 주민번호 · 카드 번호 · 비밀 키는 내보내지 않습니다.":
+        "Some things in the answer were masked ({0}). If you really need contact details, name them in needs and hand it "
+        "off again — national ID numbers, card numbers and secret keys are never returned.",
+    "전화번호": "phone number",
+    "메일 주소": "email address",
+    "같은 확인 실패가 되풀이돼 멈췄습니다 — 그대로 다시 맡기면 같은 자리에서 멈춥니다. 마지막 실패 출력을 보고 과제를 더 작게 쪼개거나, 걸린 곳을 직접 고친 뒤 나머지를 맡기세요.":
+        "Stopped because the same check failure kept repeating — handing it off again unchanged stops at the same place. "
+        "Look at the last failure output and split the task smaller, or fix the stuck part yourself and hand off the rest.",
+    "같은 파일을 돌려 보지 않고 거듭 다시 쓰다 멈췄습니다 — 이 일은 지금 모델에 큽니다. 파일 하나·함수 하나 크기로 쪼개 맡기세요.":
+        "Stopped after rewriting the same file again and again without running it — this job is too big for the current "
+        "model. Hand it off in one-file or one-function pieces.",
+    "한동안 새로 본 것도 고친 것도 돌려 본 것도 없어 멈췄습니다 — 과제에 고칠 자리(파일·함수 이름)를 적어 다시 맡기세요.":
+        "Stopped because for a while nothing new was looked at, changed or run — hand it off again with the place to fix "
+        "(file and function names) in the task.",
+    "걸음 수 안전망에 닿아 멈췄습니다 — 한 번에 맡기기엔 큰 일입니다. 나눠서 맡기세요.":
+        "Stopped at the step safety limit — this is too big to hand off in one go. Split it up.",
+    "손자리가 센 것으로는 시킨 개수만큼 본문을 열어 읽지 않았습니다(답 끝의 경고에 몇 개인지 있습니다).":
+        "By Sonjari's own count, it did not open and read as many pages as asked (the warning at the end of the answer says how many).",
+    "이 판에서는 파일을 고치지 않았고 실행 확인도 하지 않았습니다 — 답은 설명입니다.":
+        "This run did not change any files and did not run anything to check — the answer is an explanation.",
+    "코드는 고쳤지만 검증(테스트·실행 확인)을 돌리지 못한 채 끝났습니다 — files 는 검증되지 않은 결과입니다. 열어서 확인하거나 검증만 다시 맡기세요.":
+        "The code was changed but it ended without running the checks (tests or a run) — files are unverified results. "
+        "Open them to check, or hand off just the checking.",
+    "파일은 만들었지만 **검증(테스트·실행 확인)을 끝내지 못해** 멈췄습니다. files 는 검증되지 않은 결과입니다 — 열어서 확인하거나, 검증만 다시 맡기세요.":
+        "Files were made but it stopped **without finishing the checks (tests or a run)**. files are unverified results — "
+        "open them to check, or hand off just the checking.",
 }
 # 이름표가 없는 도구는 「도구이름 실행 중」으로 나간다. 틀(「{0} 실행 중」)로 두면 「…가 실행 중」으로 끝나는 아무 글이나
 # 먹으므로, 도구 이름 꼴(영문 소문자·숫자·밑줄)일 때만 바꾼다.
@@ -205,6 +258,14 @@ def translate_text(text: str) -> str:
             inner = _one(stripped)
             if inner is not None:
                 return text.replace(stripped, inner, 1)
+        # 「 · 」로 이어 붙인 한 줄(「Claude Code 에게 보냄 · 정제 0」 · 「3개 읽음 · 답에 2개 · …」)은 조각마다 (2026-10-19).
+        #   틀의 빈칸 안에서도 이 길을 탄다 — 「… (지금: {0})」의 {0} 가 이어 붙인 조각이다.
+        if " · " in stripped:
+            parts = stripped.split(" · ")
+            moved = [translate_text(part) for part in parts]
+            # 조각이 **다** 바뀌었을 때만 — 반만 바뀐 한국어 · 영어 섞인 줄은 원문보다 나쁘다(모델의 한국어 답 줄 등).
+            if moved != parts and not any(_HANGUL.search(part) for part in moved):
+                return text.replace(stripped, " · ".join(moved), 1)
         # 사전에 없는 대조표 글(칸 이름·본 것)은 계획 층의 영어판으로 — 바깥 AI 로 가는 길과 같은 말을 쓴다.
         from .plan import english_for_screen  # 늦게 가져온다(계획 층도 이 모듈을 늦게 가져온다)
 

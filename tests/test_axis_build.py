@@ -137,6 +137,7 @@ _NOT_AN_AXIS = {
     "osmo_ble.py",
     "android_bridge.py",
     "mcp_server.py",      # 바깥으로 내보내는 문. 도구 자체는 각 모듈에 있다
+    "mcp_language.py",    # 그 문이 쓰는 언어 고르기(2026-10-19) — 문의 일부다
     # 이 PC 에서 재 보기(2026-10-13) — 손자리에게 과제를 **시키고 채점하는** 쪽이다. 판이 하는 일을 바꾸지 않는다.
     "measure_kit.py",
     "self_care.py",       # 자기 점검. 세 축 중 어디에도 안 속한다

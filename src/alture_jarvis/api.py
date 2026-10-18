@@ -1548,7 +1548,7 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     from .mcp_connect import ConnectService
 
     connect_service = ConnectService(runtime.config, exported_tools=lambda: _exported_tools(),
-                                     pack_guides=lambda: _pack_guides())
+                                     pack_guides=lambda: _pack_guides(), guide_lang=ui_i18n.lang)
     # 지난번에 누른 「Claude Desktop 잇기」가 재부팅·재시작으로 끊겼으면 이어서 기다린다(mcp_connect.resume_pending).
     try:
         connect_service.resume_pending()
@@ -1595,7 +1595,8 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
                 rows.append({"id": pack.id, "name": pack.name, "text": path.read_text(encoding="utf-8")})
         return rows
 
-    guide_skill = GuideSkillService(pack_guides=_pack_guides)
+    # 가이드 본문은 화면 언어를 따른다(2026-10-19) — 영어 화면이면 클로드·코덱스도 영어 가이드를 읽고 영어로 맡긴다.
+    guide_skill = GuideSkillService(pack_guides=_pack_guides, lang=ui_i18n.lang)
 
     def _refresh_pack_guides() -> None:
         # ★ 게임 팩을 켜면 이미 이어 둔 클로드·코덱스의 지침에 「게임 일이면 이 사용서」가 저절로 들어간다(끄면 빠진다).

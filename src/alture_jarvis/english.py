@@ -376,6 +376,45 @@ ARTIFACT_REQUEST_VERB = re.compile(
     r"|insert|attach|add|convert|turn\s+(?:[\w'-]+\s+){0,6}?into)\b",
     re.I,
 )
+#: 옮기는 동사 — 받는 곳(into · to · in …)을 가진다. 한국어 `plan._TRANSFER_VERB`(옮기 · 담아 · 달아 · 넣어)의 짝.
+TRANSFER_VERB = re.compile(r"(?:copy|move|insert|attach|add)", re.I)
+#: 대상 낱말 **앞**이 이 꼴이면 그 대상이 받는 곳이다 — 「into an Excel file」 · 「to the report」 · 「in a new document」.
+_DESTINATION_BEFORE = re.compile(
+    r"\b(?:into|to|in|onto|inside)\s+(?:(?:a|an|the|one|my|your|this|that|new|single|separate|same)\s+){0,2}(?:[\w-]+\s+){0,2}$",
+    re.I,
+)
+
+
+def verb_meets_its_target(compact: str, *, real_files_only: bool = False, work_file_named: bool = False) -> bool:
+    """대상 ∧ 부정되지 않은 산출 동사 — 옮기는 동사(copy · add …)뿐이면 대상이 받는 곳 자리에 있어야 한다.
+
+    ★ 2026-10-19 (한국어 `plan._verb_meets_its_target` 와 같은 고침). 「Download the PDF … and copy the first sentence of the
+      abstract exactly」의 copy 는 **답에 옮겨 적으라**는 말이고 PDF 는 읽을 재료다. 「copy the results into an Excel file」만 산출물이다.
+    """
+    targets = list((REAL_FILE_TARGET if real_files_only else ARTIFACT_REQUEST_TARGET).finditer(compact))
+    verbs = [verb for verb in ARTIFACT_REQUEST_VERB.finditer(compact) if not negated_before(compact, verb.start())]
+    if not targets or not verbs:
+        return False
+    if any(not TRANSFER_VERB.fullmatch(verb.group(0)) for verb in verbs):
+        return True
+    # 받는 곳: 대상 앞이 into · to · in … 이거나, 손댈 파일의 이름을 댔다(`plan._names_a_work_file` — 부르는 쪽이 넘긴다).
+    return work_file_named or any(
+        _DESTINATION_BEFORE.search(compact[max(0, target.start() - 60):target.start()]) for target in targets
+    )
+
+
+#: 파일을 만들 **필요가 없다**고 거두는 말 — 「no need to create a file」 · 「you don't need to save a document」 · 「no file needed」.
+#: 한국어 `plan._FILE_DECLINED`(「파일은 만들지 않아도 되고」)의 짝. 금지(「Don't create any files」)는 `JOB_WIDE_PROHIBITION` 이 본다.
+DECLINED_FILE = re.compile(
+    r"\b(?:(?:there'?s\s+|there\s+is\s+)?no\s+need\s+(?:to|for)|(?:you\s+)?(?:don'?t|do\s+not)\s+(?:need|have)\s+to|needn'?t"
+    r"|(?:it'?s\s+|it\s+is\s+)?not\s+necessary\s+to|without)\s+"
+    r"(?:(?:create|make|save|write|produce|generate|export|creating|making|saving|writing|producing|generating|exporting)\s+)?"
+    r"(?:(?:a|an|any|the)\s+)?(?:separate\s+|new\s+|output\s+)?(?:files?|documents?|docs?|spreadsheets?|reports?)\b"
+    r"|\bno\s+(?:separate\s+|new\s+|output\s+)?(?:files?|documents?)\s+(?:is\s+|are\s+)?(?:needed|necessary|required)\b",
+    re.I,
+)
+
+
 #: 「정리해줘」류 — **파일 낱말이 있을 때만**, 또는 「문서로」처럼 형식을 댔을 때만 산출물이다.
 TIDY_VERB = re.compile(r"\b(?:organi[sz]e|compile|summari[sz]e|tidy|put|list|arrange|sort|write\s+up|put\s+together)\b", re.I)
 DOC_FORMAT_REQUEST = re.compile(
@@ -433,7 +472,13 @@ ARTIFACT_TARGET = re.compile(
 #: 이름이 붙은 파일 **앞**이 이것이면 그 파일은 만들 것이 아니라 읽을 재료다 — 「Read INSTRUCTIONS.md and implement …」.
 #: 한국어 `plan._NAMED_FILE_IS_READ`(「…md 를 읽고」)와 같은 판정이고, 영어는 읽는 말이 앞에 온다 (2026-10-13).
 #: 「in tidy.py」 · 「from app.py」는 넣지 않는다 — 고칠 파일을 가리키는 말이기도 하다.
-NAMED_FILE_IS_READ_BEFORE = re.compile(r"\b(?:read|reading|open|look\s+at|parse|load|based\s+on|according\s+to)\s+(?:the\s+)?(?:file\s+)?$", re.I)
+#: ★ 2026-10-19: 「read the FAQ document (docs/faq.md)」처럼 읽는 말과 이름 사이에 이름을 꾸미는 말이 둘까지 끼어도 재료다
+#:   (and · then · or 는 다른 동사를 잇는 말이라 넘지 않는다 — 「Read and fix app.py」의 app.py 는 고칠 파일이다).
+NAMED_FILE_IS_READ_BEFORE = re.compile(
+    r"\b(?:read|reading|open|look\s+at|parse|load|based\s+on|according\s+to)\s+(?:the\s+)?"
+    r"(?:(?!(?:and|then|or)\b)[\w-]+\s+){0,2}(?:file\s+)?$",
+    re.I,
+)
 
 
 #: 형식 → 확장자. 한국어 `_artifact_extensions` 의 규칙 순서를 그대로 따른다.

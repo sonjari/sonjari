@@ -2911,6 +2911,8 @@ _NAMED_FILE_IS_READ = re.compile(
     #   (한글 · 워드 · 엑셀 · 파워포인트)을 못 넘어 원본 .hwp 가 만들 형식이 됐고, PDF 를 제대로 만든 판마다 「열 수 있는 산출물 없음」 ·
     #   「일부만 끝냄」이 찍혀 모델이 한 번 더 재촉받았다.
     r"[」』\"'”’)\]]?\s*(?:(?:한글|워드|엑셀|파워\s*포인트|텍스트)\s*)?(?:파일|문서|그림|사진|이미지|표)?\s*(?:을|를)\s*"
+    # 「FAQ 문서(docs/faq.md)를 **찾아 읽고**」 (2026-10-19 판 029fae29) — 찾는 말이 끼어도 읽을 재료다.
+    r"(?:찾아\s*(?:서\s*)?)?"
     r"(?:읽|열어\s*보|보고|참고|분석"
     # 그 파일을 **다른 형식으로** 저장 · 변환하라는 말이면 그 파일은 재료다(만들 형식은 뒤의 형식 규칙이 잡는다).
     r"|(?:(?!만들|작성|써)[^,.。!?]){0,40}?(?<![A-Za-z])(?i:pdf|jpe?g|png|hwpx|docx|xlsx|pptx|txt|csv)(?![A-Za-z])"
@@ -2936,7 +2938,8 @@ def _format_is_source(compact: str, end: int, *, named_file: bool = False) -> bo
 
 def _artifact_extensions(prompt: str) -> tuple[str, ...]:
     """요청이 형식을 못 박았을 때만 확장자를 제한한다."""
-    compact = " ".join(prompt.split())
+    # 「엑셀은 안 만들어도 되고 … 워드 파일에」 — 거둔 형식은 시킨 형식이 아니다(`_FILE_DECLINED`, 2026-10-19).
+    compact = " ".join(_without_declined_files(" ".join(prompt.split())).split())
     # ★ 둘 중 하나를 달라고 했으면 둘 다 받는다 (2026-10-13). 예전에는 규칙 순서가 앞선 쪽 하나만 요구가 돼서, 「한글이나 워드
     #   파일로」에 한글 파일을 만들면 「열 수 있는 산출물 없음」이 됐다.
     either = _EITHER_FORMAT.search(compact)
@@ -3622,6 +3625,78 @@ def asks_task_manager_values(prompt: str) -> bool:
 _APP_NAMES_WITH_FILE = re.compile(r"파일\s*탐색기|\bfile\s+explorer\b", re.I)
 
 
+# ★ **파일을 만들 필요가 없다고 한 말은 산출물 요구가 아니다** (2026-10-19 판 029fae29 · 클로드 코드가 맡긴 과제).
+#   「…FAQ 문서(docs/faq.md)를 찾아 읽고 … 원문에 적힌 그대로 옮기고 … **파일은 만들지 않아도 되고** 답으로만 알려 줘」에
+#   「실제 산출물 파일 만들기」가 서고 손자리가 시키지 않은 .md 를 만들었다. 쓰기 **금지**(「만들지 마」)는 `forbids_writes` 가 보지만
+#   「않아도 · 필요 없 · 없이」는 금지가 아니라 **안 시킨다는 말**이라 어디에도 안 걸렸다 — 거두는 말은 판을 읽기 전용으로 묶지
+#   않고, 거둔 구절만 걷어 낸 나머지로 판정한다(「엑셀은 안 만들어도 되고 워드 파일에 옮겨 줘」는 여전히 산출물이다).
+_FILE_DECLINED = re.compile(
+    r"(?<![가-힣])(?:파일|문서|산출물|엑셀|워드|한글\s*파일|보고서|마크다운)(?:\s*(?:파일|문서))?"
+    r"\s*(?:은|는|을|를|로|으로|까지는|까지|도)?\s*(?:따로|별도로|굳이|새로|꼭)?\s*"
+    r"(?:(?:만들|작성하|저장하|생성하|쓰|남기)지\s*(?:는|도)?\s*않(?:아도|으셔도)"
+    r"|(?:만들|작성할|저장할|생성할|쓸|남길)\s*필요(?:는|가|까지는|도)?\s*없"
+    r"|안\s*(?:만들어|작성해|저장해|써|남겨)\s*(?:도|줘도)"
+    r"|필요\s*(?:는|가|도)?\s*없"
+    r"|없이)"
+)
+
+
+def _without_declined_files(compact: str) -> str:
+    """「파일은 만들지 않아도 되고」 · 「no need to create a file」 같은 거두는 구절을 걷어 낸 글."""
+    pattern = _en.DECLINED_FILE if _en.english_dominant(compact) else _FILE_DECLINED
+    return pattern.sub(" ", compact)
+
+
+#: 옮기는 동사 — 「옮기고 · 담아 · 달아 · 넣어」. 만드는 동사(만들 · 작성 · 저장 · 써 …)와 달리 **받는 곳**을 가진다.
+_TRANSFER_VERB = re.compile(r"옮기|옮겨|담아|달아|넣어")
+#: 대상 낱말 뒤가 이 꼴이면 그 대상이 **받는 곳**이다 — 「한글 파일 하나에」 · 「워드 문서로」 · 「엑셀 시트에다」.
+_TARGET_AS_DESTINATION = re.compile(
+    r"(?:\s*(?:파일|문서|시트|형식|형태|양식|하나|한\s*개|1\s*개|초안))*\s*(?:에다가|에다|에|으로|로|안에|속에)(?![가-힣])"
+)
+
+
+def _names_a_work_file(compact: str) -> bool:
+    """읽을 재료가 아니라 **손댈 파일**로 이름을 댄 파일이 있는가 — 「site_atlas.py 의 SEED 에 여섯을 넣어라」의 site_atlas.py.
+
+    주소 안의 이름(`https://…/index.html`) · 소재(「llama.cpp 저장소」) · 읽는 말이 붙은 이름(「faq.md 를 찾아 읽고」)은 아니다.
+    """
+    for match in _NAMED_FILE_SUFFIX.finditer(compact):
+        token = compact[max(compact.rfind(" ", 0, match.start()), 0):match.end()]
+        if "://" in token or "www." in token.lower():
+            continue
+        if _CODE_TARGET_IS_TOPIC.match(compact, match.end()) or _format_is_source(compact, match.end(), named_file=True):
+            continue
+        return True
+    return False
+
+
+def _verb_meets_its_target(compact: str, *, real_files_only: bool = False) -> bool:
+    """대상 낱말 ∧ 산출 동사 — 옮기는 동사뿐이면 대상이 **받는 곳** 자리에 있어야 한다.
+
+    ★ 2026-10-19 (판 029fae29 · 10-19 arXiv 판 302bf59e). 「FAQ **문서**를 찾아 읽고 … 원문에 적힌 그대로 **옮기고**」 ·
+      「논문 PDF **파일**을 내려받아서 … 초록의 첫 문장을 그대로 **옮겨 줘**」 — 둘 다 「옮기다」가 **답에 그대로 옮겨 적으라**는 말이고
+      문서 · 파일은 **읽을 재료**였다. 글 전체에서 대상 낱말 하나와 동사 하나를 아무렇게나 짝지어 산출물 요구가 섰고, 두 판 다
+      시키지 않은 .md 를 만들었다. 「옮기다 · 담다 · 달다 · 넣다」는 **어디로**를 가지는 동사다 — 「한글 파일**에** 본문을 옮기고」 ·
+      「엑셀**에** 넣어줘」 · 「워드 파일**로** 옮기고」. 그래서 이 동사들만 있을 때는 대상이 받는 곳(에 · 로) 자리에 있어야 짝이다.
+      낱말을 빼지 않는다(「옮기」를 빼면 「한글 파일에 옮기고 각주 달아줘」가 다시 요구 0개가 된다 — 2026-09-01 사고).
+
+    `real_files_only` — 파일을 만들 필요 없다고 거둔 판에서는 「표 · 문서 · 초안」처럼 **답 안에서도 되는 대상**은 세지 않는다
+    (`_TIDY_VERB` 가 이미 지키는 규율: 「표로 정리해줘」는 답에 표를 그리면 되는 일이다).
+    """
+    targets = list((_REAL_FILE_TARGET if real_files_only else _ARTIFACT_REQUEST_TARGET).finditer(compact))
+    verbs = list(_ARTIFACT_REQUEST_VERB.finditer(compact))
+    if not targets or not verbs:
+        return False
+    if any(not _TRANSFER_VERB.match(verb.group(0)) for verb in verbs):
+        return True
+    # 받는 곳은 둘 중 하나다: 대상 낱말이 「에 · 로」 자리에 있거나, 손댈 파일의 이름을 댔다(「ollama.py 의 … 바꾼 자리에 주석을 달아」 —
+    # 운영 요청에 대 보니 저장소 코드 과제 넷이 이 꼴이었다).
+    return _names_a_work_file(compact) or any(
+        target.group(0).endswith("로") or _TARGET_AS_DESTINATION.match(compact, target.end())
+        for target in targets
+    )
+
+
 def wants_an_artifact(prompt: str) -> bool:
     """말이 아니라 파일·코드·문서 같은 산출물을 요구했는가."""
     # ★ 「**파일** 탐색기」는 앱 이름이다 (2026-10-17 앱 묶음 · 탐색기 b09c6f60). 「파일 탐색기로 … 새 폴더를 만들어 줘」가 「파일 + 만들어」로
@@ -3629,15 +3704,22 @@ def wants_an_artifact(prompt: str) -> bool:
     compact = _APP_NAMES_WITH_FILE.sub("탐색기", " ".join(prompt.split()))
     if forbids_writes(compact):
         return False
+    # 「파일은 만들지 않아도 되고」 — 거둔 구절은 시킨 말이 아니다(`_FILE_DECLINED`). 거둔 판에서는 남은 글에 **파일 · 형식 이름**이
+    # 있어야 산출물이다 — 「표로 정리해서 줘. 파일은 만들 필요 없어」의 표는 답에 그리는 표다.
+    stripped = " ".join(_without_declined_files(compact).split())
+    declined = stripped != compact
+    compact = stripped
     if wants_code(compact):
         return True
     if _en.english_dominant(compact):
         # 한국어와 같은 세 길: 강한 동사 ∧ 대상 · 「정리」류 ∧ 「문서로」 · 「정리」류 ∧ 파일 낱말.
         verb_en = _en.first_unnegated(_en.ARTIFACT_REQUEST_VERB, compact)
         tidy_en = _en.first_unnegated(_en.TIDY_VERB, compact)
-        if _en.ARTIFACT_REQUEST_TARGET.search(compact) and verb_en:
+        if verb_en and _en.verb_meets_its_target(
+            compact, real_files_only=declined, work_file_named=_names_a_work_file(compact)
+        ):
             return True
-        if tidy_en and _en.DOC_FORMAT_REQUEST.search(compact):
+        if tidy_en and not declined and _en.DOC_FORMAT_REQUEST.search(compact):
             return True
         return bool(tidy_en and _en.REAL_FILE_TARGET.search(compact))
     # ★ **화면의 폼·칸에 넣는 것은 파일 만들기가 아니다** (2026-10-07 대표 실사용). 「자기소개서 **초안** … 그거 이제
@@ -3645,9 +3727,9 @@ def wants_an_artifact(prompt: str) -> bool:
     #   「워드 파일부터 만들겠습니다」로 빠졌고 폼은 못 채웠다. 받는 곳이 화면의 폼이면 그건 화면에서 하는 동작이다.
     #   운영 요청 1,643개에서 이 꼴은 5개였고, 산출물 판정이 바뀌는 것은 그 한 판뿐이다.
     into_form = bool(_INTO_PAGE_FORM.search(compact)) and not _MAKES_A_FILE.search(compact)
-    if not into_form and _ARTIFACT_REQUEST_TARGET.search(compact) and _ARTIFACT_REQUEST_VERB.search(compact):
+    if not into_form and _verb_meets_its_target(compact, real_files_only=declined):
         return True
-    if _TIDY_VERB.search(compact) and _DOC_FORMAT_REQUEST.search(compact):
+    if _TIDY_VERB.search(compact) and not declined and _DOC_FORMAT_REQUEST.search(compact):
         return True
     # ★ 문서 파일 이름이 **받는 곳**(「…xlsx 에 / 로」)이면 동사가 무엇이든 산출물이다 (2026-10-02 밤 레딧 기록 예약).
     #   「reddit_반응기록.xlsx 에 … 기록해줘」가 요구 0개(근거 1개 읽기만)로 돌아, 글 6개를 다 읽고 「이제 엑셀에 기록하겠습니다」로

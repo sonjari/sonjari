@@ -119,4 +119,18 @@ describe("outbound receipt (§55-32)", () => {
   it("is absent on answers nobody outside asked for", () => {
     expect(html(answer({}))).not.toContain("에게 보냄");
   });
+
+  it("does not print a fraction when some needs could not be checked (2026-10-19)", () => {
+    // 이름으로 자리를 못 찾은 항목(met=null)은 「확인 못 함」 — 「0/3」으로 나가면 「셋 다 없다」로 읽힌다.
+    const unchecked = {
+      host: "claude-code",
+      needs: [{ label: "default value", met: null }, { label: "source URL", met: null }, { label: "가격", met: true }],
+      refined: [], needs_total: 3, needs_met: 1, needs_missing: 0, needs_unknown: 2, refined_count: 0,
+    };
+    const out = html(answer({ outbound: unchecked }));
+    expect(out).toContain("Claude Code에게 보냄 · 필요한 것 3개 · 채움 1 · 확인 못 함 2 · 정제 0");
+    expect(out).not.toContain("1/3");
+    expect(out).toContain("확인 못 함");
+    expect(out).not.toContain("비어 있음");
+  });
 });
