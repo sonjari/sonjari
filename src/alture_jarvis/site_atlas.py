@@ -141,6 +141,23 @@ SEARCH_ENGINE_HOSTS = (
     "search.daum.net",
 )
 
+#: 여러 서비스와 사용자 글이 한 주소에 모이는 곳. 여기 제목의 첫 낱말은 **글의 내용**이다(「여수 아파트 매물 - 네이버 부동산」).
+# ★ 2026-10-18 대표 디스코드 실사용: 「여수에 일하는 직장인」 · 「여수에서 내가 …」 두 판에 「여수에서 하기」가 섰다. 표를 보니
+#   「여수 → naver.com」(네 쪽)이 배워져 있었다 — 제목 조각의 머리가 지명이었다. 10-08 의 「항공권」 · 「카페」도 같은 naver.com 이었다.
+#   이런 주소에는 한글 이름도 영문처럼 **주소에 그 이름이 있어야**(`_host_carries_the_name`) 배운다. 진짜 서비스 이름은 씨앗으로 넣는다.
+SHARED_CONTENT_DOMAINS = frozenset({
+    "naver.com", "daum.net", "kakao.com", "tistory.com", "blogspot.com", "brunch.co.kr", "velog.io", "medium.com",
+    "reddit.com", "youtube.com", "namu.wiki", "x.com", "twitter.com", "facebook.com", "instagram.com", "threads.net",
+})
+
+
+def _name_fits_host(name: str, domain: str) -> bool:
+    """이 이름을 이 주소의 이름으로 받아도 되는가 — 영문 이름이거나 사용자 글이 모이는 주소면 주소에 그 이름이 있어야 한다."""
+    if name.isascii() or domain in SHARED_CONTENT_DOMAINS:
+        return _host_carries_the_name(name, domain)
+    return True
+
+
 # `co.kr` 처럼 두 칸을 쓰는 꼬리. 이걸 모르면 `kyobobook.co.kr` 이 `co.kr` 이 된다.
 _TWO_LABEL_TLDS = frozenset({"co", "go", "or", "ne", "pe", "re", "ac", "hs", "ms", "es"})
 
@@ -260,7 +277,7 @@ class SiteAtlas:
             return ""
         domain, urls = next(iter(domains.items()))
         # 이미 배워 둔 표에도 같은 문을 건다 — 예전 규칙으로 확정된 「Seattle → petfinder.com」 같은 것이 읽는 순간 풀린다.
-        if key.isascii() and not _host_carries_the_name(key, domain):
+        if not _name_fits_host(key, domain):
             return ""
         return domain if len(urls) >= MIN_PAGES else ""
 
@@ -313,7 +330,7 @@ class SiteAtlas:
         domain = registrable(host)
         if not domain:
             return ""
-        if key.isascii() and not _host_carries_the_name(key, domain):
+        if not _name_fits_host(key, domain):
             return ""
         with self._lock:
             before = self.host_for(key)

@@ -14,6 +14,7 @@ import time
 import traceback
 import urllib.parse
 import urllib.request
+from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -77,7 +78,9 @@ from .notifications import NotificationService
 from .observations import ObservationStore
 from .ollama import OllamaClient
 from .transcript import with_job_context
+from .plan_nudges import _invented_ratios
 from .plan import (
+    names_a_desktop_source,
     asks_for_site_filter,
     is_continuation as plan_is_continuation,
     mutating_google_tools,
@@ -367,7 +370,11 @@ _OUTPUT_FOLLOWUP_EDIT = re.compile(
 )
 
 _HWP_EDIT_TARGET = re.compile(r"(한글\s*(?:문서|파일)|HWPX?|\.hwp\b|열린\s*문서)", re.I)
-_HWP_EDIT_ACTION = re.compile(r"(고쳐|수정|바꿔|편집|교체|반영|덧붙|삭제)", re.I)
+# ★ 서식 말도 같은 길로 보낸다 (2026-10-17 hwp_*_format). 「한글 문서 제목을 굵게 해 줘」에는 고치라는 낱말이 없다.
+_HWP_EDIT_ACTION = re.compile(
+    r"(고쳐|수정|바꿔|편집|교체|반영|덧붙|삭제|굵게|기울|밑줄|글꼴|폰트|서식|정렬|줄\s*간격|(?:글자|글씨)\s*(?:크기|색)|PDF)",
+    re.I,
+)
 
 
 # 예고만 하고 끝나는 답변 판정은 agent.PROMISED_ACTION 하나를 공유한다. 라우터와
@@ -1098,7 +1105,7 @@ class JarvisRuntime:
         )
         self.naver_blog.register(self.gateway)
         self.windows_automation = WindowsAutomationTools(
-            self.config, visual_planner=self._plan_screen_action
+            self.config, visual_planner=self._plan_screen_action, on_waiting_for_hands=self._notify_waiting_for_hands,
         )
         self.windows_automation.register(self.gateway)
         self.hwp = HwpTools(self.config, self.local_computer, self.events)
@@ -1171,6 +1178,14 @@ class JarvisRuntime:
         # 설정 화면(W3). 바로 적용되는 값은 여기서 쥐고 있는 사본까지 맞춘다 — 설정 객체만 바꾸고
         # 생성 때 복사해 둔 쪽을 안 바꾸면 「켰는데 안 켜진」 칸이 된다(이어받기가 그 모양이었다).
         self.settings = SettingsService(self.config, on_live_change=self._settings_changed)
+        # 디스코드 다리를 본체 안에서 돌린다(2026-10-18). 스토어판 사용자는 명령 창으로 따로 띄울 수 없다.
+        # 저장된 봇 토큰이 없으면 아무것도 안 하고, 따로 띄운 다리가 이미 돌면 비켜 선다(`messaging/service.py`).
+        from .messaging.service import DiscordService
+        from .model_aliases import ModelAliasBook
+
+        # 모델 별명 표(「똑똑한」 · 「빠른」 → 태그). 디스코드 「@별명」 · `/모델` 이 쓴다 — 판 하나에만 건다(`_chat_job`).
+        self.model_aliases = ModelAliasBook(self.config, resident=self.ollama._resident_names)
+        self.discord = DiscordService(self.config, publish=self.events.publish, aliases=self.model_aliases)
         # Ollama 버튼 한 번 설치(W2). 공식 zip 을 해시 대조 뒤 데이터 폴더에 풀고 자비스가 켜고 끈다.
         self.ollama_installer = OllamaInstaller(
             install_root=self.config.ollama_install_dir,
@@ -1364,6 +1379,16 @@ class JarvisRuntime:
         }
         register_system_tools(self.config, self.gateway)
         self._register_jobs()
+
+    def _notify_waiting_for_hands(self, what: str) -> None:
+        """사람이 키보드 · 마우스를 쓰는 중이라 손자리가 실제 클릭 · 키 입력을 기다릴 때 윈도우 알림 한 번 (2026-10-17 밤 대표)."""
+        from . import brand as _brand
+        from . import ui_i18n
+
+        if ui_i18n.lang() == "en":
+            self.notifications.notify(_brand.NAME, "Sonjari is waiting to use the screen. Please take your hands off the mouse and keyboard for a moment (up to 45 seconds).")
+        else:
+            self.notifications.notify(_brand.NAME, f"손자리가 화면을 쓰려고 기다리는 중이에요({what}). 잠깐 마우스 · 키보드에서 손을 떼 주세요(최대 45초).")
 
     def _plan_screen_action(
         self, screenshot: Path, bounds: dict[str, Any], instruction: str
@@ -1816,6 +1841,7 @@ class JarvisRuntime:
         hotkey_status = self.hotkey.start()
         self._hotkey_status = hotkey_status
         self._start_background_warmup()
+        self._start_discord()
         threading.Thread(target=self._front_prime_loop, name="jarvis-front-prime", daemon=True).start()
         if self.config.self_check_on_boot:
             threading.Thread(target=self._boot_self_check, name="jarvis-boot-self-check", daemon=True).start()
@@ -1833,6 +1859,13 @@ class JarvisRuntime:
                 "media_recovery": media_recovery,
             },
         )
+
+    def _start_discord(self) -> None:
+        """디스코드 다리 — 넘어져도 본체 기동은 계속한다. 까닭은 `/v1/discord/status` 의 last_error 와 이벤트에 남는다."""
+        try:
+            self.discord.start()
+        except Exception as exc:  # noqa: BLE001 — DiscordService.start 는 예외를 안 올리지만 한 겹 더
+            self.events.publish("discord_bridge", {"event": "error", "error": type(exc).__name__})
 
     def _settings_changed(self, keys: list[str]) -> None:
         # ★ 승인 관문은 생성 때 설정값을 **복사해** 들고 있다. 설정이 라이브로 바뀌어도 이 복사본은 안 따라와서,
@@ -1862,6 +1895,10 @@ class JarvisRuntime:
         self.watches.stop()
         self.unity_schedule.stop()
         self.runner.stop()
+        try:
+            self.discord.stop(timeout=5.0)
+        except Exception:  # noqa: BLE001, S110 — 종료를 막지 않는다
+            pass
         self.browser.stop()
         self.daily_backup.stop()
         self.ollama_installer.stop()
@@ -2255,6 +2292,8 @@ class JarvisRuntime:
         "local_write_file": ("output_path",),
         "local_apply_edit": ("output_path",),
         "hwp_preview_edit": ("output_path",),
+        "hwp_preview_format": ("output_path",),
+        "hwp_export_pdf": ("output_path",),
         # ★ 만든 것을 사람이 못 찾으면 안 만든 것과 같다 (2026-09-01 라이브).
         #
         #   HWPX 를 11,410바이트로 제대로 만들어 놓고, 답에는 파일명만 적고 경로를
@@ -3264,6 +3303,9 @@ class JarvisRuntime:
         named = bool(LOCAL_PATH_PATTERN.search(compact)) or any(
             phrase in compact for phrase in LOCAL_SOURCE_PHRASES
         ) or (english and bool(_english.LOCAL_SOURCE_PHRASES.search(compact)))
+        # ★ 내 PC 의 프로그램 · 설정 화면을 열어 읽으라는 요청도 「가서 봐야 하는 일」이다 (2026-10-18 「모르는 앱」 측정 —
+        #   설정 · 시스템 정보를 열어 읽으라는 6판 중 4판이 도구 0걸음 · 기억으로 답했다). 낱말 표는 `plan._DESKTOP_SOURCE` 한 곳.
+        named = named or names_a_desktop_source(compact)
         if not named:
             return False
         if english:
@@ -4245,6 +4287,27 @@ class JarvisRuntime:
                     },
                 )
                 return "agent", "", {"route_reason": "unsourced_particulars", "numbers": unsourced[:8]}
+        # ★ **아무도 준 적 없는 배수 · 퍼센트를 둘 이상 단정한 초안도 내보내지 않는다** (2026-10-18 · `plan_nudges._invented_ratios`).
+        #   대표가 폰 디스코드로 「손자리가 일자리를 줄이지 않을까」를 묻자 이 길이 「생산성 10배 · 3년 뒤 인력 50% 감축 · 2~3배 증가」로
+        #   바로 답했다. 위의 숫자 검사는 세 자리 이상 수만 세서 이 꼴을 못 본다. 운영 직답 813개 중 22개(질문만 대 본 어림 —
+        #   대화 · 지시문을 같이 보는 여기서는 더 적다). 손이 있는 길로 올리면 거기서 「상식이면 상식, 예측이면 짐작」으로 다시 쓴다.
+        #   찾으러 보내는 것(`unsourced_particulars`)이 아니다 — 의견 질문에는 찾을 사실이 없다.
+        invented = _invented_ratios(
+            answer, prompt, str(kwargs.get("system") or ""),
+            *(str(m.get("content") or "") if isinstance(m, dict) else str(m) for m in history or []),
+        )
+        if len(invented) >= 2:
+            discard_draft()
+            self.events.publish(
+                "agent_route_selected",
+                {
+                    "route": "agent",
+                    "reason": "answer_had_invented_ratios",
+                    "numbers": invented[:8],
+                    "prompt": prompt[:200],
+                },
+            )
+            return "agent", "", {"route_reason": "invented_ratios", "numbers": invented[:8]}
         # ★ 도구 없이 쓴 초안이 **새 파일을 저장했다고 말하면 답이 아니다** (2026-10-13 · `_claimed_files` 의 설명).
         #   손이 있는 길로 보내 실제로 만들게 한다.
         claimed = _claimed_files(
@@ -4453,10 +4516,16 @@ class JarvisRuntime:
         순간 3090에서 코더가 쫓겨나고 다음 걸음이 17GB 재적재를 기다렸다
         (실측 적재 30.3·29.9·53.0초). 여기서 잡 전체를 묶는다.
         """
-        mode = str((job.get("payload") or {}).get("workspace_mode") or "cowork")
-        if mode != "code":
-            return self._chat_job_inner(job)
-        with self.ollama.pin_role("code"):
+        payload = job.get("payload") or {}
+        mode = str(payload.get("workspace_mode") or "cowork")
+        # ★ 판 하나만 다른 모델(2026-10-18 · 디스코드 「@빠른」 · `/모델`). `/v1/chat` 이 별명 표로 푼 태그만 온다.
+        #   이 판이 끝나면 풀린다 — 다음 판 · 설정에 새지 않는다(사고 Q).
+        override = str(payload.get("model_override") or "").strip()
+        with ExitStack() as stack:
+            if override:
+                stack.enter_context(self.ollama.pin_model(override))
+            if mode == "code":
+                stack.enter_context(self.ollama.pin_role("code"))
             return self._chat_job_inner(job)
 
     def _chat_job_inner(self, job: dict[str, Any]) -> dict[str, Any]:
@@ -4894,6 +4963,8 @@ class JarvisRuntime:
             "camera_observation": observation,
             "agent_trace": agent_trace,
             "claude_code": (agent_trace or {}).get("claude_code", {}),
+            # 답이 기댄 페이지의 사진(대표사진 · 2026-10-18 · `showcase.pick_showcase_shots`) — 디스코드 다리 · 출처 카드가 쓴다.
+            "showcase": list(getattr(agent_result, "showcase", None) or []) if agent_trace else [],
             "grounding": grounding,
             "completion_state": (
                 str((agent_trace or {}).get("verification", {}).get("completion_state") or "")

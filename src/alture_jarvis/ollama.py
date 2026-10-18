@@ -288,6 +288,8 @@ class OllamaClient:
         self._pin_lock = threading.Lock()
         self._pin_role = ""
         self._pin_depth = 0
+        # 판 하나만 다른 대화 모델로 돌린다(`pin_model`, 2026-10-18 디스코드 「@빠른」).
+        self._pin_model = ""
 
     @property
     def pinned_role(self) -> str:
@@ -320,6 +322,29 @@ class OllamaClient:
                     self._pin_role = ""
                 else:
                     self._pin_role = previous
+
+    @property
+    def pinned_model(self) -> str:
+        return self._pin_model
+
+    @contextmanager
+    def pin_model(self, model: str) -> Iterator[None]:
+        """이 블록 안에서는 **대화 모델로 가던 호출**이 이 태그로 간다 — 판 하나에만 거는 모델 바꾸기 (2026-10-18).
+
+        디스코드에서 「@빠른 오늘 날씨」처럼 그 판만 다른 모델로 돌린다(`runtime._chat_job`). `pin_role` 과 같은 까닭으로
+        프로세스 전체를 묶는다 — 판 도중 다른 스레드가 대화 모델을 한 번 부르면 3090 에서 둘이 서로를 쫓아낸다(사고 P).
+        - 따로 정한 역할 모델(그림 · 코더 등, 대화 모델과 태그가 다른 역할)은 그대로 둔다. 바꾸는 것은 대화 모델 자리뿐이다.
+        - 호출부가 태그를 찍었으면 안 바꾼다. 시스템 앞머리 · 설정 파일은 건드리지 않는다 — 블록을 나가면 흔적이 없다.
+        """
+        tag = str(model or "").strip()
+        with self._pin_lock:
+            previous = self._pin_model
+            self._pin_model = tag
+        try:
+            yield
+        finally:
+            with self._pin_lock:
+                self._pin_model = previous
 
     def _effective_role(self, role: str, model: str = "") -> str:
         pinned = self.pinned_role
@@ -546,6 +571,10 @@ class OllamaClient:
     def _selected_model(self, model: str | None = None, *, role: str = "chat") -> str:
         if not model:
             role = self._effective_role(role)
+            override = self._pin_model
+            if override and role != "vision" and self._same_model(
+                    self.config.model_for(role), self.config.model_for("chat")):
+                return override
         selected = str(model or self.config.model_for(role)).strip()
         if not selected:
             raise ValueError("ollama_model_required")

@@ -16,6 +16,7 @@ python-hwpx
 truststore>=0.9.1
 websockets>=13
 mcp>=2.0.0                # 맡기기 문(MCP 서버)·MCP 연결 — pyproject.toml 과 같이 적는다
+discord.py>=2.7.1,<3      # 디스코드로 일 시키기(따로 도는 다리, 2026-10-17) — pyproject.toml 과 같이 적는다
 
 # ── Code 모드의 연장 (2026-09-20) ────────────────────────────────────────────
 #

@@ -66,6 +66,8 @@ export const WRITE_TOOLS = new Set([
   "local_write_file", "local_apply_edit", "local_delete_file",
   "artifact_from_observations",
   "hwp_apply_edit",
+  "hwp_apply_format",
+  "hwp_export_pdf",
   "claude_code_delegate",
 ]);
 
@@ -305,6 +307,9 @@ const TOOL_LABELS: Record<string, string> = {
   hwp_read: t("한글 문서 읽기"),
   hwp_preview_edit: t("한글 편집 미리보기"),
   hwp_apply_edit: t("한글 편집 적용"),
+  hwp_preview_format: t("한글 서식 미리보기"),
+  hwp_apply_format: t("한글 서식 적용"),
+  hwp_export_pdf: t("한글 → PDF 저장"),
   ui_find_target: t("누를 곳 찾기"),
   ui_click_target: t("찾은 곳 누르기"),
   ui_verify: t("제대로 눌렸는지 확인"),

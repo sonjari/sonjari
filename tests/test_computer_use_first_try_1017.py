@@ -226,16 +226,52 @@ class _Pressable(_Control):
         self.calls.append("click")
 
 
-def test_a_menu_item_is_clicked_not_invoked(tmp_path: Path) -> None:
-    """한글 메뉴를 invoke 로 누르면 아무 일도 안 일어났다 — 모델이 다섯 번 되풀이하다 41걸음째 click 으로 바꿨다(7412255c)."""
+def test_a_menu_item_is_invoked_first_and_clicked_only_when_nothing_happened(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """한글 메뉴는 invoke 를 무시했다(7412255c) — 그래도 실제 클릭은 사람의 마우스를 뺏으니(10-17 밤 대표), 신호를 먼저 보내고
+    아무 변화가 없을 때만 누른다."""
+    from alture_jarvis import windows_automation
+
+    monkeypatch.setattr(windows_automation, "_visible_windows_now", lambda: {})
+    monkeypatch.setattr(windows_automation.time, "sleep", lambda _s: None)
     tools = _tools(tmp_path)
-    for control_type, expected in (("MenuItem", ["click"]), ("Button", ["invoke"])):
-        control = _Pressable("PDF로 저장하기", control_type)
-        tools._window = lambda window_id, _c=control: _Window([_c])  # type: ignore[method-assign]
+    monkeypatch.setattr(tools.presence, "wait_until_idle", lambda **kw: True)
+
+    class _Menu(_Pressable):
+        def __init__(self, opens: bool) -> None:
+            super().__init__("PDF로 저장하기", "MenuItem")
+            self.opens = opens
+            self.window = _Window([self])
+
+        def invoke(self) -> None:
+            super().invoke()
+            if self.opens:
+                self.window._children = [self, _Control("펼친 항목", "MenuItem")]
+
+    for opens, expected in ((False, ["invoke", "click"]), (True, ["invoke"])):
+        control = _Menu(opens)
+        tools._window = lambda window_id, _c=control: _c.window  # type: ignore[method-assign]
         tools._find_control = lambda window_id, target, _c=control: _c  # type: ignore[method-assign]
         preview = tools._save_preview(source="uia", action="invoke", window_id=7, target={"name": "PDF로 저장하기"})
         tools.execute_preview({"preview_id": preview.preview_id})
-        assert control.calls == expected, control_type
+        assert control.calls == expected, opens
+    button = _Pressable("확인", "Button")
+    tools._window = lambda window_id: _Window([button])  # type: ignore[method-assign]
+    tools._find_control = lambda window_id, target: button  # type: ignore[method-assign]
+    preview = tools._save_preview(source="uia", action="invoke", window_id=7, target={"name": "확인"})
+    tools.execute_preview({"preview_id": preview.preview_id})
+    assert button.calls == ["invoke"]
+
+
+def test_the_person_is_told_once_when_sonjari_waits_for_their_hands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """사람이 키보드 · 마우스를 쓰는 중이면 손자리는 조용히 45초까지 기다렸다 — 기다린다는 것을 한 번 알린다(10-17 밤 대표)."""
+    told: list[str] = []
+    tools = WindowsAutomationTools(JarvisConfig(runtime_root=tmp_path, data_dir=tmp_path / "data", output_dir=tmp_path / "outputs"),
+                                   on_waiting_for_hands=told.append)
+    answers = iter([False, True, False, True])
+    monkeypatch.setattr(tools.presence, "wait_until_idle", lambda **kw: next(answers))
+    tools._wait_for_hands_off("키 입력")
+    tools._wait_for_hands_off("키 입력")
+    assert told == ["키 입력"], "1분 안에는 한 번만 알린다"
 
 
 def test_a_small_element_cap_is_raised_so_open_menus_are_not_cut(tmp_path: Path) -> None:

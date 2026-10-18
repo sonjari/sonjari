@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Observation, StepRow } from "./workspace/observation";
 import type { HealthOllama } from "./workspace/readiness";
 import type { ModelLoading } from "./workspace/ModelLoadLine";
-import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, BackupSummary, PackInfo, PacksView, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame } from "./types";
+import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, BackupSummary, PackInfo, PacksView, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem } from "./types";
 
 declare global {
   interface Window {
@@ -117,6 +117,23 @@ export async function openLinkInOntelicBrowser(url: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * 사람이 보려고 누른 바깥 주소(디스코드 개발자 포털 등)를 **기본 브라우저**로 연다.
+ * 손자리 크롬이 아니라 기본 브라우저인 까닭: 디스코드 로그인은 사람이 평소 쓰는 브라우저에 있다(답 속 링크와 같은 길 · MarkdownView).
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+  if (!/^https?:\/\//i.test(url)) return;
+  if (isTauri()) {
+    try {
+      await invoke("open_external_url", { url });
+      return;
+    } catch {
+      // 아래 예전 길로 넘어간다.
+    }
+  }
+  window.open(url, "_blank", "noreferrer");
 }
 
 export async function setNativeHudMode(mode: "orb" | "panel" | "approval" | "continuation" | "attention"): Promise<void> {
@@ -536,6 +553,55 @@ export class JarvisClient {
     return this.request(`/v1/packs/game/unity/schedules/${encodeURIComponent(id)}/${action}`, { method: "POST", body: "{}" });
   }
 
+  // ── 디스코드로 일 시키기 (2026-10-18) ─────────────────────────────────────────
+  // 봇 토큰은 이 문들로 **들어오지도 나가지도 않는다** — 화면은 「복사했어요」만 누르고 본체가 클립보드를 직접 읽는다.
+  // 단계 문은 실패해도 200 + {ok:false, error, message} 라 던지지 않는다. 화면은 status 모양 하나로 그린다.
+  discordStatus(): Promise<DiscordStatus> {
+    return this.request("/v1/discord/status", { method: "GET" });
+  }
+
+  discordTokenFromClipboard(): Promise<DiscordStepResult> {
+    return this.request("/v1/discord/token/from-clipboard", { method: "POST", body: "{}" });
+  }
+
+  discordRecheck(): Promise<DiscordStepResult> {
+    return this.request("/v1/discord/recheck", { method: "POST", body: "{}" });
+  }
+
+  discordFinish(): Promise<DiscordStepResult> {
+    return this.request("/v1/discord/finish", { method: "POST", body: "{}" });
+  }
+
+  discordDisconnect(): Promise<DiscordStepResult> {
+    return this.request("/v1/discord/disconnect", { method: "POST", body: "{}" });
+  }
+
+  /** 빈 별명 = 「PC 와 같음」. */
+  discordSetDefaultModel(alias: string): Promise<DiscordStepResult> {
+    return this.request("/v1/discord/settings", { method: "PUT", body: JSON.stringify({ default_model_alias: alias }) });
+  }
+
+  discordRequests(): Promise<DiscordRequestsView> {
+    return this.request("/v1/discord/requests", { method: "GET" });
+  }
+
+  discordDecideRequest(userId: string, allow: boolean): Promise<DiscordStepResult & Partial<DiscordRequestsView>> {
+    // 주소를 두 갈래로 다 적는다 — 화면 ↔ 백엔드 주소 대조 시험이 글자 그대로 읽는다(`test_ui_backend_wiring`).
+    const id = encodeURIComponent(userId);
+    return allow
+      ? this.request(`/v1/discord/requests/${id}/allow`, { method: "POST", body: "{}" })
+      : this.request(`/v1/discord/requests/${id}/ignore`, { method: "POST", body: "{}" });
+  }
+
+  getModelAliases(): Promise<ModelAliasesView> {
+    return this.request("/v1/models/aliases", { method: "GET" });
+  }
+
+  /** 표를 통째로 바꾼다. 틀리면 400 — 던지는 오류 문장이 까닭 코드(invalid_alias · invalid_tag · duplicate_alias · too_many_aliases)다. */
+  putModelAliases(aliases: DiscordAliasItem[]): Promise<ModelAliasesView & { ok: boolean }> {
+    return this.request("/v1/models/aliases", { method: "PUT", body: JSON.stringify({ aliases }) });
+  }
+
   getCapabilities(): Promise<Capabilities> {
     return this.request("/v1/capabilities", { method: "GET" }, false);
   }
@@ -564,6 +630,20 @@ export class JarvisClient {
     if (this.bootstrap.controlToken) headers.set("X-JARVIS-TOKEN", this.bootstrap.controlToken);
     const query = `job_id=${encodeURIComponent(jobId)}&path=${encodeURIComponent(path)}`;
     const response = await fetch(`${this.bootstrap.baseUrl}/v1/outputs/file?${query}`, { headers });
+    return response.ok ? response.blob() : null;
+  }
+
+  /**
+   * 답이 기댄 페이지의 사진 한 장(2026-10-18). 그 판 result.showcase 의 index 번째 — 경로는 안 보낸다(백엔드가 기록에서 찾는다).
+   * 화면 CSP 가 `img-src 'self' data: blob:` 라 `<img src>` 로 못 걸고, 토큰도 붙여야 해서 받아서 blob 으로 건다.
+   */
+  async fetchShowcaseShot(jobId: string, index: number): Promise<Blob | null> {
+    const headers = new Headers();
+    if (this.bootstrap.controlToken) headers.set("X-JARVIS-TOKEN", this.bootstrap.controlToken);
+    const response = await fetch(
+      `${this.bootstrap.baseUrl}/v1/jobs/${encodeURIComponent(jobId)}/showcase/${Math.trunc(index)}`,
+      { headers },
+    );
     return response.ok ? response.blob() : null;
   }
 

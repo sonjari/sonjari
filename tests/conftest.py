@@ -319,3 +319,31 @@ def _guarded_connect_ex(self: _socket.socket, address: object, *args: object, **
 
 _socket.socket.connect = _guarded_connect  # type: ignore[method-assign]
 _socket.socket.connect_ex = _guarded_connect_ex  # type: ignore[method-assign]
+
+
+# ── 검사는 **진짜 디스코드 봇 토큰 · 클립보드에 닿지 않는다** (2026-10-18) ─────────────────────────────
+#
+# 본체가 뜰 때 디스코드 다리를 같이 켠다(`messaging/service.py`). 다리는 윈도우 자격 증명 관리자에서 봇 토큰을 읽는데,
+# 대표 PC 에는 **진짜 토큰이 저장돼 있다.** 그대로 두면 앱을 띄우는 시험마다 진짜 봇으로 디스코드에 붙고, 잠금 파일은
+# 시험의 임시 데이터 폴더에 생기니 따로 띄운 진짜 다리와도 안 부딪혀 **같은 메시지에 두 번 답한다.**
+# 자격 증명 관리자 자리를 프로세스 안의 빈 보관소로, 클립보드를 빈 가짜로 바꾼다. 진짜 저장소를 재는 시험은 없다.
+def _tests_never_touch_the_real_bot_token() -> None:
+    try:
+        from alture_jarvis.messaging import credentials as _credentials
+        from alture_jarvis.messaging import service as _service
+    except Exception:  # noqa: BLE001 - 가져오지 못하는 환경이면 건드릴 것도 없다
+        return
+    _store = _credentials.MemoryCredentialStore()
+
+    class _EmptyClipboard:
+        def read(self) -> str:
+            return ""
+
+        def clear(self) -> None:
+            return None
+
+    _credentials.default_store = lambda: _store  # type: ignore[assignment]
+    _service.system_clipboard = lambda: _EmptyClipboard()  # type: ignore[assignment]
+
+
+_tests_never_touch_the_real_bot_token()

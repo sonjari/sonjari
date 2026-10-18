@@ -148,6 +148,10 @@ MANIFEST: dict[str, _Spec] = {
     "local_write_file": _Spec(
         EFFECT_WRITE_LOCAL, TYPE_ARTIFACT, ("path",), (), "path"
     ),
+    # 한글 → PDF(2026-10-17). 결과에는 원본을 `source_path` 로만 싣는다 — `path` 로 실으면 원본이 산출물로 둔갑한다.
+    "hwp_export_pdf": _Spec(
+        EFFECT_WRITE_LOCAL, TYPE_ARTIFACT, ("output_path",), (), "path"
+    ),
     "local_apply_edit": _Spec(
         EFFECT_WRITE_LOCAL, TYPE_MUTATION, ("path",), (), "path"
     ),

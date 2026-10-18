@@ -3,6 +3,10 @@ Copyright 2026 RoboMetaFit
 
 This product includes software developed by RoboMetaFit.
 
+Portions of src/alture_jarvis/messaging (the platform adapter base, message splitting, and the
+Discord adapter / onboarding design) are adapted from Hermes Agent, Copyright (c) 2025 Nous Research,
+licensed under the MIT License (https://github.com/NousResearch/hermes-agent).
+
 Third-party components are listed with their licenses in packaging/THIRD_PARTY_NOTICES.md
 and in the LICENSE / NOTICE files inside each bundled component.
 

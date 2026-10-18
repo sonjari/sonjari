@@ -492,6 +492,21 @@ def _ascii_name_as_word(folded: str, name: str) -> bool:
     return False
 
 
+#: 이름 바로 뒤에 오면 그 이름은 **주제**다 — 「깃허브에 관한 규칙」 · 「쿠팡 관련 뉴스」 · 「네이버에 대한 평가」.
+_SITE_AS_TOPIC_TAIL = re.compile(r"\s*(?:에\s*(?:관한|관해|관하여|대한|대해|대하여)|관련|얘기|이야기)")
+
+
+def _only_as_topic(folded: str, name: str) -> bool:
+    """이름이 나오는 자리가 **전부** 「…에 관한 · 에 대한 · 관련」 앞인가 — 그러면 갈 곳이 아니라 다룰 주제다.
+
+    ★ 2026-10-18 r/LocalLLM 규칙 읽기 판(c9910364): 「자기 홍보 · 링크 · 프로젝트 소개 · 깃허브에 관한 규칙은 빠짐없이」의
+      깃허브가 「깃허브에서 하기」가 됐다. 레딧 규칙을 다 읽고 옮겼는데 「❌ 깃허브에서 하기 — 거기서 아무것도 안 함」으로
+      「일부만 끝냄」이 찍혔고, 되받기에 답하다 처음 답의 규칙 전문이 최종 답에서 사라졌다.
+    """
+    positions = [index for index in range(len(folded)) if folded.startswith(name, index)]
+    return bool(positions) and all(_SITE_AS_TOPIC_TAIL.match(folded, index + len(name)) for index in positions)
+
+
 def _only_in_example_lists(folded: str, name: str) -> bool:
     """이름이 나오는 자리가 **전부 괄호 속**인가 — 「채널(레딧·깃허브 등)」·「(깃허브 참고)」는 장소가 아니라 예시·참고다.
 
@@ -1039,11 +1054,41 @@ def _without_quoted_sentences(compact: str) -> str:
 #: 읽을 곳이 **내 PC 의 프로그램 창**인 요청 — 「작업 관리자를 열어서」·「메모장 창에서」·「한글 프로그램 화면에서 읽어」.
 #: 프로그램 이름만으로는 안 건다(「엑셀로 정리해 줘」는 만들 형식이다) — 열거나 · 창 · 화면이 같이 와야 한다.
 _DESKTOP_SOURCE = re.compile(
-    r"(?:작업\s*관리자|메모장|그림판|계산기|한글\s*프로그램|엑셀\s*프로그램|워드\s*프로그램|제어판|설정\s*앱)"
-    r"[^.!?\n]{0,12}(?:열어|열고|켜서|켜고|창|화면)"
+    r"(?:작업\s*관리자|메모장|그림판|계산기|한글\s*프로그램|엑셀\s*프로그램|워드\s*프로그램|제어판|설정\s*앱"
+    # ★ 2026-10-18 「모르는 앱」 측정: 「윈도우 설정의 「시스템 → 정보」 화면을 열어서」 · 「「시스템 정보」 프로그램(msinfo32)을
+    #   열어서」가 이 표에 없어 「봐야 하는 일」이 안 됐고, 6판 중 4판이 도구 0걸음 · 기억으로 답했다(「이미 확인된 값」).
+    r"|시스템\s*정보|msinfo32|(?:윈도우|windows)\s*설정|장치\s*관리자|디스크\s*관리|이벤트\s*뷰어)"
+    r"[^.!?\n]{0,24}(?:열어|열고|켜서|켜고|창|화면)"
     r"|(?:프로그램|앱)\s*창(?:에서|을|의)"
+    # 「…프로그램(msinfo32)을 열어서」 · 「…앱을 켜고」 — 프로그램 · 앱을 열라는 말(괄호 속 이름은 건너뛴다).
+    r"|(?:프로그램|앱)\s*(?:\([^)]{1,40}\))?\s*(?:을|를)\s*(?:열어|열고|켜서|켜고)"
     r"|(?i:\b(?:task\s*manager|notepad)\b)"
 )
+
+
+#: 이름으로 여는 윈도우 화면 — (부른 말, `windows_open_path` 의 path 에 적을 이름). 앞의 것이 먼저다.
+_NAMED_SCREENS = (
+    (re.compile(r"시스템\s*정보|msinfo32", re.I), "시스템 정보"),
+    (re.compile(r"(?:윈도우|windows)\s*설정[^.!?\n]{0,24}정보|시스템\s*(?:→|>|->)\s*정보", re.I), "시스템 → 정보"),
+    (re.compile(r"(?:윈도우|windows)\s*설정|설정\s*앱", re.I), "설정"),
+)
+
+
+def named_screen_to_open(prompt: str) -> str | None:
+    """「시스템 정보를 열어서」 · 「윈도우 설정의 시스템 → 정보 화면을 열어서」처럼 이름으로 여는 화면을 열라는 요청이면 그 이름(2026-10-18).
+
+    「모르는 앱」 다시 잼: 모델이 「msinfo32 를 띄우는 도구가 없어」라고 쓰고 셸 명령으로만 읽었다 — 그래서 설정 화면에만 있는
+    값(버전 이름)이 3판 중 2판에서 빠졌다. 열 수 있다는 것을 모르는 것이라 그 이름을 알려 준다.
+    """
+    compact = " ".join((prompt or "").split())
+    if not names_a_desktop_source(compact):
+        return None
+    return next((name for pattern, name in _NAMED_SCREENS if pattern.search(compact)), None)
+
+
+def names_a_desktop_source(prompt: str) -> bool:
+    """내 PC 의 프로그램 · 설정 화면을 열어 읽으라는 요청인가(라우터가 「가서 봐야 하는 일」로 쓴다)."""
+    return bool(_DESKTOP_SOURCE.search(" ".join((prompt or "").split())))
 
 
 def extract(
@@ -1224,6 +1269,8 @@ def extract(
         # ★ 예시 목록 속 이름은 장소가 아니다 (2026-09-30 손자리 조사 판 e7dd3831). 「처음 쓴 채널(레딧·해커뉴스·깃허브·트위터 등)」의
         #   깃허브가 「깃허브에서 하기」가 됐고, 웹 글을 10개 읽고도 「시킨 곳에서 안 읽었다」로 41걸음을 헤맸다.
         if _only_in_example_lists(folded, name.casefold()):
+            continue
+        if _only_as_topic(folded, name.casefold()):
             continue
         matched.append(name)
         found.append(Requirement("site", f"{name}에서 하기", aliases[name]))
@@ -1637,6 +1684,8 @@ _ARTIFACT_TOOLS = frozenset(
         "sandbox_run",
         "claude_code_delegate",
         "hwp_apply_edit",
+        "hwp_apply_format",
+        "hwp_export_pdf",
         "browser_screenshot",
     }
 )
@@ -1863,6 +1912,8 @@ _ACTION_TOOLS = frozenset({
     "local_apply_edit",
     "local_delete_file",
     "hwp_apply_edit",
+    "hwp_apply_format",
+    "hwp_export_pdf",
     "windows_execute_preview",
     "artifact_from_observations",
 })
@@ -1966,6 +2017,10 @@ def _rows_in_file(path: Path) -> int:
 #: 화면의 칸에 **값을 넣는** 도구 — 성공했으면 그 화면을 보고 한 일이다.
 #: 열린 프로그램 창을 **읽는** 도구 — 내 PC 를 보는 판의 「읽기」로 센다(`answer_claims._DESKTOP_READ_TOOLS` 와 같은 둘).
 _WINDOW_READ_TOOLS = frozenset({"windows_uia_snapshot", "windows_copy_from_window"})
+#: 이 PC 의 상태를 **읽기 전용 명령**으로 읽는 도구 — 허용목록 실행 파일 · 읽기 하위명령만 돈다(`shell_probe.py` 서두).
+_SYSTEM_READ_TOOLS = frozenset({"shell_probe"})
+#: 원본 파일을 **열어서** 다른 형식으로 굽는 도구 — 성공했으면 그 원본을 본 것이다.
+_SOURCE_OPENING_TOOLS = frozenset({"hwp_export_pdf"})
 _DATA_ENTRY_TOOLS = frozenset({
     "browser_fill", "browser_fill_form", "browser_select_option", "browser_pick_suggestion", "browser_type_at",
     "browser_file_upload",
@@ -2225,6 +2280,23 @@ def check(
             if read < 1 and window_reads and str(req.target or "") == "local":
                 out.append((req, True, f"프로그램 창 {window_reads}번 읽음"))
                 continue
+            # ★ **이 PC 의 상태를 읽기 전용 명령으로 읽은 것도 본 것이다** (2026-10-18 「모르는 앱」 다시 잼). 「시스템 정보를 열어서 BIOS
+            #   버전을 읽어 줘」에 `systeminfo` 로 맞는 값을 읽었는데 「0개 실제로 읽음」이 붙어 ❌ 로 나갔고, 모델은 그 칸을 채우려
+            #   「열 대상 파일이 없습니다」를 답 첫 줄에 썼다. 내 PC 대상일 때만 — 웹을 보라는 판은 그대로다.
+            system_reads = sum(1 for step in steps if step.get("ok") and str(step.get("tool") or "") in _SYSTEM_READ_TOOLS)
+            if read < 1 and system_reads and str(req.target or "") == "local":
+                out.append((req, True, f"이 PC 상태를 읽기 전용 명령으로 {system_reads}번 읽음"))
+                continue
+            # ★ **원본을 열어 바꾼 것도 본 것이다** (2026-10-17 한글→PDF). 「한글 파일을 PDF 로 저장해 줘」에 읽기 요구가 붙고,
+            #   변환 도구는 원본을 열어 굽는데도 「0개 실제로 읽음」이 남아 모델이 원본을 따로 뜯어 읽으러 갔다. 웹 대상은 그대로다.
+            converted = sum(
+                1 for step in steps
+                if step.get("ok") and str(step.get("tool") or "") in _SOURCE_OPENING_TOOLS
+                and not (isinstance(step.get("evidence"), dict) and step["evidence"].get("verified") is False)
+            )
+            if read < 1 and converted and str(req.target or "") in {"local", "any"}:
+                out.append((req, True, f"원본을 열어 {converted}번 변환함"))
+                continue
             out.append((req, read >= 1, f"{read}개 실제로 읽음"))
         elif req.kind == "filter":
             browsed = [step for step in steps if str(step.get("tool") or "").startswith("browser_")]
@@ -2470,6 +2542,9 @@ _SAW_EN = (
     (re.compile(r"^(\d+)건$"), r"\1"),
     (re.compile(r"^(\d+)개 실제로 읽음$"), r"\1 actually read"),
     (re.compile(r"^화면의 칸에 직접 넣음 (\d+)번$"), r"entered into the page's fields \1 time(s)"),
+    (re.compile(r"^프로그램 창 (\d+)번 읽음$"), r"read the program window \1 time(s)"),
+    (re.compile(r"^원본을 열어 (\d+)번 변환함$"), r"opened and converted the original \1 time(s)"),
+    (re.compile(r"^이 PC 상태를 읽기 전용 명령으로 (\d+)번 읽음$"), r"read this PC's state with read-only commands \1 time(s)"),
     (re.compile(r"^(\d+)개 만들었지만 내용 일부가 빠짐$"), r"\1 made, but part of the content was left out"),
     (re.compile(r"^(\d+)개 읽음 · 답에 (\d+)개$"), r"\1 read · \2 in the answer"),
     (re.compile(r"^(\d+)개 읽음 · 파일 표에 (\d+)줄$"), r"\1 read · \2 rows in the file"),
@@ -2689,7 +2764,9 @@ _ARITHMETIC_TARGET = re.compile(
     r"(소수|약수|배수|최대공약수|최소공배수|경우의\s*수|확률|통계"
     r"|평균|가중평균|중앙값|표준편차|합계|총액|원가|손익"
     r"|몇\s*(?:개|명|시간|분|번|가지|퍼센트|%)|개수|비율|퍼센트"
-    r"|등급|점수|할인|인상|이자|복리|계산기)",
+    r"|등급|점수|할인|인상|이자|복리|계산기"
+    # ★ 2026-10-18: 「1부터 100까지 합을 계산해 줘」가 셈으로 안 잡혔다. 「합」 한 글자는 합격 · 합의 · 종합에 걸리므로 꼴로만 받는다.
+    r"|총합|합산|까지\s*(?:의\s*)?합(?![가-힣])|까지\s*(?:의\s*)?합(?:을|이|은)|(?<![가-힣])합(?:을|이)?\s*(?:계산|구해|구하))",
     re.I,
 )
 _COMPUTE_VERB = re.compile(
@@ -2830,8 +2907,14 @@ _FORMAT_IS_SOURCE = re.compile(
 #: (운영 요청에 대 보니 그 모양이 코드 과제에 있었다).
 _NAMED_FILE_IS_READ = re.compile(
     # 「…png」 **그림을** 그림판으로 열어서 (2026-10-17 앱 묶음 측정 cf93ca97) — 파일 · 문서 말고도 그림 · 사진 · 이미지 · 표가 재료 이름 자리에 온다.
-    r"[」』\"'”’)\]]?\s*(?:파일|문서|그림|사진|이미지|표)?\s*(?:을|를)\s*"
+    # ★ 「…welcome.hwp」 **한글 파일을** 같은 폴더에 … PDF 로 저장해 줘」 (2026-10-17 한글→PDF 3판) — 따옴표와 「파일」 사이의 형식 이름
+    #   (한글 · 워드 · 엑셀 · 파워포인트)을 못 넘어 원본 .hwp 가 만들 형식이 됐고, PDF 를 제대로 만든 판마다 「열 수 있는 산출물 없음」 ·
+    #   「일부만 끝냄」이 찍혀 모델이 한 번 더 재촉받았다.
+    r"[」』\"'”’)\]]?\s*(?:(?:한글|워드|엑셀|파워\s*포인트|텍스트)\s*)?(?:파일|문서|그림|사진|이미지|표)?\s*(?:을|를)\s*"
     r"(?:읽|열어\s*보|보고|참고|분석"
+    # 그 파일을 **다른 형식으로** 저장 · 변환하라는 말이면 그 파일은 재료다(만들 형식은 뒤의 형식 규칙이 잡는다).
+    r"|(?:(?!만들|작성|써)[^,.。!?]){0,40}?(?<![A-Za-z])(?i:pdf|jpe?g|png|hwpx|docx|xlsx|pptx|txt|csv)(?![A-Za-z])"
+    r"[^,.。!?]{0,12}?(?:로|으로)\s*(?:저장|변환|바꿔|바꾸|내보내)"
     # ★ 「「…welcome.hwp」 파일을 한글 프로그램으로 **열어서** PDF로 저장해 줘」 (2026-10-17 화면 자동화 측정) — 원본 이름을 만들 형식으로
     #   읽어 「.hwp 산출물」을 찾았고, PDF 를 만들어 열어 읽은 세 판 모두 「❌ 열 수 있는 산출물 없음」이 붙었다. 닫는 따옴표와
     #   「(프로그램으로) 열어」를 재료로 본다. 사이에 만들기 · 저장 말이 끼면 그것은 만들 파일이다(「결과.md 를 만들어서 열어 줘」).
@@ -3496,6 +3579,45 @@ _INTO_PAGE_FORM = re.compile(
 _MAKES_A_FILE = re.compile(r"(?:만들(?:어|고|어서|자)|생성해|작성해|파일로\s*저장)")
 
 
+#: 결과 파일을 남기는 앱을 **이름만** 댄 꼴 — 「메모장으로 … 저장해 줘」 · 「VS Code 로 … 한 줄 더해 줘」.
+_APP_NAMED_FOR_RESULT = re.compile(
+    r"(메모장|그림판|VS\s*Code|비주얼\s*스튜디오\s*코드|한글\s*프로그램)\s*(?:으로|로|에서|를\s*써서|를\s*열어)", re.I,
+)
+#: 창 · 화면을 직접 다루라는 말 — 이게 있으면 창으로 한다.
+_ASKS_FOR_THE_WINDOW = re.compile(r"창|직접|화면|메뉴|클릭|눌러|단추|버튼|마우스|키보드")
+
+
+def app_named_only(prompt: str) -> str:
+    """앱 이름은 댔지만 창을 직접 다루라고는 안 한 요청이면 그 앱 이름, 아니면 빈 글.
+
+    ★ 2026-10-17 대표 결정: 「앱 이름만 댔으면 결과 파일을 코드로 바로 쓰고, 창으로 직접이라 했을 때만 창」.
+      평소 말투로 시킨 측정(apptool-*)에서 엑셀 · 워드 · 파워포인트는 스스로 파일 도구로 16~20초에 끝냈지만, 「메모장으로 … 저장」 ·
+      「VS Code 로 … 한 줄 더해」 · 「그림판으로 … JPEG 로」는 창을 몰아 90~160초가 걸렸다. 사람이 앱 이름을 댄 것은 대개 결과의
+      모양을 말한 것이지 그 창을 손으로 돌리라는 뜻이 아니다.
+      운영 요청 2,296개 대조: 걸리는 것은 그 측정 요청 10개뿐(창 · 메뉴를 말한 31개는 빠진다). 엑셀 · 워드 · 파워포인트는 넣지 않았다 —
+      「엑셀로 정리해 줘」 같은 조사 요청이 많고, 그 판들은 이미 파일 도구로 간다. 「한글로」는 언어일 수 있어 「한글 프로그램」만 본다.
+    """
+    compact = " ".join((prompt or "").split())
+    if _ASKS_FOR_THE_WINDOW.search(compact):
+        return ""
+    match = _APP_NAMED_FOR_RESULT.search(compact)
+    return match.group(1) if match else ""
+
+
+#: 작업 관리자가 보여 주는 값을 물은 꼴 — 「작업 관리자 기준으로」 · 「작업 관리자에서 메모리」.
+_TASK_MANAGER_VALUES = re.compile(r"작업\s*관리자|task\s*manager", re.I)
+
+
+def asks_task_manager_values(prompt: str) -> bool:
+    """작업 관리자에 보이는 값을 물었는가 — 그 값은 작업 관리자 창을 읽어야 같은 숫자가 나온다.
+
+    ★ 2026-10-18 평소 말투 측정(작업 관리자 3판): 창을 읽은 판은 56초에 작업 관리자와 같은 값(앱별 개인 작업 집합 —
+      10-17 에 화면과 대조해 맞춘 읽기)을 냈다. 나머지 두 판은 `tasklist` · `Get-Process` 를 돌렸다 — 그 명령들은 **작업 집합**을
+      준다(작업 관리자가 보여 주는 값과 다르다). 프로세스 전체 목록이 통째로 모델에 들어가 읽기에만 31초가 들었고 판은 88 · 164초.
+    """
+    return bool(_TASK_MANAGER_VALUES.search(" ".join((prompt or "").split())))
+
+
 #: 이름 안에 「파일」이 든 앱 — 산출물 낱말 판정 전에 지운다(`wants_an_artifact`).
 _APP_NAMES_WITH_FILE = re.compile(r"파일\s*탐색기|\bfile\s+explorer\b", re.I)
 
@@ -3695,7 +3817,11 @@ def wants_a_computation(prompt: str) -> bool:
     """
     compact = " ".join(prompt.split())
     english = _en.english_dominant(compact)
-    targets = list((_en.ARITHMETIC_TARGET if english else _ARITHMETIC_TARGET).finditer(compact))
+    # ★ 따옴표 안에 옮겨 적은 **구절**은 다룰 내용이지 시키는 말이 아니다 (2026-10-18 한글 서식 측정).
+    #   「「간편한 작업을 위한 몇 가지 팁」 줄을 16pt … 바꾸고 저장해 줘」에서 따옴표 안의 「몇 가지」와 밖의 「저장해」가
+    #   짝지어 「직접 계산해 보기」 요구가 섰고, 되받기 세 번에 모델이 시키지 않은 확인 문서와 PDF 를 만들었다.
+    #   글 길이는 그대로 두므로(빈칸으로 바꿈) 거리 판정은 원래 글 기준 그대로다.
+    targets = list((_en.ARITHMETIC_TARGET if english else _ARITHMETIC_TARGET).finditer(_without_quoted_sentences(compact)))
     verbs = list((_en.COMPUTE_VERB if english else _COMPUTE_VERB).finditer(compact))
     # 대상과 동사가 같은 절에 있어야 한다. ``페이지를 만들어줘 … 확률을 표시해``의
     # 멀리 떨어진 '만들어'와 '확률'을 짝지으면 UI 작업에 sandbox 계산 요구가 생긴다.

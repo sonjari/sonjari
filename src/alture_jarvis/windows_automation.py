@@ -191,6 +191,33 @@ def _select_combo_item(control: Any, wanted: str) -> str | None:
     return match
 
 
+def _invoke_changed_something(tools: Any, window_id: int, control: Any, before: dict[int, str]) -> bool:
+    """누름 신호(invoke)를 보내고 **눈에 띄는 변화**가 있었나 — 새 창 · 창 제목 변화 · 그 창의 요소 수 변화(메뉴가 펼쳐짐).
+
+    한글 하위 메뉴처럼 신호를 오류 없이 무시하는 프로그램이 있어(7412255c), 변화가 없으면 False — 그때만 실제로 누른다.
+    신호 자체가 안 되면(패턴 없음) False.
+    """
+    try:
+        window = tools._window(window_id)
+        title_before = str(window.window_text() or "")
+        count_before = len(window.descendants())
+    except Exception:
+        return False
+    try:
+        control.invoke()
+    except Exception:
+        return False
+    time.sleep(0.8)
+    now = _visible_windows_now()
+    if any(hwnd not in before and str(title).strip() for hwnd, title in now.items()):
+        return True
+    try:
+        window = tools._window(window_id)
+        return str(window.window_text() or "") != title_before or len(window.descendants()) != count_before
+    except Exception:
+        return True  # 창이 닫혔다 — 무언가 일어났다
+
+
 def _menu_item_on_screen(control: Any) -> bool:
     """화면에 보이는 메뉴 항목인가 — 그때만 invoke 를 실제 클릭으로 바꾼다(닫힌 메뉴 속 항목은 클릭할 자리가 없다)."""
     try:
@@ -404,9 +431,13 @@ class WindowsAutomationTools:
         config: JarvisConfig,
         *,
         visual_planner: VisualPlanner | None = None,
+        on_waiting_for_hands: Callable[[str], None] | None = None,
     ) -> None:
         self.config = config
         self.visual_planner = visual_planner
+        #: 사람 손이 안 멈춰 실제 클릭 · 키 입력을 기다릴 때 부른다(`_wait_for_hands_off`). 무엇을 기다리는지(「키 입력」 등)를 넘긴다.
+        self.on_waiting_for_hands = on_waiting_for_hands
+        self._last_hands_notice = -1e9
         from .user_presence import UserPresence
 
         self.presence = UserPresence(config)
@@ -981,8 +1012,21 @@ class WindowsAutomationTools:
         }
 
     def _wait_for_hands_off(self, what: str) -> None:
-        """사람 손이 키보드·마우스에서 멈출 때까지 기다린다(인수인계 H2-A). 끝내 안 멈추면 미룬다."""
-        if self.presence.wait_until_idle(quiet_sec=2.0, timeout_sec=45.0):
+        """사람 손이 키보드·마우스에서 멈출 때까지 기다린다(인수인계 H2-A). 끝내 안 멈추면 미룬다.
+
+        ★ 2026-10-17 밤(대표): 기다리는 동안 사람은 손자리가 기다리는 줄 몰랐다. 곧바로 손이 안 멈추면 **한 번 알린다**
+          (`on_waiting_for_hands` — 윈도우 알림. 1분에 한 번까지).
+        """
+        if self.presence.wait_until_idle(quiet_sec=2.0, timeout_sec=1.5):
+            return
+        now = time.monotonic()
+        if self.on_waiting_for_hands is not None and now - self._last_hands_notice >= 60.0:
+            self._last_hands_notice = now
+            try:
+                self.on_waiting_for_hands(what)
+            except Exception:
+                pass
+        if self.presence.wait_until_idle(quiet_sec=2.0, timeout_sec=43.5):
             return
         raise RuntimeError(
             f"user_active_try_later: 사용자가 키보드·마우스를 쓰는 중이라 {what}을 미뤘습니다. "
@@ -1106,8 +1150,14 @@ class WindowsAutomationTools:
                 # ★ **메뉴 항목은 실제로 누른다** (2026-10-17 한글 → PDF 측정 7412255c). 한글의 「파일 > PDF로 저장하기」를 invoke 로
                 #   누르면 오류 없이 **아무 일도 안 일어났다** — 메뉴를 직접 그리는 프로그램은 누름 신호를 무시한다. 모델이 같은 메뉴를
                 #   invoke 로 다섯 번 되풀이하다 41걸음째에 click 으로 바꾸고서야 저장 창이 떴다(46걸음 · 593초). 사람도 메뉴는 클릭한다.
-                control.click_input()
-                checked = {"executed_as": "click"}
+                # ★ 2026-10-17 밤(대표 「사람이 PC 를 쓰는 중이어도」): 실제 클릭은 사람의 마우스를 뺏는다. 먼저 누름 신호를 보내 보고,
+                #   **아무 변화가 없을 때만** 실제로 누른다 — 한글 「파일」 메뉴처럼 신호가 먹는 곳에서는 마우스를 움직이지 않는다.
+                if _invoke_changed_something(self, preview.window_id, control, before):
+                    checked = {"executed_as": "invoke"}
+                else:
+                    self._wait_for_hands_off("메뉴 누르기")
+                    control.click_input()
+                    checked = {"executed_as": "click"}
             elif preview.action == "invoke":
                 try:
                     control.invoke()

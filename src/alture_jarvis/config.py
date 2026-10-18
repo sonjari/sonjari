@@ -199,6 +199,10 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "tool_roster.py",
         # 바깥 AI 에게 나가는 답의 정제 · 돌려받아야 할 것 · 영수증(2026-10-15 · §55-32) — 위임 결과로 무엇이 나가는지를 바꾼다.
         "outbound.py",
+        # 답이 기댄 페이지 사진(대표사진)을 고르고 거르는 쪽(2026-10-18) — 판 결과와 바깥으로 나가는 것을 바꾼다.
+        "showcase.py",
+        # 모델 별명(2026-10-18) — `@별명` · `/모델` 로 판 하나를 어느 모델이 돌지 정한다.
+        "model_aliases.py",
     ),
 }
 
@@ -765,6 +769,9 @@ class JarvisConfig:
     # 있어야 할 그래픽카드 수. 0 이면 안 센다. 같은 날 3090 이 드라이버 사고로
     # 통째로 사라졌는데 자비스는 한마디도 안 했다 — 그 자리를 메운다.
     self_check_expected_gpus: int = 0
+    # 본체 안에서 디스코드 다리를 돌린다(2026-10-18, `messaging/service.py`). 저장된 봇 토큰이 없으면 어차피 안 뜬다.
+    # 끄면 따로 띄우는 다리(`python -m alture_jarvis.messaging`)만 쓴다.
+    discord_bridge_enabled: bool = True
     scheduled_mail_recipients: str = ""
     supertonic_base_url: str = "http://127.0.0.1:7788"
     supertonic_voice: str = "F1"
@@ -1477,6 +1484,7 @@ class JarvisConfig:
             self_check_on_boot=_bool("JARVIS_SELF_CHECK_ON_BOOT", True),
             self_check_boot_delay_sec=_float("JARVIS_SELF_CHECK_BOOT_DELAY_SEC", 45.0),
             self_check_expected_gpus=_int("JARVIS_SELF_CHECK_EXPECTED_GPUS", 0),
+            discord_bridge_enabled=_bool("JARVIS_DISCORD_BRIDGE_ENABLED", True),
             scheduled_mail_recipients=_env("JARVIS_SCHEDULED_MAIL_RECIPIENTS", ""),
             supertonic_base_url=_env("JARVIS_SUPERTONIC_BASE_URL", "http://127.0.0.1:7788"),
             supertonic_voice=_env("JARVIS_SUPERTONIC_VOICE", "F1"),

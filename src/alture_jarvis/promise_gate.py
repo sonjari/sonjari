@@ -170,6 +170,64 @@ def _row_of_name_was_seen(answer: str, name: str, seen: str) -> bool:
     return False
 
 
+#: 목록이 정한 순서를 물은 요청 — 「상위 3개」 · 「1~5위」 · 「순위」 · 「랭킹」. 「트렌딩」은 페이지 이름일 뿐이라 넣지 않는다
+#: (「트렌딩에서 재미있는 것 골라 줘」는 순서를 묻지 않았다 — 처음 넣었다가 시험이 잡았다).
+_ASKS_PAGE_ORDER = re.compile(r"상위\s*\d|top\s*\d|\d+\s*위|순위|랭킹|ranking", re.I)
+#: 다시 정렬하라는 말 — 그때는 답의 순서가 목록 순서와 달라야 맞다(「별 많은 순으로 정렬해」).
+_ASKS_RESORT = re.compile(r"정렬|순으로|sort|order\s+by", re.I)
+
+
+def _answer_names_in_order(answer: str) -> list[str]:
+    """답이 늘어놓은 항목의 이름을 차례대로 — 표면 첫 값 칸(순위 칸은 건너뜀), 목록이면 항목의 머리."""
+    names: list[str] = []
+    lines = [line.strip() for line in str(answer or "").splitlines()]
+    for index, line in enumerate(lines):
+        if not line.startswith("|") or not line.strip("|-: "):
+            continue
+        if index + 1 < len(lines) and lines[index + 1].startswith("|") and not lines[index + 1].strip("|-: "):
+            continue  # 머리 줄
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        value = next((cell for cell in cells if _seen_text(cell) and not re.fullmatch(r"\d{1,2}(?:위|\.)?", _seen_text(cell))), "")
+        if value:
+            names.append(value)
+    if len(names) < 2:
+        names = [values[0] for values in _list_items(answer) if values]
+    return names
+
+
+def rank_order_warning(asked: str, answer: str, messages: list[dict[str, Any]] | None, *, english: bool = False) -> str:
+    """순서를 물은 요청에서 **답의 순서가 읽은 목록의 순서와 다르면** 알린다 (2026-10-18 r/LLMDevs 에서 받은 지적 · 공개 약속).
+
+    「깃허브 트렌딩 상위 3개」 데모를 두고 「표의 순위가 페이지에서 온 것인지 모델이 채운 것인지 확인하라」는 지적을 받았다.
+    그 판의 순서는 맞았지만(같은 날 사본의 1~3위와 같음), 마지막 검사는 **값이 읽은 글에 있었는지만** 보고 자리는 안 봤다 —
+    진짜 저장소 셋의 순서만 섞인 표도 통과했다. 답의 항목이 **도구가 돌려준 글 하나에 전부** 있을 때만 그 글의 순서와 견준다.
+    다시 정렬하라고 한 요청은 보지 않는다. 운영 기록에는 도구가 돌려준 본문이 안 남아 있어 옛 판으로는 대 보지 못했다.
+    """
+    if not _ASKS_PAGE_ORDER.search(asked or "") or _ASKS_RESORT.search(asked or ""):
+        return ""
+    names = _answer_names_in_order(answer)
+    keys = [_seen_text(name) for name in names]
+    if len(keys) < 2 or any(len(key) < 3 for key in keys) or len(set(keys)) != len(keys):
+        return ""
+    for message in messages or []:
+        if message.get("role") != "tool":
+            continue
+        seen = _seen_text(str(message.get("content") or ""))
+        positions = [seen.find(key) for key in keys]
+        if min(positions) < 0:
+            continue
+        if positions == sorted(positions):
+            return ""
+        page_order = [name for _, name in sorted(zip(positions, names))]
+        shown = " → ".join(page_order[:6])
+        if english:
+            return ("\n\n⚠ **The order differs from the list that was read.** On the page it read, the order is: "
+                    + shown + ". Check which order you wanted before using the ranking.")
+        return ("\n\n⚠ **답의 순서가 읽은 목록의 순서와 다릅니다.** 읽은 페이지에서의 순서는 " + shown
+                + " 입니다. 순위로 쓰시기 전에 어느 순서가 맞는지 확인해 주세요.")
+    return ""
+
+
 def count_met_by_rows_on_screen(plan_results: list[tuple[Any, bool, str]], seen_rows: int) -> list[tuple[Any, bool, str]]:
     """답의 표 줄 가운데 본 화면에 그대로 있는 줄이 시킨 개수만큼이면, **답에 담으면 충족인 개수 요구**를 채운 것으로 본다.
 

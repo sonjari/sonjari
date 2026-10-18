@@ -85,7 +85,8 @@ def test_a_short_finish_after_a_long_text_with_tools_is_sent_back(tmp_path) -> N
     assert "agent_final_sent_back" in events
     sent = result.verification["final_sent_back"]
     assert sent["reason"] == "shorter_than_said_with_tools" and sent["used"] is True
-    assert result.verification["said_with_tools"] == {"chars": len(SUMMARY), "step": 2}
+    # results_after: 그 글 뒤에 온 성공한 도구 결과 수 — 같이 부른 도구의 결과 하나뿐이면 1(마지막 결과 직전에 쓴 글 · ImL1s 10-17)
+    assert result.verification["said_with_tools"] == {"chars": len(SUMMARY), "step": 2, "results_after": 1}
 
 
 def test_the_original_stays_when_the_rewrite_is_not_longer(tmp_path) -> None:

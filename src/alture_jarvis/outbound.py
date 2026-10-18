@@ -16,7 +16,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-__all__ = ["clean_needs", "check_needs", "refine", "receipt", "outbound_record", "outbound_job_view"]
+__all__ = ["clean_needs", "check_needs", "refine", "receipt", "outbound_record", "outbound_job_view", "showcase_for_outside"]
 
 MAX_NEEDS = 12
 
@@ -295,4 +295,26 @@ def outbound_job_view(job: dict[str, Any]) -> dict[str, Any]:
         return job
     needs = clean_needs(payload.get("needs"))
     answer, refined = refine(result["answer"], needs=needs)
-    return {**job, "result": {**result, "answer": answer, "outbound": {"refined": refined, "needs": needs}}}
+    shaped = {**result, "answer": answer, "outbound": {"refined": refined, "needs": needs}}
+    if isinstance(result.get("showcase"), list):
+        shaped["showcase"] = showcase_for_outside(result["showcase"], needs)
+    return {**job, "result": shaped}
+
+
+def showcase_for_outside(items: Any, needs: list[str] | None = None) -> list[dict[str, Any]]:
+    """밖으로 나가는 대표사진 — 글에서 가렸을 값(전화번호 · 메일 주소)이 그 페이지에 있었으면 그 사진은 뺀다 (2026-10-18).
+
+    글은 `refine` 이 가리지만 **그림은 못 가린다.** 그래서 needs 로 밝힌 종류가 아니면 사진째 뺀다 — 글과 같은 선이다.
+    주민번호 · 카드 · 비밀 키가 있던 페이지는 고르는 단계(`showcase.pick_showcase_shots`)에서 이미 빠진다.
+    나가는 칸은 사진 경로 · 주소 · 제목 · 시각 · 겹친 수뿐이다 — 경로는 `files` 와 같이 **이 PC 의 경로**이고 그림은 PC 에 남는다.
+    """
+    asked = " ".join(needs or []).casefold()
+    allowed = {kind for kind, words in _ALLOWED_BY.items() if any(word in asked for word in words)}
+    out: list[dict[str, Any]] = []
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict) or not item.get("path"):
+            continue
+        if any(str(kind) not in allowed for kind in item.get("contains") or []):
+            continue
+        out.append({key: item.get(key) for key in ("path", "url", "title", "read_at", "matched")})
+    return out

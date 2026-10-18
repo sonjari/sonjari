@@ -14,7 +14,7 @@ import type { Observation, StepRow } from "../workspace/observation";
 import type {
   BrowserFrame, BrowserStatus, LiveFrame, ChatAttachment, ConversationHistory, ConversationSummary,
   CoworkTakeoverPrepared, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig,
-  Capabilities, JobOutput, JobSummary, PeopleStatus, ScheduleList, ScheduleRow, UndoOffer,
+  Capabilities, JobDetail, JobOutput, JobSummary, PeopleStatus, ScheduleList, ScheduleRow, UndoOffer,
   WorkspaceMode, ChatOrigin, HandoffDirection, SelfCheckStatus, SelfHealResult, UpdateStatus, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, BackupSummary,
   PermissionModes, PackInfo, PacksView,
 } from "../types";
@@ -456,7 +456,7 @@ export class FixtureClient extends JarvisClient {
       ],
     };
     this.clock.run(this.scenario.onSend ?? [], (step) => {
-      if (step.event === "job_completed") this.settle();
+      if (step.event === "job_completed") this.settle(jobId);
       this.emit({ event: step.event, payload: { job_id: jobId, ...(step.payload ?? {}) } });
     });
     return { id: jobId, status: "queued" };
@@ -485,7 +485,7 @@ export class FixtureClient extends JarvisClient {
   }
 
   /** 작업이 끝나면 답이 대화 기록으로 안착한다 — 여기가 실제 배선의 마지막 한 걸음이다. */
-  private settle() {
+  private settle(jobId: string) {
     const answer = this.scenario.settledAnswer;
     if (!answer) return;
     this.history = {
@@ -494,7 +494,8 @@ export class FixtureClient extends JarvisClient {
         ...this.history.messages,
         {
           id: Date.now() + 1, session_id: this.history.session_id, role: "assistant",
-          content: answer, kind: "chat", metadata: {}, created_at: Date.now() / 1000,
+          // 실제 백엔드처럼 답에 그 판 번호를 단다 — 답 아래 「답이 기댄 페이지」가 이 번호로 판 결과를 묻는다.
+          content: answer, kind: "chat", metadata: { job_id: jobId }, created_at: Date.now() / 1000,
         },
       ],
     };
@@ -525,6 +526,21 @@ export class FixtureClient extends JarvisClient {
   override async listOutputs(jobId: string) {
     const items = structuredClone(this.scenario.outputs ?? []) as JobOutput[];
     return { job_id: jobId, count: items.length, items };
+  }
+
+  // ── 답이 기댄 페이지 (2026-10-18) ──────────────────────────────────
+  override async getJob(jobId: string): Promise<JobDetail> {
+    const finished = Math.floor(Date.now() / 1000);
+    return {
+      id: jobId, kind: "chat", title: this.lastPrompt, status: "completed", risk_level: "L0", error: "", build: "",
+      created_at: finished - 60, updated_at: finished, started_at: finished - 59, finished_at: finished, attempts: 1,
+      result: { answer: this.scenario.settledAnswer ?? "", showcase: structuredClone(this.scenario.showcase ?? []) },
+    } as JobDetail;
+  }
+
+  override async fetchShowcaseShot(_jobId: string, index: number): Promise<Blob | null> {
+    const shot = (this.scenario.showcase ?? [])[index];
+    return shot ? fakePage(shot.title, shot.url) : null;
   }
 
   override async fetchOutput(_jobId: string, path: string): Promise<Blob | null> {

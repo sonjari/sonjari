@@ -98,6 +98,9 @@ class ChatRequest(BaseModel):
     #   결과의 경로와 채움 채점기로 이미 코드가 확인한다. 사람이 시킨 일은 지금처럼
     #   띄운다(기본 참) — 벤치가 끄고 들어온다.
     open_results: bool = True
+    # ★ 판 하나만 다른 모델로 (2026-10-18 · 디스코드 「@빠른」 · `/모델`). **별명**만 받는다 — 본체가 별명 표
+    #   (`model_aliases.py`)로 태그를 푼다. 바깥이 아무 태그나 넘겨 모델을 올리게 하는 길은 열지 않는다.
+    model_alias: str = Field(default="", max_length=12)
 
 
 class ResearchRequest(BaseModel):
@@ -270,7 +273,8 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         allow_credentials=False,
         # ★ 2026-09-18: PATCH·DELETE 가 빠져 포장 앱에서 설정 저장·사람 잊기가 통째로 죽어 있었다
         #   (사전 확인에서 막혀 요청이 안 나감 — 서버 로그에도 안 남음). 라우트 메서드는 시험이 전부 찌른다.
-        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        # ★ 2026-10-18: PUT 을 더했다(`/v1/models/aliases` · `/v1/discord/settings`). 빠지면 포장 앱에서 사전 확인에 막힌다.
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "X-JARVIS-TOKEN"],
         # ★ 이걸 안 적으면 화면이 **자기 앞에 온 헤더를 못 읽는다.** CORS 는 기본으로
         # 몇 가지 표준 헤더만 통과시키고 나머지는 브라우저가 가린다 — 응답은 멀쩡히
@@ -426,6 +430,40 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             ".gif": "image/gif", ".webp": "image/webp", ".pdf": "application/pdf",
         }.get(suffix, "application/octet-stream")
         return Response(content=target.read_bytes(), media_type=media)
+
+    # ★ 답이 기댄 페이지의 사진(대표사진 · 2026-10-18 대표 결정) — 손자리 앱 답 아래 출처 카드가 쓴다.
+    #   사진은 `outputs/shots/<job>/` 에 있어 「만든 것」 장부(`/v1/outputs/file`)에 안 실린다(만든 것이 아니라 읽은 것이다).
+    #   화면 CSP 가 `img-src 'self' data: blob:` 라 PC 경로를 `<img>` 로 못 연다 — 토큰을 들고 바이트를 받아 blob 으로 건다.
+    #   경로는 **인자로 안 받는다**: 그 판 result.showcase 의 index 번째만, 그것도 그 판의 사진 자리(`showcase.shot_dir`) 안의
+    #   jpg 만 준다. 기록이 고쳐졌거나 옛 판이 엉뚱한 경로를 들고 있어도 그 자리 밖은 안 나간다(경로 순회 막기).
+    @app.get("/v1/jobs/{job_id}/showcase/{index}", dependencies=[Depends(require_token)])
+    def job_showcase_shot(job_id: str, index: int) -> Response:
+        from .showcase import shot_dir
+
+        found = runtime.store.get_job(job_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail="job_not_found")
+        shots = (found.get("result") or {}).get("showcase") if isinstance(found.get("result"), dict) else None
+        if not isinstance(shots, list) or not 0 <= index < len(shots) or not isinstance(shots[index], dict):
+            raise HTTPException(status_code=404, detail="showcase_not_found")
+        raw = str(shots[index].get("path") or "")
+        try:
+            home = shot_dir(runtime.config.output_dir, job_id).resolve()
+            target = Path(raw).resolve() if raw else None
+        except (OSError, ValueError):
+            target = None
+        if (
+            target is None
+            or Path(job_id).name != job_id
+            or not target.is_relative_to(home)
+            or target.suffix.lower() not in {".jpg", ".jpeg"}
+        ):
+            raise HTTPException(status_code=404, detail="showcase_outside_shots")
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail="showcase_missing")
+        # 끝난 판의 사진은 안 바뀐다 — 대화를 다시 열 때 또 받지 않게 이 창 안에서는 잡아 둔다.
+        return Response(content=target.read_bytes(), media_type="image/jpeg",
+                        headers={"Cache-Control": "private, max-age=3600"})
 
     # ★ 만든 파일을 **이 PC 의 기본 앱**으로 연다 (2026-09-17). 화면의 blob 새 창은 데스크톱 앱에서 막혔다.
     #   이 PC 에서 온 요청만 연다 — 위성·다른 기기가 부르면 **그 사람 화면이 아니라 이 PC** 에 창이 뜬다.
@@ -816,6 +854,12 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     @app.post("/v1/chat", dependencies=[Depends(require_token)])
     def chat(request: ChatRequest) -> dict[str, Any]:
         payload = request.model_dump()
+        alias = request.model_alias.strip()
+        if alias:
+            tag = runtime.model_aliases.resolve(alias)
+            if not tag:
+                raise HTTPException(status_code=400, detail={"code": "unknown_model_alias", "alias": alias})
+            payload["model_override"] = tag   # `runtime._chat_job` 이 이 판 동안만 `pin_model` 로 묶는다
         # 프로젝트 탐색은 대화 기억과 묶인다. 잡이 실행될 때가 아니라 접수 순간의
         # 대화를 확정해야, 사용자가 그 사이 다른 대화로 옮겨도 엉뚱한 저장소를 잇지 않는다.
         payload["session_id"] = runtime.resolve_session_id(payload.get("session_id", ""))
@@ -1587,6 +1631,70 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def settings_reset(body: dict[str, Any] | None = None) -> dict[str, Any]:
         keys = (body or {}).get("keys")
         return runtime.settings.reset([str(k) for k in keys] if isinstance(keys, list) else None)
+
+    # ── 디스코드 연결 (2026-10-18) ──────────────────────────────────────
+    # 명령 창 마법사(`python -m alture_jarvis.messaging setup`)의 단계를 화면이 하나씩 부른다. 봇 토큰은 이 문들로
+    # **들어오지도 나가지도 않는다** — 본체가 클립보드를 직접 읽고 자격 증명 관리자에만 둔다(`messaging/service.py`).
+    # 실패도 200 + {"ok": false, "error": 코드, "message": 사람 말} 로 돌려준다 — 화면이 status 모양 하나로 그린다.
+    @app.get("/v1/discord/status", dependencies=[Depends(require_token)])
+    def discord_status() -> dict[str, Any]:
+        return runtime.discord.status()
+
+    @app.post("/v1/discord/token/from-clipboard", dependencies=[Depends(require_token)])
+    def discord_token_from_clipboard() -> dict[str, Any]:
+        return runtime.discord.token_from_clipboard()
+
+    @app.post("/v1/discord/recheck", dependencies=[Depends(require_token)])
+    def discord_recheck() -> dict[str, Any]:
+        return runtime.discord.recheck()
+
+    @app.post("/v1/discord/finish", dependencies=[Depends(require_token)])
+    def discord_finish() -> dict[str, Any]:
+        return runtime.discord.finish()
+
+    @app.post("/v1/discord/disconnect", dependencies=[Depends(require_token)])
+    def discord_disconnect() -> dict[str, Any]:
+        return runtime.discord.disconnect()
+
+    # 허용 요청(가족 · 동료 추가 카드). 주인 말고 다른 사람이 들어오는 문은 allow 하나뿐이다.
+    @app.get("/v1/discord/requests", dependencies=[Depends(require_token)])
+    def discord_requests() -> dict[str, Any]:
+        return runtime.discord.access_requests()
+
+    @app.post("/v1/discord/requests", dependencies=[Depends(require_token)])
+    def discord_request_record(body: dict[str, Any]) -> dict[str, Any]:
+        """다리(본체 안 · 따로 띄운 것)가 부른다 — 허용 목록 밖 사람이 봇에게 말을 걸었다."""
+        return runtime.discord.record_access_request(body if isinstance(body, dict) else {})
+
+    @app.post("/v1/discord/requests/{user_id}/allow", dependencies=[Depends(require_token)])
+    def discord_request_allow(user_id: str) -> dict[str, Any]:
+        return runtime.discord.allow_request(user_id)
+
+    @app.post("/v1/discord/requests/{user_id}/ignore", dependencies=[Depends(require_token)])
+    def discord_request_ignore(user_id: str) -> dict[str, Any]:
+        return runtime.discord.ignore_request(user_id)
+
+    @app.put("/v1/discord/settings", dependencies=[Depends(require_token)])
+    def discord_settings(body: dict[str, Any]) -> dict[str, Any]:
+        """디스코드 쪽 비밀 아닌 설정 — 지금은 기본 모델 별명(`default_model_alias`, 빈 값 = PC 와 같음)만."""
+        return runtime.discord.update_settings(body if isinstance(body, dict) else {})
+
+    # ── 모델 별명 표 (2026-10-18) ───────────────────────────────────────
+    # 「똑똑한」 · 「빠른」 같은 짧은 이름 → Ollama 태그. 표가 없으면 깔린 모델에서 둘쯤 채운다(읽기만 — 모델을 올리지 않는다).
+    @app.get("/v1/models/aliases", dependencies=[Depends(require_token)])
+    def model_aliases_view() -> dict[str, Any]:
+        return runtime.model_aliases.view()
+
+    @app.put("/v1/models/aliases", dependencies=[Depends(require_token)])
+    def model_aliases_replace(body: dict[str, Any]) -> dict[str, Any]:
+        from .model_aliases import clean_items
+
+        try:
+            clean_items(body.get("aliases") if isinstance(body, dict) else None)
+            runtime.model_aliases.replace(body.get("aliases"))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail={"code": str(exc)}) from exc
+        return {"ok": True, **runtime.model_aliases.view()}
 
     @app.post("/v1/ollama/prime-front", dependencies=[Depends(require_token)])
     def ollama_prime_front() -> dict[str, Any]:

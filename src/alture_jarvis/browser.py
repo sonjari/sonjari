@@ -2945,6 +2945,61 @@ class BrowserWorker:
             raw = page.screenshot(type="jpeg", quality=55, scale="css", timeout=4000)
         return {"jpeg": bytes(raw), "url": url, "title": title, "at": time.time()}
 
+    # ── 읽은 순간의 사진 (대표사진의 재료 · 2026-10-18 대표 결정) ─────────────────
+    #
+    # 본문을 읽은 그 탭을 한 장. 실시간 화면(`live_frame`)과 같은 규칙을 지킨다:
+    #   1. **브라우저를 띄우지 않는다 · 재기동하지 않는다** — 사진 한 장이 크롬을 여는 계기가 되면 안 된다.
+    #   2. **창을 앞으로 올리지 않고 시간 제한을 건다**(`_capture` 의 조용한 길). 최소화 · 뒤 탭은 2.5초 안에 포기하고 이유를 남긴다.
+    #   3. **오버레이를 끄지 않는다** — 껐다 켜면 사용자가 보는 진짜 크롬 창이 깜빡인다(`live_frame` 주석). 그래서 손자리 표시가
+    #      사진에 같이 찍힐 수 있다.
+    # 판의 걸음 사이에 부르므로 앞 동작에 줄 서도 된다(`background=False`) — 읽기 걸음 바로 뒤라 보통 비어 있다.
+    _READ_SHOT_TIMEOUT_SEC = 6.0
+    _READ_SHOT_QUALITY = 70
+
+    def capture_read_shot(self, destination: str | Path) -> dict[str, Any]:
+        """지금 탭의 보이는 영역을 `destination` 에 JPEG 로(가로 1280 이하). 실패는 예외가 아니라 `{"ok": False, "reason"}` 다."""
+        started = time.monotonic()
+
+        def done(result: dict[str, Any]) -> dict[str, Any]:
+            return {**result, "ms": int((time.monotonic() - started) * 1000)}
+
+        if not getattr(self, "_connected", False):
+            return done({"ok": False, "reason": "browser_not_started"})
+        try:
+            shot = self._submit(self._capture_read_shot, self._READ_SHOT_TIMEOUT_SEC, operation="browser_read_shot")
+        except Exception as exc:  # noqa: BLE001 — 사진 한 장 때문에 판을 멈추지 않는다
+            return done({"ok": False, "reason": _clean(str(exc), 200)})
+        try:
+            from .showcase import save_jpeg
+
+            saved = save_jpeg(shot["jpeg"], destination)
+        except Exception as exc:  # noqa: BLE001
+            return done({"ok": False, "reason": "save_failed: " + _clean(str(exc), 160)})
+        return done({"ok": True, "path": saved["path"], "url": shot["url"], "title": shot["title"], "at": shot["at"],
+                     "bytes": saved["bytes"], "width": saved["width"], "height": saved["height"]})
+
+    def _capture_read_shot(self) -> dict[str, Any]:
+        """Playwright 전용 스레드 안에서 도는 본체. **재기동하지 않는다**(`_capture_live_frame` 과 같다)."""
+        if not self._context_alive():
+            raise RuntimeError("browser_not_started")
+        pages = [item for item in self._context.pages if not item.is_closed()]
+        page = self._page if self._page in pages else None
+        if page is None:
+            # 읽은 탭이 아니면 찍지 않는다 — 엉뚱한 탭의 사진은 증거가 아니라 거짓말이다.
+            raise RuntimeError("read_tab_gone")
+        url = str(getattr(page, "url", "") or "")
+        try:
+            title = _clean(page.title(), 200)
+        except Exception:  # noqa: BLE001
+            title = ""
+        raw = self._capture(page, quiet=True, quality=self._READ_SHOT_QUALITY)
+        if raw is None and self._capture_skip_reason:
+            raise RuntimeError(self._capture_skip_reason)
+        if raw is None:
+            raw = page.screenshot(type="jpeg", quality=self._READ_SHOT_QUALITY, scale="css",
+                                  timeout=self._QUIET_CAPTURE_TIMEOUT_MS)
+        return {"jpeg": bytes(raw), "url": url, "title": title, "at": time.time()}
+
     def _wait_while_human_controls(self) -> float:
         """사람이 무대에서 크롬을 넘겨받았으면 돌려줄 때까지 기다린다. 기다린 초를 돌려준다.
 
@@ -5628,7 +5683,7 @@ class BrowserWorker:
     #: 태우면 브라우저 일꾼을 사실상 계속 쥐게 된다 — 그것이 이번에 고친 병의 약한 판이다.
     _QUIET_CAPTURE_BACKOFF_SEC = 20.0
 
-    def _capture(self, page: Any, *, quiet: bool) -> bytes | None:
+    def _capture(self, page: Any, *, quiet: bool, quality: int = 55) -> bytes | None:
         """사람이 PC 를 쓰는 중이면 **창을 안 올리고, 시간 제한을 걸고** 찍는다.
 
         못 찍으면 None 이고 `_capture_skip_reason` 에 이유가 남는다. 조용한 모드에서 None 을 받은
@@ -5663,7 +5718,7 @@ class BrowserWorker:
             self._capture_skip_reason = stalled[1]
             return None
         try:
-            raw = page.screenshot(type="jpeg", quality=55, scale="css",
+            raw = page.screenshot(type="jpeg", quality=quality, scale="css",
                                   timeout=self._QUIET_CAPTURE_TIMEOUT_MS)
         except Exception as exc:  # noqa: BLE001
             text = str(exc)

@@ -15,7 +15,7 @@ import { lang, setLang, t, type Lang } from "../i18n";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Archive, Brain, Cpu, FlaskConical, Link2, Loader2, MessagesSquare, Mic, RotateCcw, Settings2, ShieldCheck,
-  Sparkles, Stethoscope, Undo2, Workflow, X, FileInput, Package,
+  Sparkles, Stethoscope, Undo2, Workflow, X, FileInput, Package, MessageCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { isTauri, loadBootstrap, type JarvisClient } from "../backend";
@@ -30,6 +30,7 @@ import "../setup/setup.css";
 import type { BackupSummary, SettingRow, SettingValue, SettingsView } from "../types";
 import { LearnedPanel } from "./LearnedPanel";
 import { PacksSection } from "./PacksSection";
+import { DiscordSection } from "./DiscordSection";
 
 type Section = string;
 type FieldStatus = { state: "saving" | "saved" | "error"; message: string };
@@ -43,6 +44,8 @@ const GROUP_ICON: Record<string, ReactNode> = {
 const EXTRA_SECTIONS: { id: Section; label: string; heading: string; icon: ReactNode }[] = [
   { id: "packs", label: t("팩"), heading: t("사용자 지정"), icon: <Package size={15} /> },
   { id: "connect", label: t("연결"), heading: t("사용자 지정"), icon: <Link2 size={15} /> },
+  // ★ 2026-10-18: 폰 디스코드로 일 시키기 — 명령 창 마법사를 쓸 수 없는 스토어판 사람이 클릭 몇 번으로 잇는다.
+  { id: "discord", label: t("디스코드로 일 시키기"), heading: t("사용자 지정"), icon: <MessageCircle size={15} /> },
   { id: "import", label: t("지침 가져오기"), heading: t("사용자 지정"), icon: <FileInput size={15} /> },
   { id: "data", label: t("데이터와 백업"), heading: t("데스크톱 앱"), icon: <Archive size={15} /> },
   { id: "app", label: t("진단·다시 시작"), heading: t("데스크톱 앱"), icon: <Stethoscope size={15} /> },
@@ -282,6 +285,7 @@ export function SettingsScreen({ client, open, onClose, initialSection = "genera
 
           {section === "packs" && client && <PacksSection client={client} />}
           {section === "connect" && <div className="settings-block"><ConnectPanel api={setupApi} /></div>}
+          {section === "discord" && client && <DiscordSection client={client} />}
           {section === "import" && <ImportSection api={setupApi} />}
           {section === "data" && client && <DataSection client={client} />}
           {section === "app" && client && <AppSection client={client} onClose={() => void requestClose()} />}

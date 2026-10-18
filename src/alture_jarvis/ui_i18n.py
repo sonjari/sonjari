@@ -219,7 +219,9 @@ def translate_text(text: str) -> str:
 #   설정의 값(`value`·`choices`)은 화면이 「저장」할 때 그대로 되돌아온다 — 바꾸면 영어가 실제 설정으로 들어간다.
 _KEEP_KEYS = frozenset({"prompt", "display_prompt", "model_prompt", "query", "path", "url", "file", "files",
                         "source", "sources", "content_raw", "raw", "html", "code", "diff",
-                        "value", "values", "choices", "default", "tag", "model", "session_id"})
+                        "value", "values", "choices", "default", "tag", "model", "session_id",
+                        # 사람이 지은 이름 — 모델 별명 · 디스코드 봇 · 채널 (2026-10-18). 바꾸면 그대로 저장돼 돌아온다.
+                        "alias", "default_model_alias", "pc_model", "bot_name", "home_channel_name"})
 
 
 def translate_payload(value: Any, *, _key: str = "") -> Any:

@@ -356,6 +356,44 @@ def _read_more_since(reads_now: int, reads_before: int | None) -> bool:
     return reads_before is not None and int(reads_now) > int(reads_before)
 
 
+#: 배수 · 퍼센트 단정(「생산성 10배」 · 「인력 50% 감축」 · 「2~3배」).
+_RATIO_CLAIM = re.compile(r"(\d+(?:\.\d+)?)\s*(?:~\s*\d+(?:\.\d+)?\s*)?(?:배|%|퍼센트)")
+
+
+def _invented_ratios(answer: str, *known: str) -> list[str]:
+    """도구 없이 쓴 답이 단정한 배수 · 퍼센트 중 **질문 · 대화 어디에도 없던 것**(2026-10-18 대표 디스코드 실사용).
+
+    「AI 시대에 불안하다」 · 「손자리가 일자리를 줄이나」 같은 의견 질문에 도구 0걸음으로 「생산성 10배」 · 「3년 뒤 인력 50% 감축,
+    2~3배 증가」를 단정했다. 금액 검사(원 · 포인트)도, 라우터의 숫자 검사(세 자리 이상)도 이 꼴을 안 본다. 운영의 도구 없이 쓴
+    답 117개 중 19개에 이런 수치가 있었다 — 「계약금은 보통 10%」 같은 상식도 섞여 있어 지우게 하지 않고 밝히게 한다.
+    """
+    seen = set(re.findall(r"\d+(?:\.\d+)?", " ".join(known)))
+    found: list[str] = []
+    for match in _RATIO_CLAIM.finditer(answer or ""):
+        if match.group(1) in seen:
+            continue
+        claim = re.sub(r"\s+", "", match.group(0))
+        if claim not in found:
+            found.append(claim)
+    return found
+
+
+def _keep_answer_over_reply(kept: str, reply: str, *, new_steps: int) -> str:
+    """되받기 뒤 최종 답. 되받은 뒤 **새 걸음이 없고** 새 답이 앞 답보다 많이 짧으면 앞 답을 살리고 새 답을 그 뒤에 붙인다.
+
+    새로 한 일이 없으면 내용은 앞 답에 있다 — 새 답은 대개 「그건 할 일이 없었다」 같은 해명이다(2026-10-18 c9910364).
+    새 걸음이 있었거나 새 답이 앞 답만큼 길면 새 답이 고쳐 쓴 답이다 — 그대로 둔다.
+    """
+    kept_text, reply_text = (kept or "").strip(), (reply or "").strip()
+    if not kept_text or new_steps > 0:
+        return reply
+    if not reply_text:
+        return kept
+    if len(reply_text) >= len(kept_text) * 0.6 or kept_text in reply_text or reply_text in kept_text:
+        return reply
+    return f"{kept_text}\n\n{reply_text}"
+
+
 def _pushback_stalled(unmet_now: Any, unmet_before: Any, *, read_more: bool) -> bool:
     """되받아도 소용없는 판인가 — 남은 요구가 지난 되받기 때와 같고 **그 사이에 새로 읽은 것도 없다.**
 

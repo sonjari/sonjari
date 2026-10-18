@@ -1095,7 +1095,25 @@ _SYSTEM_APPS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("mspaint", "paint", "그림판"), "mspaint.exe"),
     (("taskmgr", "task manager", "작업 관리자", "작업관리자"), "Taskmgr.exe"),
     (("explorer", "file explorer", "windows explorer", "파일 탐색기", "탐색기"), "explorer.exe"),
+    # ★ 2026-10-18 「모르는 앱」 측정: 「시스템 정보(msinfo32)를 열어서」가 System32 라 허용 폴더 밖으로 막혀 3판 모두 창을 못 열고
+    #   셸 명령(systeminfo)으로 돌아갔다. 읽기만 하는 정보 창이라 이름으로 연다.
+    (("msinfo32", "system information", "시스템 정보"), "msinfo32.exe"),
 )
+#: 윈도우 설정 화면 — 실행 파일이 아니라 `ms-settings:` 주소로 연다. 이름 → 주소(정해 둔 것만, 모델 글의 주소는 받지 않는다).
+_SETTINGS_PAGES: dict[str, str] = {
+    "설정": "ms-settings:", "윈도우 설정": "ms-settings:", "windows settings": "ms-settings:", "settings": "ms-settings:",
+    "설정 정보": "ms-settings:about", "시스템 정보 설정": "ms-settings:about", "about": "ms-settings:about",
+    "설정 > 시스템 > 정보": "ms-settings:about", "시스템 → 정보": "ms-settings:about", "시스템 > 정보": "ms-settings:about",
+    "디스플레이 설정": "ms-settings:display", "소리 설정": "ms-settings:sound", "저장소 설정": "ms-settings:storagesense",
+}
+
+
+def settings_page(requested: str) -> str | None:
+    """「설정」 · 「시스템 → 정보」처럼 정해 둔 설정 화면 이름이면 그 `ms-settings:` 주소, 아니면 None(2026-10-18)."""
+    text = " ".join(str(requested or "").strip().strip('"').split()).casefold()
+    if text.startswith("ms-settings:"):
+        return text if text in {value.casefold() for value in _SETTINGS_PAGES.values()} else None
+    return _SETTINGS_PAGES.get(text) or next((v for k, v in _SETTINGS_PAGES.items() if k.casefold() == text), None)
 #: 따로 깔리는 프로그램 — 윈도우가 「App Paths」에 적어 둔 자리에서만 찾는다(경로를 모델 글에서 받지 않는다).
 # ★ 2026-10-17 앱 묶음 측정 준비: 엑셀 · 워드 · 파워포인트 · VS Code 를 이름으로 못 열었다(목록에 없음). 넷 다 이 PC 의
 #   「App Paths」에 자리가 적혀 있다. 윈11 그림판은 스토어 앱이라 System32 에 없고 App Paths 에 있다(아래 `launchable_app`).
@@ -1557,7 +1575,7 @@ class LocalComputerTools:
             ),
             self._function(
                 "windows_open_path",
-                "허용된 로컬 폴더 또는 파일을 Windows 기본 앱으로 연다. 메모장 · 계산기 · 그림판 · 작업 관리자 · 파일 탐색기 · 한글(HWP) · 엑셀 · 워드 · 파워포인트 · VS Code 는 path 에 이름만 적으면 새로 켠다(예: \"엑셀\", \"taskmgr\"). 파일을 기본 앱이 아닌 그 앱들 가운데 하나로 열려면 app 에 앱 이름을 같이 적는다(예: path 에 그림 파일, app 에 \"그림판\"). 실제 프로그램 실행이므로 화면 승인이 필요하다.",
+                "허용된 로컬 폴더 또는 파일을 Windows 기본 앱으로 연다. 메모장 · 계산기 · 그림판 · 작업 관리자 · 파일 탐색기 · 시스템 정보 · 한글(HWP) · 엑셀 · 워드 · 파워포인트 · VS Code 는 path 에 이름만 적으면 새로 켠다(예: \"엑셀\", \"taskmgr\"). 윈도우 설정 화면은 path 에 \"설정\" 또는 \"시스템 → 정보\"처럼 적으면 연다. 파일을 기본 앱이 아닌 그 앱들 가운데 하나로 열려면 app 에 앱 이름을 같이 적는다(예: path 에 그림 파일, app 에 \"그림판\"). 실제 프로그램 실행이므로 화면 승인이 필요하다.",
                 {"path": {"type": "string"}, "app": {"type": "string"}},
                 ["path"],
             ),
@@ -4546,6 +4564,15 @@ class LocalComputerTools:
         if path.stat().st_size > self.config.local_file_max_bytes:
             raise ValueError("file_too_large")
         maximum = max(1_000, min(int(arguments.get("max_chars") or 40_000), 80_000))
+        if path.suffix.lower() == ".hwp":
+            # ★ 옛 한글(.hwp)은 이 도구가 못 읽는다 — 거절할 때 **갈 길을 같이 준다** (2026-10-17 한글→PDF 3판).
+            #   「한글 파일을 PDF 로 저장해 줘」 판이 이 도구로 원본을 열다 거절당하자 샌드박스에서 pyhwp · olefile 로 파일을
+            #   뜯어 읽으려고 8~11번 돌았고, 3판 중 2판이 PDF 를 엉뚱한 폴더에 두거나 못 만들었다. `hwp_export_pdf` 는 등록돼
+            #   있었는데 한 번도 안 불렸다. 글자 판정(`_read_plain_text`)으로 넘기면 NUL 때문에 같은 거절이 이름 없이 나간다.
+            raise ValueError(
+                "unsupported_document_format:.hwp — 옛 한글(.hwp)은 이 도구로 못 읽는다. "
+                "PDF 로 바꾸려면 hwp_export_pdf(path) 한 번이면 된다. 한글에 열린 문서를 읽으려면 hwp_list_open → hwp_read."
+            )
         if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
             # ★ 확장자가 없거나 모르는 이름이어도 **글자면 읽는다** (2026-09-20 실전에서 드러남).
             #
@@ -4656,7 +4683,7 @@ class LocalComputerTools:
         if requested_app:
             exe = launchable_app(requested_app)
             if exe is None:
-                raise PermissionError("app_not_allowed: 이름으로 여는 앱(메모장 · 계산기 · 그림판 · 작업 관리자 · 파일 탐색기 · 한글 · "
+                raise PermissionError("app_not_allowed: 이름으로 여는 앱(메모장 · 계산기 · 그림판 · 작업 관리자 · 파일 탐색기 · 시스템 정보 · 한글 · "
                                       "엑셀 · 워드 · 파워포인트 · VS Code)만 고를 수 있습니다.")
             target = self._resolve(str(arguments.get("path") or ""), write=True)
             from .msix import external_path
@@ -4665,6 +4692,13 @@ class LocalComputerTools:
             subprocess.Popen([exe, str(external_path(target))], close_fds=True)  # noqa: S603 — 목록의 실행 파일 + 허용 자리의 파일 하나
             return {"action": "windows_open_path", "path": str(target), "type": "directory" if target.is_dir() else "file",
                     "opened_with": Path(exe).name, **_wait_for_new_window(before)}
+        page = settings_page(str(arguments.get("path") or ""))
+        if page is not None:
+            # 윈도우 설정은 실행 파일이 아니라 주소로 연다 — 정해 둔 화면 이름만(`_SETTINGS_PAGES`). 여는 것뿐, 바꾸는 것은 없다.
+            before = _visible_windows()
+            os.startfile(page)  # noqa: S606 — 정해 둔 ms-settings: 주소만
+            return {"action": "windows_open_path", "path": page, "type": "settings", "opened_with": "SystemSettings",
+                    **_wait_for_new_window(before)}
         app = launchable_app(str(arguments.get("path") or ""))
         if app is not None:
             before = _visible_windows()

@@ -365,7 +365,24 @@ export interface JobDetail extends Omit<JobSummary, "session_id" | "origin" | "s
       steps?: JobStep[];
       verification?: Record<string, unknown>;
     } | null;
+    /** 답이 기댄 페이지의 사진 — 많아야 두 장(`showcase.pick_showcase_shots` · 2026-10-18). 사진 바이트는 `fetchShowcaseShot`. */
+    showcase?: ShowcaseShot[];
   } | null;
+}
+
+/**
+ * 답이 기댄 페이지 한 장 (2026-10-18 대표 결정). 꾸밈이 아니라 「이 답이 이 화면에서 나왔다」는 증거다.
+ * `matched` 는 답의 숫자 · 이름 중 그 페이지 본문에 있던 개수 — 0 인 페이지는 백엔드가 아예 안 고른다.
+ */
+export interface ShowcaseShot {
+  path: string;
+  url: string;
+  title: string;
+  /** 읽은 시각(epoch 초). */
+  read_at: number;
+  matched: number;
+  step: number;
+  contains?: string[];
 }
 
 /** 예약된 한 건. `GET /v1/schedules` 의 `schedules[]` 원소다. */
@@ -885,4 +902,82 @@ export interface UnityDraft {
   verified: boolean;
   failure: string;
   ran_at: number | null;
+}
+
+// ── 디스코드로 일 시키기 (2026-10-18) — 백엔드 `messaging/service.py` 의 status 모양 그대로 ─────────────
+export type DiscordStage =
+  | "not_installed" | "no_token" | "other_process" | "need_intent" | "need_invite"
+  | "connecting" | "connected" | "ready_to_finish";
+
+export interface DiscordAliasItem {
+  alias: string;
+  tag: string;
+  note: string;
+}
+
+export interface DiscordStatus {
+  enabled: boolean;
+  installed: boolean;
+  token_saved: boolean;
+  running: boolean;
+  connected: boolean;
+  owner_process: "self" | "other" | "";
+  stage: DiscordStage;
+  bot_name: string;
+  app_id: string;
+  message_content: boolean | null;
+  /** 봇이 들어 있는 서버 수. 앱을 다시 켠 뒤 아직 디스코드에 안 물어봤으면 null. */
+  servers: number | null;
+  checked_at: number | null;
+  home_channel_id: string;
+  home_channel_name: string;
+  /** 허용된 사람 **수**(ID 목록이 아니다). */
+  allowed_user_ids: number;
+  invite_url: string;
+  portal_url: string;
+  portal_bot_url: string;
+  last_error: string;
+  default_model_alias: string;
+  aliases: DiscordAliasItem[];
+  user_install_url: string;
+  user_install_enabled: boolean;
+  servers_note: string;
+  pending_requests: number;
+}
+
+/** 단계 문(from-clipboard · recheck · finish · disconnect · settings)의 답 — 실패도 200 으로 온다. */
+export interface DiscordStepResult extends DiscordStatus {
+  ok: boolean;
+  error: string;
+  message: string;
+  clipboard_cleared?: boolean;
+  owners_added?: number;
+  home_channel_auto?: boolean;
+  welcome_sent?: boolean;
+  welcome_error?: string;
+}
+
+/** 허용 목록 밖 사람이 봇에게 말을 건 것 — 「가족 · 동료 추가」 카드 한 장. */
+export interface DiscordAccessRequest {
+  user_id: string;
+  display_name: string;
+  username: string;
+  first_seen: number;
+  first_text: string;
+  count: number;
+  last_seen: number;
+}
+
+export interface DiscordRequestsView {
+  requests: DiscordAccessRequest[];
+  ignored_count: number;
+}
+
+export interface ModelAliasRow extends DiscordAliasItem {
+  loaded: boolean;
+}
+
+export interface ModelAliasesView {
+  pc_model: string;
+  aliases: ModelAliasRow[];
 }

@@ -120,6 +120,7 @@ from .transcript import (
 from .ollama import OllamaClient, collapse_repeated_paragraphs
 from .presentation import paint_answer, paint_answer_apart
 from .promise_gate import (
+    rank_order_warning,
     _GOAL_MET_CLOSING_STEPS, _GOAL_MET_CLOSING_STEPS_MANIPULATION, _GOAL_MET_CLOSING_SEC, _seen_text,
     table_rows_seen_by_tools, rows_seen_by_tools, list_items_seen_by_tools, _list_items, _cell_pieces, _row_was_seen,
     _row_of_name_was_seen, steps_against_cap, cap_room, what_was_done_lines, _CORRECTS_EARLIER, _nothing_new_since,
@@ -136,11 +137,15 @@ from .plan_nudges import (
     _SAW_READ_AND_LISTED, _URLISH_CELL, _bare_host, _read_enough_but_listed_short, _READ_THE_SOURCE_HINT,
     _APPLY_SITE_FILTERS_HINT, _next_plan_step_hint, _PLAN_STAGE_ORDER, _plan_focus_stage, _opened_url,
     _fresh_read_for_everything, _reads_page_just_opened, _url_was_read, _reopens_unread_page, _REPAIR_READ_OPENS,
-    _goes_to_unread_site, _read_more_since, _pushback_stalled, _stage_guess_failed, _rewrote_a_finished_document,
+    _goes_to_unread_site, _read_more_since, _pushback_stalled, _keep_answer_over_reply, _stage_guess_failed, _invented_ratios,
+    _rewrote_a_finished_document,
     _repair_read_after_write_feedback, _own_written_messages, _artifact_requirements_met, _cleans_up,
     _deletes_own_file,
 )
 from .plan import (
+    app_named_only,
+    asks_task_manager_values,
+    named_screen_to_open,
     asks_for_everything,
     asks_for_site_filter,
     site_filter_needs,
@@ -175,6 +180,7 @@ from .site_atlas import (
     registrable as _registrable,
 )
 from .number_checks import percent_warning
+from .showcase import MAX_SHOTS_PER_JOB, SHOT_TOOLS, pick_showcase_shots, shot_fields, shot_path_for
 from .evidence import (
     code_string_values,
     TYPE_ARTIFACT as EVIDENCE_TYPE_ARTIFACT,
@@ -281,7 +287,7 @@ from .answer_hygiene import (
 _COMMIT_TOOLS = frozenset(
     set(_ACTION_ID_CONSUMER_TO_PRODUCER)
     - {"naver_blog_fill_editor", "naver_blog_prepare_save_draft", "naver_blog_prepare_publish"}
-    | {"hwp_apply_edit", CLAUDE_CODE_TOOL}
+    | {"hwp_apply_edit", "hwp_apply_format", CLAUDE_CODE_TOOL}
 )
 
 #
@@ -1020,6 +1026,8 @@ AGENT_SYSTEM_PROMPT = """당신은 손자리의 범용 로컬 Computer Use 계�
 - 이미 열려 있는 한글 문서는 hwp_list_open → hwp_read → hwp_preview_edit 순서로
   사본 diff를 만든 뒤 hwp_apply_edit를 실제 호출해 승인 카드를 띄워라. 미리보기만
   만들고 적용했다고 말하지 마라. 사람이 편집 중이면 도구가 거절하므로 덮지 마라.
+- 열린 한글 문서의 서식(글꼴·글자 크기·굵게·기울임·밑줄·글자 색·정렬·줄 간격)은 메뉴를 누르지 말고
+  hwp_preview_format → hwp_apply_format 으로 바꿔라. 적용 결과의 matches 가 false 면 바뀐 것처럼 말하지 마라.
 - **파일명·제목만 보고 답하지 마라.** 찾기와 훑기는 무엇이 **있는지**만 알려 주고
   무엇**인지**는 알려 주지 않는다. 내용을 말하려면 읽는 도구를 한 번 더 불러라.
 
@@ -1376,6 +1384,8 @@ def _step_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
         "local_delete_file",
         "artifact_from_observations",
         "hwp_preview_edit",
+        "hwp_preview_format",
+        "hwp_export_pdf",
         # ★ **열두 번째 등록 자리** (2026-09-01 저녁).
         #
         #   `path` 는 `_EVIDENCE_TOO_BIG` 이라 일반 규칙으로는 장부에서 빠진다.
@@ -1579,6 +1589,9 @@ class AgentRunResult:
     #: 도구가 **본문 글자로 돌려준 숫자.** 필드와 섞지 않는다 — 뜻의 세기가 다르다.
     #: 이게 없으면 답의 숫자가 거의 전부 「근거 없음」으로 찍힌다(2026-09-07 실측).
     tool_numbers_body: list[str] = field(default_factory=list)
+    #: 답이 기댄 페이지의 사진(대표사진) — `showcase.pick_showcase_shots` 의 결과(2026-10-18 대표 결정).
+    #: `[{path, url, title, read_at, matched, step, contains}]`. 웹 조사로 답하지 않은 판은 빈 목록이다.
+    showcase: list[dict[str, Any]] = field(default_factory=list)
 
 
 class AgentToolCatalog:
@@ -2401,6 +2414,8 @@ class BrowserAgent:
             "hwp_read": "열린 한글 문서 본문을 읽는 중",
             "hwp_preview_edit": "한글 문서 사본에 편집해 차이를 만드는 중",
             "hwp_apply_edit": "승인된 한글 편집을 원본에 반영하는 중",
+            "hwp_preview_format": "한글 문서 사본에 서식을 걸어 보는 중",
+            "hwp_apply_format": "승인된 한글 서식을 원본에 반영하는 중",
             "windows_list_open_windows": "현재 열린 Windows 앱을 확인 중",
             "windows_focus_window": "요청한 앱 창을 앞으로 가져오는 중",
             "windows_open_path": "요청한 파일이나 폴더를 여는 중",
@@ -6222,6 +6237,27 @@ class BrowserAgent:
             self.events.publish("agent_local_test_login", {"job_id": job_id, "url": url[:300]})
         return True
 
+    def _read_shot(self, job_id: str, step_number: int, steps: list[dict[str, Any]]) -> dict[str, Any]:
+        """본문을 읽은 그 탭의 보이는 영역을 한 장 — 걸음 증거에 실을 칸(`shot_path` · `shot_url` · `shot_title` · `shot_at` · `shot_ms`).
+
+        못 찍으면 `shot_error` 만 남는다 — 판을 멈추지 않는다. 걸린 시간(`shot_ms`)을 늘 적는다: 판이 얼마나 느려지는지 재려고.
+        `object.__new__` 로 만든 에이전트(단위 시험)나 브라우저에 그 손이 없으면 아무것도 안 한다.
+        """
+        capture = getattr(getattr(self, "browser", None), "capture_read_shot", None)
+        output_dir = getattr(getattr(self, "config", None), "output_dir", None)
+        if not callable(capture) or not output_dir:
+            return {}
+        taken = sum(1 for step in steps if (step.get("evidence") or {}).get("shot_path"))
+        if taken >= MAX_SHOTS_PER_JOB:
+            return {"shot_error": "shot_limit_reached"}
+        started = time.monotonic()
+        try:
+            result = dict(capture(shot_path_for(output_dir, job_id, step_number)) or {})
+        except Exception as exc:  # noqa: BLE001 — 사진 한 장 때문에 판을 죽이지 않는다
+            result = {"ok": False, "reason": f"{type(exc).__name__}: {exc}"[:200]}
+        result.setdefault("ms", int((time.monotonic() - started) * 1000))
+        return shot_fields(result)
+
     #: 필터 안내를 붙이는 결과 — 검색과 페이지 열기(목록을 처음 보는 자리).
     _FILTER_FIRST_TOOLS = frozenset({"browser_search", "browser_site_search", "browser_open", "browser_open_result"})
     _FILTER_FIRST_MAX = 2
@@ -6302,6 +6338,10 @@ class BrowserAgent:
             #   다르면 만든 쪽만 고치고 고쳤다고 믿게 된다.
             "took_ms": int(observation.get("took_ms") or 0),
         }
+        # ★ 읽는 순간 한 장 (2026-10-18 대표 결정 — 답과 함께 보여 줄 「대표사진」의 재료). 본문을 읽은 웹 걸음만.
+        #   모델에게 돌아가는 관찰값에는 안 싣는다(토큰 · 캐시) — 걸음 장부에만 적는다. 찍기가 실패해도 판은 그대로 간다.
+        if name in SHOT_TOOLS and observation.get("ok") and job_id:
+            step_record["evidence"].update(self._read_shot(job_id, step_number, steps))
         # 이 도구가 **실제로 무엇을 했나** 를 한 줄로 남긴다. 지금은 계측만이다.
         #
         # 도구가 아니라 여기서 만드는 이유: 산출물 처리를 만드는 도구마다 붙였다가
@@ -6506,6 +6546,8 @@ class BrowserAgent:
                     if code and self._pass_local_test_login(job_id, code, str(state.get("wall_url") or url), messages):
                         code = ""
                     if code:
+                        # 이 걸음이 사람 문에 막혔다는 것을 걸음에도 적는다 — 대표사진(`showcase`)이 이 사이트의 화면을 밖에 안 낸다.
+                        step_record["human_gate"] = {"code": code, "url": str(state.get("wall_url") or url)[:500]}
                         return {"code": code, "url": url}
             if notice and self._pass_local_test_login(
                 job_id, str(notice.get("code") or ""), str(notice.get("url") or url), messages
@@ -6518,6 +6560,7 @@ class BrowserAgent:
                 # 여기서 **워커를 놓는다.** 잡은 직렬로 돌기 때문에(JobRunner 스레드
                 # 하나) 기다리는 잡이 워커를 쥐고 있으면 다른 요청이 전부 멈춘다.
                 # 지켜보는 것은 HumanGateWatcher 가 따로 한다.
+                step_record["human_gate"] = {"code": str(notice.get("code")), "url": str(notice.get("url") or url)[:500]}
                 return {"code": str(notice.get("code")), "url": str(notice.get("url") or "")}
             if notice:
                 # 모델도 알아야 한다. 이걸 안 붙이면 "확인해 달라고 알렸다"는 사실을
@@ -6829,7 +6872,28 @@ class BrowserAgent:
                 content = str(item.get("content") or "")
                 if role in {"user", "assistant"} and content:
                     messages.append({"role": role, "content": content[:6000]})
-            messages.append({"role": "user", "content": with_job_context(job_text, goal_label + prompt)})
+            # 앱 이름만 댄 요청은 결과 파일을 파일 도구로 바로 쓰게 한다(`plan.app_named_only` 의 설명 · 2026-10-17 대표 결정).
+            #   시스템 칸이 아니라 이 판의 목표 글에 붙인다 — 시스템 앞머리가 판마다 바뀌면 캐시가 깨진다.
+            named_app = app_named_only(prompt)
+            app_note = (
+                f"\n\n(참고: 「{named_app}」은 결과의 모양을 말한 것입니다. 파일 도구로 결과 파일을 바로 쓰거나 고칠 수 있으면 그렇게 하고, "
+                f"끝난 뒤 그 파일을 {named_app}(으)로 열어 줄 수 있다고 한 줄 덧붙이세요. 창을 직접 조작하는 것은 파일 도구로 안 되는 일일 때만 합니다.)"
+                if named_app else ""
+            )
+            # 작업 관리자 값은 작업 관리자 창을 읽어야 같은 숫자가 나온다(`plan.asks_task_manager_values` 의 설명).
+            if asks_task_manager_values(prompt):
+                app_note += (
+                    "\n\n(참고: 작업 관리자에 보이는 값은 작업 관리자 창을 열어 windows_uia_snapshot 으로 읽으세요 — 앱별 메모리 · "
+                    "그래픽 메모리가 작업 관리자와 같은 값으로 나옵니다. tasklist · Get-Process 는 작업 관리자와 다른 값(작업 집합)을 줍니다.)"
+                )
+            # 시스템 정보 · 설정 화면은 이름으로 열린다 — 모르면 셸 명령으로만 읽고 화면에만 있는 값을 빠뜨린다(`plan.named_screen_to_open`).
+            screen = named_screen_to_open(prompt)
+            if screen:
+                app_note += (
+                    f"\n\n(참고: 이 화면은 windows_open_path 의 path 에 \"{screen}\" 이라고 이름만 적으면 열립니다. 명령 출력에 안 나오는 "
+                    "값은 그 창을 열어 windows_uia_snapshot 으로 읽으세요.)"
+                )
+            messages.append({"role": "user", "content": with_job_context(job_text, goal_label + prompt + app_note)})
             # ★ 새 판이면 **지난 판의 검색 순위를 버린다** (2026-08-14).
             #
             # `_last_results` 는 워커에 붙어 있어 잡이 끝나도 안 지워진다. 그래서
@@ -7381,6 +7445,10 @@ class BrowserAgent:
         # 나가서 장부에 한 줄도 없었다 — 두 번까지 되받게 해 놓고 그게 효과가 있었는지
         # 아무도 못 봤다(7일치 audit_log 확인). 눈금 없이 만든 장치는 조용히 쓰레기가 된다.
         last_pushback_step = -1
+        # 되받기 직전의 답(가장 긴 것) — 되받기에 말로만 짧게 답하면 이 답을 살린다(`_keep_answer_over_reply`).
+        pushback_kept_answer = ""
+        # 도구 없이 쓴 답의 근거 없는 배수 · 퍼센트를 한 번 다시 쓰게 했는가(`_invented_ratios`).
+        ratios_rewritten = False
         # 커밋을 대신 부른 횟수. 0 이면 이 판은 모델이 스스로 끝까지 갔다는 뜻이다.
         forced_commits = 0
         # 산출물 안전망이 물러난 이유. 빈 값이면 산출물을 시킨 판이 아니거나 걸렸다.
@@ -8839,6 +8907,9 @@ class BrowserAgent:
                 ):
                     pushback_unmet_seen[pushback_stage] = unmet_now
                     pushback_reads_seen[pushback_stage] = reads_now
+                    # 되받기 직전의 답을 기억한다 — 되받기에 말로만 짧게 답하면 이 답이 사라지지 않게(아래 `_keep_answer_over_reply`).
+                    if len(answer.strip()) > len(pushback_kept_answer.strip()):
+                        pushback_kept_answer = answer
                     plan_pushbacks += 1
                     if not read_more:
                         plan_pushbacks_by_stage[pushback_stage] = (
@@ -8859,6 +8930,42 @@ class BrowserAgent:
                         }
                     )
                     continue
+                # ★ **도구 없이 쓴 답이 아무도 준 적 없는 배수 · 퍼센트를 둘 이상 단정했으면 한 번 다시 쓰게 한다** (2026-10-18 · `_invented_ratios`).
+                #   대표가 불안할 때 폰으로 물은 의견 질문에 「생산성 10배」 · 「인력 2~3배」로 답했다. 지우게 하지 않고 상식이면 상식이라고,
+                #   예측이면 짐작이라고 밝히게 한다. 한 판에 한 번만 — 다시 쓴 답은 그대로 낸다.
+                invented = [] if steps or ratios_rewritten or not answer else _invented_ratios(
+                    answer, prompt, said_by_the_person(messages)
+                )
+                if len(invented) >= 2 and time.monotonic() < deadline:
+                    ratios_rewritten = True
+                    self.events.publish(
+                        "agent_ratio_rewrite", {"job_id": job_id, "numbers": invented[:8]}
+                    )
+                    messages.append(self._message_for_model(message))
+                    figures = ", ".join(invented[:6])
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "[System] This answer states figures no tool confirmed: " + figures
+                                + ". If one is a widely known rule of thumb, say it is a typical value; if it is a forecast "
+                                "or estimate, drop it or mark it as a guess — then **rewrite the whole answer.** Do not "
+                                "reassure or alarm with unsupported numbers."
+                            ) if reply_language(asked) == "en" else (
+                                "[시스템] 이 답에는 도구로 확인하지 않은 수치가 있습니다: " + figures
+                                + ". 널리 알려진 기준이면 「보통 ~」처럼 일반적인 값이라고 밝히고, 예측 · 추정이면 빼거나 "
+                                "「짐작」이라고 적어서 **답 전체를 다시 써 주세요.** 근거 없는 숫자로 안심시키거나 겁주지 마세요."
+                            ),
+                        }
+                    )
+                    continue
+                # ★ 되받기에 **새 걸음 없이 말로만** 짧게 답했으면 앞 답을 살린다 (2026-10-18 r/LocalLLM 규칙 읽기 판 c9910364).
+                #   규칙 6개를 원문으로 옮긴 답이 되받기(헛 요구 「깃허브에서 하기」)에 「깃허브에서 할 일은 없었습니다 … 위 답변에
+                #   그대로 실려 있음」으로 답하자, 그 짧은 답이 최종 답이 되어 규칙 전문이 사라졌다 — 디스코드 · 바깥 AI 가 받은 것도
+                #   그 짧은 답이었고 「돌려받아야 할 것 0/3」이 찍혔다. 새로 한 일이 없으니 내용은 앞 답에 있다. 둘 다 남긴다.
+                answer = _keep_answer_over_reply(
+                    pushback_kept_answer, answer, new_steps=len(steps) - last_pushback_step if last_pushback_step >= 0 else 0,
+                )
                 # ★ 파일을 쓴 **뒤에** 새로 읽은 페이지가 있으면 한 번만 돌려보낸다 (2026-10-14).
                 #   어머님 부탁(쿠팡 캣타워 · 4B): 8번째 걸음에 엑셀을 쓰고 9 · 10번째 걸음에 셋째 상품을 읽은 뒤 다시 안 쓰고
                 #   끝냈다 — 셋째 줄은 목록에서 본 값으로 남았다. 막지 않는다: 이미 넣었으면 그대로 끝내도 된다고 같이 말한다.
@@ -10136,7 +10243,8 @@ class BrowserAgent:
             self._progress(job_id, "synthesis", "정리를 도구와 같이 써 버려서, 답을 따로 다시 씁니다")
             self.events.publish("agent_final_sent_back", {
                 "job_id": job_id, "steps": len(steps), "final_chars": len(answer),
-                "said_with_tools_chars": said_with_tools_longest["chars"], "said_step": said_with_tools_longest["step"]})
+                "said_with_tools_chars": said_with_tools_longest["chars"], "said_step": said_with_tools_longest["step"],
+                "results_after_said": sum(1 for step in steps[max(0, int(said_with_tools_longest["step"] or 0) - 1):] if step.get("ok"))})
             messages.append({"role": "assistant", "content": answer})
             messages.append({
                 "role": "user",
@@ -10415,6 +10523,8 @@ class BrowserAgent:
                 if written_without_grounds else ""
             )
             + self._money_grounding_check(asked, answer, messages)
+            # 순서를 물었으면 답의 순서가 읽은 목록의 순서와 같은가 (2026-10-18 · `rank_order_warning`).
+            + rank_order_warning(asked, answer, messages, english=reply_language(asked) == "en")
             # 요약 비율이 답 자신의 표와 맞는가 · 읽은 자료에 없는 비율이 있는가 (2026-10-01 밤 e84ae679 「8GB 이하 41.3%」).
             # ★ 코드 판에서는 **자기가 파일에 쓴 것**도 근거다 (2026-10-04 사다리 L2). 만든 페이지의 카드 확률 「78%」에
             #   「읽은 자료에 없는 비율」, 답의 표 칸에 「읽지 않고 적은 것」이 붙었다 — 조사 답을 보려던 검사가 만든 것을
@@ -10627,7 +10737,12 @@ class BrowserAgent:
             # 마무리 도구(탭 닫기)만 부르며 쓴 글 — 턴마다 글자 수 · 답 후보였나, 그리고 그 글이 답이 됐나(`wrap_up_said`).
             "wrap_up": {"turns": wrap_up_turns[-6:], "used_as_answer": answer_from_wrap_up},
             # 도구를 부르며 쓴 가장 긴 글(길이 · 걸음)과, 끝내기를 되돌렸는지 — 되돌린 까닭 · 다시 쓴 답을 썼는지(10-17).
-            "said_with_tools": dict(said_with_tools_longest),
+            # ★ `results_after` — 그 글 **뒤에** 성공한 도구 결과가 몇 번 더 왔나 (2026-10-17 r/AI_Agents ImL1s). 1 이면 마지막 결과 직전에 쓴
+            #   글이고(0 은 없다 — 같이 부른 그 도구의 결과도 글 뒤에 온다), 2 이상이면 그 뒤에 온 결과를 모르는 글이다 — 그런 글을
+            #   답으로 되살리면 낡은 내용이 된다. 실사용에서 세려고 남긴다.
+            "said_with_tools": {**said_with_tools_longest,
+                                "results_after": sum(1 for step in steps[max(0, int(said_with_tools_longest.get("step") or 0) - 1):]
+                                                     if step.get("ok")) if said_with_tools_longest.get("step") else 0},
             "final_sent_back": final_sent_back,
             "inference_observations": inference_observations[-12:],
             # 시간이 어디로 갔나 — 호출마다 오는 숫자를 판 하나로 합쳐 둔다. 예전에는 이 값이
@@ -10689,7 +10804,15 @@ class BrowserAgent:
         # 목록으로 답했으면 주소를 같이 남긴다 — 다음 턴이 순위가 아니라
         # **신원**으로 집을 수 있어야 한다(2026-09-01 스크랩 사고).
         answer = with_addresses(answer, steps)
+        # ★ 대표사진 (2026-10-18) — 답의 숫자 · 이름이 가장 많이 있던 본문의 사진, 로그인 · 개인 화면은 빼고. 원문은 보관소에서 되짚는다
+        #   (근거 대조와 같은 해석기). 고르기가 실패해도 답은 그대로 낸다.
+        try:
+            _ledger, resolve_body, _confirm = self._evidence_view(steps, job_id)
+            showcase = pick_showcase_shots(steps, answer, lambda step: resolve_body(job_id, step))
+        except Exception:  # noqa: BLE001
+            showcase = []
         return AgentRunResult(
+            showcase=showcase,
             answer=answer,
             steps=steps,
             verification=verification,
