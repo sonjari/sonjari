@@ -29,6 +29,7 @@ from typing import Any
 from .brand import NAME, NAME_KO
 from .evidence import WRITE_EFFECTS, code_string_values, numbers_claimed_in, unsupported_numbers
 from .outbound import check_needs, clean_needs, receipt, refine
+from .url_privacy import safe_url
 
 __all__ = ["TASK_TOOL", "STATUS_TOOL", "GUIDE_TOOL", "DELEGATION_TOOLS", "summarize_job", "partial_work",
            "host_context_kept_out", "MAX_WAIT_SEC", "CLAUDE_CODE_MAX_WAIT_SEC", "is_claude_code"]
@@ -309,7 +310,8 @@ def partial_work(get_step: Any, steps: list[dict[str, Any]]) -> dict[str, list[s
             if path in files:
                 files.remove(path)
         elif tool.startswith("browser_"):
-            url = str(payload.get("url") or arguments.get("url") or "").strip()
+            # 로그인 화면 · 한 번 쓰는 값은 줄여서 내보낸다(`url_privacy` — 2026-10-19 잡 51f35b07 의 구글 계정 고르기 주소).
+            url = safe_url(str(payload.get("url") or arguments.get("url") or "").strip())
             if url.startswith("http") and url not in sources:
                 sources.append(url)
     return {"files": files[:20], "sources": sources[:20]}
@@ -409,7 +411,8 @@ def _failure_report(job: dict[str, Any], result: dict[str, Any], steps: list[dic
     """실패·취소된 잡이 **어디까지 갔는가**. 상태와 오류만 주면 호스트는 남은 일을 버린다."""
     partial = result.get("partial") if isinstance(result.get("partial"), dict) else {}
     files = [str(p) for p in (partial.get("files") or [])][:20]
-    sources = [str(u) for u in (partial.get("sources") or [])][:20]
+    # 저장된 `partial` 은 이 고침 전에 쌓인 것일 수 있다 — 나가는 자리에서 한 번 더 줄인다(`url_privacy`).
+    sources = list(dict.fromkeys(safe_url(str(u)) for u in (partial.get("sources") or [])))[:20]
     diagnosis = result.get("diagnosis") if isinstance(result.get("diagnosis"), dict) else {}
     error = str(job.get("error") or result.get("error") or "")
     report: dict[str, Any] = {}
@@ -720,6 +723,8 @@ def summarize_job(
             if waiting.get("reason") == "stuck" and report:
                 # ★ 헛돌다 멈춘 판(2026-09-23): 「계속할까요」가 아니라 **사람이 할 일**이 있다. 그걸 그대로 전하게 한다.
                 summary["stuck"] = {key: str(report.get(key) or "") for key in ("done", "blocked", "ask", "url")}
+                # 멈춘 화면이 로그인 화면일 수 있다(사람이 같은 탭을 쓰다 멈춘 판) — 한 번 쓰는 값은 줄여서(`url_privacy`).
+                summary["stuck"]["url"] = safe_url(summary["stuck"]["url"])
                 summary["message"] = (f"{NAME_KO}가 같은 자리에서 막혀 멈췄습니다. 사용자에게 다음을 그대로 전하세요 — "
                                       f"한 것: {report.get('done') or '-'} / 막힌 곳: {report.get('blocked') or '-'} / "
                                       f"해 주실 일: {report.get('ask') or '-'}. 사용자가 그 일을 한 뒤 {NAME} 창에서 "
@@ -801,7 +806,10 @@ def summarize_job(
                 files.append(path)
             _strings(step.get("arguments") or {}, written)
         elif str(record.get("effect") or "").startswith("read"):
-            source = str(record.get("source_id") or "")
+            # ★ 2026-10-19 잡 51f35b07: 사람이 같은 탭에서 계정을 더하는 사이 읽은 구글 계정 고르기 화면이 `client_id` ·
+            #   `code_challenge` · `nonce` · `state` 를 단 채 sources 로 나갔다. 출처는 「그 화면을 봤다」면 충분하다 — 로그인 화면과
+            #   한 번 쓰는 값이 붙은 주소는 `scheme://host/path` 로 줄인다(지우지 않는다 · `url_privacy.safe_url`).
+            source = safe_url(str(record.get("source_id") or ""))
             if source.startswith("http") and source not in sources:
                 sources.append(source)
 

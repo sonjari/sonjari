@@ -190,6 +190,11 @@ class LiveView:
                     self._send("Target.activateTarget", {"targetId": str(agent["id"])}, wait=False)
             self._view_override = ""  # 사람이 보던 탭이 아니라 온텔릭이 일하는 탭으로 돌아간다
             held = round(time.time() - self._control_since, 1)
+            # 사람이 크롬을 만진 시각을 일꾼에 적는다 — 그 뒤 이 판이 연 적 없는 화면이면 손을 멈춘다(`BrowserWorker._hold_if_human_on_tab`).
+            try:
+                self.worker.note_human_hand()
+            except Exception:  # noqa: BLE001
+                pass
             note = getattr(self.worker, "_human_took_over", None)
             if isinstance(note, dict):
                 note["released_at"] = time.time()

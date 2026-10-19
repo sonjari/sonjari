@@ -101,6 +101,10 @@ _MANUAL = {
     "정제 {0}": "masked {0}",
     "답 항목 중 읽은 원문에 없는 이름 있음": "some names in the answer are not in the pages read",
     "{0} (목록 화면 {1}곳은 세지 않음)": "{0} ({1} list pages not counted)",
+    # 「없다 · 아직 없다」에 붙이는 본 범위(2026-10-19 · `absence_scope.absence_scope_note`) — 한국어 답이 영어 화면에 나갈 때.
+    "ℹ 도구 기록: 「없다 · 아직 없다」는 손자리가 본 범위 안의 말입니다 — 목록 화면 {0}곳({1})과 거기서 연 글 {2}개. 그 밖의 쪽 · 글은 보지 않았습니다.":
+        "ℹ Tool log: “there is none / not yet” applies only to what Sonjari saw — {0} list screen(s) ({1}) and {2} page(s) "
+        "opened from them. Other pages and other posts were not looked at.",
     "정렬·필터 안 씀 — 검색어 결과만 봄": "Did not use sort or filters — only looked at the search results",
     "가지의 변경은 아직 원래 폴더에 없습니다 — branch.take_home 의 명령으로 본 뒤 가져가세요.":
         "The branch's changes are not in the original folder yet — review them with the commands in branch.take_home, then take them.",

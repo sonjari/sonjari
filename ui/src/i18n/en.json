@@ -1914,6 +1914,7 @@
  "주민등록번호": "resident registration number",
  "카드 번호": "card number",
  "비밀 키": "secret key",
+ "로그인 주소": "sign-in address",
  "가린 것은 바깥으로 나가지 않았습니다. 이 PC 의 기록에는 원문이 그대로 남아 있습니다.": "What was hidden did not leave this PC. The original stays in this PC's history.",
  "이 답은 그대로 나갔습니다. 주민번호 · 카드 번호 · 비밀 키 · 연락처 모양은 나갈 때 가립니다.": "This answer went out as is. ID numbers, card numbers, secret keys and contact details are hidden on the way out.",
  "3판 중 3판": "3 of 3 runs",

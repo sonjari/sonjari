@@ -467,6 +467,12 @@ ARRANGE_VERB = re.compile(r"(?:make|create|generate|save|output|print|organi[sz]
 QUANTITY_NAME = re.compile(r"how\s+many|grades?|scores?|total|profit|discount|interest", re.I)
 #: 동사 바로 앞의 부정 — 「no need to make a file」 · 「don't save」.
 NEGATED_BEFORE = re.compile(r"\b(?:not|no\s+need\s+to|don'?t|do\s+not|never|without)\s+$", re.I)
+#: 표에 **셈한 칸을 더하라** — 「add the average column」(`plan._ADD_COLUMN_VERB` 와 짝, 2026-10-19 판 ac66af89).
+ADD_COLUMN_VERB = re.compile(r"\b(?:add|include|fill\s+in)\b", re.I)
+#: 계산하기 전엔 어디에도 없는 칸의 이름(`plan._COMPUTED_COLUMN` 와 짝 — rank 는 사이트 값을 옮기는 일이 흔해 뺀다).
+COMPUTED_COLUMN = re.compile(
+    r"\b(?:average|mean|sum|ratio|percent(?:age)?\s+change|growth\s+rate|running\s+total)\b", re.I
+)
 ARTIFACT_TARGET = re.compile(
     r"\b(?:excel|xlsx|spreadsheets?|csv|word\s+file|docx|document\s+file|graph|chart|plot|simulation"
     r"|as\s+a\s+file|(?:in|into|as)\s+a\s+table)\b",

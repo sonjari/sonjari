@@ -612,6 +612,8 @@ _MODAL_PROBE_JS = """() => {
 _NO_EVIDENCE_ERRORS = (
     # 요청이 가리키지 않은 사이트의 화면이다 — 실패 화면으로 찍어 둘 이유가 없다(`_another_site_tab`).
     "tab_is_another_site",
+    # 사람이 쓰던 화면이다 — 그 화면(로그인 · 계정)을 실패 증거로 찍어 남기지 않는다(`_hold_if_human_on_tab`).
+    "human_on_tab",
     "screen_is_another_site",
     "read_only_action_blocked",
     "stale_element_ref",
@@ -1087,6 +1089,37 @@ _SCREEN_HANDS = frozenset({
 })
 #: 이 판이 **스스로 주소를 연** 손. 그 탭은 그때부터 이 판의 탭이다(전부터 있던 탭이 아니다).
 _NAVIGATING_HANDS = frozenset({"browser_open", "browser_search", "browser_site_search", "browser_open_result"})
+
+#: 사람이 같은 탭을 쓰고 있는 것 같으면 **멈추는** 손 (2026-10-19 · `_hold_if_human_on_tab`). 그 화면의 내용을 바꾸거나
+#: (누르기 · 쓰기 · 고르기 · 그 화면의 검색칸에 치기 · 더 보기 단추 · 알림창 답하기) 사람의 방문 기록을 따라가는(뒤로) 손이다.
+_HANDS_ON_THE_PAGE = _SCREEN_HANDS | frozenset({
+    "browser_back", "browser_site_search", "browser_load_more", "browser_dismiss_dialog", "browser_handle_dialog",
+    "naver_blog_fill_editor", "naver_blog_upload_image", "naver_blog_click_save_draft", "naver_blog_click_publish",
+})
+#: 이 판이 **제 주소로** 가는 손 — 사람이 쓰던 화면을 건드리지 않고 이 판의 화면을 새로 연다. 멈추지 않고, 열면 다시 이 판의 화면이다.
+#: (`browser_site_search` 는 지금 화면의 검색칸에 치므로 여기 아니라 위에 있다.)
+_OWN_ADDRESS_HANDS = frozenset({"browser_open", "browser_search", "browser_open_result"})
+#: 보기만 하는 손 — 사람이 쓰던 화면이어도 읽기는 이어 가되(알림을 붙인다), 그 결과 주소를 「이 판이 간 곳」으로 치지 않는다.
+_LOOKING_HANDS = frozenset({
+    "browser_extract", "browser_page_data", "browser_site_sources", "browser_links", "browser_find", "browser_snapshot",
+    "browser_probe_frames", "browser_screenshot", "browser_annotate", "browser_verify", "browser_find_selector",
+    "browser_read", "browser_tabs", "browser_download", "browser_wait", "browser_hover", "browser_scroll",
+    "naver_blog_read_account", "naver_blog_capture_screen",
+})
+
+
+def _own_key(url: str) -> str:
+    """「같은 화면」을 가르는 열쇠 — 호스트(앞 `www.` 뗌) + 경로. 물음표 · `#` 뒤는 안 본다(같은 화면의 정렬 · 앵커 · 추적값)."""
+    try:
+        parsed = urlparse(url or "")
+        host = (parsed.hostname or "").lower()
+    except ValueError:
+        return ""
+    if parsed.scheme not in ("http", "https") or not host:
+        return ""
+    if host.startswith("www."):
+        host = host[4:]
+    return host + (parsed.path.rstrip("/") or "")
 
 #: 요청문에 **적혀 있는 주소**. 한글에서 끊는다 — 「…/basic에서」처럼 조사가 붙어 온다.
 _WRITTEN_ADDRESS = re.compile(r"https?://[^\s<>\"'「」『』()\[\]가-힣]+", re.IGNORECASE)
@@ -2214,6 +2247,18 @@ class BrowserWorker:
         self.live_view = LiveView(self)
         #: 사람이 넘겨받았다가 돌려준 뒤 **다음 도구 결과**에 한 번 싣는 알림. 화면이 바뀌었으니 다시 보라는 뜻이다.
         self._human_took_over: dict[str, Any] | None = None
+        # ── 이 탭을 지금 누가 쓰나 (2026-10-19 · `_hold_if_human_on_tab`) ──
+        #: 이 판이 **스스로 간** 화면들의 열쇠(`_own_key`) · 그 주소 · 마지막으로 간 주소 · 그 시각.
+        self._own_page_keys: set[str] = set()
+        self._own_pages: list[str] = []
+        self._last_own_page = ""
+        self._own_page_at = 0.0
+        #: 사람이 무대에서 크롬을 마지막으로 만진(돌려준) 시각. 이 판이 마지막으로 간 뒤에 만졌으면 화면이 사람 손으로 바뀌었을 수 있다.
+        self._human_hand_at = 0.0
+        #: 사람이 이 탭을 쓰고 있는 것 같아 손을 멈춘 상태 — {"from", "to", "at"}. 이 판이 제 주소를 열거나 「이어서」로 풀린다.
+        self._human_on_tab: dict[str, Any] | None = None
+        #: 사람이 「이어서」를 눌렀다 — 다음 걸음의 지금 화면을 이 판의 화면으로 받는다(`hand_tab_back`).
+        self._tab_handed_back = False
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="jarvis-browser")
         # 시간이 끊겼는데도 스레드에 남아 계속 도는 작업. 있으면 다음 호출은
         # 줄 서지 않고 바로 사실을 말한다(`_submit` 주석 참고).
@@ -3014,6 +3059,7 @@ class BrowserWorker:
             time.sleep(0.4)
         waited = time.time() - started
         self._human_took_over = {"waited_sec": round(waited, 1), "released_at": time.time()}
+        self.note_human_hand()
         return waited
 
     def _with_takeover_note(self, result: Any) -> Any:
@@ -3238,6 +3284,161 @@ class BrowserWorker:
         self._named_addresses = ()
         self._named_request = ""
         self._tabs_before_job = []
+        # 이 탭의 주인 기록도 판의 것이다 — 앞 판이 간 화면을 이 판이 간 곳으로 치지 않는다(첫 걸음의 화면이 새 출발점이다).
+        self._own_page_keys = set()
+        self._own_pages = []
+        self._last_own_page = ""
+        self._own_page_at = 0.0
+        self._human_on_tab = None
+        self._tab_handed_back = False
+
+    # ── 사람이 같은 탭을 쓰고 있으면 손을 멈춘다 (2026-10-19 · 잡 51f35b07) ─────────────────────────────
+    #
+    # ## 무슨 일이 있었나
+    #
+    #   browser_open(github.com/sonjari/sonjari) → find → snapshot → click j15 → snapshot(★ accounts.google.com 계정 고르기 ·
+    #   「사람이 111.3초 직접 조작」) → back(★ github.com/login?add_account=1&return_to=…/ollama/ollama — 이 판이 연 적 없는 화면) →
+    #   snapshot(★ github.com/ollama/ollama · 「30.4초 직접 조작」) → **click j15** → snapshot
+    #
+    # 대표가 같은 탭에서 깃허브 계정을 더하고 있었다. 손자리는 「사람이 만졌다 · 다시 보라」는 알림(`_with_takeover_note`)을 받고도
+    # 그 화면에서 뒤로 가고 눌렀다. 알림은 안내문이라 안 먹는다(사고 R). 결제 · 글쓰기 화면이었다면 사람 화면에서 단추를 눌렀다.
+    #
+    # ## 규칙 (안내가 아니라 문)
+    #
+    # 1. 이 판이 **스스로 간** 화면을 적는다 — 제 동작(열기 · 누르기 · 쓰기 …)이 끝난 뒤의 주소와, 열라고 한 주소.
+    #    읽기 손(`_LOOKING_HANDS`)의 결과 주소는 적지 않는다(읽었다고 그 화면이 이 판의 것이 되지 않는다).
+    # 2. 걸음마다 지금 주소를 본다. 적힌 화면이면 그대로.
+    # 3. 적히지 않은 화면인데 **이 판이 마지막으로 간 뒤에 사람이 무대에서 크롬을 만졌으면** → 사람이 이 탭을 쓰고 있는 것 같다.
+    #    화면을 바꾸는 손(`_HANDS_ON_THE_PAGE`)은 멈추고 `human_on_tab` 으로 돌려보낸다(반복문이 사람에게 넘긴다 —
+    #    `stuck_hands._stuck_report`). 읽기는 이어 가되 알림을 붙인다. 제 주소를 여는 손(`_OWN_ADDRESS_HANDS`)은 막지 않는다 —
+    #    사람 화면을 건드리지 않고 이 판의 화면을 새로 연다.
+    # 4. 사람이 만진 흔적이 없으면 **받아들인다** — 우리 누르기 뒤 늦게 끝난 이동 · 광고 다리 주소 · 화면이 스스로 바꾼 주소다.
+    #    운영 2,654판을 되짚으니 이런 「말없이 바뀐 주소」가 100번 넘게 있었고(다른 사이트로 바뀐 것도 30번 넘게 — 다나와 · 네이버
+    #    광고 다리) 사람 흔적은 없었다 — 여기서 멈추면 전부 헛멈춤이다.
+    # 5. 예외: 이 판이 간 **로그인 화면**에서 사람이 로그인을 마쳐 원래 사이트로 돌아온 것 — 같은 사이트로 돌아왔거나 로그인 주소가
+    #    돌아갈 곳으로 적은 화면이면 이 판의 화면이다.
+    #
+    # 사람이 무대가 아니라 **크롬 창을 직접** 만지면(붙어 쓰는 남의 크롬) 흔적이 없어 이 문이 못 본다 — 남은 구멍이다.
+
+    def hand_tab_back(self) -> None:
+        """사람이 「이어서」를 눌렀다 — 다음 걸음의 지금 화면을 이 판의 화면으로 받고 멈춤을 푼다(멈춘 판을 이을 때 부른다)."""
+        self._tab_handed_back = True
+
+    def note_human_hand(self) -> None:
+        """사람이 무대에서 크롬을 만졌다(돌려줄 때 `live_view` 가 부른다)."""
+        self._human_hand_at = time.time()
+
+    def _adopt_own_page(self, url: str) -> None:
+        key = _own_key(url)
+        if not key:
+            return
+        if key not in self._own_page_keys:
+            self._own_page_keys.add(key)
+            self._own_pages.append(url)
+            if len(self._own_pages) > 400:
+                self._own_pages = self._own_pages[-400:]
+        self._last_own_page = url
+
+    def _human_in_control_now(self) -> bool:
+        view = getattr(self, "live_view", None)
+        try:
+            return bool(view is not None and view.human_in_control())
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _finished_a_login(self, url: str) -> bool:
+        """이 판이 간 로그인 화면에서 사람이 로그인을 마치고 돌아온 화면인가(규칙 5)."""
+        from .url_privacy import is_sign_in_url
+
+        last = self._last_own_page
+        if not last or not is_sign_in_url(last):
+            return False
+        site = _site_of_url(url)
+        if site and any(_site_of_url(own) == site for own in self._own_pages if not is_sign_in_url(own)):
+            return True
+        try:
+            pairs = parse_qs(urlparse(last).query)
+        except ValueError:
+            return False
+        want = _own_key(url)
+        return any(
+            _own_key(unquote(value)) == want
+            for values in pairs.values() for value in values if value.startswith("http")
+        )
+
+    def _hold_if_human_on_tab(self, action: str, page: Any) -> None:
+        """걸음 앞에서 지금 화면이 이 판의 것인지 본다. 사람이 쓰는 화면이면 화면을 바꾸는 손을 멈춘다(위 규칙)."""
+        from .url_privacy import safe_url
+
+        try:
+            url = str(getattr(page, "url", "") or "")
+        except Exception:  # noqa: BLE001
+            return
+        if not _own_key(url):
+            return
+        if self._tab_handed_back:
+            self._tab_handed_back = False
+            self._human_on_tab = None
+            self._adopt_own_page(url)
+            self._own_page_at = time.time()
+            return
+        if self._human_on_tab is None:
+            if not self._own_page_keys:
+                # 판의 첫 화면 — 사람이 맡기며 띄워 둔 화면이거나 지난 판이 남긴 화면이다. 여기가 출발점이다.
+                self._adopt_own_page(url)
+                return
+            if _own_key(url) in self._own_page_keys:
+                return
+            if not (self._human_in_control_now() or self._human_hand_at > self._own_page_at):
+                self._adopt_own_page(url)  # 규칙 4 — 우리 동작의 늦은 이동
+                return
+            if self._finished_a_login(url):
+                self._adopt_own_page(url)  # 규칙 5
+                return
+            self._human_on_tab = {"from": self._last_own_page, "to": url, "at": time.time()}
+        if action in _HANDS_ON_THE_PAGE:
+            hold = self._human_on_tab
+            raise ValueError(
+                "human_on_tab — 사람이 이 탭을 쓰고 있는 것 같다. 지금 화면("
+                + safe_url(str(hold.get("to") or ""))[:160]
+                + ")은 이 작업이 연 화면이 아니고, 이 작업이 마지막으로 간 뒤에 사람이 브라우저를 직접 만졌다(이 작업이 마지막으로 간 화면: "
+                + safe_url(str(hold.get("from") or ""))[:160]
+                + "). 여기서는 아무것도 누르거나 쓰지 않았다. 사람에게 이 탭을 다 썼는지 물어라 — 사람이 「이어서」를 누르면 "
+                "그때의 화면에서 잇는다. 이 작업의 화면이 필요하면 browser_open 으로 그 주소를 새로 열어라(사람 화면은 건드리지 않는다)."
+            )
+
+    def _note_own_page_after(self, action: str, arguments: dict[str, Any], started: float) -> None:
+        """제 동작이 끝난 뒤의 주소를 「이 판이 간 화면」으로 적는다(규칙 1). 사람이 그 사이에 만졌으면 끝 주소는 적지 않는다."""
+        if action in _LOOKING_HANDS:
+            return
+        navigating = action in _OWN_ADDRESS_HANDS
+        if self._human_on_tab is not None and not navigating:
+            return
+        asked = str(arguments.get("url") or "") if navigating else ""
+        if asked:
+            self._adopt_own_page(asked)
+        if not self._human_in_control_now() and self._human_hand_at < started:
+            try:
+                self._adopt_own_page(str(getattr(self._page, "url", "") or ""))
+            except Exception:  # noqa: BLE001
+                pass
+        elif not asked:
+            return
+        if navigating:
+            self._human_on_tab = None
+        self._own_page_at = time.time()
+
+    def _with_human_on_tab_note(self, result: Any) -> Any:
+        """사람이 쓰던 화면을 읽은 결과에 붙이는 알림 — 읽기는 하되 그 화면에서 손은 쓰지 않는다고."""
+        hold = self._human_on_tab
+        if not hold or not isinstance(result, dict):
+            return result
+        from .url_privacy import safe_url
+
+        return {**result, "human_on_tab": (
+            "사람이 이 탭을 쓰고 있는 것 같다 — 지금 화면(" + safe_url(str(hold.get("to") or ""))[:160]
+            + ")은 이 작업이 연 화면이 아니다. 읽기만 했다. 이 화면에서 누르기 · 쓰기는 사람이 「이어서」를 누른 뒤에만 된다."
+        )}
 
     def set_named_addresses(self, prompt: str) -> tuple[str, ...]:
         """이번 판의 요청문이 **적어 준 주소**를 읽어 두고, 지금 열려 있는 탭을 「전부터 있던 탭」으로 적는다. 판이 바뀔 때 부른다.
@@ -6164,8 +6365,12 @@ class BrowserWorker:
             self._show_visual(page, self._visual_label(action))
             self._doing = "handler"
             self._refuse_hand_on_another_site(action, page)
+            self._hold_if_human_on_tab(action, page)
+            started_at = time.time()
             result = handler(page, arguments)
             self._note_job_navigated(action)
+            self._note_own_page_after(action, arguments, started_at)
+            result = self._with_human_on_tab_note(result)
             self._doing = "show_visual_done"
             self._show_visual(self._page, "작업 단계 완료", completed=True)
             with self._lock:

@@ -63,3 +63,41 @@ def test_a_negated_make_verb_is_not_an_ask() -> None:
     assert not wants_a_computation("평균은 답에 적어 줘. 파일은 안 만들어도 돼")
     assert wants_a_computation("세 반의 평균을 엑셀로 만들어줘")
     assert not wants_a_computation("No need to make a file with the average, just tell me what the site says")
+
+
+# ── 셈한 칸을 「넣어줘」 (2026-10-19 판 ac66af89 — 위 고침의 진 결과를 되살린다) ───────────────────────────────
+#
+# 위 고침으로 「학생 5명 점수로 엑셀 성적표 파일 만들어줘. … 평균이랑 등수도 넣어줘.」의 셈이 사라졌다(운영 5,093판 중 잃은 1).
+# 「점수 + 만들어」는 값을 옮기는 짝이라 빠지는 게 맞고, 「평균 + 만들어」는 늘어놓은 칸 이름으로 읽혔다. 진짜 시킨 말은
+# 「넣어줘」인데 셈 동사가 아니었다. 평균 · 등수 · 합계 · 비율 · 증감은 **계산하기 전엔 어디에도 없는 칸**이다 — 그 칸을
+# 넣으라는 것은 셈이다. 값의 이름(점수 · 사진 · 이름)을 넣으라는 것은 셈이 아니다. 운영 4,898 요청 옛 · 새: 얻음 1(이 판) · 잃음 0.
+
+ROSTER = "학생 5명 점수로 엑셀 성적표 파일 만들어줘. 나래 92, 가람 88, 지훈 75, 서연 95, 민수 61. 평균이랑 등수도 넣어줘."
+
+
+@pytest.mark.parametrize("prompt", [
+    ROSTER,
+    "이 시트 맨 아래에 합계 행도 추가해줘",
+    "월별 매출 표에 전월 대비 증감 칸을 채워줘",
+    "반별 남녀 비율도 넣어 줘",
+    "Add the average to the sheet as a new column",
+])
+def test_adding_a_computed_column_is_an_arithmetic_ask(prompt: str) -> None:
+    assert wants_a_computation(prompt), prompt
+    assert "sandbox_run" in [r.target for r in extract(prompt)]
+
+
+@pytest.mark.parametrize("prompt", [
+    "점수 칸 넣어줘",
+    "시트에 이름이랑 점수 넣어줘",
+    "보고서에 사진도 넣어줘",
+    # 사이트에 적힌 순위를 옮기는 일 — 「순위」는 셈한 칸 이름에 안 넣었다.
+    "다나와 인기 무선마우스 5개를 엑셀로 정리하고 순위도 넣어줘",
+    # 하지 말라는 동사.
+    "평균은 안 넣어도 돼, 점수만 옮겨 줘",
+    # 셈한 칸 이름과 「넣어줘」가 다른 문장이다.
+    "평균은 답에 말로만 적어 줘. 표에는 이름을 넣어줘",
+    "Include the rank shown on the leaderboard page",
+])
+def test_adding_a_plain_column_is_not(prompt: str) -> None:
+    assert not wants_a_computation(prompt), prompt

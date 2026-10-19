@@ -232,6 +232,22 @@ class _Transient404(RuntimeError):
     """
 
 
+def _note_cut_first_pass(message: dict[str, Any], seconds: float) -> None:
+    """끊고 다시 부른 호출의 관측에 **버린 첫 호출의 시간**을 더해 적는다 (2026-10-19 · 긱뉴스 판 1b6df02d).
+
+    끊은 첫 호출은 흐름을 중간에 닫아서 서버의 끝 기록(`done` · 시간)이 안 온다. 그래서 관측(`_inference.telemetry`)에는
+    두 번째 호출의 시간만 남고, 판의 `model_time` 은 첫 호출을 통째로 못 셌다. 그 판(699초)에서 그렇게 빠진 생성이
+    두 번 · 약 137초였다(서버 기록: 4,096 + 4,424 토큰을 쓰다 끊김) — 「모델 시간 475초 + 도구 28초 = 나머지 196초는 어디?」의
+    대부분이 이것이었다. 두 번째 호출이 또 끊겨 다시 부르면(드물다) 시간을 더해 간다. 동작은 바꾸지 않는다 — 적기만 한다.
+    """
+    inference = message.get("_inference")
+    if not isinstance(inference, dict):
+        return
+    # 끊은 일 자체가 기록이다 — 시간이 0 으로 재져도(시험 · 아주 빠른 끊김) 횟수는 센다.
+    inference["cut_first_pass_sec"] = round(float(inference.get("cut_first_pass_sec") or 0.0) + max(0.0, float(seconds)), 2)
+    inference["cut_first_passes"] = int(inference.get("cut_first_passes") or 0) + 1
+
+
 #: 최근에 본 상주 러너 컨텍스트 `{주소|모델: (ctx, monotonic)}` — `OllamaClient._resident_context` 가 「모른다」일 때 쓴다.
 _RESIDENT_SEEN: dict[str, tuple[int, float]] = {}
 
@@ -1976,6 +1992,7 @@ class OllamaClient:
                 "used_partial": not answered,
             },
         }
+        _note_cut_first_pass(second, float(observed.get("first_pass_sec") or 0.0))
         return second
 
     #: 두 번째 호출에 들려줄 생각의 **끝부분**. 앞이 아니라 끝인 이유는 모델이 결론에 가까운
@@ -2068,6 +2085,7 @@ class OllamaClient:
                 "content_head": str(second.get("content") or "")[:300],
             },
         }
+        _note_cut_first_pass(second, first_pass_sec)
         return second
 
     def chat(

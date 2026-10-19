@@ -29,6 +29,7 @@ from .answer_gate import (
     has_explicit_url, named_sources, nothing_was_left_unread, table_cells,
 )
 from . import ui_i18n
+from .absence_scope import absence_scope_note
 from .attention import AttentionService
 from .browser import BrowserWorker
 from .clock import now_line_ko
@@ -3915,15 +3916,19 @@ class BrowserAgent:
         「목록에 AI·소프트웨어 제목 공고가 없었다」고 보고했다. 같은 시각 클로드 혼자 판은 「AI 올라운더 창업가육성과정 8기」 등을
         찾았다. 클로드는 손자리 말을 믿고 기준을 풀었다 — **정직한 보고가 범위를 틀리면 맡긴 쪽의 진단도 같이 틀린다.**
         `_list_end_fact` 와 같은 원칙: 거짓을 찾지 않고 참인 범위를 붙인다. 목록 끝까지 확인한 판(더 불러오기가 안 늘었다)은 뺀다.
+
+        ★ 2026-10-19 판 1bc39285: 「Show GN에서 "로컬 모델로 일하는 에이전트"는 아직 없었습니다」 — 목록 한 쪽 · 글 넷으로 한 단정에
+          아무것도 안 붙었다. 이 자리는 「목록 · 검색 결과」 낱말과 **검색 도구**의 검색어만 봤다. 그 밖의 꼴은 걸음이 남긴 목록 모양으로
+          범위를 붙이는 `absence_scope.absence_scope_note` 가 맡는다(검색어 범위가 붙는 판은 예전 문구 그대로).
         """
-        if not BrowserAgent._ABSENCE_CLAIM.search(answer or ""):
-            return ""
         if any(
             str(step.get("tool") or "") == "browser_load_more" and isinstance(step.get("evidence"), dict)
             and step["evidence"].get("grew") is False
             for step in steps
         ):
             return ""
+        if not BrowserAgent._ABSENCE_CLAIM.search(answer or ""):
+            return absence_scope_note(answer, steps, BrowserAgent._sources_actually_read(steps))
         seen: list[str] = []
         for step in steps:
             evidence = step.get("evidence") if isinstance(step.get("evidence"), dict) else {}
@@ -3935,7 +3940,7 @@ class BrowserAgent:
                 if item not in seen:
                     seen.append(item)
         if not seen:
-            return ""
+            return absence_scope_note(answer, steps, BrowserAgent._sources_actually_read(steps))
         return (
             "\n\nℹ 도구 기록: 손자리가 본 목록 범위는 검색 " + " · ".join(seen[:6])
             + "(각 첫 화면)입니다. 다른 검색어·다음 쪽은 보지 않았습니다 — 「없었다」는 이 범위 안의 말입니다."
@@ -6814,6 +6819,12 @@ class BrowserAgent:
             messages = list(checkpoint.get("messages") or [])
             messages = inject_mission_context(messages, dict(checkpoint.get("mission") or {}))
             steps = list(checkpoint.get("steps") or [])
+            # ★ 이어 간다 = 사람이 탭을 돌려줬다(2026-10-19). 멈춘 동안 사람이 로그인 · 확인을 하며 바꾼 화면은 이제 이 판의 화면이다 —
+            #   안 받으면 「사람이 이 탭을 쓰는 것 같다」 문(`BrowserWorker._hold_if_human_on_tab`)이 이은 판을 또 멈춘다.
+            try:
+                getattr(self.browser, "hand_tab_back", lambda: None)()
+            except Exception:  # noqa: BLE001
+                pass
             # ★ 이어받은 판도 이 자리를 지난다. 여기서 안 만들면 이어받기에서만
             #   `UnboundLocalError` 로 죽는다 — 새 판만 시험하면 안 보이는 고장이다.
             #   앞 판의 숫자는 안 물려받는다(판이 바뀌면 주장도 바뀐다).
@@ -10269,6 +10280,10 @@ class BrowserAgent:
             )
             if final_message.get("_inference"):
                 inference_observations.append(dict(final_message["_inference"]))
+            # ★ 마무리 답에서 걸린 생각 예산도 적는다 (2026-10-19 · 긱뉴스 판 1b6df02d). 걸음 차례에서만 적어서, 그 판의 마무리가
+            #   16,000자를 생각하다 끊긴 것(약 71초를 쓰고 버림)이 `thinking_budget_hits` 에 안 보였다 — 기록엔 한 번, 실제론 두 번.
+            if final_message.get("_thinking_budget"):
+                thinking_budget_hits.append({**dict(final_message["_thinking_budget"]), "at": "final_answer"})
             thinking_chars += used_thinking
             answer = str(final_message.get("content") or "").strip()
         if not answer:
@@ -10291,6 +10306,8 @@ class BrowserAgent:
             )
             if retry_message.get("_inference"):
                 inference_observations.append(dict(retry_message["_inference"]))
+            if retry_message.get("_thinking_budget"):
+                thinking_budget_hits.append({**dict(retry_message["_thinking_budget"]), "at": "final_answer_retry"})
             thinking_chars += retry_thinking
             answer = str(retry_message.get("content") or "").strip()
         # ★ 반박 답이 앞 답을 덮었으면 앞 답을 되살린다 (2026-10-03 Online-Mind2Web B 판 Rotten Tomatoes).

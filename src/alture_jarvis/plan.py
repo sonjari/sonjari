@@ -2176,7 +2176,7 @@ def pages_results_were_opened_from(steps: list[dict[str, Any]]) -> set[str]:
             if url and tool in _STAYS_ON_THE_PAGE:
                 listings.add(url)
             awaiting_landing = False
-    return listings | pages_turned_through(steps)
+    return listings | pages_turned_through(steps) | pages_links_were_followed_from(steps)
 
 
 def pages_turned_through(steps: list[dict[str, Any]]) -> set[str]:
@@ -2227,6 +2227,106 @@ def pages_turned_through(steps: list[dict[str, Any]]) -> set[str]:
         if 2 in members and (first or 1 in members):
             turned |= set(members.values()) | ({first} if first else set())
     return turned
+
+
+
+#: 걸음 기록의 링크 한 줄 — 장부는 항목을 80자 글로 접어 싣는다(`agent._step_evidence`): `{'url': 'https://…', 'domain': …`.
+#: 닫는 따옴표가 없으면 주소가 잘린 것이다(앞부분만 맞춰 본다).
+_HARVESTED_LINK = re.compile(r"""['"]url['"]\s*:\s*['"]([^'"]+)(['"]?)""")
+#: 잘린 주소를 앞부분으로 맞출 때의 최소 길이 — 사이트 바탕 주소만 남은 토막(`https://site.example/`)으로 아무 글이나 잇지 않는다.
+_HARVESTED_PREFIX_MIN = 32
+#: 같은 모양의 글이 이만큼 이어져야 그 화면을 목록으로 본다.
+_FOLLOWED_MIN = 2
+
+
+def _page_key(url: str) -> str:
+    """같은 페이지를 같은 열쇠로 — 스킴 · 끝 빗금 · 조각(#)만 뗀다(`agent.BrowserAgent._url_key` 와 같은 규칙)."""
+    key = re.sub(r"^https?://", "", str(url or "").strip()).split("#", 1)[0].rstrip("/")
+    host, _, rest = key.partition("/")
+    return host.lower() + ("/" + rest if rest else "")
+
+
+def _item_shape(key: str) -> tuple[Any, ...]:
+    """글 주소의 **모양** — 글마다 다른 칸(숫자가 든 칸 · 긴 제목 칸)을 지우고 남은 뼈대. 쿼리는 이름만 본다.
+
+    `/topic?id=35584` · `/topic?id=35575` → 같은 모양, `/app/730` · `/app/570` → 같은 모양,
+    `/product/ai-browser` · `/trust` → 다른 모양(사이트 안내 링크로 여기저기 간 것).
+    """
+    path, _, query = key.partition("?")
+    host, _, rest = path.partition("/")
+    segments = tuple("*" if re.search(r"\d", seg) or len(seg) >= 12 else seg.lower() for seg in rest.split("/") if seg)
+    names = tuple(sorted({name for name, _value in parse_qsl(query, keep_blank_values=True)}))
+    return host, segments, names
+
+
+def _harvested_links(evidence: dict[str, Any]) -> list[tuple[str, bool]]:
+    """`browser_links` 가 돌려준 주소들 — `(열쇠, 잘렸나)`."""
+    out: list[tuple[str, bool]] = []
+    for item in evidence.get("links") or ():
+        if isinstance(item, dict):
+            url, cut = str(item.get("url") or ""), False
+        else:
+            match = _HARVESTED_LINK.search(str(item))
+            if not match:
+                continue
+            url, cut = match.group(1), not match.group(2)
+        if url.startswith(("http://", "https://")):
+            out.append((_page_key(url), cut))
+    return out
+
+
+def pages_links_were_followed_from(steps: list[dict[str, Any]]) -> set[str]:
+    """**링크를 모아 거기서 글을 골라 연 화면**의 주소들 — 후보를 고른 목록이지, 골라서 직접 연 글이 아니다.
+
+    ★ 2026-10-19. `pages_turned_through`(쪽만 넘긴 목록)는 1 → 2 쪽으로 넘긴 목록만 잡았다 — 목록 **한 쪽**에서 글 아홉을 골라
+      열면 「10개 읽음」이었다(그 고침 커밋 fee4c84c 에 남은 것으로 적어 둔 구멍). 같은 날 긱뉴스 판 1bc39285 도 이 모양이었다:
+      `news.hada.io/show` 를 열어 읽고 `browser_links` 로 글 주소 넷을 받아 하나씩 열었다.
+    가르는 것은 낱말이 아니라 **걸음이 남긴 모양**이다. 셋이 다 맞아야 목록이다:
+      1. 그 화면에서 `browser_links` 로 링크를 받았다(성공한 걸음 · 증거의 주소가 그 화면).
+      2. 그 **뒤에 처음** 연 · 읽은 화면이 그 링크 목록에 있었다 — 링크를 받기 전에 이미 가 본 곳(홈 · 블로그)으로 돌아간 것은 안 센다.
+      3. 그렇게 이어진 글 중 **같은 모양의 주소**(`_item_shape` — `/topic?id=N` 끼리, `/app/N` 끼리)가 둘 이상이다.
+    3 을 넣은 까닭(운영 761판 대조): 처음엔 「서로 다른 글 둘」만 봤더니 회사 누리집 홈 · 보안 안내 페이지와 긱뉴스 안내 페이지가
+    목록으로 찍혔다 — 사이트 메뉴 링크로 요금 · 블로그처럼 **생김새가 다른** 페이지로 간 것이다. 목록에서 고른 글은 주소 모양이 같다.
+    서 있던 곳은 증거가 아니다(`pages_results_were_opened_from` 의 10-08 교훈) — 결과 열기 · 누르기 직전 위치로는 가르지 않는다.
+    """
+    harvested: dict[str, list[tuple[str, bool]]] = {}   # 화면 열쇠 → 거기서 받은 링크
+    seen_before: dict[str, set[str]] = {}               # 화면 열쇠 → 처음 링크를 받을 때까지 가 본 곳
+    followed: dict[str, set[str]] = {}                  # 화면 열쇠 → 그 링크로 처음 이어진 글 열쇠
+    spelled: dict[str, set[str]] = {}                   # 열쇠 → 걸음에 찍힌 주소 그대로(출처 목록과 맞출 때 쓴다)
+    visited: set[str] = set()
+    for step in steps or []:
+        evidence = step.get("evidence")
+        if not step.get("ok") or not isinstance(evidence, dict):
+            continue
+        url = str(evidence.get("url") or "")
+        if not url:
+            continue
+        key = _page_key(url)
+        spelled.setdefault(key, set()).add(url)
+        if str(step.get("tool") or "") == "browser_links":
+            links = _harvested_links(evidence)
+            if links:
+                harvested.setdefault(key, []).extend(links)
+                seen_before.setdefault(key, set(visited) | {key})
+            visited.add(key)
+            continue
+        for page, links in harvested.items():
+            if key in seen_before[page]:
+                continue
+            if any(
+                key == link or (cut and len(link) >= _HARVESTED_PREFIX_MIN and key.startswith(link))
+                for link, cut in links
+            ):
+                followed.setdefault(page, set()).add(key)
+        visited.add(key)
+    lists: set[str] = set()
+    for page, reached in followed.items():
+        shapes: dict[tuple[Any, ...], int] = {}
+        for item in reached:
+            shapes[_item_shape(item)] = shapes.get(_item_shape(item), 0) + 1
+        if shapes and max(shapes.values()) >= _FOLLOWED_MIN:
+            lists |= spelled.get(page, set())
+    return lists
 
 
 #: 검색 엔진의 바탕 주소. 이것을 「○○에서 하기」로 지목한 요청은 「거기서 찾아라」이지 「그 주소의 글만」이 아니다(`check`).
@@ -2940,6 +3040,23 @@ _ARRANGE_VERB = re.compile(r"만들어|만들자|생성해?|뽑아(?:줘)?|정�
 _QUANTITY_NAME = re.compile(r"점수|등급|총액|원가|손익|개수|할인|인상|이자|몇\s*(?:개|명|시간|분|번|가지)")
 #: 동사 바로 앞의 부정 부사 — 「안 만들어도 되고」 · 「못 구해」.
 _NEGATED_BEFORE = re.compile(r"(?<![가-힣])(?:안|못)\s*$")
+#: 표 · 시트에 **칸을 더하라**는 동사 — 「넣어줘 · 추가해줘 · 채워줘」. `_COMPUTED_COLUMN` 하고만 짝짓는다.
+#:
+#: ★ 2026-10-19 판 ac66af89. 「학생 5명 점수로 엑셀 성적표 파일 만들어줘. (이름 다섯과 점수) **평균이랑 등수도 넣어줘.**」 —
+#:   fee4c84c 가 「점수 + 만들어」(값의 이름 + 만드는 동사)를 셈에서 빼자 이 판의 셈이 사라졌다. 남은 짝 「평균 + 만들어」는
+#:   「평균이랑 등수」가 늘어놓은 칸 이름(`_a_listed_column`)으로 읽혀 빠졌고, 진짜 시킨 말 「넣어줘」는 셈 동사가 아니었다.
+#:   평균 · 등수는 계산하기 전엔 어디에도 없는 값이다 — 그 칸을 **넣으라**는 것은 셈을 시킨 것이다. 「넣어줘」를 `_COMPUTE_VERB` 에
+#:   넣지는 않는다(「점수 칸 넣어줘」 · 「사진 넣어줘」까지 셈이 된다). **셈한 칸의 이름**과 바로 이어질 때만 본다.
+_ADD_COLUMN_VERB = re.compile(r"넣어|추가해|추가하(?:고|세요|라|자)|채워")
+#: 계산하기 전엔 어디에도 없는 **칸**의 이름 — `_ARITHMETIC_TARGET` 의 셈 이름 중 칸이 되는 것 + 등수 · 석차 · 증감.
+#: 「등수」는 `_ARITHMETIC_TARGET` 에 넣지 않는다(「넣어줘」하고만 짝). 「순위」는 여기에도 안 넣는다 — 「인기 순위도 넣어줘」는
+#: 사이트에 적힌 순위를 옮기는 일이 흔하다(셈이 아닌데 「직접 계산해 보기」가 서면 판이 ❌ 로 남는다). 운영 4,898 요청에 「순위 +
+#: 넣어줘」 꼴은 0건이라 뺀 값이 없다 — 성적 등수는 「등수 · 석차」로 받는다.
+_COMPUTED_COLUMN = re.compile(
+    r"평균|가중평균|합계|총점|총합|합산|등수|석차|비율|백분율|증감|증가율|감소율|변화율|누계|누적\s*합|표준편차|중앙값"
+)
+#: 셈한 칸 이름과 「넣어줘」 사이 — 조사 · 짧은 이음(「평균이랑 등수도」 · 「합계 칸을 맨 아래에」)만. 문장이 바뀌면 끊는다.
+_ADD_COLUMN_REACH = 24
 
 # ★ 늘어놓은 칸 이름 (2026-10-16 r/LLMDevs 판 · job 759ba894). 「25개의 제목 · 점수(업보트) · 댓글 수 · 올린 지 얼마나
 #   됐는지를 엑셀 파일 하나로 정리해 줘」에 「직접 계산해 보기」가 요구로 붙어 ❌ 로 남고 판이 partial 이 됐다 — 셈 대상
@@ -4090,12 +4207,35 @@ def wants_a_computation(prompt: str) -> bool:
             compact, target.start(), target.end(), english=english
         )
 
-    return any(
+    if any(
         max(target.start(), verb.start()) - min(target.end(), verb.end()) <= reach
         and not _arranging_a_value(target, verb)
         for target in targets
         for verb in verbs
-    )
+    ):
+        return True
+    return _adds_a_computed_column(compact, english=english)
+
+
+def _adds_a_computed_column(compact: str, *, english: bool) -> bool:
+    """「평균이랑 등수도 넣어줘」 — 셈한 칸의 이름 **뒤에**(영어는 앞에) 칸을 더하라는 동사가 같은 문장 안에서 바로 이어진다.
+
+    값의 이름(점수 · 사진 · 링크)은 안 본다 — 「점수 칸 넣어줘」는 이미 있는 값을 옮기는 일이다. 하지 말라는 동사는 시킨 일이 아니다.
+    """
+    text = _without_quoted_sentences(compact)
+    names = (_en.COMPUTED_COLUMN if english else _COMPUTED_COLUMN).finditer(text)
+    adds = [
+        verb for verb in (_en.ADD_COLUMN_VERB if english else _ADD_COLUMN_VERB).finditer(compact)
+        if not (_en.NEGATED_BEFORE if english else _NEGATED_BEFORE).search(compact[max(0, verb.start() - 20):verb.start()])
+    ]
+    for name in names:
+        for verb in adds:
+            # 한국어는 「무엇을 + 넣어줘」, 영어는 「add + what」.
+            first, second = (verb, name) if english else (name, verb)
+            between = compact[first.end():second.start()]
+            if 0 <= len(between) <= _ADD_COLUMN_REACH and not re.search(r"[.!?。\n]", between):
+                return True
+    return False
 
 
 def wants_the_sandbox(prompt: str) -> bool:

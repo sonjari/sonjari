@@ -16,6 +16,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .url_privacy import safe_url, scrub_urls, scrub_urls_deep
+
 __all__ = ["clean_needs", "check_needs", "refine", "receipt", "outbound_record", "outbound_job_view", "showcase_for_outside"]
 
 MAX_NEEDS = 12
@@ -83,6 +85,10 @@ def refine(text: str, *, needs: list[str] | None = None) -> tuple[str, list[dict
         if kind in allowed:
             continue
         out = pattern.sub(_mask(kind), out)
+    # 답에 옮겨 적은 로그인 화면 주소 · 한 번 쓰는 값(2026-10-19 잡 51f35b07) — 가리지 않고 `scheme://host/path` 로 줄인다.
+    out, shortened = scrub_urls(out)
+    if shortened:
+        counts["로그인 주소"] = shortened
     return out, [{"kind": kind, "count": count} for kind, count in counts.items()]
 
 
@@ -461,9 +467,13 @@ def outbound_job_view(job: dict[str, Any]) -> dict[str, Any]:
         return job
     needs = clean_needs(payload.get("needs"))
     answer, refined = refine(result["answer"], needs=needs)
-    shaped = {**result, "answer": answer, "outbound": {"refined": refined, "needs": needs}}
+    # ★ 2026-10-19 잡 51f35b07: 답 말고도 걸음 기록(`agent_trace`) · 근거(`grounding`) 의 주소 칸에 구글 계정 고르기 화면의
+    #   `code_challenge` · `nonce` · `state` 가 그대로 있었다. 이 사본은 바깥으로 나가는 것이니 **글이 든 칸을 전부** 훑어
+    #   로그인 화면 · 한 번 쓰는 값이 붙은 주소를 줄인다(`url_privacy`). 원본(이 PC 의 기록)은 건드리지 않는다.
+    rest, _ = scrub_urls_deep({key: value for key, value in result.items() if key != "answer"})
+    shaped = {**rest, "answer": answer, "outbound": {"refined": refined, "needs": needs}}
     if isinstance(result.get("showcase"), list):
-        shaped["showcase"] = showcase_for_outside(result["showcase"], needs)
+        shaped["showcase"] = showcase_for_outside(rest.get("showcase"), needs)
     return {**job, "result": shaped}
 
 
@@ -482,5 +492,7 @@ def showcase_for_outside(items: Any, needs: list[str] | None = None) -> list[dic
             continue
         if any(str(kind) not in allowed for kind in item.get("contains") or []):
             continue
-        out.append({key: item.get(key) for key in ("path", "url", "title", "read_at", "matched")})
+        shot = {key: item.get(key) for key in ("path", "url", "title", "read_at", "matched")}
+        shot["url"] = safe_url(str(shot.get("url") or "")) if shot.get("url") else shot.get("url")
+        out.append(shot)
     return out
