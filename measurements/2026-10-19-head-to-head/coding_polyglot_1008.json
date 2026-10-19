@@ -1,0 +1,1372 @@
+{
+ "label": "aider_polyglot_python_12",
+ "dates": [
+  "2026-10-08",
+  "2026-10-12"
+ ],
+ "question": "Can a local model on one graphics card solve hard coding exercises from an outside benchmark through Sonjari's code mode?",
+ "tasks": [
+  "affine-cipher",
+  "bottle-song",
+  "dominoes",
+  "forth",
+  "grep",
+  "paasio",
+  "poker",
+  "react",
+  "scale-generator",
+  "transpose",
+  "variable-length-quantity",
+  "zipper"
+ ],
+ "setup": {
+  "pc": "RTX 3090 24 GB, Windows 11",
+  "harness": "Sonjari code mode, a fresh folder and a fresh session per task, one attempt per task, 600 s cap per task from when the run actually started",
+  "window": 65536,
+  "given_to_the_model": "INSTRUCTIONS.md, the empty function file and the test file only; the reference solution (.meta/example.py) is not given",
+  "grading": "after the run the test file is restored from the original and pytest is run, so editing the tests cannot pass a task"
+ },
+ "not_comparable_to": "Aider's public leaderboard (225 tasks in six languages, two attempts, run with Aider).",
+ "selection": "12 of the 34 Python tasks. Why these 12 were picked was not recorded.",
+ "runs": {
+  "2026-10-08/gsq_mtp_iq3s_64k": {
+   "model": "qwen3.8-27b-gsq-mtp:iq3s ctx=65536",
+   "passed": 11,
+   "of": 12,
+   "median_work_sec": 250.9,
+   "rows": [
+    {
+     "task": "affine-cipher",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 16,
+     "tests_failed": null,
+     "work_sec": 79.6,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "bottle-song",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 7,
+     "tests_failed": null,
+     "work_sec": 70.8,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "dominoes",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 13,
+     "tests_failed": null,
+     "work_sec": 281.8,
+     "steps": 7,
+     "failed_steps": 0
+    },
+    {
+     "task": "forth",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 54,
+     "tests_failed": null,
+     "work_sec": 220.1,
+     "steps": 6,
+     "failed_steps": 0
+    },
+    {
+     "task": "grep",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 83.3,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "paasio",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 443.5,
+     "steps": 16,
+     "failed_steps": 0
+    },
+    {
+     "task": "poker",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 37,
+     "tests_failed": null,
+     "work_sec": 184.5,
+     "steps": 9,
+     "failed_steps": 2
+    },
+    {
+     "task": "react",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 14,
+     "tests_failed": null,
+     "work_sec": 137.4,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "scale-generator",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 17,
+     "tests_failed": null,
+     "work_sec": 426.4,
+     "steps": 14,
+     "failed_steps": 4
+    },
+    {
+     "task": "transpose",
+     "status": "cancelled",
+     "passed": true,
+     "tests_passed": 12,
+     "tests_failed": null,
+     "work_sec": 605.7,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "variable-length-quantity",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 26,
+     "tests_failed": null,
+     "work_sec": 283.1,
+     "steps": 7,
+     "failed_steps": 0
+    },
+    {
+     "task": "zipper",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 9,
+     "tests_failed": 5,
+     "work_sec": 607.8,
+     "steps": 0,
+     "failed_steps": 0
+    }
+   ]
+  },
+  "2026-10-08/ornith_35b_iq4xs_64k": {
+   "model": "hf.co/bartowski/Ornith-1.5-35B-A3B-GGUF:IQ4_XS ctx=65536",
+   "passed": 9,
+   "of": 12,
+   "median_work_sec": 135.8,
+   "rows": [
+    {
+     "task": "affine-cipher",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 16,
+     "tests_failed": null,
+     "work_sec": 43.2,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "bottle-song",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 7,
+     "tests_failed": null,
+     "work_sec": 30.1,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "dominoes",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 13,
+     "tests_failed": null,
+     "work_sec": 313.9,
+     "steps": 29,
+     "failed_steps": 2
+    },
+    {
+     "task": "forth",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 45,
+     "tests_failed": 9,
+     "work_sec": 606.9,
+     "steps": 35,
+     "failed_steps": 2
+    },
+    {
+     "task": "grep",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 126.0,
+     "steps": 14,
+     "failed_steps": 0
+    },
+    {
+     "task": "paasio",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 12,
+     "tests_failed": 13,
+     "work_sec": 605.7,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "poker",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 37,
+     "tests_failed": null,
+     "work_sec": 155.8,
+     "steps": 19,
+     "failed_steps": 0
+    },
+    {
+     "task": "react",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 14,
+     "tests_failed": null,
+     "work_sec": 66.3,
+     "steps": 9,
+     "failed_steps": 0
+    },
+    {
+     "task": "scale-generator",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 1,
+     "tests_failed": 16,
+     "work_sec": 605.8,
+     "steps": 36,
+     "failed_steps": 5
+    },
+    {
+     "task": "transpose",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 12,
+     "tests_failed": null,
+     "work_sec": 145.5,
+     "steps": 20,
+     "failed_steps": 0
+    },
+    {
+     "task": "variable-length-quantity",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 26,
+     "tests_failed": null,
+     "work_sec": 36.6,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "zipper",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 14,
+     "tests_failed": null,
+     "work_sec": 59.7,
+     "steps": 6,
+     "failed_steps": 0
+    }
+   ]
+  },
+  "2026-10-08/ornith_9b_q4_64k": {
+   "model": "hf.co/ornith-ai/Ornith-1.5-9B-GGUF:Q4_K_M ctx=65536",
+   "passed": 5,
+   "of": 12,
+   "median_work_sec": 605.1,
+   "rows": [
+    {
+     "task": "affine-cipher",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 16,
+     "tests_failed": null,
+     "work_sec": 243.2,
+     "steps": 24,
+     "failed_steps": 0
+    },
+    {
+     "task": "bottle-song",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 7,
+     "tests_failed": null,
+     "work_sec": 327.8,
+     "steps": 31,
+     "failed_steps": 1
+    },
+    {
+     "task": "dominoes",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 8,
+     "tests_failed": 5,
+     "work_sec": 606.3,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "forth",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 36,
+     "tests_failed": 18,
+     "work_sec": 606.6,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "grep",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 120.7,
+     "steps": 15,
+     "failed_steps": 0
+    },
+    {
+     "task": "paasio",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 584.0,
+     "steps": 53,
+     "failed_steps": 4
+    },
+    {
+     "task": "poker",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 29,
+     "tests_failed": 8,
+     "work_sec": 606.5,
+     "steps": 35,
+     "failed_steps": 2
+    },
+    {
+     "task": "react",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 2,
+     "tests_failed": 12,
+     "work_sec": 606.7,
+     "steps": 37,
+     "failed_steps": 0
+    },
+    {
+     "task": "scale-generator",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 4,
+     "tests_failed": 13,
+     "work_sec": 606.3,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "transpose",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 7,
+     "tests_failed": 5,
+     "work_sec": 604.3,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "variable-length-quantity",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 25,
+     "tests_failed": 1,
+     "work_sec": 605.9,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "zipper",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 14,
+     "tests_failed": null,
+     "work_sec": 496.3,
+     "steps": 36,
+     "failed_steps": 2
+    }
+   ]
+  },
+  "2026-10-08/qwen35_9b_64k": {
+   "model": "qwen3.5:9b ctx=65536",
+   "passed": 5,
+   "of": 12,
+   "median_work_sec": 135.0,
+   "rows": [
+    {
+     "task": "affine-cipher",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 16,
+     "tests_failed": null,
+     "work_sec": 29.7,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "bottle-song",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 7,
+     "tests_failed": null,
+     "work_sec": 64.6,
+     "steps": 12,
+     "failed_steps": 2
+    },
+    {
+     "task": "dominoes",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 13,
+     "tests_failed": null,
+     "work_sec": 23.0,
+     "steps": 4,
+     "failed_steps": 0
+    },
+    {
+     "task": "forth",
+     "status": "waiting_continuation",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": 54,
+     "work_sec": 15.6,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "grep",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 205.4,
+     "steps": 22,
+     "failed_steps": 5
+    },
+    {
+     "task": "paasio",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 10,
+     "tests_failed": 15,
+     "work_sec": 606.3,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "poker",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 14,
+     "tests_failed": 23,
+     "work_sec": 603.9,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "react",
+     "status": "failed",
+     "passed": false,
+     "tests_passed": 12,
+     "tests_failed": 2,
+     "work_sec": 241.2,
+     "steps": 28,
+     "failed_steps": 1
+    },
+    {
+     "task": "scale-generator",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 8,
+     "tests_failed": 9,
+     "work_sec": 606.3,
+     "steps": 38,
+     "failed_steps": 5
+    },
+    {
+     "task": "transpose",
+     "status": "waiting_continuation",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": 12,
+     "work_sec": 15.4,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "variable-length-quantity",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 26,
+     "tests_failed": null,
+     "work_sec": 33.6,
+     "steps": 6,
+     "failed_steps": 0
+    },
+    {
+     "task": "zipper",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 6,
+     "tests_failed": 8,
+     "work_sec": 607.0,
+     "steps": 0,
+     "failed_steps": 0
+    }
+   ]
+  },
+  "2026-10-08/qwen35_9b_64k_after_path_fix": {
+   "model": "qwen3.5:9b ctx=65536",
+   "passed": 0,
+   "of": 2,
+   "median_work_sec": 474.2,
+   "rows": [
+    {
+     "task": "forth",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 9,
+     "tests_failed": 45,
+     "work_sec": 606.5,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "transpose",
+     "status": "failed",
+     "passed": false,
+     "tests_passed": 7,
+     "tests_failed": 5,
+     "work_sec": 342.0,
+     "steps": 14,
+     "failed_steps": 0
+    }
+   ]
+  },
+  "2026-10-08/qwen38_27b_mtp_q4_64k": {
+   "model": "qwen3.8:27b-mtp-q4_K_M ctx=65536",
+   "passed": 3,
+   "of": 4,
+   "median_work_sec": 367.9,
+   "rows": [
+    {
+     "task": "affine-cipher",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 16,
+     "tests_failed": null,
+     "work_sec": 134.4,
+     "steps": 9,
+     "failed_steps": 0
+    },
+    {
+     "task": "beer-song",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 8,
+     "tests_failed": null,
+     "work_sec": 85.3,
+     "steps": 7,
+     "failed_steps": 0
+    },
+    {
+     "task": "book-store",
+     "status": "cancelled",
+     "passed": true,
+     "tests_passed": 20,
+     "tests_failed": null,
+     "work_sec": 601.4,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "bottle-song",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": 7,
+     "work_sec": 601.9,
+     "steps": 0,
+     "failed_steps": 0
+    }
+   ]
+  },
+  "2026-10-08/swift_gsq_mtp_iq3s_64k": {
+   "model": "qwen3.8-27b-swift-gsq-mtp:iq3s ctx=65536",
+   "passed": 12,
+   "of": 12,
+   "median_work_sec": 119.4,
+   "rows": [
+    {
+     "task": "affine-cipher",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 16,
+     "tests_failed": null,
+     "work_sec": 87.7,
+     "steps": 8,
+     "failed_steps": 0
+    },
+    {
+     "task": "bottle-song",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 7,
+     "tests_failed": null,
+     "work_sec": 34.5,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "dominoes",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 13,
+     "tests_failed": null,
+     "work_sec": 115.1,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "forth",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 54,
+     "tests_failed": null,
+     "work_sec": 223.5,
+     "steps": 8,
+     "failed_steps": 0
+    },
+    {
+     "task": "grep",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 71.5,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "paasio",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 331.5,
+     "steps": 10,
+     "failed_steps": 0
+    },
+    {
+     "task": "poker",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 37,
+     "tests_failed": null,
+     "work_sec": 123.8,
+     "steps": 9,
+     "failed_steps": 0
+    },
+    {
+     "task": "react",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 14,
+     "tests_failed": null,
+     "work_sec": 215.2,
+     "steps": 9,
+     "failed_steps": 0
+    },
+    {
+     "task": "scale-generator",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 17,
+     "tests_failed": null,
+     "work_sec": 171.6,
+     "steps": 8,
+     "failed_steps": 0
+    },
+    {
+     "task": "transpose",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 12,
+     "tests_failed": null,
+     "work_sec": 356.2,
+     "steps": 8,
+     "failed_steps": 0
+    },
+    {
+     "task": "variable-length-quantity",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 26,
+     "tests_failed": null,
+     "work_sec": 43.8,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "zipper",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 14,
+     "tests_failed": null,
+     "work_sec": 82.1,
+     "steps": 5,
+     "failed_steps": 0
+    }
+   ]
+  },
+  "2026-10-08/swift_gsq_mtp_iq3xxs_64k": {
+   "model": "hf.co/ukisai/Swift-1.5-Qwen3.8-27B-GSQ-RCO-GGUF:Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_XXS-mtp.gguf ctx=65536",
+   "passed": 12,
+   "of": 12,
+   "median_work_sec": 168.7,
+   "rows": [
+    {
+     "task": "affine-cipher",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 16,
+     "tests_failed": null,
+     "work_sec": 82.0,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "bottle-song",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 7,
+     "tests_failed": null,
+     "work_sec": 78.1,
+     "steps": 7,
+     "failed_steps": 0
+    },
+    {
+     "task": "dominoes",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 13,
+     "tests_failed": null,
+     "work_sec": 98.3,
+     "steps": 9,
+     "failed_steps": 1
+    },
+    {
+     "task": "forth",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 54,
+     "tests_failed": null,
+     "work_sec": 481.5,
+     "steps": 18,
+     "failed_steps": 0
+    },
+    {
+     "task": "grep",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 62.0,
+     "steps": 5,
+     "failed_steps": 0
+    },
+    {
+     "task": "paasio",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 342.6,
+     "steps": 15,
+     "failed_steps": 0
+    },
+    {
+     "task": "poker",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 37,
+     "tests_failed": null,
+     "work_sec": 189.3,
+     "steps": 9,
+     "failed_steps": 0
+    },
+    {
+     "task": "react",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 14,
+     "tests_failed": null,
+     "work_sec": 148.0,
+     "steps": 8,
+     "failed_steps": 0
+    },
+    {
+     "task": "scale-generator",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 17,
+     "tests_failed": null,
+     "work_sec": 470.9,
+     "steps": 15,
+     "failed_steps": 2
+    },
+    {
+     "task": "transpose",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 12,
+     "tests_failed": null,
+     "work_sec": 223.3,
+     "steps": 9,
+     "failed_steps": 0
+    },
+    {
+     "task": "variable-length-quantity",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 26,
+     "tests_failed": null,
+     "work_sec": 91.4,
+     "steps": 8,
+     "failed_steps": 1
+    },
+    {
+     "task": "zipper",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 14,
+     "tests_failed": null,
+     "work_sec": 191.2,
+     "steps": 8,
+     "failed_steps": 0
+    }
+   ]
+  },
+  "2026-10-12/ornith9b_q4_64k": {
+   "model": "hf.co/ornith-ai/Ornith-1.5-9B-GGUF:Q4_K_M ctx=65536",
+   "passed": 3,
+   "of": 12,
+   "median_work_sec": 300.9,
+   "rows": [
+    {
+     "task": "affine-cipher",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 16,
+     "tests_failed": null,
+     "work_sec": 49.6,
+     "steps": 7,
+     "failed_steps": 0
+    },
+    {
+     "task": "bottle-song",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 7,
+     "tests_failed": null,
+     "work_sec": 66.1,
+     "steps": 11,
+     "failed_steps": 0
+    },
+    {
+     "task": "dominoes",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 13,
+     "tests_failed": null,
+     "work_sec": 81.3,
+     "steps": 11,
+     "failed_steps": 1
+    },
+    {
+     "task": "forth",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": null,
+     "work_sec": 605.6,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "grep",
+     "status": "failed",
+     "passed": false,
+     "tests_passed": 13,
+     "tests_failed": 12,
+     "work_sec": 410.7,
+     "steps": 10,
+     "failed_steps": 0
+    },
+    {
+     "task": "paasio",
+     "status": "failed",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": 25,
+     "work_sec": 301.4,
+     "steps": 1,
+     "failed_steps": 0
+    },
+    {
+     "task": "poker",
+     "status": "failed",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": 37,
+     "work_sec": 217.6,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "react",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 1,
+     "tests_failed": 13,
+     "work_sec": 609.8,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "scale-generator",
+     "status": "failed",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": 17,
+     "work_sec": 301.4,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "transpose",
+     "status": "failed",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": 12,
+     "work_sec": 300.3,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "variable-length-quantity",
+     "status": "failed",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": 26,
+     "work_sec": 191.7,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "zipper",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 10,
+     "tests_failed": 4,
+     "work_sec": 605.5,
+     "steps": 0,
+     "failed_steps": 0
+    }
+   ]
+  },
+  "2026-10-12/ornith9b_q4_64k_nomtp": {
+   "model": "hf.co/ornith-ai/Ornith-1.5-9B-GGUF:Q4_K_M ctx=65536",
+   "passed": 2,
+   "of": 4,
+   "median_work_sec": 305.4,
+   "rows": [
+    {
+     "task": "affine-cipher",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 16,
+     "tests_failed": null,
+     "work_sec": 53.3,
+     "steps": 9,
+     "failed_steps": 0
+    },
+    {
+     "task": "bottle-song",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 7,
+     "tests_failed": null,
+     "work_sec": 305.4,
+     "steps": 30,
+     "failed_steps": 0
+    },
+    {
+     "task": "dominoes",
+     "status": "waiting_continuation",
+     "passed": false,
+     "tests_passed": 7,
+     "tests_failed": 6,
+     "work_sec": 378.4,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "forth",
+     "status": "never_started",
+     "passed": null,
+     "tests_passed": null,
+     "tests_failed": null,
+     "work_sec": null,
+     "steps": null,
+     "failed_steps": null
+    }
+   ]
+  },
+  "2026-10-12/ornith9b_q4_64k_nomtp_rest": {
+   "model": "hf.co/ornith-ai/Ornith-1.5-9B-GGUF:Q4_K_M ctx=65536",
+   "passed": 4,
+   "of": 9,
+   "median_work_sec": 604.2,
+   "rows": [
+    {
+     "task": "forth",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": null,
+     "work_sec": 606.2,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "grep",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 76.4,
+     "steps": 10,
+     "failed_steps": 0
+    },
+    {
+     "task": "paasio",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 173.8,
+     "steps": 17,
+     "failed_steps": 0
+    },
+    {
+     "task": "poker",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 37,
+     "tests_failed": null,
+     "work_sec": 522.0,
+     "steps": 41,
+     "failed_steps": 2
+    },
+    {
+     "task": "react",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 2,
+     "tests_failed": 12,
+     "work_sec": 605.8,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "scale-generator",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 3,
+     "tests_failed": 14,
+     "work_sec": 604.2,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "transpose",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 7,
+     "tests_failed": 5,
+     "work_sec": 605.6,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "variable-length-quantity",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 26,
+     "tests_failed": null,
+     "work_sec": 182.9,
+     "steps": 14,
+     "failed_steps": 0
+    },
+    {
+     "task": "zipper",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 3,
+     "tests_failed": 11,
+     "work_sec": 610.5,
+     "steps": 0,
+     "failed_steps": 0
+    }
+   ]
+  },
+  "2026-10-12/ornith9b_q4_64k_rerun": {
+   "model": "hf.co/ornith-ai/Ornith-1.5-9B-GGUF:Q4_K_M ctx=65536",
+   "passed": 3,
+   "of": 8,
+   "median_work_sec": 260.5,
+   "rows": [
+    {
+     "task": "grep",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 86.2,
+     "steps": 11,
+     "failed_steps": 1
+    },
+    {
+     "task": "paasio",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 12,
+     "tests_failed": 13,
+     "work_sec": 605.9,
+     "steps": 43,
+     "failed_steps": 1
+    },
+    {
+     "task": "poker",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 25,
+     "tests_failed": 12,
+     "work_sec": 605.7,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "react",
+     "status": "failed",
+     "passed": false,
+     "tests_passed": 8,
+     "tests_failed": 6,
+     "work_sec": 364.0,
+     "steps": 10,
+     "failed_steps": 0
+    },
+    {
+     "task": "scale-generator",
+     "status": "failed",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": 17,
+     "work_sec": 300.3,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "transpose",
+     "status": "failed",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": 12,
+     "work_sec": 220.7,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "variable-length-quantity",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 26,
+     "tests_failed": null,
+     "work_sec": 89.7,
+     "steps": 13,
+     "failed_steps": 1
+    },
+    {
+     "task": "zipper",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 14,
+     "tests_failed": null,
+     "work_sec": 51.2,
+     "steps": 8,
+     "failed_steps": 0
+    }
+   ]
+  },
+  "2026-10-12/qwen9b_q4_64k": {
+   "model": "qwen3.5:9b ctx=65536",
+   "passed": 5,
+   "of": 12,
+   "median_work_sec": 485.4,
+   "rows": [
+    {
+     "task": "affine-cipher",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 16,
+     "tests_failed": null,
+     "work_sec": 47.2,
+     "steps": 6,
+     "failed_steps": 0
+    },
+    {
+     "task": "bottle-song",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 7,
+     "tests_failed": null,
+     "work_sec": 107.0,
+     "steps": 19,
+     "failed_steps": 0
+    },
+    {
+     "task": "dominoes",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 13,
+     "tests_failed": null,
+     "work_sec": 41.3,
+     "steps": 8,
+     "failed_steps": 0
+    },
+    {
+     "task": "forth",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": null,
+     "work_sec": 607.3,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "grep",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 25,
+     "tests_failed": null,
+     "work_sec": 291.7,
+     "steps": 21,
+     "failed_steps": 0
+    },
+    {
+     "task": "paasio",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 12,
+     "tests_failed": 13,
+     "work_sec": 607.5,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "poker",
+     "status": "completed",
+     "passed": false,
+     "tests_passed": 36,
+     "tests_failed": 1,
+     "work_sec": 369.3,
+     "steps": 27,
+     "failed_steps": 4
+    },
+    {
+     "task": "react",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 13,
+     "tests_failed": 1,
+     "work_sec": 605.7,
+     "steps": 55,
+     "failed_steps": 6
+    },
+    {
+     "task": "scale-generator",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": null,
+     "tests_failed": 17,
+     "work_sec": 608.8,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "transpose",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 9,
+     "tests_failed": 3,
+     "work_sec": 601.4,
+     "steps": 0,
+     "failed_steps": 0
+    },
+    {
+     "task": "variable-length-quantity",
+     "status": "completed",
+     "passed": true,
+     "tests_passed": 26,
+     "tests_failed": null,
+     "work_sec": 35.5,
+     "steps": 7,
+     "failed_steps": 0
+    },
+    {
+     "task": "zipper",
+     "status": "cancelled",
+     "passed": false,
+     "tests_passed": 1,
+     "tests_failed": 13,
+     "work_sec": 605.6,
+     "steps": 39,
+     "failed_steps": 3
+    }
+   ]
+  }
+ },
+ "notes": [
+  "The model Sonjari ships with by default on 24 GB cards is the Swift 27B IQ3_S run (2026-10-08/swift_gsq_mtp_iq3s_64k): 12/12, no failed steps.",
+  "Runs with fewer than 12 rows were stopped early (qwen38_27b_mtp_q4_64k: 4 tasks; qwen35_9b_64k_after_path_fix: 2 tasks, a re-check after a path fix).",
+  "A work_sec near 600 means the task hit the cap."
+ ]
+}
