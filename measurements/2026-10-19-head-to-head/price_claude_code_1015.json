@@ -1,0 +1,1333 @@
+{
+ "label": "price1015c",
+ "date": "2026-10-15",
+ "collected": "2026-10-19",
+ "question": "On Korean shopping sites (long pages, many steps), what changes in Claude's cost and correctness when Claude Code works with Sonjari?",
+ "task_prompt_ko": "다나와, 11번가, G마켓에서 「{product}」을 찾아 가게 · 상품 이름 · 판매 가격 · 배송비 · 읽은 페이지 주소를 가게마다 한 줄씩 표로 답해 줘",
+ "task_prompt_en": "Find \"{product}\" on Danawa, 11st and Gmarket and answer with a table, one row per shop: shop, product name, price, shipping, URL of the page read.",
+ "products": [
+  "Logitech MX Master 3S",
+  "Samsung Galaxy Buds3 Pro",
+  "Nintendo Switch 2 console"
+ ],
+ "rounds": 3,
+ "rows_per_arm": 27,
+ "setup": {
+  "claude_model": "claude-sonnet-5 (all arms, Claude Code -p, caching on)",
+  "sonjari_model": "Swift-1.5-Qwen3.8-27B IQ3, window 131072, one RTX 3090 24 GB",
+  "working_folder": "a folder with no CLAUDE.md or skills above it (fixed the same day after an earlier run leaked user instructions into every arm)",
+  "arm_order": "rotated each round"
+ },
+ "arms": {
+  "claude_code_alone": "built-in WebFetch / WebSearch only",
+  "claude_code_with_playwright_mcp": "Playwright MCP (Microsoft)",
+  "claude_code_with_sonjari_browser_tools": "Sonjari's browser tools over MCP; the local model reads, Claude drives",
+  "claude_code_hands_task_to_sonjari": "Claude hands the whole task to Sonjari (sonjari_task) and gets the result"
+ },
+ "grading": "A row is 'whole' only if the shop's row exists, its URL is that shop's product page, and the value appears in the text that arm actually read. It checks copying from what was read, not whether the price was the live price.",
+ "cost": "cost_usd is Claude's API cost only. The local GPU time and power are not priced.",
+ "hand_graded": "Three Sonjari cells (6 rows for browser tools, 3 rows for handoff) are in whole_rows_final with how_final='override'. The grader had bugs that night (read only the first column, missed a '판매가' price header, missed URLs without https). After fixing it we checked those rows against the page text, but a backend restart then wiped that text, so they cannot be regraded from files. whole_rows_file_graded is what the files support.",
+ "verdicts": {
+  "whole": "row present, right URL, value in the text read",
+  "no_row": "no row for that shop",
+  "wrong_url": "URL is not that shop's product page",
+  "value_not_in_text_read": "value not found in what the arm read",
+  "no_value": "no price value in the row"
+ },
+ "summary": {
+  "claude_code_with_sonjari_browser_tools": {
+   "whole_rows_file_graded": 17,
+   "whole_rows_final": 23,
+   "cost_usd": 1.707,
+   "usd_per_whole_row_file": 0.1,
+   "usd_per_whole_row_final": 0.074,
+   "median_sec": 401
+  },
+  "claude_code_hands_task_to_sonjari": {
+   "whole_rows_file_graded": 15,
+   "whole_rows_final": 18,
+   "cost_usd": 1.344,
+   "usd_per_whole_row_file": 0.09,
+   "usd_per_whole_row_final": 0.075,
+   "median_sec": 391
+  },
+  "claude_code_alone": {
+   "whole_rows_file_graded": 15,
+   "whole_rows_final": 15,
+   "cost_usd": 3.689,
+   "usd_per_whole_row_file": 0.246,
+   "usd_per_whole_row_final": 0.246,
+   "median_sec": 96
+  },
+  "claude_code_with_playwright_mcp": {
+   "whole_rows_file_graded": 11,
+   "whole_rows_final": 11,
+   "cost_usd": 6.981,
+   "usd_per_whole_row_file": 0.635,
+   "usd_per_whole_row_final": 0.635,
+   "median_sec": 162
+  }
+ },
+ "paired_sign_tests": {
+  "note": "rows paired by round, product and shop; exact two-sided sign test; six comparisons, no correction applied",
+  "file_graded": {
+   "browser_tools_vs_playwright": [
+    10,
+    4,
+    0.18
+   ],
+   "browser_tools_vs_alone": [
+    7,
+    5,
+    0.77
+   ],
+   "handoff_vs_alone": [
+    7,
+    7,
+    1.0
+   ],
+   "handoff_vs_playwright": [
+    11,
+    7,
+    0.48
+   ],
+   "alone_vs_playwright": [
+    6,
+    2,
+    0.29
+   ]
+  },
+  "with_hand_graded": {
+   "browser_tools_vs_playwright": [
+    13,
+    1,
+    0.0018
+   ],
+   "browser_tools_vs_alone": [
+    9,
+    1,
+    0.022
+   ],
+   "handoff_vs_alone": [
+    9,
+    6,
+    0.61
+   ],
+   "handoff_vs_playwright": [
+    12,
+    5,
+    0.14
+   ],
+   "alone_vs_playwright": [
+    6,
+    2,
+    0.29
+   ]
+  }
+ },
+ "known_issues": [
+  "Two handoff cells scored 0 were waiting on an approval card: Claude asked Sonjari to save into a folder Sonjari may not write to, and nobody was there to approve.",
+  "The backend was restarted at 19:19 during the run; round 3 buds with browser tools ran with a broken browser.",
+  "One Playwright run ended with error_max_turns; Gmarket blocked most Playwright visits.",
+  "One day, one PC, one graphics card."
+ ],
+ "cells": [
+  {
+   "round": 1,
+   "task": "mouse",
+   "arm": "claude_code_hands_task_to_sonjari",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.2073797,
+   "turns": 6,
+   "wall_sec": 622.4,
+   "input_tokens": 12,
+   "cache_creation_input_tokens": 55609,
+   "cache_read_input_tokens": 250066,
+   "output_tokens": 1832,
+   "pages_seen": 12,
+   "page_chars_seen": 64852,
+   "shop_pages_seen": {
+    "danawa": 5,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 3,
+   "whole_rows_final": 3,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "whole"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 1,
+   "task": "mouse",
+   "arm": "claude_code_with_sonjari_browser_tools",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.2429489,
+   "turns": 10,
+   "wall_sec": 782.2,
+   "input_tokens": 20,
+   "cache_creation_input_tokens": 37457,
+   "cache_read_input_tokens": 598582,
+   "output_tokens": 2955,
+   "pages_seen": 13,
+   "page_chars_seen": 70038,
+   "shop_pages_seen": {
+    "danawa": 4,
+    "11st": 1,
+    "gmarket": 0
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "value_not_in_text_read"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 1,
+   "task": "mouse",
+   "arm": "claude_code_with_playwright_mcp",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.38631129999999997,
+   "turns": 20,
+   "wall_sec": 86.0,
+   "input_tokens": 40,
+   "cache_creation_input_tokens": 60021,
+   "cache_read_input_tokens": 980394,
+   "output_tokens": 4010,
+   "pages_seen": 19,
+   "page_chars_seen": 33806,
+   "shop_pages_seen": {
+    "danawa": 0,
+    "11st": 0,
+    "gmarket": 0
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 0,
+   "whole_rows_final": 0,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "value_not_in_text_read",
+    "11st": "value_not_in_text_read",
+    "gmarket": "no_value"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 1,
+   "task": "mouse",
+   "arm": "claude_code_alone",
+   "model_used": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.2979374,
+   "turns": 15,
+   "wall_sec": 96.3,
+   "input_tokens": 18,
+   "cache_creation_input_tokens": 19950,
+   "cache_read_input_tokens": 392302,
+   "output_tokens": 6570,
+   "pages_seen": 14,
+   "page_chars_seen": 7964,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 1,
+    "gmarket": 3
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 1,
+   "whole_rows_final": 1,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "wrong_url",
+    "gmarket": "value_not_in_text_read"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 1,
+   "task": "buds",
+   "arm": "claude_code_hands_task_to_sonjari",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.11824960000000001,
+   "turns": 6,
+   "wall_sec": 360.0,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 20772,
+   "cache_read_input_tokens": 223948,
+   "output_tokens": 2151,
+   "pages_seen": 7,
+   "page_chars_seen": 64532,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 3,
+   "whole_rows_final": 3,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "whole"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 1,
+   "task": "buds",
+   "arm": "claude_code_with_sonjari_browser_tools",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.1604002,
+   "turns": 5,
+   "wall_sec": 437.4,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 35612,
+   "cache_read_input_tokens": 266601,
+   "output_tokens": 1803,
+   "pages_seen": 7,
+   "page_chars_seen": 86333,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 3,
+   "whole_rows_final": 3,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "whole"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 1,
+   "task": "buds",
+   "arm": "claude_code_with_playwright_mcp",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.8068452999999999,
+   "turns": 41,
+   "wall_sec": 194.6,
+   "input_tokens": 80,
+   "cache_creation_input_tokens": 86669,
+   "cache_read_input_tokens": 2545714,
+   "output_tokens": 8087,
+   "pages_seen": 39,
+   "page_chars_seen": 68518,
+   "shop_pages_seen": {
+    "danawa": 4,
+    "11st": 4,
+    "gmarket": 0
+   },
+   "subtype": "error_max_turns",
+   "whole_rows_file_graded": 0,
+   "whole_rows_final": 0,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "no_row",
+    "11st": "no_row",
+    "gmarket": "no_row"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 1,
+   "task": "buds",
+   "arm": "claude_code_alone",
+   "model_used": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.6374611,
+   "turns": 28,
+   "wall_sec": 154.3,
+   "input_tokens": 32,
+   "cache_creation_input_tokens": 33529,
+   "cache_read_input_tokens": 823923,
+   "output_tokens": 8124,
+   "pages_seen": 27,
+   "page_chars_seen": 22877,
+   "shop_pages_seen": {
+    "danawa": 2,
+    "11st": 10,
+    "gmarket": 3
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "no_value"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 1,
+   "task": "switch",
+   "arm": "claude_code_hands_task_to_sonjari",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.19556070000000003,
+   "turns": 5,
+   "wall_sec": 316.7,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 54809,
+   "cache_read_input_tokens": 197791,
+   "output_tokens": 1896,
+   "pages_seen": 7,
+   "page_chars_seen": 71151,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 3,
+   "whole_rows_final": 3,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "whole"
+   },
+   "product": "Nintendo Switch 2 console"
+  },
+  {
+   "round": 1,
+   "task": "switch",
+   "arm": "claude_code_with_sonjari_browser_tools",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.14928599999999997,
+   "turns": 5,
+   "wall_sec": 323.3,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 33492,
+   "cache_read_input_tokens": 266130,
+   "output_tokens": 1231,
+   "pages_seen": 7,
+   "page_chars_seen": 82663,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 3,
+   "whole_rows_final": 3,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "whole"
+   },
+   "product": "Nintendo Switch 2 console"
+  },
+  {
+   "round": 1,
+   "task": "switch",
+   "arm": "claude_code_with_playwright_mcp",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 1.1137700000000001,
+   "turns": 36,
+   "wall_sec": 403.6,
+   "input_tokens": 70,
+   "cache_creation_input_tokens": 123606,
+   "cache_read_input_tokens": 3228295,
+   "output_tokens": 13325,
+   "pages_seen": 33,
+   "page_chars_seen": 124861,
+   "shop_pages_seen": {
+    "danawa": 3,
+    "11st": 0,
+    "gmarket": 0
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 1,
+   "whole_rows_final": 1,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "value_not_in_text_read",
+    "gmarket": "wrong_url"
+   },
+   "product": "Nintendo Switch 2 console"
+  },
+  {
+   "round": 1,
+   "task": "switch",
+   "arm": "claude_code_alone",
+   "model_used": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.3469395,
+   "turns": 18,
+   "wall_sec": 88.0,
+   "input_tokens": 16,
+   "cache_creation_input_tokens": 21163,
+   "cache_read_input_tokens": 340665,
+   "output_tokens": 5722,
+   "pages_seen": 17,
+   "page_chars_seen": 10996,
+   "shop_pages_seen": {
+    "danawa": 0,
+    "11st": 2,
+    "gmarket": 3
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 1,
+   "whole_rows_final": 1,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "wrong_url",
+    "11st": "whole",
+    "gmarket": "wrong_url"
+   },
+   "product": "Nintendo Switch 2 console"
+  },
+  {
+   "round": 2,
+   "task": "mouse",
+   "arm": "claude_code_with_sonjari_browser_tools",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.2300521,
+   "turns": 5,
+   "wall_sec": 375.3,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 66277,
+   "cache_read_input_tokens": 234048,
+   "output_tokens": 1753,
+   "pages_seen": 7,
+   "page_chars_seen": 83823,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 3,
+   "whole_rows_final": 3,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "whole"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 2,
+   "task": "mouse",
+   "arm": "claude_code_with_playwright_mcp",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.7014389,
+   "turns": 31,
+   "wall_sec": 156.8,
+   "input_tokens": 62,
+   "cache_creation_input_tokens": 88281,
+   "cache_read_input_tokens": 1932462,
+   "output_tokens": 9412,
+   "pages_seen": 30,
+   "page_chars_seen": 83008,
+   "shop_pages_seen": {
+    "danawa": 6,
+    "11st": 4,
+    "gmarket": 2
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "no_row"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 2,
+   "task": "mouse",
+   "arm": "claude_code_alone",
+   "model_used": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.3414913,
+   "turns": 16,
+   "wall_sec": 72.9,
+   "input_tokens": 20,
+   "cache_creation_input_tokens": 20785,
+   "cache_read_input_tokens": 443529,
+   "output_tokens": 4212,
+   "pages_seen": 15,
+   "page_chars_seen": 11322,
+   "shop_pages_seen": {
+    "danawa": 2,
+    "11st": 3,
+    "gmarket": 2
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "value_not_in_text_read"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 2,
+   "task": "mouse",
+   "arm": "claude_code_hands_task_to_sonjari",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.1019674,
+   "turns": 6,
+   "wall_sec": 504.7,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 18184,
+   "cache_read_input_tokens": 223687,
+   "output_tokens": 1175,
+   "pages_seen": 4,
+   "page_chars_seen": 1786,
+   "shop_pages_seen": {
+    "danawa": 0,
+    "11st": 0,
+    "gmarket": 0
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 0,
+   "whole_rows_final": 0,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "no_row",
+    "11st": "no_row",
+    "gmarket": "no_row"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 2,
+   "task": "buds",
+   "arm": "claude_code_with_sonjari_browser_tools",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.17929989999999998,
+   "turns": 6,
+   "wall_sec": 401.2,
+   "input_tokens": 12,
+   "cache_creation_input_tokens": 35683,
+   "cache_read_input_tokens": 331592,
+   "output_tokens": 2375,
+   "pages_seen": 8,
+   "page_chars_seen": 84654,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 0,
+   "whole_rows_final": 3,
+   "how_final": "override",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "no_row",
+    "11st": "no_row",
+    "gmarket": "no_row"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 2,
+   "task": "buds",
+   "arm": "claude_code_with_playwright_mcp",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.9521423,
+   "turns": 34,
+   "wall_sec": 162.3,
+   "input_tokens": 66,
+   "cache_creation_input_tokens": 112661,
+   "cache_read_input_tokens": 2897739,
+   "output_tokens": 9081,
+   "pages_seen": 32,
+   "page_chars_seen": 104020,
+   "shop_pages_seen": {
+    "danawa": 5,
+    "11st": 7,
+    "gmarket": 0
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "no_value"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 2,
+   "task": "buds",
+   "arm": "claude_code_alone",
+   "model_used": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.5860187,
+   "turns": 30,
+   "wall_sec": 161.9,
+   "input_tokens": 38,
+   "cache_creation_input_tokens": 30841,
+   "cache_read_input_tokens": 963511,
+   "output_tokens": 10004,
+   "pages_seen": 29,
+   "page_chars_seen": 16788,
+   "shop_pages_seen": {
+    "danawa": 3,
+    "11st": 7,
+    "gmarket": 4
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "wrong_url"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 2,
+   "task": "buds",
+   "arm": "claude_code_hands_task_to_sonjari",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.1895182,
+   "turns": 5,
+   "wall_sec": 350.8,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 54560,
+   "cache_read_input_tokens": 196791,
+   "output_tokens": 1374,
+   "pages_seen": 7,
+   "page_chars_seen": 71380,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 3,
+   "whole_rows_final": 3,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "whole"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 2,
+   "task": "switch",
+   "arm": "claude_code_with_sonjari_browser_tools",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.15883959999999997,
+   "turns": 5,
+   "wall_sec": 300.4,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 34648,
+   "cache_read_input_tokens": 267298,
+   "output_tokens": 1874,
+   "pages_seen": 7,
+   "page_chars_seen": 84353,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 0,
+   "whole_rows_final": 3,
+   "how_final": "override",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "no_value",
+    "11st": "no_value",
+    "gmarket": "no_value"
+   },
+   "product": "Nintendo Switch 2 console"
+  },
+  {
+   "round": 2,
+   "task": "switch",
+   "arm": "claude_code_with_playwright_mcp",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.8145904000000002,
+   "turns": 28,
+   "wall_sec": 188.6,
+   "input_tokens": 56,
+   "cache_creation_input_tokens": 105400,
+   "cache_read_input_tokens": 2252892,
+   "output_tokens": 10040,
+   "pages_seen": 27,
+   "page_chars_seen": 104270,
+   "shop_pages_seen": {
+    "danawa": 3,
+    "11st": 0,
+    "gmarket": 0
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 1,
+   "whole_rows_final": 1,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "value_not_in_text_read",
+    "gmarket": "wrong_url"
+   },
+   "product": "Nintendo Switch 2 console"
+  },
+  {
+   "round": 2,
+   "task": "switch",
+   "arm": "claude_code_alone",
+   "model_used": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.41721600000000014,
+   "turns": 20,
+   "wall_sec": 97.9,
+   "input_tokens": 28,
+   "cache_creation_input_tokens": 23838,
+   "cache_read_input_tokens": 647105,
+   "output_tokens": 5549,
+   "pages_seen": 19,
+   "page_chars_seen": 14150,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 2,
+    "gmarket": 3
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "wrong_url"
+   },
+   "product": "Nintendo Switch 2 console"
+  },
+  {
+   "round": 2,
+   "task": "switch",
+   "arm": "claude_code_hands_task_to_sonjari",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.110904,
+   "turns": 6,
+   "wall_sec": 292.4,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 20184,
+   "cache_read_input_tokens": 223720,
+   "output_tokens": 1568,
+   "pages_seen": 7,
+   "page_chars_seen": 63972,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 3,
+   "whole_rows_final": 3,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "whole"
+   },
+   "product": "Nintendo Switch 2 console"
+  },
+  {
+   "round": 3,
+   "task": "mouse",
+   "arm": "claude_code_with_playwright_mcp",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.8241049999999996,
+   "turns": 32,
+   "wall_sec": 160.0,
+   "input_tokens": 64,
+   "cache_creation_input_tokens": 96344,
+   "cache_read_input_tokens": 2452835,
+   "output_tokens": 9255,
+   "pages_seen": 30,
+   "page_chars_seen": 92699,
+   "shop_pages_seen": {
+    "danawa": 3,
+    "11st": 5,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "wrong_url"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 3,
+   "task": "mouse",
+   "arm": "claude_code_alone",
+   "model_used": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.2908315,
+   "turns": 12,
+   "wall_sec": 87.3,
+   "input_tokens": 14,
+   "cache_creation_input_tokens": 18547,
+   "cache_read_input_tokens": 294615,
+   "output_tokens": 4696,
+   "pages_seen": 11,
+   "page_chars_seen": 9739,
+   "shop_pages_seen": {
+    "danawa": 2,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 1,
+   "whole_rows_final": 1,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "wrong_url",
+    "gmarket": "value_not_in_text_read"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 3,
+   "task": "mouse",
+   "arm": "claude_code_hands_task_to_sonjari",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.1337248,
+   "turns": 6,
+   "wall_sec": 563.8,
+   "input_tokens": 12,
+   "cache_creation_input_tokens": 22888,
+   "cache_read_input_tokens": 281904,
+   "output_tokens": 2010,
+   "pages_seen": 9,
+   "page_chars_seen": 72864,
+   "shop_pages_seen": {
+    "danawa": 2,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 0,
+   "whole_rows_final": 3,
+   "how_final": "override",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "wrong_url",
+    "11st": "wrong_url",
+    "gmarket": "wrong_url"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 3,
+   "task": "mouse",
+   "arm": "claude_code_with_sonjari_browser_tools",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.17604619999999996,
+   "turns": 6,
+   "wall_sec": 637.8,
+   "input_tokens": 12,
+   "cache_creation_input_tokens": 34926,
+   "cache_read_input_tokens": 330536,
+   "output_tokens": 2260,
+   "pages_seen": 13,
+   "page_chars_seen": 68813,
+   "shop_pages_seen": {
+    "danawa": 7,
+    "11st": 1,
+    "gmarket": 0
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "value_not_in_text_read"
+   },
+   "product": "Logitech MX Master 3S"
+  },
+  {
+   "round": 3,
+   "task": "buds",
+   "arm": "claude_code_with_playwright_mcp",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.8006662999999998,
+   "turns": 40,
+   "wall_sec": 166.2,
+   "input_tokens": 80,
+   "cache_creation_input_tokens": 81923,
+   "cache_read_input_tokens": 2511744,
+   "output_tokens": 9335,
+   "pages_seen": 36,
+   "page_chars_seen": 59017,
+   "shop_pages_seen": {
+    "danawa": 3,
+    "11st": 3,
+    "gmarket": 2
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "no_value"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 3,
+   "task": "buds",
+   "arm": "claude_code_alone",
+   "model_used": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.44024510000000006,
+   "turns": 21,
+   "wall_sec": 98.0,
+   "input_tokens": 28,
+   "cache_creation_input_tokens": 27427,
+   "cache_read_input_tokens": 684043,
+   "output_tokens": 5453,
+   "pages_seen": 19,
+   "page_chars_seen": 16427,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 5,
+    "gmarket": 3
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "no_value"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 3,
+   "task": "buds",
+   "arm": "claude_code_hands_task_to_sonjari",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.18237100000000003,
+   "turns": 5,
+   "wall_sec": 391.1,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 52856,
+   "cache_read_input_tokens": 197205,
+   "output_tokens": 1077,
+   "pages_seen": 4,
+   "page_chars_seen": 9260,
+   "shop_pages_seen": {
+    "danawa": 0,
+    "11st": 0,
+    "gmarket": 0
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 0,
+   "whole_rows_final": 0,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "no_row",
+    "11st": "no_row",
+    "gmarket": "no_row"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 3,
+   "task": "buds",
+   "arm": "claude_code_with_sonjari_browser_tools",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.249752,
+   "turns": 10,
+   "wall_sec": 832.3,
+   "input_tokens": 18,
+   "cache_creation_input_tokens": 41574,
+   "cache_read_input_tokens": 548755,
+   "output_tokens": 3603,
+   "pages_seen": 9,
+   "page_chars_seen": 31205,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 3,
+    "gmarket": 0
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 1,
+   "whole_rows_final": 1,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "no_value",
+    "gmarket": "no_value"
+   },
+   "product": "Samsung Galaxy Buds3 Pro"
+  },
+  {
+   "round": 3,
+   "task": "switch",
+   "arm": "claude_code_with_playwright_mcp",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.5809004999999999,
+   "turns": 28,
+   "wall_sec": 128.6,
+   "input_tokens": 56,
+   "cache_creation_input_tokens": 72339,
+   "cache_read_input_tokens": 1606005,
+   "output_tokens": 7874,
+   "pages_seen": 26,
+   "page_chars_seen": 47224,
+   "shop_pages_seen": {
+    "danawa": 3,
+    "11st": 0,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 1,
+   "whole_rows_final": 1,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "value_not_in_text_read",
+    "gmarket": "no_value"
+   },
+   "product": "Nintendo Switch 2 console"
+  },
+  {
+   "round": 3,
+   "task": "switch",
+   "arm": "claude_code_alone",
+   "model_used": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.33042650000000007,
+   "turns": 18,
+   "wall_sec": 76.1,
+   "input_tokens": 20,
+   "cache_creation_input_tokens": 22103,
+   "cache_read_input_tokens": 443520,
+   "output_tokens": 4844,
+   "pages_seen": 17,
+   "page_chars_seen": 11083,
+   "shop_pages_seen": {
+    "danawa": 2,
+    "11st": 2,
+    "gmarket": 4
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 2,
+   "whole_rows_final": 2,
+   "how_final": "regraded_from_transcript",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "value_not_in_text_read"
+   },
+   "product": "Nintendo Switch 2 console"
+  },
+  {
+   "round": 3,
+   "task": "switch",
+   "arm": "claude_code_hands_task_to_sonjari",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.10460190000000001,
+   "turns": 6,
+   "wall_sec": 503.8,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 18487,
+   "cache_read_input_tokens": 224122,
+   "output_tokens": 1354,
+   "pages_seen": 4,
+   "page_chars_seen": 1985,
+   "shop_pages_seen": {
+    "danawa": 0,
+    "11st": 0,
+    "gmarket": 0
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 0,
+   "whole_rows_final": 0,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "no_row",
+    "11st": "no_row",
+    "gmarket": "no_row"
+   },
+   "product": "Nintendo Switch 2 console"
+  },
+  {
+   "round": 3,
+   "task": "switch",
+   "arm": "claude_code_with_sonjari_browser_tools",
+   "model_used": [
+    "claude-sonnet-5"
+   ],
+   "cost_usd": 0.16006789999999999,
+   "turns": 5,
+   "wall_sec": 326.1,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 34379,
+   "cache_read_input_tokens": 267252,
+   "output_tokens": 2065,
+   "pages_seen": 7,
+   "page_chars_seen": 82909,
+   "shop_pages_seen": {
+    "danawa": 1,
+    "11st": 1,
+    "gmarket": 1
+   },
+   "subtype": "success",
+   "whole_rows_file_graded": 3,
+   "whole_rows_final": 3,
+   "how_final": "recorded",
+   "date": "2026-10-15",
+   "shops_file_graded": {
+    "danawa": "whole",
+    "11st": "whole",
+    "gmarket": "whole"
+   },
+   "product": "Nintendo Switch 2 console"
+  }
+ ]
+}

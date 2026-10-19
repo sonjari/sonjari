@@ -1,0 +1,270 @@
+{
+  "date_range": "2026-09-28 to 2026-09-29",
+  "agents": {
+    "sonjari": "Sonjari (then named Ontelic), local Windows agent, driven through its MCP task interface",
+    "hermes": "Hermes Agent desktop (NousResearch), connected to the same Ollama runner through its OpenAI-compatible endpoint; prompt typed by a human into a new chat"
+  },
+  "conditions": {
+    "gpu": "RTX 3090 24GB",
+    "runner_model": "qwen3.6:35b-a3b (both)",
+    "same_pc_same_ollama_runner": true,
+    "fresh_session_per_run": true,
+    "same_prompt_text_both_agents": true,
+    "num_ctx": {
+      "T2": 32768,
+      "T7": 65536,
+      "T1": 65536
+    },
+    "num_ctx_notes": "T2 ran at 32K (100% GPU). T7 and T1 were re-run as a new pair at 64K (about 96.6% GPU) because the newly installed Hermes refuses contexts below 64,000 tokens. Measured generation speed on this PC: 32K about 139.6 tok/s, 64K about 112.4 tok/s.",
+    "runner_ctx_checked_before_and_after_each_sonjari_run": true
+  },
+  "time_basis": {
+    "sonjari_seconds": "job wall time from Sonjari's own job store (started_at to finished_at); what the caller waits for",
+    "sonjari_seconds_alt": "agent_loop = agent-loop elapsed recorded in the job's verification block (excludes post-processing such as speech synthesis); runner_wall = bench runner submit-to-result, quantized by its polling interval",
+    "hermes_seconds": "Hermes' own per-turn 'duration' (T1 and T7 checked against the Hermes agent log; T2 from the run log document only, raw Hermes log for T2 not retained)"
+  },
+  "tasks": [
+    {
+      "id": "T2",
+      "what": "meeting notes template -> .docx in the Documents folder, with a decisions / owner / due-date table",
+      "ctx": 32768,
+      "grading": "file exists in Documents, opens, and contains a table with decision / owner / due-date headers (checked with python-docx); the answer must match the file",
+      "sonjari": {
+        "passed": 2,
+        "n": 3,
+        "per_run_passed": [
+          false,
+          true,
+          true
+        ],
+        "seconds": [
+          45.2,
+          51.1,
+          63.9
+        ],
+        "seconds_median": 51.1,
+        "seconds_alt": {
+          "agent_loop": [
+            26.5,
+            41.0,
+            47.2
+          ]
+        },
+        "steps": [
+          1,
+          2,
+          3
+        ],
+        "honesty_incidents": 1,
+        "honesty_incident_note": "Run 1: Sonjari's document tool silently dropped the tables (the model sent table blocks without a type field) and still reported verified=true; the answer described a table that was not in the file. Fixed the same day; the failed run is kept."
+      },
+      "hermes": {
+        "passed": 2,
+        "n": 3,
+        "per_run_passed": [
+          true,
+          false,
+          true
+        ],
+        "seconds": [
+          103.2,
+          126.6,
+          137.9
+        ],
+        "seconds_median": 126.6,
+        "tool_calls": [
+          13,
+          16,
+          25
+        ],
+        "honesty_incidents": 1,
+        "honesty_incident_note": "Run 2: no file was created, the last message only announced a next step, and Hermes marked the turn complete. Hermes' own file-change checker did attach a warning that a file edit had failed."
+      },
+      "doc_vs_raw": "Disagreement on Sonjari time. The run log document lists 26.5 / 41.0 / 47.2 s; those equal the agent-loop elapsed in the raw jobs. Raw job wall times are 45.2 / 51.1 / 63.9 s (the difference is post-processing, mainly speech synthesis that MCP jobs waited on at the time; removed on 2026-09-29). This record uses job wall time as primary. Pass/fail counts agree.",
+      "condition_note": "Hermes T2 runs were made from the install that sat inside the Claude desktop app's MSIX virtualization (see caveats). File-only task; the effect looked small but is not confirmed.",
+      "not_head_to_head_followup": "After fixes the same day, Sonjari re-ran T2 alone at 32K: 6/6 passed. No matching Hermes re-run, so this is not part of the comparison."
+    },
+    {
+      "id": "T7",
+      "what": "code task: coding ladder level L6 (two bugs, one symptom) with a pytest suite",
+      "ctx": 65536,
+      "grading": "automatic: pytest passes AND the test file hash is unchanged",
+      "sonjari": {
+        "passed": 3,
+        "n": 3,
+        "per_run_passed": [
+          true,
+          true,
+          true
+        ],
+        "seconds": [
+          78.3,
+          95.3,
+          61.7
+        ],
+        "seconds_median": 78.3,
+        "seconds_alt": {
+          "runner_wall": [
+            81.7,
+            101.6,
+            71.4
+          ],
+          "agent_loop": [
+            77.6,
+            94.9,
+            61.3
+          ]
+        },
+        "steps": [
+          9,
+          13,
+          8
+        ],
+        "test_file_unchanged": 3,
+        "first_edit_failed": 0
+      },
+      "hermes": {
+        "passed": 3,
+        "n": 3,
+        "per_run_passed": [
+          true,
+          true,
+          true
+        ],
+        "seconds": [
+          23.8,
+          45.8,
+          39.5
+        ],
+        "seconds_median": 39.5,
+        "model_calls": [
+          5,
+          10,
+          9
+        ],
+        "test_file_unchanged": 3,
+        "first_edit_failed": 0
+      },
+      "doc_vs_raw": "Agree. Raw grade (pytest + hash) is pass for all three Sonjari runs; job times match the document. Hermes durations match the Hermes agent log.",
+      "observed_time_gap": "Same runner, similar number of model calls and similar input size per call. Sonjari generated 1.2x to 3.7x more output tokens (thinking on, longer answers) and spent about 25 to 31 s per run outside the model (codebase indexing step, extra steps after tests already passed, final checks)."
+    },
+    {
+      "id": "T1",
+      "what": "Kyobo bookstore: find 3 books for the query 'Python' and put title / sale price / reward points into an Excel file",
+      "ctx": 65536,
+      "grading": "by hand, per row: title, sale price and reward points must match that book's Kyobo product page; if a URL column exists it must point to that book; the answer must not state a wrong price or points value without a warning. Product pages that state points only as a percentage accept the percentage.",
+      "sonjari": {
+        "passed": 5,
+        "n": 6,
+        "per_run_passed": [
+          true,
+          true,
+          false,
+          true,
+          true,
+          true
+        ],
+        "false_done_without_warning": 0,
+        "failed_run_note": "The one failure carried warnings (answer/file mismatch and a points-value check). Cause was a Sonjari column-classification rule; fixed after the batch.",
+        "seconds": [
+          92.1,
+          175.3,
+          109.3,
+          78.9,
+          72.4,
+          75.1
+        ],
+        "median_sec": 85.5,
+        "seconds_alt": {
+          "runner_wall": [
+            102.0,
+            183.5,
+            112.2,
+            81.6,
+            81.7,
+            81.9
+          ],
+          "runner_wall_median": 92.0,
+          "agent_loop": [
+            76.6,
+            160.2,
+            99.7,
+            70.7,
+            65.7,
+            63.6
+          ],
+          "agent_loop_median": 73.7
+        },
+        "steps": [
+          9,
+          16,
+          11,
+          10,
+          10,
+          9
+        ],
+        "raw_cross_check": "Raw completion_state is 'complete' for the five passed runs and 'partial' for the failed one, consistent with the hand grade."
+      },
+      "hermes": {
+        "passed": 1,
+        "n": 3,
+        "per_run_passed": [
+          false,
+          true,
+          false
+        ],
+        "false_done": 1,
+        "false_done_note": "One run wrote a price and points value that were not on the extracted page into the Excel file and said the prices were collected directly from product pages; no warning.",
+        "other_failure_note": "One run stopped after about 9 s with a reasoning-only response (no tool call, no answer); Hermes marked it complete. Counted as a failure, not as a false done.",
+        "seconds": [
+          125.6,
+          76.7,
+          8.7
+        ],
+        "median_sec": 76.7,
+        "invalid_runs_excluded_with_reason": [
+          {
+            "runs": "H1-H3 (32K, 2026-09-28 afternoon)",
+            "reason": "Hermes had been installed and launched from a shell inside the Claude desktop app's MSIX virtualization; its bundled Chromium could not start (Windows SideBySide error 14001). Launched outside the app later, its Chrome started normally. Environment fault caused by us, not by Hermes."
+          },
+          {
+            "runs": "H4-H5",
+            "reason": "Context mismatch: Hermes' context setting was still 32768 and it reloaded the runner at 32K while Sonjari ran at 64K."
+          },
+          {
+            "runs": "H6-H7",
+            "reason": "Hermes could not pass num_ctx through the OpenAI-compatible endpoint, so the runner reloaded at Ollama's 32K default; during H7 our own Ollama watchdog also reloaded the runner at 128K. Both runs were stopped by the operator."
+          }
+        ]
+      },
+      "doc_vs_raw": "Disagreement on Sonjari median time. The run log document says the 64K median was 82 s. Raw values: runner wall median 92.0 s, job wall median 85.5 s, agent loop median 73.7 s. The document figure matches none of these and is treated as wrong; this record uses the job wall median (85.5 s). Pass/fail and false-done counts agree.",
+      "condition_note": "See caveats: this comparison favours Sonjari in several ways."
+    }
+  ],
+  "excluded": [
+    {
+      "id": "T1 at 32K",
+      "reason": "No valid Hermes runs (H1-H3: broken browser from MSIX virtualization, see above). The Sonjari 32K runs (32 runs, numbered O1-O31 plus one extra) were development iterations with code changes between batches, not a fixed-condition measurement."
+    },
+    {
+      "id": "T3",
+      "what": "read item names and prices from a logged-in shopping cart (does the agent stop at the login wall)",
+      "reason": "All three Hermes runs failed to launch their browser (same MSIX cause), so login-wall behaviour was never measured; they measured 'stops when the browser is broken' instead. No Sonjari T3 runs were recorded for this pair."
+    },
+    {
+      "id": "T7 at 32K",
+      "reason": "Hermes ran from the old install inside the MSIX virtualization with n=2; one of three Sonjari runs was invalid (it edited the protected test file). Replaced by the 64K pair above because the new Hermes install refuses contexts below 64K."
+    }
+  ],
+  "caveats": [
+    "T1: Sonjari was tuned on this exact task before the measured batch. The 6 measured runs were numbered O32-O37; 32 earlier runs of the same task (O1-O31 plus one extra) drove code fixes. Hermes saw the task fresh.",
+    "T1: Sonjari had a Kyobo-specific value recipe (reads sale price, list price and points from the product page header and lets the tool fill those cells). It was added because the test site is Kyobo. Hermes had no site-specific help. Results hold only for the 'recipe present' condition; bookstores without a recipe were not measured in this pair.",
+    "We changed Hermes' setup: added an ollama_num_ctx line to its config and pointed it at a model alias qwen3.6:35b-a3b-64k (same weights and parameters plus num_ctx 65536) so it would use the same 64K runner. Backups of the original config were kept.",
+    "Our own Ollama watchdog and Sonjari's start-up self-check took Hermes' runner more than once on these days (reloading it at a larger context mid-run). The affected Hermes runs are marked invalid; the bugs were fixed.",
+    "n is small: 3 vs 6 on T1, 3 vs 3 on T2 and T7. Read results as 'this is what happened on this task under these conditions', not as 'better'.",
+    "Hermes runs H1-H7 on T1 are invalid. H1-H3: Hermes was installed inside the Claude desktop app's MSIX virtualization and its Chrome could not start. H4-H7: context mismatch (32K vs 64K) and, in H7, interference from our watchdog. (The two causes are separate; only H1-H3 are the MSIX case.)",
+    "Hermes appeared to run with the model's default sampling (temperature 1.0, presence_penalty 1.5). Korean text corruption seen only in Hermes runs may come from this; not confirmed.",
+    "Hermes T2 runs also came from the MSIX-virtualized install; file-only task, effect believed small, not confirmed."
+  ],
+  "graded_by": "hand, by Claude, per the 2026-09-28 run log (RUNS_2026-09-28.ko.md); T7 graded automatically (pytest + test-file hash)"
+}
