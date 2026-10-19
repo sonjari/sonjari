@@ -32,6 +32,7 @@ import { LearnedPanel } from "./LearnedPanel";
 import { PacksSection } from "./PacksSection";
 import { DiscordSection } from "./DiscordSection";
 import { AboutMeSection } from "./AboutMeSection";
+import { SavingsCard } from "./SavingsCard";
 
 type Section = string;
 type FieldStatus = { state: "saving" | "saved" | "error"; message: string };
@@ -289,7 +290,13 @@ export function SettingsScreen({ client, open, onClose, initialSection = "genera
 
           {section === "about_me" && <AboutMeSection api={setupApi} />}
           {section === "packs" && client && <PacksSection client={client} />}
-          {section === "connect" && <div className="settings-block"><ConnectPanel api={setupApi} /></div>}
+          {section === "connect" && (
+            <div className="settings-block">
+              {/* 2026-10-19: 클로드를 이은 까닭이 숫자로 보이는 자리 — 연결 설정 바로 위. */}
+              {client && <SavingsCard client={client} />}
+              <ConnectPanel api={setupApi} />
+            </div>
+          )}
           {section === "discord" && client && <DiscordSection client={client} />}
           {section === "import" && <ImportSection api={setupApi} />}
           {section === "data" && client && <DataSection client={client} />}

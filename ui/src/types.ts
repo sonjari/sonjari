@@ -981,3 +981,23 @@ export interface ModelAliasesView {
   pc_model: string;
   aliases: ModelAliasRow[];
 }
+
+/** 「이번 주 손자리가 클로드 대신 읽은 양」 영수증 (2026-10-19 · `GET /v1/savings` · 백엔드 `savings_receipt`).
+ *  숫자는 **하한**뿐이다 — 화면은 「최소 N 토큰」과 근거(basis)만 말하고 약 · 배 · % · 금액으로 바꾸지 않는다. */
+export interface SavingsReceipt {
+  kind: "floor";
+  days: number;
+  since: number;
+  until: number;
+  tokens_at_least: number;
+  text_chars: number;
+  reads: number;
+  jobs: { total: number; done: number; stopped: number; with_reads: number };
+  in_progress: number;
+  by_host: { host: string; tokens_at_least: number; jobs: number; names: string[] }[];
+  top: { job_id: string; prompt: string; tokens_at_least: number; host: string; status: "done" | "stopped"; finished_at: number }[];
+  excluded: Record<string, number>;
+  /** 맡긴 쪽이 전부 클로드면 "claude", 코덱스 등이 섞이면 "outside_ai". */
+  host_word: "claude" | "outside_ai";
+  basis: string;
+}

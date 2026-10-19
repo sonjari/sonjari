@@ -125,7 +125,7 @@ def _names_a_readable_place(compact: str, known_sites: "dict[str, tuple[str, ...
         return True
     names = {**SITE_ALIASES, **(known_sites or {})}
     folded = compact.casefold()
-    return any(name.casefold() in folded for name in names)
+    return any(name.casefold() in folded and _names_site(folded, name.casefold()) for name in names)
 
 
 #: 주소를 **산출물에 넣으라는** 말 — 「robometafit.com 주소를 담은 QR 코드」.
@@ -478,6 +478,32 @@ _LOCAL_NOT_SOURCE = re.compile(
     r"로컬(?!\s*(?:파일|문서|폴더|자료|출처|PC|컴퓨터|드라이브|디스크|저장소|경로|에\s*(?:있|저장|둔)))[^\s,.·]*",
     re.IGNORECASE,
 )
+
+
+_HANGUL_SYLLABLE = re.compile("[가-힣]")
+
+
+def _korean_name_starts_a_word(folded: str, name: str) -> bool:
+    """한글 이름이 **다른 낱말의 꼬리가 아닌 채** 한 번이라도 나오는가 — 「크레딧」 속의 「레딧」은 아니다.
+
+    ★ 2026-10-19 inline AI 조사 판(d0d36f19): 「요금제와 크레딧」의 「레딧」이 배운 사이트 이름에 걸려 대조표에
+      「레딧에서 하기」가 섰다. 한글 이름은 뒤에 조사가 바로 붙으므로(「레딧에서」) 뒤는 보지 않는다. 조사는 **앞에는**
+      안 붙는다 — 앞 글자가 한글 음절이면 다른 낱말의 일부다.
+    """
+    at = folded.find(name)
+    while at >= 0:
+        before = folded[at - 1] if at else " "
+        if not _HANGUL_SYLLABLE.match(before):
+            return True
+        at = folded.find(name, at + 1)
+    return False
+
+
+def _names_site(folded: str, name: str) -> bool:
+    """요청(소문자로 접은 글)이 이 사이트 이름을 **이름으로** 댔나 — 다른 낱말 속에 든 글자는 세지 않는다."""
+    if name.isascii():
+        return _ascii_name_as_word(folded, name)
+    return _korean_name_starts_a_word(folded, name)
 
 
 def _ascii_name_as_word(folded: str, name: str) -> bool:
@@ -1262,7 +1288,8 @@ def extract(
             continue
         # ★ 영문·숫자로 된 이름은 **낱말로** 있을 때만 건다 (2026-10-04 레딧 조사 판 aa741c81). 배운 사이트 이름 「GB」가
         #   「16GB 이하에서」 속에서 걸려 대조표에 「GB에서 하기」가 찍혔다. 한글 이름은 조사가 바로 붙으므로 그대로 둔다.
-        if name.isascii() and not _ascii_name_as_word(folded, name.casefold()):
+        # ★ 한글 이름은 다른 낱말의 꼬리일 때 건너뛴다(2026-10-19 「크레딧」 속 「레딧」) — `_names_site`.
+        if not _names_site(folded, name.casefold()):
             continue
         if any(name.casefold() in longer.casefold() for longer in matched):
             continue
@@ -1493,10 +1520,16 @@ def without_excluded_parts(answer: str) -> str:
     제목에 「뺐다」는 말이 있으면 다음 제목까지, 아니면 그 말이 든 줄만 뗀다. 못 잡는 것(같은 줄에 진짜 위반과 「제외」가 같이 있는 경우)은
     있어도 없는 위반을 만들지 않는다 — 이 검사의 원래 약속 그대로다.
     """
+    return "\n".join(_split_excluded_parts(answer)[0])
+
+
+def _split_excluded_parts(answer: str) -> tuple[list[str], list[str]]:
+    """답의 줄을 (남는 줄, **빼 놓은 것을 설명하는 줄**) 둘로 가른다. `without_excluded_parts` · `excluded_item_names` 가 같이 쓴다."""
     # ★ **제목의 층을 본다** (같은 날 실전 판 574826ac). 「### 표에 넣지 않고 뺀 공고 (15건 전체)」 아래에 굵은 글씨 소제목
     #   「**계약직이고 지역도 다른 곳**」이 나오자 「빼 놓은 자리가 끝났다」고 보고, 빼 놓은 계약직 공고 열 건에 경고를 붙였다.
     #   빼 놓은 자리는 **같거나 더 높은 층의 제목**이 와야 끝난다 — 굵은 글씨 줄은 `#` 제목보다 낮은 층이다.
     kept: list[str] = []
+    dropped: list[str] = []
     skip_level = 0  # 0 = 안 건너뜀 · 1~6 = 그 층의 `#` 제목 아래 · 7 = 굵은 글씨 소제목 아래
     for line in str(answer or "").split("\n"):
         heading = _HEADING_LINE.match(line)
@@ -1504,13 +1537,47 @@ def without_excluded_parts(answer: str) -> str:
             level = len(heading.group("hashes")) if heading.group("hashes") else 7
             if _EXCLUDED_WORDS.search(line):
                 skip_level = level if not skip_level else min(skip_level, level)
+                dropped.append(line)
                 continue
             if skip_level and level <= skip_level:
                 skip_level = 0
         if skip_level or _EXCLUDED_WORDS.search(line):
+            dropped.append(line)
             continue
         kept.append(line)
-    return "\n".join(kept)
+    return kept, dropped
+
+
+#: 빼 놓은 항목 줄에서 이름이 끝나는 자리 — 「- **Cursor**: 근거 없음 → 제외」 · 「- Cursor — 제외」 · 「- Cursor(유료) 제외」.
+_ITEM_NAME_END = re.compile(r"\s*(?::|：|—|–|→|\(|（|\s-\s)")
+
+
+def excluded_item_names(answer: str) -> list[str]:
+    """답이 **「뺐다」고 말한 항목의 이름** — 빼 놓은 자리(`_split_excluded_parts`)의 항목 줄(표 · 글머리표 · 번호)에서.
+
+    좁게 문다(운영 답 4,509판에 대 봄 — 넓게 뽑으면 「배송비」 · 「URL」 같은 칸 이름과 「비어 있는 레이어 삭제」 같은 설명문이 이름으로 섞였다):
+    - 그 **줄 자체**에 「뺐다」는 말이 있어야 한다(「- **Cursor**: 근거 없음 → 제외」). 뺀 자리의 제목 아래 줄이라는 것만으로는 안 친다.
+    - 이름은 줄 **앞머리의 굵은 글씨**거나, 표 줄이면 첫 칸(번호 칸은 건너뜀)만. 굵은 글씨 없는 글머리표 줄은 설명문으로 본다.
+    - 세 글자 미만 · 「뺐다」는 말이 든 것은 이름이 아니다. 낱말로 이름을 고르지 않는다 — 자리로만 고른다.
+    """
+    names: list[str] = []
+    for line in _split_excluded_parts(answer)[1]:
+        if not _ITEM_LINE.match(line) or not _EXCLUDED_WORDS.search(line):
+            continue
+        stripped = line.strip()
+        lead = re.match(r"(?:[-*•·▪◦]\s+|\d{1,2}[.)]\s+|[①-⑳]\s*)?\*\*([^*\n]{1,80})\*\*", stripped)
+        if lead:
+            name = _ITEM_NAME_END.split(lead.group(1), maxsplit=1)[0]
+        elif stripped.startswith("|"):
+            cells = [cell.strip(" *") for cell in stripped.strip("|").split("|")]
+            cells = [cell for cell in cells if cell and not re.fullmatch(r"\d{1,3}[.)]?", cell)]
+            name = cells[0] if cells else ""
+        else:
+            continue
+        name = name.strip(" *:·-")
+        if len(name) >= 3 and not _EXCLUDED_WORDS.search(name) and name not in names:
+            names.append(name)
+    return names
 
 
 def broken_conditions(prompt: str, answer: str) -> list[tuple[str, str]]:
@@ -1545,9 +1612,25 @@ def broken_conditions(prompt: str, answer: str) -> list[tuple[str, str]]:
         if wanted not in asked:
             continue
         for bad in conflicts:
+            # ★ 시킨 글이 **둘을 나란히 늘어놓았으면** 조건이 아니라 칸에 적을 값의 보기다 (2026-10-19 판 8b90144f).
+            #   「가격(무료 · 유료 · 월 얼마)」을 「무료만」으로 읽어 「무료≠유료」 모순을 세웠고, 그 이유가 다시 쓰기 안내로 가서
+            #   모델이 멀쩡한 줄 둘을 답에서 뺐다(「지적하신 대로 … 제외」). 「정규직 3개, 계약직은 빼고」처럼 떨어져 있으면 그대로 조건이다.
+            if _listed_together(asked, wanted, bad):
+                continue
             if bad in said and (wanted, bad) not in broken:
                 broken.append((wanted, bad))
     return broken
+
+
+#: 늘어놓기 — 「무료 · 유료」 · 「정규직/계약직」 · 「무료나 유료」.
+_LIST_JOINER = r"\s*(?:·|/|,|、|또는|혹은|이나|나|와|과|or)\s*"
+
+
+def _listed_together(text: str, first: str, second: str) -> bool:
+    """두 값이 글 안에서 **한 늘어놓기 안에** 나오는가(어느 순서든 · 사이에 다른 값 넷까지 — 「정규직/계약직/인턴」)."""
+    a, b = re.escape(first), re.escape(second)
+    between = f"(?:{_LIST_JOINER}[^\\s·/,、()]{{1,12}}){{0,4}}{_LIST_JOINER}"
+    return bool(re.search(f"{a}{between}{b}|{b}{between}{a}", text))
 
 
 def broken_condition_note(prompt: str, answer: str) -> str:

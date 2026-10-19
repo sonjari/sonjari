@@ -454,7 +454,77 @@ _LEADING_NUMBER = re.compile(r"^\s*(?:\d+|[IVX]+)\s*[.)]\s*")
 _OUR_APPENDED_NOTES = re.compile(r"\n\s*(?:\*\*(?:시킨 것 대조|Checklist)\*\*|⚠\s*\*\*시킨 조건과 다른)")
 
 
-def _with_document_title(blocks: list[dict[str, Any]], body: str) -> list[dict[str, Any]]:
+#: 이름 재료가 되는 첫 문장의 끝 — 「…해 줘.」 · 「…해줘」 · 마침표.
+_TASK_SENTENCE_END = re.compile(r"(?<=[.!?。])\s|(?<=줘)[.,\s]|(?<=주세요)[.,\s]|\n")
+#: 따옴표로 짚은 대상 — 「삼성 갤럭시 버즈3 프로」 · "로지텍 MX Master 3S".
+_TASK_QUOTED = re.compile(r"「([^」\n]{2,60})」|\"([^\"\n]{2,60})\"|“([^”\n]{2,60})”|‘([^’\n]{2,60})’")
+#: 목적어(을·를)가 붙은 낱말 — 「제품들을」 · 「점(페인포인트)을」.
+_TASK_OBJECT = re.compile(r"(\S+?)(?:을|를)(?=\s|$)")
+#: 이름 앞쪽으로 더 거슬러 가지 않는 낱말 끝 — 조사 · 꾸밈말 · 잇는 말(「사람인에서」 · 「아쉬워하는」 · 「지원할」 · 「조사해서」).
+#: 한 글자 「고」 · 「서」는 넣지 않는다 — 「공고」 · 「이력서」가 거기서 끊겼다(운영 30개 대 봄).
+#: 「의」도 넣지 않는다 — 「레딧 게시판 3곳의 규칙」은 한 덩어리 이름이다.
+_NOT_A_NOUN_END = re.compile(r"(?:에서|에게|에|는|은|던|할|[해어아]서|하고|하며|,|\))$")
+#: 이름에 넣지 않는 셈말 낱말 — 「3개」 · 「10건」 · 「24곳」.
+_COUNT_WORD = re.compile(r"^\d+[가-힣]{0,2}$")
+#: 파일 이름으로 댄 것 — 「X.xlsx 로」 · 「「X.xlsx」로」 · 「C:\…\X.xlsx 에」. 확장자는 문서 · 표 · 그림 꼴만.
+#: 주소의 한 조각(`…/index.html`)은 이름이 아니다 — 「/」 바로 뒤는 안 본다. 줄기 끝이 「(」인 「마크다운(.md)」도 이름이 아니다.
+_TASK_FILE_NAME = re.compile(
+    r"(?<![/\w])([^\s\\/:*?\"<>|'「」`‘’“”]*[\w)\-]\.(?:xlsx|xls|csv|docx|doc|hwpx|hwp|md|txt|pptx|pdf|html|png|jpg|json))"
+    r"(?![A-Za-z0-9])", re.I)
+
+
+def artifact_name_from_task(prompt: str) -> str:
+    """대신 저장하는 파일의 **이름 줄기**를 사람이 시킨 글에서 짓는다 (2026-10-19 판 bb5ab643).
+
+    예전에는 답의 첫 줄로 지었다. 답이 「r/AI_Agents 게시판은 열지 못했고, r/LocalLLaMA는 10개 중 6개만 읽었습니다」로 시작하자
+    파일이 `rAI_Agents_게시판은_열지_못했고_rLocalLLaMA는_1.xlsx` 가 됐다 — 운영에서 이 안전망이 만든 파일 30개 중
+    「지금까지_확인한_내용을_정리합니다」 · 「9개까지_확인했고_나머지_15개(…」 · 「확인하지_못한_항목」처럼 답의 말버릇이 이름이 된 것이 여럿이었다.
+    사람은 자기가 시킨 말로 파일을 찾는다. 순서:
+
+    1. 시킨 글에 파일 이름이 있으면 그 이름의 줄기(확장자는 부르는 쪽이 맞춘다).
+    2. 첫 문장에 따옴표로 짚은 대상이 있으면 그것(「삼성 갤럭시 버즈3 프로」).
+    3. 첫 문장의 **마지막 목적어**(을·를)와 그 앞의 이름 낱말 — 「여수 회계 채용 공고 3개를」 → 여수 회계 채용 공고.
+       목적어에 괄호 풀이가 있으면 그 풀이(「점(페인포인트)을」 → 페인포인트).
+    4. 없으면 첫 문장 앞부분.
+    빈 글이면 빈 글 — 부르는 쪽이 「정리」로 채운다. 늘어놓는 기호(「·」 · 「/」 · 「,」)는 띄어쓰기로 바꾼다 — 파일 이름에서 그 기호를
+    걷으면 「회사·마감일」이 「회사마감일」로 붙는다.
+    """
+    return " ".join(re.sub(r"[·/,、]", " ", _task_name_raw(prompt)).split())
+
+
+def _task_name_raw(prompt: str) -> str:
+    """`artifact_name_from_task` 의 본체 — 기호를 고르기 전의 이름."""
+    compact = " ".join(str(prompt or "").split())
+    if not compact:
+        return ""
+    named = _TASK_FILE_NAME.search(compact)
+    if named:
+        return named.group(1).rsplit(".", 1)[0]   # 이름 칸에는 경로 글자가 못 들어온다 — 마지막 조각이 곧 이름이다
+    first = _TASK_SENTENCE_END.split(compact, maxsplit=1)[0].strip()
+    quoted = _TASK_QUOTED.search(first)
+    if quoted:
+        return next(group for group in quoted.groups() if group).strip()
+    objects = list(_TASK_OBJECT.finditer(first))
+    if objects:
+        last = objects[-1]
+        word = last.group(1)
+        gloss = re.search(r"\(([^()]{2,30})\)$", word)
+        if gloss:
+            return gloss.group(1).strip()
+        words = first[: last.start()].split() + [word]
+        picked: list[str] = []
+        for index, token in enumerate(reversed(words)):
+            if index and (_NOT_A_NOUN_END.search(token) or len(picked) >= 5):
+                break
+            if not _COUNT_WORD.match(token):
+                picked.insert(0, token)
+        name = " ".join(picked).strip()
+        if len(name) >= 2:
+            return name
+    return first[:40].strip()
+
+
+def _with_document_title(blocks: list[dict[str, Any]], body: str, title: str = "") -> list[dict[str, Any]]:
     """문서 맨 앞에 **제목(H1)** 이 서게 한다.
 
     ★ 2026-09-13 양식 검사기가 잡았다. 이 안전망이 만든 파일 넷이 전부 제목 없이
@@ -465,7 +535,8 @@ def _with_document_title(blocks: list[dict[str, Any]], body: str) -> list[dict[s
     - 맨 앞 세 블록 안에 H1 이 있으면 그것을 **맨 앞으로** 옮긴다. 답은 흔히
       「조사한 결과입니다.」 한 줄 뒤에 `# 제목` 을 쓴다 — 문서에선 제목이 먼저다.
     - 첫 블록이 소제목이면 번호를 떼고 H1 로 올린다.
-    - 제목이 하나도 없으면 답의 첫 문장을 제목으로 세운다(짧게).
+    - 제목이 하나도 없으면 ``title``(부르는 쪽이 시킨 글에서 지은 이름)을 세운다. 그것도 없으면 답의 첫 문장(짧게).
+      ★ 2026-10-19 판 bb5ab643: 답 첫 문장이 「r/AI_Agents 게시판은 열지 못했고, …」라 문서 첫 줄이 그 고백이 됐다.
     """
     if not blocks:
         return blocks
@@ -474,8 +545,14 @@ def _with_document_title(blocks: list[dict[str, Any]], body: str) -> list[dict[s
             return [block] + blocks[:index] + blocks[index + 1:]
     first = blocks[0]
     if first.get("type") == "heading":
-        title = _LEADING_NUMBER.sub("", str(first.get("text") or "")).strip()
-        return [{**first, "level": 1, "text": title}] + blocks[1:]
+        heading = _LEADING_NUMBER.sub("", str(first.get("text") or "")).strip()
+        return [{**first, "level": 1, "text": heading}] + blocks[1:]
+    # 첫 문단이 **통째로 굵은 짧은 줄**(「**여수 회계 채용 공고 비교표**」)이면 모델이 쓴 표제다 — 그것을 제목으로 올린다.
+    first_text = str(first.get("text") or "").strip()
+    if first.get("type") == "paragraph" and re.fullmatch(r"\*\*[^*\n]{2,60}\*\*", first_text):
+        return [{"type": "heading", "level": 1, "text": first_text.strip(" *")}] + blocks[1:]
+    if str(title or "").strip():
+        return [{"type": "heading", "level": 1, "text": str(title).strip()[:60]}] + blocks
     line = next((ln.strip() for ln in str(body or "").splitlines() if ln.strip()), "")
     line = re.sub(r"^[#>*\-\s]+", "", line)
     title = re.split(r"(?<=[.!?。])\s|입니다\.|했습니다\.", line, maxsplit=1)[0].strip(" .")[:40] or "정리"

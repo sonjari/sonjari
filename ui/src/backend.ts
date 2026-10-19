@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Observation, StepRow } from "./workspace/observation";
 import type { HealthOllama } from "./workspace/readiness";
 import type { ModelLoading } from "./workspace/ModelLoadLine";
-import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, BackupSummary, PackInfo, PacksView, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem } from "./types";
+import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, BackupSummary, PackInfo, PacksView, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem, SavingsReceipt } from "./types";
 
 declare global {
   interface Window {
@@ -595,6 +595,11 @@ export class JarvisClient {
 
   getModelAliases(): Promise<ModelAliasesView> {
     return this.request("/v1/models/aliases", { method: "GET" });
+  }
+
+  /** 바깥 AI 가 맡긴 판에서 손자리가 대신 읽은 양 — **하한**과 그 근거(2026-10-19). 읽기만 한다. */
+  getSavings(days = 7): Promise<SavingsReceipt> {
+    return this.request(`/v1/savings?days=${encodeURIComponent(String(days))}`, { method: "GET" });
   }
 
   /** 표를 통째로 바꾼다. 틀리면 400 — 던지는 오류 문장이 까닭 코드(invalid_alias · invalid_tag · duplicate_alias · too_many_aliases)다. */

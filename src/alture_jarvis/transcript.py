@@ -1042,6 +1042,86 @@ def attach_system_notes(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+# ── 하네스 안내는 사람 말이 아니다 (2026-10-19 판 8b90144f) ─────────────────────────────────────────────────
+#
+# 마무리 대조(`_answer_trace_conflict`)가 「사용자가 지정한 조건과 충돌하는 항목이 섞였습니다(무료≠유료)」를 사용자 차례로
+# 돌려보냈고, 모델은 다시 쓴 답을 「(사용자 호칭), **지적하신 대로** 가격 표기가 근거 없이 "유료"라고 적힌 항목이 있었습니다」로
+# 시작했다. 아무도 지적하지 않았다. 하네스가 사용자 차례에 넣는 안내는 53곳이고 앞머리도 제각각이다(「[시스템]」 ·
+# 「[System]」 · 「[손자리 안내]」 · 「[system context]」 · 앞머리 없음). 시스템 차례로 옮기는 길은 막혀 있다 — Qwen 템플릿은
+# 맨 앞이 아닌 시스템 메시지를 거절하고, 거절되면 `ollama.fold_late_system_messages` 가 어차피 사용자 차례로 접는다.
+#
+# 그래서 **자리로 가른다.** 사람의 말은 둘뿐이다 — 이번 판의 시킨 일(그 앞의 지난 대화 포함)과, 작업 도중 사람이 덧붙인 말.
+# 둘 다 만드는 자리에서 `PERSON_KEY` 표시를 단다. 시킨 일 **뒤의** 사용자 차례 가운데 표시가 없는 것은 전부 하네스 안내다 —
+# 새 안내 자리가 생겨도 앞머리를 기억할 필요가 없다. 모델에 보내는 사본에서 그 안내 앞에 공통 머리 한 줄을 단다.
+# 표시가 없는 옛 전사(배포 전 체크포인트 · 시험)는 앞머리(`HARNESS_NOTE_PREFIXES`)로만 가른다.
+
+#: 사람이 한 말인 사용자 차례에 다는 표시(값 "person"). 모델에 보내는 사본에서는 뗀다.
+PERSON_KEY = "said_by"
+
+#: 표시가 없는 전사에서 하네스 안내로 치는 앞머리 — `agent.said_by_the_person` 이 쓰던 것과 같다.
+HARNESS_NOTE_PREFIXES = ("[시스템]", "[System]", "★", "[도구가 보낸 안내]")
+
+HARNESS_NOTE_HEAD = (
+    "[자동 점검 · 사용자가 한 말 아님] 아래는 손자리가 자동으로 붙인 점검·안내다. 사용자는 이 말을 하지 않았고 보지도 못한다 — "
+    "답에서 사용자가 지적하거나 요청한 것처럼 옮기지 말고(「지적하신 대로」 금지), 이 안내 자체를 답에 언급하지 마라."
+)
+HARNESS_NOTE_HEAD_EN = (
+    "[Automatic check · not from the user] The note below was added automatically by Sonjari. The user did not say it "
+    "and cannot see it — do not present it as the user's remark or request (no \"as you pointed out\"), and do not "
+    "mention this note in the answer."
+)
+
+
+def person_message(content: Any) -> dict[str, Any]:
+    """사람이 한 말인 사용자 차례. 시킨 일 · 작업 도중 덧붙인 말을 넣는 자리가 이것으로 만든다."""
+    return {"role": "user", "content": content, PERSON_KEY: "person"}
+
+
+def harness_note_positions(messages: list[dict[str, Any]]) -> set[int]:
+    """사용자 차례 가운데 **하네스가 넣은 안내**의 자리.
+
+    시킨 일(`PERSON_KEY` 표시가 붙은 **첫** 사용자 차례) 뒤의 사용자 차례는 표시가 없으면 하네스 안내다. 첫 것이어야 한다 —
+    작업 도중 덧붙인 말에도 같은 표시가 붙으므로, 마지막 것을 기준으로 삼으면 그 사이의 안내가 사람 말로 빠진다.
+    그 앞(지난 대화)은 사람 말이다. 표시가 하나도 없으면 앞머리로만 가른다.
+    """
+    anchor = min(
+        (index for index, item in enumerate(messages)
+         if item.get("role") == "user" and item.get(PERSON_KEY) == "person"),
+        default=None,
+    )
+    found: set[int] = set()
+    for index, item in enumerate(messages):
+        if item.get("role") != "user" or item.get(PERSON_KEY) == "person":
+            continue
+        content = item.get("content")
+        if anchor is not None:
+            if index > anchor:
+                found.add(index)
+        elif isinstance(content, str) and content.lstrip().startswith(HARNESS_NOTE_PREFIXES):
+            found.add(index)
+    return found
+
+
+def frame_harness_notes(messages: list[dict[str, Any]], *, english: bool = False) -> list[dict[str, Any]]:
+    """모델에 보내는 사본에서 **하네스 안내 앞에 공통 머리를 단다** — 사람 말로 읽히지 않게.
+
+    - `attach_system_notes` **뒤에** 부른다. 도구 결과에 붙은 안내는 이미 도구 결과 자리라 건드리지 않는다.
+    - 늘 같은 규칙이라 앞 걸음의 글이 호출마다 같다(캐시가 안 깨진다).
+    - `PERSON_KEY` 표시는 여기서 뗀다 — 서버로 가는 글에 우리 표시를 싣지 않는다.
+    """
+    positions = harness_note_positions(messages)
+    head = HARNESS_NOTE_HEAD_EN if english else HARNESS_NOTE_HEAD
+    out: list[dict[str, Any]] = []
+    for index, item in enumerate(messages):
+        if PERSON_KEY in item:
+            item = {key: value for key, value in item.items() if key != PERSON_KEY}
+        content = item.get("content")
+        if index in positions and isinstance(content, str) and not content.startswith(head):
+            item = {**item, "content": f"{head}\n{content}"}
+        out.append(item)
+    return out
+
+
 #: 영어로 시킨 판의 도구 결과 끝에 붙이는 한 줄. 모델이 **마지막으로 읽는 글**이 이 줄이 되게 한다.
 REPLY_IN_ENGLISH_LINE = (
     "[Language] The user reads English. Write your thinking, the one-sentence note before each tool call, "

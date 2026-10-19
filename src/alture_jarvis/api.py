@@ -1757,6 +1757,15 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             raise HTTPException(status_code=400, detail={"code": str(exc)}) from exc
         return {"ok": True, **runtime.model_aliases.view()}
 
+    # ── 아껴 준 양 영수증 (2026-10-19) ─────────────────────────────────
+    # 바깥 AI 가 맡긴 판에서 손자리가 대신 읽은 본문의 **하한** 토큰을 기간으로 모은다. 읽기 전용 — DB 를 `mode=ro` 로 연다.
+    # 어떤 판을 세는지 · 왜 하한만 말하는지는 `savings_receipt` 머리말.
+    @app.get("/v1/savings", dependencies=[Depends(require_token)])
+    def savings_view(days: int = 7) -> dict[str, Any]:
+        from .savings_receipt import collect
+
+        return collect(runtime.store.path, days=days)
+
     @app.post("/v1/ollama/prime-front", dependencies=[Depends(require_token)])
     def ollama_prime_front() -> dict[str, Any]:
         """고정 앞부분을 지금 한 번 데운다(`ollama.prime_front`). 평소에는 한가할 때 스스로 한다 — 재 볼 때와 진단용."""

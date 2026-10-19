@@ -135,6 +135,12 @@ _MANUAL = {
     "파일은 만들었지만 **검증(테스트·실행 확인)을 끝내지 못해** 멈췄습니다. files 는 검증되지 않은 결과입니다 — 열어서 확인하거나, 검증만 다시 맡기세요.":
         "Files were made but it stopped **without finishing the checks (tests or a run)**. files are unverified results — "
         "open them to check, or hand off just the checking.",
+    # 아껴 준 양 영수증의 근거 (2026-10-19 · `savings_receipt.BASIS`). 하한이라는 말 · 세지 않은 것을 영어에서도 빼지 않는다.
+    "바깥 AI 가 맡긴 일에서 이 PC 가 읽은 본문 글자 수(센 값)를 토큰당 4.5자로 나눈 하한을 판마다 더했습니다. "
+    "한글 본문은 실측으로 토큰당 1.66~1.72자라 실제는 이보다 큽니다. 사람이 앱 · 디스코드에서 직접 시킨 일과 측정 판은 세지 않았습니다.":
+        "A lower bound: for each task handed off by an outside AI, the characters of page text this PC read (counted, not "
+        "estimated) divided by 4.5 characters per token, then added up. Korean text measured 1.66–1.72 characters per token, "
+        "so the real amount is larger. Tasks a person gave directly in the app or on Discord, and our measurement runs, are not counted.",
 }
 # 이름표가 없는 도구는 「도구이름 실행 중」으로 나간다. 틀(「{0} 실행 중」)로 두면 「…가 실행 중」으로 끝나는 아무 글이나
 # 먹으므로, 도구 이름 꼴(영문 소문자·숫자·밑줄)일 때만 바꾼다.

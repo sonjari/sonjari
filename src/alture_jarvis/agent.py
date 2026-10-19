@@ -115,7 +115,8 @@ from .observations import ObservationStore
 from .search_typo import repair_query, repair_search_url
 from .transcript import (
     FOLD_SHEET_REQUEST, STEP_FOLD_TARGET, add_job_context, attach_system_notes, bounded as _bounded, fit_system_split,
-    needs_step_fold, pin_reply_language, set_fold_sheet, transcript_chars, with_job_context,
+    frame_harness_notes, harness_note_positions, needs_step_fold, person_message, pin_reply_language, set_fold_sheet,
+    transcript_chars, with_job_context,
 )
 from .ollama import OllamaClient, collapse_repeated_paragraphs
 from .presentation import paint_answer, paint_answer_apart
@@ -140,7 +141,8 @@ from .plan_nudges import (
     _goes_to_unread_site, _read_more_since, _pushback_stalled, _keep_answer_over_reply, _stage_guess_failed, _invented_ratios,
     _rewrote_a_finished_document,
     _repair_read_after_write_feedback, _own_written_messages, _artifact_requirements_met, _cleans_up,
-    _deletes_own_file,
+    _deletes_own_file, _owed_read_site, _OWED_READ_SITES, _OWED_READ_CALLS_PER_SITE, _OWED_READ_REWRITE_NOTE,
+    _with_owed_read_note,
 )
 from .plan import (
     app_named_only,
@@ -279,6 +281,7 @@ from .answer_hygiene import (
     _tidy_small_model_habits,
     _artifact_still_owed,
     _with_document_title,
+    artifact_name_from_task,
 )
 
 
@@ -535,7 +538,10 @@ def _forced_artifact_decision(
             for block in blocks
             if block.get("type") != "table" and str(block.get("text") or "").strip(" *")
         ) or body
-    blocks = _with_document_title(blocks, body)
+    # ★ 이름과 (제목이 없을 때의) 문서 제목은 **사람이 시킨 글**에서 짓는다 (2026-10-19 판 bb5ab643 · `artifact_name_from_task`).
+    #   답의 첫 문장은 「…열지 못했고 …6개만 읽었습니다」 같은 고백일 수 있다 — 그게 파일 이름 `rAI_Agents_게시판은_열지_못했고_….xlsx` 가 됐다.
+    task_title = artifact_name_from_task(prompt)
+    blocks = _with_document_title(blocks, body, title=task_title)
     # 제목과 **똑같은 문단**은 한 줄 중복이다. 답은 흔히 `**여수 회계 채용 공고 비교표**` 처럼
     # 굵은 글씨 표제를 쓰는데, 그것이 제목이 되면 같은 글이 두 줄 선다.
     if len(blocks) > 1:
@@ -547,7 +553,7 @@ def _forced_artifact_decision(
         ]
     wanted = artifact_extensions(prompt)
     suffix = wanted[0] if wanted else ".docx"
-    stem = str(blocks[0].get("text") or "").strip() or "정리"
+    stem = task_title or str(blocks[0].get("text") or "").strip() or "정리"
     # 파일 이름에 못 쓰는 글자를 걷어낸다. 경로 조각도 막는다.
     stem = re.sub(r"[^" + chr(92) + "w " + chr(92) + "-()]", "", stem).strip()[:60] or "정리"
     path = stem.replace(" ", "_") + suffix
@@ -1474,16 +1480,15 @@ def said_by_the_person(messages: list[dict[str, Any]]) -> str:
     """이 대화에서 **사람이 준 글** — 붙여넣은 글·앞서 말한 조건. 거기 든 숫자는 지어낸 것이 아니다.
 
     우리가 끼워 넣은 말(「[시스템] …」·「★ …」)은 뺀다 — 그걸 근거로 치면 되받기에 적힌 숫자가 답의 근거가 된다.
+    ★ 무엇이 「우리가 끼워 넣은 말」인지는 모델에 보낼 때 머리를 다는 곳과 **같은 판정**을 쓴다(`transcript.harness_note_positions`, 2026-10-19).
     """
+    ours = harness_note_positions(messages)
     parts = []
-    for message in messages:
-        if message.get("role") != "user":
+    for index, message in enumerate(messages):
+        if message.get("role") != "user" or index in ours:
             continue
         content = message.get("content")
-        text = content if isinstance(content, str) else ""
-        if text.lstrip().startswith(("[시스템]", "[System]", "★", "[도구가 보낸 안내]")):
-            continue
-        parts.append(text)
+        parts.append(content if isinstance(content, str) else "")
     return " ".join(parts)
 
 
@@ -2276,17 +2281,15 @@ class BrowserAgent:
             with self._steer_lock:
                 self._steer_applied.setdefault(str(job_id), []).extend(notes)
         for note in notes:
-            messages.append({
-                "role": "user",
-                "content": (
-                    f"{_STEER_MARK}\n"
-                    f"{note}\n\n"
-                    "지금까지 찾은 것을 버리지 말고 이 말을 반영해 다음 걸음을 정해라. "
-                    "방향을 바꿀 때는 **도구를 부르면서** 짧게 곁들여라 — 「방향을 바꾸겠다」는 말만 하고 끝내면 그게 최종 답이 돼 버린다. "
-                    "최종 답은 원래 요구와 이 말을 **함께** 채워 쓴다. "
-                    "멈추라거나 됐다는 말이면 더 찾지 말고 지금까지 확인한 것으로 답해라."
-                ),
-            })
+            # 사람이 작업 도중 덧붙인 말 — 하네스 안내가 아니다(`person_message` 표시, 2026-10-19).
+            messages.append(person_message(
+                f"{_STEER_MARK}\n"
+                f"{note}\n\n"
+                "지금까지 찾은 것을 버리지 말고 이 말을 반영해 다음 걸음을 정해라. "
+                "방향을 바꿀 때는 **도구를 부르면서** 짧게 곁들여라 — 「방향을 바꾸겠다」는 말만 하고 끝내면 그게 최종 답이 돼 버린다. "
+                "최종 답은 원래 요구와 이 말을 **함께** 채워 쓴다. "
+                "멈추라거나 됐다는 말이면 더 찾지 말고 지금까지 확인한 것으로 답해라."
+            ))
             self.events.publish("agent_steer_applied", {"job_id": job_id, "text": note[:500], "step": step})
         return len(notes)
 
@@ -2876,6 +2879,9 @@ class BrowserAgent:
         # 판 도중 `[시스템]` 안내는 바로 앞 도구 결과에 붙여 보낸다 — 사용자 메시지로 두면 렌더러가 앞 걸음을
         # 다르게 그려 캐시가 중간부터 깨진다(2026-09-29 실측, transcript.attach_system_notes).
         bounded = attach_system_notes(bounded)
+        # 그래도 사용자 차례에 남은 하네스 안내에는 「자동 점검 · 사용자가 한 말 아님」 머리를 단다 — 모델이 그 안내를 사람의
+        # 지적으로 받아 「지적하신 대로」라고 답했다(2026-10-19 판 8b90144f, transcript.frame_harness_notes). 모든 호출이 지나는 자리다.
+        bounded = frame_harness_notes(bounded, english=_REPLY_LANGUAGE.get() == "en")
         # 영어로 시킨 판은 모든 도구 결과 끝에 답 언어 한 줄을 붙인다 — 모델이 마지막에 읽는 글이 한국어 안내면
         # 9B 는 생각과 중계를 한국어로 낸다(2026-10-05 AWS 영어 윈도우 첫 실행, transcript.pin_reply_language).
         if _REPLY_LANGUAGE.get() == "en":
@@ -3742,6 +3748,22 @@ class BrowserAgent:
                 f" | {chars:,}자 | {url[:500]}"
             )
         return "\n".join(rows[-12:])
+
+    @staticmethod
+    def _files_stay_as_written_note(steps: list[dict[str, Any]]) -> str:
+        """다시 쓰기에 덧붙이는 한 줄 — **이 다시 쓰기는 글만 고친다. 이미 만든 파일은 그대로다.**
+
+        ★ 2026-10-19 판 8b90144f: 다시 쓰기 안내가 「조건에 어긋난 항목은 결과 표에 넣지 말고」였고, 모델은 「Cursor·Perplexity 를
+          결과 표에서 제외」라고 답했다. 그런데 이 호출은 도구 없는 글 답이라 엑셀은 그대로였고 두 줄이 파일에 남았다 — 답과 파일이
+          어긋났다. 이 판에서 파일을 만들었으면 그 사실을 같이 준다. 없으면 빈 글.
+        """
+        names = list(dict.fromkeys(path.name for path in BrowserAgent._written_paths(steps) if path.name))
+        if not names:
+            return ""
+        return (
+            "이 다시 쓰기에서는 파일을 고칠 수 없다. 이 판에서 이미 만든 파일(" + ", ".join(names[:4]) + ")은 그대로 남는다 — "
+            "답에서 뺀 항목이 있어도 「파일에서 뺐다·파일을 고쳤다」고 쓰지 말고, 그 항목이 파일에는 그대로 있다고 밝혀라.\n"
+        )
 
     @staticmethod
     def _unread_source_attribution_conflict(
@@ -6036,6 +6058,42 @@ class BrowserAgent:
         return ""
 
     @staticmethod
+    def _excluded_but_in_file(answer: str, steps: list[dict[str, Any]]) -> str:
+        """**답은 「뺐다」고 했는데 만든 파일에는 그 항목이 그대로 있는가.** 위 두 검사(값이 한쪽에만 있다)와 같은 집안이다.
+
+        ★ 2026-10-19 판 8b90144f: 다시 쓴 답이 「Cursor · Perplexity 는 조건에 맞지 않아 결과 표에서 제외」라고 했는데, 엑셀은 다시 쓰기
+          전에 이미 만들어져 두 줄이 그대로 있었다. 위 두 검사는 「값이 하나라도 겹치나」만 봐서 못 잡는다 — 남은 줄의 값이 겹친다.
+          빼 놓은 자리의 항목 이름(`plan.excluded_item_names`, 자리로만 고른다)을 이 판이 쓴 표 파일의 글과 맞춘다. 낱말을 늘리지 않는다.
+        """
+        from .document_reader import preview_of_file
+        from .plan import excluded_item_names
+
+        names = excluded_item_names(answer)
+        if not names:
+            return ""
+        for path in dict.fromkeys(BrowserAgent._written_paths(steps)):
+            if path.suffix.lower() not in BrowserAgent._TABLE_ARTIFACTS:
+                continue
+            try:
+                if not path.is_file():
+                    continue
+                text = preview_of_file(path, chars=20000)
+            except Exception:  # noqa: BLE001 — 못 열면 판정하지 않는다
+                continue
+            flat = " ".join(str(text or "").split()).casefold()
+            still = [name for name in names if " ".join(name.split()).casefold() in flat]
+            if still:
+                shown = ", ".join(still[:5])
+                return _say(
+                    f"\n\n⚠ **답에서는 뺐다고 한 것이 만든 파일({path.name})에는 그대로 있습니다: {shown}.** 답과 파일이 "
+                    "다릅니다 — 파일을 쓰시기 전에 그 줄을 확인해 주세요.",
+                    f"\n\n⚠ **Items the answer says were left out are still in the file ({path.name}): {shown}.** The answer "
+                    "and the file disagree — check those rows before using the file.",
+                    answer,
+                )
+        return ""
+
+    @staticmethod
     def _artifact_answer_divergence(answer: str, steps: list[dict[str, Any]]) -> str:
         """**만든 파일에는 답이 있는데 본문은 못 했다고 하는가.**
 
@@ -6900,7 +6958,8 @@ class BrowserAgent:
                     f"\n\n(참고: 이 화면은 windows_open_path 의 path 에 \"{screen}\" 이라고 이름만 적으면 열립니다. 명령 출력에 안 나오는 "
                     "값은 그 창을 열어 windows_uia_snapshot 으로 읽으세요.)"
                 )
-            messages.append({"role": "user", "content": with_job_context(job_text, goal_label + prompt + app_note)})
+            # 사람이 시킨 일 — 이 뒤의 표시 없는 사용자 차례는 전부 하네스 안내다(`transcript.harness_note_positions`).
+            messages.append(person_message(with_job_context(job_text, goal_label + prompt + app_note)))
             # ★ 새 판이면 **지난 판의 검색 순위를 버린다** (2026-08-14).
             #
             # `_last_results` 는 워커에 붙어 있어 잡이 끝나도 안 지워진다. 그래서
@@ -7479,6 +7538,9 @@ class BrowserAgent:
         deliver_refusal_grace = 0
         #: 대조가 열라고 한 주소를 여느라 돌려준 걸음 수(`_repair_read_after_write_feedback`).
         repair_read_grace = 0
+        #: 접기 전 산출물 차례에서 「못 채운 읽기 요구」로 받아 준 걸음 수(사이트별 · `_owed_read_site`).
+        owed_read_calls: dict[str, int] = {}
+        owed_rewrite_granted = False  # 그 읽기 뒤 파일을 다시 쓸 한 걸음을 돌려줬는가
         #: 바닥선(계획)을 채운 판에 주는 마무리 한 번(`_GOAL_MET_CLOSING_STEPS`)을 썼는가.
         goal_met_closing_used = False
         # 한 곳에서 막혀 안 간 곳으로 옮겨 보낸 적이 있나 — 한 판에 한 번(`untouched_sites`).
@@ -9397,6 +9459,38 @@ class BrowserAgent:
                     self.events.publish(
                         "agent_repair_read_allowed", {"job_id": job_id, "steps": len(steps), "tool": name}
                     )
+                # ★ **접기 전 산출물 차례에서도 시킨 것이 남은 곳은 읽게 한다** (2026-10-19 · 8b90144f · d0d36f19 — `_owed_read_site`).
+                #   그 차례는 안 읽은 사이트로 가는 길도 막는다(걸음 +3 을 파일 쓰기에 남기려고). 요청이 이름으로 댄 곳이나 대조표에
+                #   못 채운 읽기 칸이 남은 곳만 열고, 연 만큼 걸음과 시간을 돌려준다 — 파일 쓸 세 걸음은 그대로 남는다.
+                #   사이트 둘 · 사이트마다 세 걸음까지. 파일을 이미 썼으면 결과에 「다시 써서 고쳐라」를 붙인다.
+                owed_site = ""
+                owed_rewrite_note = ""
+                if (
+                    deliver_turn_used and plan and stage_hands and name not in stage_hands and not repair_read
+                    and not _reads_page_just_opened(name, steps) and not _reopens_unread_page(name, arguments, steps)
+                ):
+                    owed_site = _owed_read_site(
+                        name, arguments, steps,
+                        check_plan(plan, sources=self._sources_actually_read(steps), steps=steps), asked,
+                    )
+                    if owed_site and (
+                        owed_read_calls.get(owed_site, 0) >= _OWED_READ_CALLS_PER_SITE
+                        or (owed_site not in owed_read_calls and len(owed_read_calls) >= _OWED_READ_SITES)
+                    ):
+                        owed_site = ""
+                    if owed_site:
+                        owed_read_calls[owed_site] = owed_read_calls.get(owed_site, 0) + 1
+                        step_limit += 1
+                        deadline += 30
+                        if any(step.get("ok") and step.get("tool") in _ARTIFACT_PROGRESS_TOOLS for step in steps):
+                            owed_rewrite_note = _OWED_READ_REWRITE_NOTE
+                            if not owed_rewrite_granted:
+                                owed_rewrite_granted = True
+                                step_limit += 1  # 다시 쓸 한 걸음
+                        self.events.publish(
+                            "agent_owed_read_allowed",
+                            {"job_id": job_id, "steps": len(steps), "tool": name, "site": owed_site},
+                        )
                 # ★ 2026-09-30 QR 판: 고른 저장소가 없는 판(코워크·MCP)은 root 가 비어 「새 파일인가」가 늘 거짓이었다 —
                 #   새 `create_qr.py` 쓰기가 네 번 막혔다. 쓰기가 실제로 가는 자리(잡 책상)를 기준으로 본다.
                 #   고른 저장소가 없으면 훑을 저장소도 없다 — 새 파일은 바로 쓴다(아래 `not required_local_root`).
@@ -9449,6 +9543,8 @@ class BrowserAgent:
                         or _reopens_unread_page(name, arguments, steps)
                         # 아직 안 읽은 사이트로 가는 길은 받는다(2026-10-12) — 걸음이 바닥나기 전의 마지막 차례에는 아니다.
                         or (not deliver_turn_used and _goes_to_unread_site(name, arguments, steps))
+                        # 그 마지막 차례에서도 시킨 것이 남은 곳은 받는다(2026-10-19 · 위 `owed_site`).
+                        or bool(owed_site)
                     )
                 ) and not _deletes_own_file(name, arguments, steps):
                     # ★ 산출물 차례에서 거절당한 걸음은 차례를 깎지 않는다 (2026-10-02 밤 레딧 기록 판 f2bd80e7).
@@ -9717,6 +9813,8 @@ class BrowserAgent:
                     ).strip()
                     observation = {**observation, "result": payload}
 
+                if owed_rewrite_note and observation.get("ok"):
+                    observation = _with_owed_read_note(observation, owed_rewrite_note)
                 if recency_asked:
                     observation = _stale_read_notice(observation, recency_asked)
                 failure_signature = _observation_failure_signature(observation)
@@ -10443,7 +10541,11 @@ class BrowserAgent:
                         "아래 읽기는 실제로 성공했다. 조건에 맞지 않아 제외할 수는 있지만 "
                         "성공한 읽기를 실패·막힘이라고 쓰지 마라. 사용자의 조건에 어긋난 "
                         "항목은 결과 표에 넣지 말고, 조건을 만족하는 수가 부족하면 그 수와 "
-                        "이유를 정직하게 밝혀라. 근거에 없는 회사명·날짜·URL을 만들지 마라.\n"
+                        "이유를 정직하게 밝혀라. 근거에 없는 회사명·날짜·URL을 만들지 마라. "
+                        # ★ 2026-10-19: 운영에서 다시 쓴 답 131개 중 24개가 첫머리에서 이 안내에 대꾸했다(「지적하신 대로」 · 「죄송합니다」 ·
+                        #   「이전 답을 폐기합니다」). 사용자에게 남는 것은 다시 쓴 답 하나다 — 대꾸할 상대가 없다.
+                        "사용자에게는 다시 쓴 이 답만 남는다 — 「정정」·「사과」·「이전 답」·「지적」 같은 말 없이 처음 쓰는 답처럼 써라.\n"
+                        + self._files_stay_as_written_note(steps)
                         + self._read_ledger_note(steps)
                     ),
                 }
@@ -10517,6 +10619,10 @@ class BrowserAgent:
             # 사람이 본문만 읽고 멀쩡한 산출물을 버리는 것을 막는 자리다.
             + _as_warning(self._artifact_answer_divergence(answer, steps))
             + self._answer_missing_from_artifact(answer, steps)
+            # 답은 「뺐다」는데 만든 파일에는 그 줄이 그대로 있다(2026-10-19 판 8b90144f). **도구 없이 다시 쓴 답**에만 건다 —
+            #   파일을 만든 뒤 글만 고친 자리가 이 어긋남이 생기는 구조다. 넓게 걸면 「미확인 사항」 같은 굵은 소제목이 이름으로 잡혀
+            #   헛경고가 날 수 있는데, 운영 기록에서 파일이 아직 디스크에 남은 판이 둘뿐이라 헛경고 비율을 잴 수 없었다.
+            + (self._excluded_but_in_file(answer, steps) if answer_reconciled else "")
             + _as_warning(cleanup_claim_left_files(answer, self._written_paths(steps)))
             + self._empty_table_artifact_check(steps)
             # 돌려보내기를 다 쓴 뒤에도 읽은 자료에 없는 숫자로 파일을 썼으면 그 숫자를 댄다(2026-09-30 e7dd3831).

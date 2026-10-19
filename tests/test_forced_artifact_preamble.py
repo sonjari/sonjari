@@ -75,10 +75,14 @@ def test_the_preamble_does_not_end_up_inside_the_file() -> None:
 
 
 def test_the_file_is_named_after_the_content_not_the_preamble() -> None:
-    """예전엔 `사용자의_요청에_따라_실제로_본문을_읽는_데_성공한….xlsx` 가 나왔다(실측)."""
+    """예전엔 `사용자의_요청에_따라_실제로_본문을_읽는_데_성공한….xlsx` 가 나왔다(실측).
+
+    2026-10-19 부터 이름은 답이 아니라 **시킨 글**에서 짓는다(`artifact_name_from_task` · 판 bb5ab643) — 시킨 글의 목적어
+    「회사·마감일·자격 요건 비교표를」. 문서 안의 제목은 답의 표제 그대로다.
+    """
     call, _reason = _forced_artifact_decision(UNMET, [], PREAMBLE_THEN_TABLE, XLSX_PROMPT)
 
-    assert call[1]["path"] == "여수_회계_채용_공고_비교표.xlsx"
+    assert call[1]["path"] == "회사_마감일_자격_요건_비교표.xlsx"
     assert str(call[1]["blocks"][0].get("text") or "") == "여수 회계 채용 공고 비교표"
 
 
