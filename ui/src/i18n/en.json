@@ -2156,5 +2156,9 @@
  "끝난 일 {0}건 · 멈춘 일 {1}건 — 멈춘 일도 읽은 것은 셉니다.": "{0} finished · {1} stopped — what stopped tasks read is counted too.",
  "지난 7일 동안 바깥 AI 가 맡긴 일이 없습니다.": "No tasks were handed off by an outside AI in the last 7 days.",
  "가장 많이 덜어 준 일": "Tasks that kept the most out",
- "손자리가 대신 읽은 양을 불러오지 못했습니다.": "Couldn't load how much Sonjari read on your AI's behalf."
+ "손자리가 대신 읽은 양을 불러오지 못했습니다.": "Couldn't load how much Sonjari read on your AI's behalf.",
+ "지금은 켤 수 없습니다. 아래 안내를 확인해 주세요.": "This can't be turned on right now. See the note below.",
+ "반대 방향 · 손자리가 막히면 내 클로드에게": "The other way · When Sonjari gets stuck, to my Claude",
+ "넘긴 일은 답에 「클로드(내 구독)에게 넘겨 처리했습니다」와 그 이유가 적힙니다. 손자리 실력을 재는 판은 켜 둬도 넘기지 않습니다.": "A handed-off task says “This task was handed to Claude (your subscription)” and why in its answer. Runs that measure Sonjari's own skill are never handed off, even when this is on.",
+ "클로드(내 구독)에게 넘김": "Handed to Claude (your subscription)"
 }

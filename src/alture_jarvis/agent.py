@@ -2443,7 +2443,8 @@ class BrowserAgent:
             "schedule_list": "예약된 작업을 확인하는 중",
             "schedule_create": "예약 작업 생성을 준비하는 중",
             "schedule_cancel": "예약 작업 취소를 준비하는 중",
-            CLAUDE_CODE_TOOL: "Claude Code에게 코딩 작업을 위임하는 중",
+            # 2026-10-19: 「내 구독」을 쓰는 중임을 진행 줄이 말한다(사용자 설정 「막히면 내 클로드에게 넘기기」).
+            CLAUDE_CODE_TOOL: "클로드(내 구독)에게 넘겨 처리하는 중",
             # ★ 2026-10-05: 도구 153개 중 81개에 이름표가 없어 「browser_extract 실행 중」처럼 도구 이름이 그대로 보였고,
             #   영어 화면에서는 그 한국어 꼬리까지 샜다. 조사·코드에서 자주 쓰는 손에 이름표를 붙인다. 나머지는 아래 꼴
             #   그대로 나가고, 영어 화면에서는 `ui_i18n` 이 그 꼴(도구 이름 + 실행 중)을 알아보고 바꾼다.
@@ -7622,7 +7623,8 @@ class BrowserAgent:
         def forced_claude_call(answer_text: str = "") -> dict[str, Any] | None:
             """결정론 조건이 맞을 때만 Claude 호출 한 칸을 만든다."""
             helper = getattr(self, "claude_code", None)
-            if helper is None or not helper.available():
+            # 판 번호를 같이 준다 — 측정 판은 사용자가 켜 둬도 넘기지 않는다(`ClaudeCodeTools.hold_for_job`).
+            if helper is None or not helper.available(job_id):
                 return None
             # ★ 큰 코드 갈림길에서 사람이 「클로드 코드에 맡기기」를 골랐으면 규칙을 묻지 않고 맡긴다(`big_code`).
             if (
@@ -7687,7 +7689,7 @@ class BrowserAgent:
             if not size or size >= big_code.SMALL_MODEL_MAX_B:
                 return None
             helper = getattr(self, "claude_code", None)
-            arguments = big_code.question(size, claude_available=bool(helper is not None and helper.available()))
+            arguments = big_code.question(size, claude_available=bool(helper is not None and helper.available(job_id)))
             return {"function": {"name": ASK_USER_TOOL, "arguments": arguments}}
 
         # Code 모드에서는 모델 한 응답이 여러 tool_calls를 내서 step_limit을 한 번에

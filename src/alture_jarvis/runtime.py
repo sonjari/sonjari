@@ -42,7 +42,7 @@ from .attention import AttentionService
 from .brand import SELF_NAME_PATTERN, SELF_NAMES
 from .browser import BrowserTools, BrowserWorker
 from .clock import now_line_ko
-from .claude_code import ClaudeCodeTools, initial_delegation_reason
+from .claude_code import ClaudeCodeTools, handoff_receipt, hold_reason, initial_delegation_reason, with_handoff_receipt
 from .code_scout import CodeScout
 from .config import JarvisConfig, build_id
 from .delegation import partial_work, unfinished_turn_note
@@ -1886,6 +1886,9 @@ class JarvisRuntime:
             self.takeover.enabled = bool(self.config.takeover_enabled)
             self.takeover.branch_enabled = bool(self.config.takeover_branch_enabled)
             self.takeover.register(self.gateway)
+        if "claude_code_enabled" in keys:
+            # 「막히면 내 클로드에게 넘기기」 — 게이트웨이의 켜짐 표시도 같이 바꾼다(등록 때 값을 복사해 둔다).
+            self.claude_code.register(self.gateway)
         self.events.publish("settings_changed", {"keys": keys})
 
     def stop(self) -> None:
@@ -3154,16 +3157,16 @@ class JarvisRuntime:
             verb in compact for verb in LOCAL_INSPECTION_VERBS
         )
 
-    def _requires_claude_delegation(self, prompt: str) -> bool:
+    def _requires_claude_delegation(self, prompt: str, *, job_id: str = "") -> bool:
         """처음부터 다중 파일·git 저장소인 코딩 요청인가.
 
         반복 실패·남은 테스트·무지 응답은 실행 중 걸음이 있어야 판정할 수 있으므로
-        agent 쪽 한 벌짜리 ``delegation_decision``이 맡는다.
+        agent 쪽 한 벌짜리 ``delegation_decision``이 맡는다. 측정 판(`hold_for_job`)이면 갈래부터 열지 않는다.
         """
         return bool(
             self._requires_coding(prompt)
             and getattr(self, "claude_code", None)
-            and self.claude_code.available()
+            and self.claude_code.available(job_id)
             and initial_delegation_reason(prompt)
         )
 
@@ -3886,7 +3889,7 @@ class JarvisRuntime:
                 {"route": "hwp_document_edit", "reason": "open_hwp_edit_requested", "prompt": prompt[:200]},
             )
             return "agent", "", None
-        if self._requires_claude_delegation(prompt):
+        if self._requires_claude_delegation(prompt, job_id=job_id):
             reason = initial_delegation_reason(prompt)
             self.events.publish(
                 "agent_route_selected",
@@ -4560,6 +4563,11 @@ class JarvisRuntime:
             # 하는 정책은 아래 `required_local_root` 강제 걸음이 담당한다.
             model_prompt = f"코드 작업공간: {code_workspace}\n\n사용자 요청:\n{model_prompt}"
         session_id = self._session_id(payload)
+        # ★ 측정 판은 「막히면 내 클로드에게 넘기기」를 켜 둬도 넘기지 않는다(2026-10-19). 2026-08-27 측정에서 24판 중
+        #   6판이 클로드에게 빠져 로컬 실력이 부풀어 보였다. 클로드 코드가 맡긴 판도 되넘기지 않는다(`hold_reason`).
+        #   갈래 · 강제 호출 · 도구 손이 모두 이 표시를 본다.
+        if getattr(self, "claude_code", None) is not None:
+            self.claude_code.hold_for_job(str(job["id"]), hold_reason(payload, session_id))
         required_local_path = self._followup_output_path(session_id, prompt)
         # ★ 이어오기 인계 잡 (W0, 2026-09-15). 모델은 긴 인계문을 맥락으로 읽지만,
         #   **요구·갈래 판정은 사람이 본 문장 + 고른 방향**에서만 한다. 인계문 속 카드
@@ -4883,7 +4891,12 @@ class JarvisRuntime:
                         for step in claude_steps
                         if isinstance(step.get("evidence"), dict)
                     ),
+                    # 사람에게 보이는 영수증 한 줄 — 화면 · 바깥 AI 결과가 이 칸을 그대로 쓴다.
+                    "receipt": handoff_receipt(claude_steps),
                 }
+                # ★ 넘겼으면 답이 그렇게 말한다(2026-10-19 · 「막히면 내 클로드에게 넘기기」). 끝까지 맡긴 판은
+                #   `completion_answer` 가 이미 적었고, 넘겼다가 못 끝낸 판 · 이어 간 판은 여기서 붙인다.
+                answer = with_handoff_receipt(answer, claude_steps)
         else:
             if routed_answer:
                 answer, observation = routed_answer, routed_observation

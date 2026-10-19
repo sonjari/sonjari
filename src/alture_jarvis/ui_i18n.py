@@ -145,6 +145,34 @@ _MANUAL = {
         "A lower bound: for each task handed off by an outside AI, the characters of page text this PC read (counted, not "
         "estimated) divided by 4.5 characters per token, then added up. Korean text measured 1.66–1.72 characters per token, "
         "so the real amount is larger. Tasks a person gave directly in the app or on Discord, and our measurement runs, are not counted.",
+    # 「막히면 내 클로드에게 넘기기」(2026-10-19 · `claude_code` · 설정 › 연결). 넘긴 사실 · 까닭은 영어에서도 빼지 않는다.
+    "막히면 내 클로드에게 넘기기": "Hand off to my Claude when stuck",
+    "손자리가 코드 일에서 막혔을 때만 이 PC 의 Claude Code 에 넘깁니다. 내 Claude 구독의 사용 한도를 씁니다.":
+        "Only when Sonjari gets stuck on coding work, it hands the job to Claude Code on this PC. This uses your Claude "
+        "subscription's usage limits.",
+    "관리자가 이 PC 에서 꺼 두었습니다.": "An administrator turned this off on this PC.",
+    "관리자가 꺼 둠": "Turned off by admin",
+    "이 PC 에 Claude Code(claude 명령)가 없습니다. 설치하고 로그인하면 켤 수 있습니다.":
+        "Claude Code (the claude command) is not on this PC. Install it and sign in to turn this on.",
+    "Claude Code 없음": "No Claude Code",
+    "Claude Code 에 로그인하지 않았습니다. 명령 창에서 claude 를 한 번 실행해 로그인하면 켤 수 있습니다.":
+        "You are not signed in to Claude Code. Run claude once in a terminal and sign in to turn this on.",
+    "로그인 필요": "Sign-in needed",
+    "이 일은 클로드(내 구독)에게 넘겨 처리했습니다 · 이유: {0}": "This task was handed to Claude (your subscription) · Reason: {0}",
+    "이 일을 클로드(내 구독)에게 넘겨 봤지만 끝내지 못했습니다 · 이유: {0}":
+        "This task was handed to Claude (your subscription) but it did not finish · Reason: {0}",
+    "막혀서 클로드(내 구독)에게 넘깁니다 · 이유: {0}": "Stuck, so handing this to Claude (your subscription) · Reason: {0}",
+    "클로드(내 구독)에게 넘긴 일을 이어 갑니다 · 이유: {0}": "Continuing the task handed to Claude (your subscription) · Reason: {0}",
+    "클로드(내 구독)에게 넘겨 처리하는 중": "Handing this to Claude (your subscription)",
+    "Claude Code 완료 · 예상비용 ${0}": "Claude Code done · estimated cost ${0}",
+    "여러 파일을 함께 고치는 일이라서": "it changes several files together",
+    "저장소 전체를 다루는 일이라서": "it works on a whole repository",
+    "같은 파일에서 두 번 막혀서": "it got stuck twice on the same file",
+    "고친 뒤에도 테스트가 계속 실패해서": "tests kept failing after the fix",
+    "손자리가 방법을 찾지 못해서": "Sonjari could not find a way",
+    "앞서 넘긴 일을 같은 세션에서 이어서": "continuing the earlier handoff in the same session",
+    "직접 클로드에게 맡기기를 골라서": "you chose to hand it to Claude",
+    "막혀서": "it got stuck",
 }
 # 이름표가 없는 도구는 「도구이름 실행 중」으로 나간다. 틀(「{0} 실행 중」)로 두면 「…가 실행 중」으로 끝나는 아무 글이나
 # 먹으므로, 도구 이름 꼴(영문 소문자·숫자·밑줄)일 때만 바꾼다.

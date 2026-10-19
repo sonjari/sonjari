@@ -169,6 +169,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         # 모델이 보는 도구 목록을 갈래·단계·요청으로 고르는 쪽 — agent.py 에서 분리(2026-10-09). 산출물 차례 손과 플랫폼 쓰기 관문이 쓰기의 결과를 바꾼다.
         "tool_roster.py",
         "windows_automation.py", "ui_vision.py", "sandbox.py", "scheduler.py",
+        # 화면 밖 · 최소화된 창을 주 모니터로 데려온다(2026-10-19 ae395490 뒤) — 창 자리를 바꾸는 손이라 windows_automation 과 같은 자리.
+        "window_view.py",
         "watch_service.py", "external_actions.py", "mimo_control.py",
         "hwp.py",
         # `undo_action` 이 여기 있다 — 되돌리는 것도 쓰기다(눈금도 WRITE 로 센다).
@@ -1118,7 +1120,13 @@ class JarvisConfig:
     # Claude Code는 로컬 상자가 같은 파일에서 두 번 막히거나, 처음부터 다중 파일·git
     # 저장소 작업일 때만 결정론으로 열린다. 임대시간을 넘으면 session_id를 보존해
     # 다음 판에서 --resume으로 잇는다 — 단일 JobRunner를 계속 붙들지 않기 위해서다.
-    claude_code_enabled: bool = True
+    # ★ 2026-10-19: 사용자 설정 「막히면 내 클로드에게 넘기기」(설정 › 연결)의 **기본값**이다. 기본 꺼짐 —
+    #   2026-08-27 측정에서 24판 중 6판이 다중 파일 조건으로 클로드에게 빠져 로컬 실력이 부풀어 보였다(운영 .env 도 그래서 0).
+    #   이 값(환경변수 포함)은 기본값일 뿐이고 화면에서 켠 값이 이긴다(`settings.apply_user_settings`).
+    #   측정 판은 이 값과 무관하게 언제나 꺼진다(`claude_code.measurement_reason`).
+    claude_code_enabled: bool = False
+    # 관리자 잠금(`JARVIS_CLAUDE_CODE_LOCKED`). 참이면 화면에서 켤 수 없고(「관리자가 꺼 둠」) 켜 둔 값도 일하지 않는다.
+    claude_code_locked: bool = False
     claude_code_command: str = "claude"
     claude_code_lease_sec: int = 90
     claude_code_result_max_chars: int = 16_000
@@ -1653,7 +1661,8 @@ class JarvisConfig:
                     fresh=product_dir(Path.home()) / "sandbox",
                 )))
             ),
-            claude_code_enabled=_bool("JARVIS_CLAUDE_CODE_ENABLED", True),
+            claude_code_enabled=_bool("JARVIS_CLAUDE_CODE_ENABLED", False),
+            claude_code_locked=_bool("JARVIS_CLAUDE_CODE_LOCKED", False),
             claude_code_command=_env("JARVIS_CLAUDE_CODE_COMMAND", "claude"),
             claude_code_lease_sec=_int("JARVIS_CLAUDE_CODE_LEASE_SEC", 90),
             claude_code_result_max_chars=_int(

@@ -708,6 +708,8 @@ export interface SettingRow {
   restart_required: boolean;
   /** 이 판에서 못 쓰는 기능이면 그 이유(사람 말). 빈 값이면 쓸 수 있다. */
   unavailable?: string;
+  /** 그 이유의 짧은 상태 말(「관리자가 꺼 둠」 · 「로그인 필요」). 없으면 「이 판에서는 못 씁니다」. */
+  unavailable_short?: string;
 }
 
 export interface SettingsView {

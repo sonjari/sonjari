@@ -214,6 +214,9 @@ def test_all_settings_have_a_consumer_probe():
 def test_saved_setting_reaches_its_consumer(tmp_path, monkeypatch, key):
     monkeypatch.setattr(httpx, 'Client', OfflineClient)
     monkeypatch.setattr('alture_jarvis.config._default_backup_root', lambda: tmp_path/'backups')
+    # 「막히면 내 클로드에게 넘기기」는 클로드 명령 · 로그인이 없으면 켜지지 않는다 — 이 PC 의 설치 여부와 무관하게 잰다.
+    monkeypatch.setattr('alture_jarvis.claude_code.cli_status',
+                        lambda _config: {'ok': True, 'code': '', 'reason': '', 'short': ''})
     defaults = dict(runtime_root=tmp_path, data_dir=tmp_path/'data', output_dir=tmp_path/'out',
                     documents_dir=tmp_path/'documents',
                     user_label='기본호칭', attention_notices_enabled=False, scheduler_enabled=False,

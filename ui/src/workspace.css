@@ -1885,6 +1885,9 @@ button.code-think-raw:disabled { cursor: default; opacity: .6; }
 .savings-top li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin: 3px 0; }
 .savings-top-prompt { overflow-wrap: anywhere; }
 .savings-top-tokens { color: rgb(var(--text-4)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* 설정 › 연결 — 이음 카드 뒤의 반대 방향 스위치(「막히면 내 클로드에게 넘기기」 · 2026-10-19). 위 카드와 한 줄 띄운다. */
+.settings-handoff { margin-top: 26px; padding-top: 18px; border-top: 1px solid rgb(var(--line)); }
+.settings-handoff h3 { margin: 0 0 4px; }
 .settings-generations { list-style: none; margin: 8px 0; padding: 0; font-size: var(--fs-2); color: rgb(var(--text-3)); }
 .settings-generations li { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 7px 0; border-top: 1px solid rgb(var(--line)); }
 .settings-generations li:first-child { border-top: 0; }

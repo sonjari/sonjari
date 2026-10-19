@@ -278,7 +278,8 @@ export function SettingsScreen({ client, open, onClose, initialSection = "genera
           )}
           {/* 언어는 맨 위 「일반」에 — 「앱」 구역은 영어로 「Diagnostics · restart」라 거기서 찾지 않는다. */}
           {section === "general" && <LanguageBlock />}
-          {view && rows.length > 0 && section !== "model" && (
+          {/* 연결 묶음의 칸(「막히면 내 클로드에게 넘기기」)은 아래 이음 카드 옆에 그린다. */}
+          {view && rows.length > 0 && section !== "model" && section !== "connect" && (
             <ul className="settings-rows">
               {rows.filter((row) => !(section === "skills" && row.key === "skills_domains")).map(control)}
             </ul>
@@ -295,6 +296,15 @@ export function SettingsScreen({ client, open, onClose, initialSection = "genera
               {/* 2026-10-19: 클로드를 이은 까닭이 숫자로 보이는 자리 — 연결 설정 바로 위. */}
               {client && <SavingsCard client={client} />}
               <ConnectPanel api={setupApi} />
+              {/* 2026-10-19: 반대 방향 — 클로드가 손자리에 맡기는 길(위) 옆에, 손자리가 막히면 내 클로드에게 넘기는 스위치.
+                  켜고 끄기 · 못 켜는 까닭(클로드 없음 · 로그인 필요 · 관리자가 꺼 둠)은 다른 설정 칸과 같은 부품이 그린다. */}
+              {rows.length > 0 && (
+                <section className="settings-handoff" aria-labelledby="settings-handoff-title">
+                  <h3 id="settings-handoff-title">{t("반대 방향 · 손자리가 막히면 내 클로드에게")}</h3>
+                  <p className="settings-note">{t("넘긴 일은 답에 「클로드(내 구독)에게 넘겨 처리했습니다」와 그 이유가 적힙니다. 손자리 실력을 재는 판은 켜 둬도 넘기지 않습니다.")}</p>
+                  <ul className="settings-rows">{rows.map(control)}</ul>
+                </section>
+              )}
             </div>
           )}
           {section === "discord" && client && <DiscordSection client={client} />}
@@ -373,6 +383,7 @@ export function settingErrorText(message: string): string {
     case "too_long": return t("너무 깁니다.");
     case "empty_model": return t("모델 이름을 비울 수 없습니다.");
     case "not_allowed": return t("이 화면에서는 바꿀 수 없는 값입니다.");
+    case "unavailable": return t("지금은 켤 수 없습니다. 아래 안내를 확인해 주세요.");
     default: return t("저장하지 못했습니다: {0}", message);
   }
 }
@@ -407,7 +418,7 @@ function SettingControl({ row, status, draft, onDraft, onSaveDraft, onSave, onRe
         {row.help && <small>{row.help}</small>}
         {unavailable && <small className="settings-unavailable">{unavailable}</small>}
         <span className="settings-source">
-          {unavailable ? t("이 판에서는 못 씁니다") : describeSource(row)}
+          {unavailable ? (row.unavailable_short || t("이 판에서는 못 씁니다")) : describeSource(row)}
           {row.source === "user" && !unavailable && (
             <button type="button" className="settings-reset" onClick={onReset} disabled={busy}><Undo2 size={12} /> {t("기본값으로")}</button>
           )}

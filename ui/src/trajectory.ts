@@ -288,7 +288,7 @@ const TOOL_LABELS: Record<string, string> = {
   artifact_from_observations: t("근거를 파일로 만들기"),
   sandbox_fetch: t("만든 파일 가져오기"),
   sandbox_reset: t("작업판 비우기"),
-  claude_code_delegate: t("Claude Code에게 위임"),
+  claude_code_delegate: t("클로드(내 구독)에게 넘김"),
   // ── 윈도우 창 ──
   windows_list_open_windows: t("열린 창 목록"),
   windows_focus_window: t("창 앞으로"),

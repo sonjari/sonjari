@@ -4643,6 +4643,23 @@ class LocalComputerTools:
 
         callback = callback_type(collect)
         user32.EnumWindows(callback, 0)
+        # 화면 밖 창에만 표시를 단다(대부분의 창은 칸이 늘지 않는다). 모델이 좌표 하나로 「화면 밖」을 짐작하지 않게 —
+        # 어느 모니터에도 반 넘게 걸치지 않은 창만 밖이다. 앞으로 가져오기 · 미리보기가 그런 창을 주 모니터로 데려온다.
+        from . import window_view
+
+        desk = window_view.desktop()
+        if desk is not None:
+            try:
+                monitors = desk.monitors()
+                for row in windows:
+                    if row["minimized"]:
+                        continue
+                    rect = desk.rect(row["window_id"])
+                    if window_view.plan_into_view(rect, monitors) is not None:
+                        row["off_screen"] = True
+                        row["where"] = window_view.where(rect, monitors)
+            except Exception:
+                pass
         return {"action": "windows_list_open_windows", "count": len(windows), "windows": windows}
 
     def focus_window(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -4663,11 +4680,30 @@ class LocalComputerTools:
                 "user_active_try_later: 사용자가 키보드·마우스를 쓰는 중이라 창을 앞으로 가져오지 않았습니다. "
                 "잠시 뒤 다시 시도하세요."
             )
-        if user32.IsIconic(window_id):
+        # ★ **화면 밖이면 주 모니터로 데려온다 · 최소화면 펼친다** (2026-10-19 판 ae395490 뒤, `window_view.py` 머리말).
+        #   펼치기는 원래 여기서 하던 일이고, 옮기기도 같은 등급(L1)의 눈에 보이는 변화다 — 이미 잘 보이는 창은 손대지 않는다.
+        from . import window_view
+
+        desk = window_view.desktop()
+        view = window_view.bring_into_view(window_id, desk) if desk is not None else {}
+        if desk is None and user32.IsIconic(window_id):
             user32.ShowWindow(window_id, 9)  # SW_RESTORE
+        if view.get("still_off_screen"):
+            raise RuntimeError(
+                f"window_off_screen: {view.get('note')} 창을 사람이 화면 안으로 끌어와야 합니다 — Alt+Space 같은 키로 옮기려 하지 마세요."
+            )
         if not user32.SetForegroundWindow(window_id):
-            raise RuntimeError("window_focus_failed")
-        return {"action": "windows_focus_window", "window_id": window_id, "title": buffer.value[:500]}
+            # ★ 실패 까닭을 위치와 같이 말한다. 「window_focus_failed」 한 낱말만 받은 모델은 창 좌표(-1928)를 보고 「화면 밖」이라
+            #   짐작해 Alt+Space 이동 · 최대화로 다섯 걸음을 버렸다(ae395490 — 실제로는 왼쪽 보조 모니터에 떠 있었다). 창이 화면 안이면
+            #   위치 문제가 아니라 윈도우가 다른 프로그램의 「앞으로 가져오기」를 막은 것이다. 미리보기 → 실행 단계는 UIA 로 따로
+            #   포커스를 맞추므로 그 길을 알려 준다. 문장은 같은 창이면 늘 같다(같은 실패 되풀이를 세는 열쇠가 문장 전체다).
+            place = window_view.describe(window_id, desk).get("where") or "위치 확인 못 함"
+            raise RuntimeError(
+                f"window_focus_failed: 창은 {place}에 있습니다 — 위치 문제가 아니라 윈도우가 다른 프로그램이 창을 앞으로 가져오는 것을 "
+                "막은 것입니다. 창을 옮기거나 Alt+Space 로 최대화하지 말고, windows_uia_snapshot → windows_uia_preview → "
+                "windows_execute_preview 로 바로 조작하세요(실행 단계가 따로 그 창에 포커스를 맞춥니다)."
+            )
+        return {"action": "windows_focus_window", "window_id": window_id, "title": buffer.value[:500], **view}
 
     def open_path(self, arguments: dict[str, Any]) -> dict[str, Any]:
         if os.name != "nt" or not self.config.windows_control_enabled:
