@@ -1,0 +1,64 @@
+{
+  "date": "2026-09-16",
+  "question": "When an MCP host has Sonjari connected, does it call Sonjari when it should, and stay away when it should not?",
+  "n_per_class": 3,
+  "hosts": {
+    "claude_code": {
+      "n_should": 3,
+      "called": 3,
+      "n_should_not": 3,
+      "false_calls": 0,
+      "claimed_without_calling": 0,
+      "confirmed_in_sonjari_log": 3,
+      "notes": "Sonjari was attached with --mcp-config; the host's own tools (web search, file write) stayed available so the choice was real. All three should-call tasks ran to completion on Sonjari's side."
+    },
+    "codex": {
+      "n_should": 3,
+      "called": 3,
+      "n_should_not": 3,
+      "false_calls": 0,
+      "claimed_without_calling": 0,
+      "confirmed_in_sonjari_log": 0,
+      "actually_executed": 0,
+      "notes": "Headless 'codex exec' runs with approval policy 'never', so every MCP call was refused ('MCP tool call requires approval'); 0 tasks actually executed. Only the decision to call is measured. Bypass flags were not used. Codex answers said the call was blocked and did not invent results."
+    }
+  },
+  "tasks": [
+    {
+      "id": "S1",
+      "kind": "should",
+      "what": "job board search (Saramin) -> Excel file"
+    },
+    {
+      "id": "S2",
+      "kind": "should",
+      "what": "bookstore (YES24) book details -> Word file"
+    },
+    {
+      "id": "S3",
+      "kind": "should",
+      "what": "news portal (Naver) top headlines -> Markdown file"
+    },
+    {
+      "id": "N1",
+      "kind": "should_not",
+      "what": "explain list vs tuple in Python"
+    },
+    {
+      "id": "N2",
+      "kind": "should_not",
+      "what": "split a total into supply price and VAT"
+    },
+    {
+      "id": "N3",
+      "kind": "should_not",
+      "what": "spot the bug in a short code snippet"
+    }
+  ],
+  "method": "Two sides recorded separately: the host's CLI transcript (did it try to call) and Sonjari's own audit log and job table (did work actually run).",
+  "limits": [
+    "n=3 per class",
+    "call timestamps not measured (the first attempt recorded them wrongly, so they were dropped)",
+    "the Sonjari log is the PC's live instance; runs were executed one at a time to avoid mixing"
+  ]
+}

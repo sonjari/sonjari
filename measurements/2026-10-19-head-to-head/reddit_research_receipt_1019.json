@@ -1,0 +1,14 @@
+{
+ "label": "reddit_research_receipt",
+ "date": "2026-10-19",
+ "what": "One real research job handed from Claude Code to Sonjari over MCP: open top posts of the past month on r/ClaudeCode and r/LocalLLaMA and collect complaints into a spreadsheet.",
+ "reads": {
+  "post_pages": 16,
+  "listing_pages": 4,
+  "text_chars_read_locally": 218131
+ },
+ "tokens_at_least": 48473,
+ "formula": "218131 chars / 4.5 chars per token, rounded down",
+ "basis": "A floor, not an estimate. The body text was read on this PC; Claude got the answer and sources. The text is English, where a token is usually around 4 characters, so the real figure is near or above this. The per-step re-sending a host would do if it read the pages itself is not counted.",
+ "not_counted": "r/AI_Agents was in the request, but no post page from it was opened in this job."
+}
