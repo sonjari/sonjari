@@ -32,6 +32,25 @@ from .proof import ProofSpec, same_fingerprint
 from .tool_gateway import InverseSpec, ToolGateway, ToolSpec
 
 
+_QUOTED_WHOLE = re.compile(r"""^(["'])(.*)\1$""", re.DOTALL)
+
+
+def split_command_line(raw: str) -> list[str]:
+    """명령 한 줄 → 조각. **윈도우 경로의 역슬래시를 지우지 않는다.**
+
+    ★ 2026-10-19: 맡기기 `check` 에 `C:\\RoboMetaFit\\tools\\…\\python.exe -m pytest …` 를 주자 `shlex.split(posix=True)` 가
+      역슬래시를 「다음 글자 그대로」 표시로 읽어 통째로 지웠다 — 프로그램 이름이 `robometafittoolsalture-jarvis.venvscriptspython`
+      이 되어 `project_command_not_allowed` 로 거절됐다. 같은 것을 자르는 자리가 둘(`_split_command` · 검증 명령 입구)이라 여기 하나로 모았다.
+      윈도우에서는 역슬래시가 경로 글자다: `posix=False` 로 쪼갠 뒤 조각을 감싼 따옴표만 벗긴다. 닫히지 않은 따옴표는 그대로 ValueError.
+    """
+    import shlex
+
+    if os.name != "nt":
+        return shlex.split(raw, posix=True)
+    parts = shlex.split(raw, posix=False)
+    return [match.group(2) if (match := _QUOTED_WHOLE.match(part)) else part for part in parts]
+
+
 # 코드·텍스트를 훑을 때 한 파일에서 가져오는 기본 분량.
 #
 # 컨텍스트가 24,576 토큰이라는 사실에서 나온 숫자다. 여기가 40,000자였을 때는
@@ -2411,9 +2430,7 @@ class LocalComputerTools:
     def _split_command(raw: Any) -> list[str]:
         """글자 한 줄이든 목록이든 **같은 조각**으로. 판정과 실행이 다른 모양을 보면 안 된다."""
         if isinstance(raw, str):
-            import shlex
-
-            return shlex.split(raw, posix=True)
+            return split_command_line(raw)
         if isinstance(raw, list):
             return [str(part) for part in raw]
         return []
@@ -2808,10 +2825,8 @@ class LocalComputerTools:
         ):
             raw = raw[0].strip()
         if isinstance(raw, str):
-            import shlex
-
             try:
-                raw = shlex.split(raw, posix=True)
+                raw = split_command_line(raw)
             except ValueError as exc:                      # 닫히지 않은 따옴표
                 raise ValueError(f"command_quotes_unbalanced: {exc}") from exc
         if not isinstance(raw, list) or not 1 <= len(raw) <= 30:
@@ -4692,18 +4707,35 @@ class LocalComputerTools:
             raise RuntimeError(
                 f"window_off_screen: {view.get('note')} 창을 사람이 화면 안으로 끌어와야 합니다 — Alt+Space 같은 키로 옮기려 하지 마세요."
             )
-        if not user32.SetForegroundWindow(window_id):
-            # ★ 실패 까닭을 위치와 같이 말한다. 「window_focus_failed」 한 낱말만 받은 모델은 창 좌표(-1928)를 보고 「화면 밖」이라
-            #   짐작해 Alt+Space 이동 · 최대화로 다섯 걸음을 버렸다(ae395490 — 실제로는 왼쪽 보조 모니터에 떠 있었다). 창이 화면 안이면
-            #   위치 문제가 아니라 윈도우가 다른 프로그램의 「앞으로 가져오기」를 막은 것이다. 미리보기 → 실행 단계는 UIA 로 따로
-            #   포커스를 맞추므로 그 길을 알려 준다. 문장은 같은 창이면 늘 같다(같은 실패 되풀이를 세는 열쇠가 문장 전체다).
-            place = window_view.describe(window_id, desk).get("where") or "위치 확인 못 함"
-            raise RuntimeError(
-                f"window_focus_failed: 창은 {place}에 있습니다 — 위치 문제가 아니라 윈도우가 다른 프로그램이 창을 앞으로 가져오는 것을 "
-                "막은 것입니다. 창을 옮기거나 Alt+Space 로 최대화하지 말고, windows_uia_snapshot → windows_uia_preview → "
-                "windows_execute_preview 로 바로 조작하세요(실행 단계가 따로 그 창에 포커스를 맞춥니다)."
-            )
-        return {"action": "windows_focus_window", "window_id": window_id, "title": buffer.value[:500], **view}
+        if user32.SetForegroundWindow(window_id):
+            return {"action": "windows_focus_window", "window_id": window_id, "title": buffer.value[:500], **view}
+        # ★ SetForegroundWindow 가 0 을 주면 UIA 로 한 번만 더 시도한다. 미리보기 → 실행 단계가 이미 쓰는 길
+        #   (`Desktop(backend="uia").window(handle=…).set_focus()`)이니, 여기서도 같은 길을 걸어 통하면 성공이다.
+        #   pywinauto 로 못 가거나(불러오기 실패 · 예외) 뒤에도 앞이 아니면 아래 같은 window_focus_failed 를 낸다.
+        try:
+            from pywinauto import Desktop
+
+            Desktop(backend="uia").window(handle=window_id).set_focus()
+        except Exception:
+            pass
+        if user32.GetForegroundWindow() == window_id:
+            return {
+                "action": "windows_focus_window",
+                "window_id": window_id,
+                "title": buffer.value[:500],
+                "focused_by": "uia",
+                **view,
+            }
+        # ★ 실패 까닭을 위치와 같이 말한다. 「window_focus_failed」 한 낱말만 받은 모델은 창 좌표(-1928)를 보고 「화면 밖」이라
+        #   짐작해 Alt+Space 이동 · 최대화로 다섯 걸음을 버렸다(ae395490 — 실제로는 왼쪽 보조 모니터에 떠 있었다). 창이 화면 안이면
+        #   위치 문제가 아니라 윈도우가 다른 프로그램의 「앞으로 가져오기」를 막은 것이다. 미리보기 → 실행 단계는 UIA 로 따로
+        #   포커스를 맞추므로 그 길을 알려 준다. 문장은 같은 창이면 늘 같다(같은 실패 되풀이를 세는 열쇠가 문장 전체다).
+        place = window_view.describe(window_id, desk).get("where") or "위치 확인 못 함"
+        raise RuntimeError(
+            f"window_focus_failed: 창은 {place}에 있습니다 — 위치 문제가 아니라 윈도우가 다른 프로그램이 창을 앞으로 가져오는 것을 "
+            "막은 것입니다. 창을 옮기거나 Alt+Space 로 최대화하지 말고, windows_uia_snapshot → windows_uia_preview → "
+            "windows_execute_preview 로 바로 조작하세요(실행 단계가 따로 그 창에 포커스를 맞춥니다)."
+        )
 
     def open_path(self, arguments: dict[str, Any]) -> dict[str, Any]:
         if os.name != "nt" or not self.config.windows_control_enabled:

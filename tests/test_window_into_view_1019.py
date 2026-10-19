@@ -207,7 +207,11 @@ class _FakeUser32:
         return 1
 
     def SetForegroundWindow(self, hwnd: int) -> int:  # noqa: N802
-        return 1 if self.foreground_ok else 0
+        self._front = hwnd if self.foreground_ok else 0
+        return self._front
+
+    def GetForegroundWindow(self) -> int:  # noqa: N802
+        return self._front
 
 
 def _local_tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, desk: FakeDesk, *, foreground_ok: bool):

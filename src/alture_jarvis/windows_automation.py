@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import threading
 import time
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -833,6 +835,41 @@ class WindowsAutomationTools:
         image.save(path, format="PNG", optimize=True)
         return path, bounds
 
+    def _log_visual_plan(
+        self,
+        window_id: int,
+        instruction: str,
+        x: int,
+        y: int,
+        confidence: float,
+        width: int,
+        height: int,
+        in_bounds: bool,
+        screenshot: Path,
+    ) -> None:
+        """비전 계획의 숫자를 action-previews 폴더의 visual_plans.jsonl 에 한 줄 남긴다.
+
+        오류 문장(같은 실패 되풀이를 세는 열쇠)에 숫자를 넣지 않는 대안으로, 기록에는
+        넣는다. 쓰기가 실패해도 본래 동작은 이어가야 하므로 예외만 삼킨다.
+        """
+        record = {
+            "at": datetime.now().astimezone().isoformat(),
+            "window_id": window_id,
+            "instruction": instruction[:200],
+            "x": x,
+            "y": y,
+            "confidence": confidence,
+            "width": width,
+            "height": height,
+            "in_bounds": in_bounds,
+            "screenshot": str(screenshot),
+        }
+        try:
+            with (self.preview_dir / "visual_plans.jsonl").open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+
     def _save_preview(
         self,
         *,
@@ -1017,7 +1054,10 @@ class WindowsAutomationTools:
         confidence = float(plan.get("confidence") or 0)
         width = bounds["right"] - bounds["left"]
         height = bounds["bottom"] - bounds["top"]
-        if not (0 <= relative_x < width and 0 <= relative_y < height):
+        in_bounds = 0 <= relative_x < width and 0 <= relative_y < height
+        self._log_visual_plan(window_id, instruction, relative_x, relative_y, confidence,
+                              width, height, in_bounds, screenshot)
+        if not in_bounds:
             # ★ 비전이 그림 밖 좌표를 골랐다는 뜻이지, 창이 화면 밖이라는 뜻이 아니다(ae395490: 모델이 이 실패를 「창이 화면 왼쪽
             #   밖」의 증거로 읽었다 — 그 창은 보조 모니터에 잘 찍혀 있었다). 창은 위 `_bring_into_view` 로 이미 보이는 자리에 있다.
             #   비전이 고른 숫자는 부를 때마다 달라 문장에 넣지 않는다(같은 실패 되풀이를 세는 열쇠가 문장 전체다).

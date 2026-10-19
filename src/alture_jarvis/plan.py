@@ -2324,7 +2324,12 @@ def pages_links_were_followed_from(steps: list[dict[str, Any]]) -> set[str]:
         shapes: dict[tuple[Any, ...], int] = {}
         for item in reached:
             shapes[_item_shape(item)] = shapes.get(_item_shape(item), 0) + 1
-        if shapes and max(shapes.values()) >= _FOLLOWED_MIN:
+        # ★ **글과 같은 모양의 화면은 목록이 아니다**(2026-10-19 사람인 판 7643c135): 공고 상세(`/jobs/view?rec_idx=N`) 안의 「관련 공고」
+        #   링크로 다른 공고 둘을 열었더니 그 상세가 목록으로 찍혀, 실제로 연 공고 셋이 둘로 세어졌다. 진짜 목록(`/show` · 검색 결과)은
+        #   고른 글(`/topic?id=N`)과 주소 모양이 다르다 — 글에서 글로 건너간 것은 「목록에서 골랐다」가 아니다.
+        own = _item_shape(page)
+        counted = {shape: count for shape, count in shapes.items() if shape != own}
+        if counted and max(counted.values()) >= _FOLLOWED_MIN:
             lists |= spelled.get(page, set())
     return lists
 

@@ -689,20 +689,43 @@ def claimed_reads_note(answer: str, steps: list[dict[str, Any]]) -> str:
         claims.append((int(match.group(1)), match.group(0)))
     if not claims:
         return ""
+    # ★ 목록 화면은 「직접 연 곳」이 아니다(2026-10-19 판 1bc39285): 답은 「글 4개를 직접 열어 확인」이라 했고 걸음 기록에서 연 글은
+    #   둘(+ 프로필 하나)이었는데, 긱뉴스 목록 화면까지 「연 곳」으로 세어 경고가 서지 않았다. 「직접 열어 읽기 N개」 셈과 같은
+    #   목록 판정(`pages_results_were_opened_from` — 검색 결과 · 쪽만 넘긴 목록 · 링크를 받아 따라간 목록)으로 뺀다.
+    from .plan import pages_results_were_opened_from
+
+    # 결과를 골라 연 화면(`browser_open_result`)은 늘 글이다 — 검색 레시피의 도착 화면 규칙(10-08)이 상세 하나를 목록으로 찍은 판이 있다
+    # (사람인 7643c135: 공고 셋을 열었는데 둘로 셈).
+    opened_items = {
+        BrowserAgent._url_key(BrowserAgent._step_page_url(step) or "")
+        for step in steps
+        if step.get("ok") and str(step.get("tool") or "") == "browser_open_result"
+    }
+    listings = {
+        BrowserAgent._url_key(url) for url in pages_results_were_opened_from(steps) if str(url).startswith("http")
+    } - opened_items
     places = set()
+    seen_any = False
     for step in steps:
         if not step.get("ok") or str(step.get("tool") or "") not in _PAGE_TOOLS:
             continue
         arguments = step.get("arguments") if isinstance(step.get("arguments"), dict) else {}
         place = BrowserAgent._step_page_url(step) or str(arguments.get("path") or arguments.get("file_id") or "")
         if place:
-            places.add(BrowserAgent._url_key(place) if place.startswith("http") else place)
+            seen_any = True
+            key = BrowserAgent._url_key(place) if place.startswith("http") else place
+            if key not in listings:
+                places.add(key)
     said, phrase = max(claims)
-    if not places or said <= len(places):
+    # 페이지를 하나도 안 본 판(파일 · 계산만 한 판)은 대조할 것이 없다. 목록만 본 판은 「연 곳 0」으로 대조한다(1b6df02d — 목록 10쪽 · 글 0).
+    if not seen_any or said <= len(places):
         return ""
+    skipped = len(listings)
     return _say(
-        f"\n\n⚠ **답은 「{phrase.strip()}」라고 적었지만, 걸음 기록에서 실제로 열거나 읽은 곳은 {len(places)}곳입니다.**",
-        f"\n\n⚠ **The answer says \"{phrase.strip()}\", but the step record shows {len(places)} places actually opened or read.**",
+        f"\n\n⚠ **답은 「{phrase.strip()}」라고 적었지만, 걸음 기록에서 실제로 열거나 읽은 곳은 {len(places)}곳입니다**"
+        + (f"(목록 화면 {skipped}곳은 뺌)." if skipped else "."),
+        f"\n\n⚠ **The answer says \"{phrase.strip()}\", but the step record shows {len(places)} places actually opened or read**"
+        + (f" (not counting {skipped} list pages)." if skipped else "."),
         answer,
     )
 
