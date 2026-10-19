@@ -12,6 +12,7 @@ What still holds is here with its conditions. What did not hold is listed at the
 | One research job handed from Claude Code to Sonjari (10-19) | 218,131 characters read on this PC, at least 48,473 tokens that never entered Claude's window | Counted, a floor |
 | Sonjari vs Hermes Agent, same model and GPU (09-28~29) | Code task 3/3 vs 3/3, **Hermes about twice as fast**. Meeting notes to Word 2/3 vs 2/3. Bookstore to Excel 5/6 vs 1/3, with five conditions that favour Sonjari | Small n, one PC |
 | Do Claude Code and Codex call Sonjari when they should (09-16) | Claude Code 3/3, no false calls. Codex chose to call 3/3 but its headless mode refused every call, so 0 ran | n = 3 per class |
+| Outside coding benchmark: 12 Aider polyglot Python tasks (10-08) | The shipped 27B passed **12/12** with one attempt each, median about 2 minutes; 9B models passed 3 to 5 | One attempt per task, 12 of 34 tasks |
 | Kyobo "990p" (09-06) | Two models read reward points as page counts on a listing page | Reproducible with two commands |
 
 ## 1. Claude Code with and without Sonjari — `price_claude_code_1015.json`
@@ -87,6 +88,25 @@ invent results.
 
 Browser Use with two different models gave page counts of 990p, 990p and 2,250p. They were reward points on the search listing, which has no
 page-count field. A grounding check ("is this number in what the agent read?") passes them; the missing check is whether it is the right field.
+
+## 6. Outside coding tasks — `coding_polyglot_1008.json`
+
+12 Python tasks from the Aider polyglot benchmark (affine-cipher, bottle-song, dominoes, forth, grep, paasio, poker, react,
+scale-generator, transpose, variable-length-quantity, zipper), on one RTX 3090, window 64K, one attempt per task, 600 s cap.
+The model got the instructions, the empty function and the test file, not the reference solution. After each run the test file
+was restored from the original before pytest, so editing the tests cannot pass a task.
+
+| Model | Passed | Median time |
+|---|---|---|
+| Swift-1.5-Qwen3.8-27B IQ3_S (what Sonjari ships for 24 GB cards) | 12/12, no failed steps | 119 s |
+| Same model, IQ3_XXS | 12/12 | 169 s |
+| Qwen3.8 27B GSQ IQ3_S | 11/12 | 251 s |
+| Ornith 1.5 35B-A3B IQ4_XS | 9/12 | 136 s |
+| Qwen3.5 9B Q4 | 5/12 | 135 s (10-12 rerun: 5/12) |
+| Ornith 1.5 9B Q4 | 5/12 (10-12: 3/12) | 605 s |
+
+12 of the 34 Python tasks; why these 12 were picked was not recorded. Not comparable to Aider's leaderboard (225 tasks, six languages,
+two attempts). Shorter runs in the file were stopped early and are kept as they are.
 
 ## Excluded, and why
 
