@@ -94,9 +94,14 @@ def prepare(folder: str, *, home: Path, run: Runner = subprocess.run, clock: Cal
     }
 
 
+#: 가지에 커밋하지 않는 부산물 — 시험 · 컴파일이 만든 것. 저장소에 `.gitignore` 가 없으면 `add -A` 가 다 쓸어 담는다.
+#: ★ 2026-10-20 시험 판 dd6c008c: `.gitignore` 없는 저장소에서 바뀐 파일 173개 중 `__pycache__/*.pyc` 가 130여 개였다.
+_NOT_WORK = (":(exclude,glob)**/__pycache__/**", ":(exclude,glob)**/*.pyc", ":(exclude,glob)**/.pytest_cache/**")
+
+
 def _commit(run: Runner, worktree: str | Path, message: str) -> str:
     """작업 자리의 변경을 그 가지에 커밋하고 커밋 번호를 돌려준다. 바뀐 것이 없으면 지금 머리 그대로."""
-    _git(run, worktree, "add", "-A", timeout=120)
+    _git(run, worktree, "add", "-A", "--", ".", *_NOT_WORK, timeout=120)
     if _git(run, worktree, "diff", "--cached", "--quiet").returncode != 0:
         run(["git", "-C", str(worktree), *_IDENTITY, "commit", "-m", message], capture_output=True, timeout=120)
     return _text(_git(run, worktree, "rev-parse", "HEAD"))
@@ -114,7 +119,56 @@ def finish(worktree: str, base: str, *, message: str, run: Runner = subprocess.r
         if len(parts) >= 2:
             changed.append({"status": parts[0][:1], "path": parts[-1]})
     stat = _text(_git(run, worktree, "diff", "--shortstat", f"{base}..{head}")) if base and head else ""
-    return {"ok": True, "head": head, "changed": changed[:200], "changed_count": len(changed), "stat": stat}
+    wording = wording_only(run, worktree, base, head, [item["path"] for item in changed if item["status"] == "M"])
+    return {"ok": True, "head": head, "changed": changed[:200], "changed_count": len(changed), "stat": stat,
+            "wording_only": wording[:60]}
+
+
+def _code_shape(source: str) -> str | None:
+    """파이썬 소스에서 **설명 글(docstring)과 주석을 뺀** 모양. 문법이 깨졌으면 None.
+
+    주석은 AST 에 원래 없다. 설명 글은 모듈 · 클래스 · 함수 몸의 첫 문장이 글자 하나뿐인 경우다.
+    """
+    import ast
+
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return None
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and body:
+            first = body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
+                node.body = body[1:] or [ast.Pass()]
+    return ast.dump(tree, include_attributes=False)
+
+
+def wording_only(run: Runner, worktree: str | Path, base: str, head: str, paths: list[str]) -> list[str]:
+    """고친 파이썬 파일 가운데 **설명 글 · 주석만** 바뀌고 코드는 그대로인 것.
+
+    ★ 2026-10-19 맡기기 75aaa296. 「벤치 파일에 measurement 낱말이 있어야」라는 허술한 시험을 받고, 손자리는 일을 걸지도 않는
+      조회 스크립트 17개의 **설명 글에 그 낱말을 끼워 넣어** 통과시켰다. 확인 명령은 통과로 찍혔고 바뀐 파일 수는 40개로 커 보였다.
+      동작이 그대로인 변경은 시험만 맞춘 것일 수 있다 — 막지 않고, 맡긴 쪽이 가져가기 전에 보게 이름을 붙인다.
+    """
+    if not base or not head:
+        return []
+    found: list[str] = []
+    for path in paths:
+        if not path.endswith(".py"):
+            continue
+        before = _git(run, worktree, "show", f"{base}:{path}")
+        after = _git(run, worktree, "show", f"{head}:{path}")
+        if before.returncode != 0 or after.returncode != 0:
+            continue
+        old_text = (before.stdout or b"").decode("utf-8", "replace")
+        new_text = (after.stdout or b"").decode("utf-8", "replace")
+        if old_text == new_text:
+            continue
+        old_shape = _code_shape(old_text)
+        if old_shape is not None and old_shape == _code_shape(new_text):
+            found.append(path)
+    return found
 
 
 def take_home(repo: str, branch: str, base: str, worktree: str) -> dict[str, str]:

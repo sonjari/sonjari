@@ -126,7 +126,7 @@ from .promise_gate import (
     _GOAL_MET_CLOSING_STEPS, _GOAL_MET_CLOSING_STEPS_MANIPULATION, _GOAL_MET_CLOSING_SEC, _seen_text,
     table_rows_seen_by_tools, rows_seen_by_tools, list_items_seen_by_tools, _list_items, _cell_pieces, _row_was_seen,
     _row_of_name_was_seen, steps_against_cap, cap_room, what_was_done_lines, _CORRECTS_EARLIER, _nothing_new_since,
-    _PATH_ARGUMENTS, anchor_relative_paths, _only_a_promise, _FUTURE_ENDING, _states_a_fact, _promises_in_english,
+    _PATH_ARGUMENTS, anchor_relative_paths, collapse_doubled_root, _only_a_promise, _FUTURE_ENDING, _states_a_fact, _promises_in_english,
     _restore_pointed_back_answer, _PROCESS_PURPOSE, _SENTENCE_BREAK, _POLITE_END, _self_directive,
     _announces_without_a_result, announces_present_action, _answer_that_lost_its_rows, _POINTS_BACK,
     _ANNOUNCE_PUSHBACK_MAX, _READ_OR_LOOKED_AT_PAGE, _NO_CLOSING_ANSWER_NOTE, _NO_CLOSING_ANSWER_NOTE_EN,
@@ -2237,8 +2237,12 @@ class BrowserAgent:
         steps: list[dict[str, Any]],
         plan_results: list[tuple[Any, bool, str]],
         remaining_sec: float,
+        code: bool = False,
     ) -> str:
         """계속 가기로 했을 때 사람에게 보낼 한 줄.
+
+        ★ 코드 판은 웹에서 읽은 곳이 아니라 **연 파일 · 고친 파일**을 센다 (2026-10-19 맡기기 75aaa296).
+          파일 23개를 고치는 판이 18분 내내 「아직 읽은 본문 없음」으로 보여, 맡긴 쪽은 아무 일도 안 하는 줄 알았다.
 
         예전 문구는 "되돌릴 수 있는 작업이라 계속 진행합니다" 하나였다. 그 말은
         **왜 계속하는지**는 알려 주지만 **무엇을 가졌고 얼마나 남았는지**는 알려
@@ -2251,15 +2255,50 @@ class BrowserAgent:
         """
         minutes = max(0, int(remaining_sec + 30) // 60)
         budget = f"{minutes}분 남음" if minutes else "1분 미만 남음"
+        missing = [req.label for req, ok, _ in plan_results if not ok]
+        todo = f" · 남은 것: {', '.join(missing[:2])}" if missing else ""
+        if code:
+            opened, changed = cls._files_touched(steps)
+            if changed:
+                got = f"파일 {len(opened)}개 읽음 · {len(changed)}개 고침"
+            elif opened:
+                got = f"파일 {len(opened)}개 읽음"
+            else:
+                got = "아직 연 파일 없음"
+            return f"계속 진행합니다 — {got}{todo} · {budget}"
         hosts: list[str] = []
         for url in cls._sources_read(steps):
             host = host_of(url)
             if host and host not in hosts:
                 hosts.append(host)
         got = f"{len(hosts)}곳에서 읽음({', '.join(hosts[:3])})" if hosts else "아직 읽은 본문 없음"
-        missing = [req.label for req, ok, _ in plan_results if not ok]
-        todo = f" · 남은 것: {', '.join(missing[:2])}" if missing else ""
         return f"계속 진행합니다 — {got}{todo} · {budget}"
+
+    #: 파일을 **읽기만** 하는 도구 · 파일을 **바꾸는** 도구. 진행 한 줄에서 센다(성공한 걸음만).
+    _FILE_READ_TOOLS = frozenset({"local_read_text_file", "local_read_document"})
+    _FILE_CHANGE_TOOLS = frozenset({"local_apply_edit", "local_write_file"})
+
+    @classmethod
+    def _files_touched(cls, steps: list[dict[str, Any]]) -> tuple[list[str], list[str]]:
+        opened: list[str] = []
+        changed: list[str] = []
+        for step in steps:
+            if not step.get("ok"):
+                continue
+            tool = str(step.get("tool") or "")
+            arguments = step.get("arguments") or {}
+            paths = [arguments.get("path")] + list(arguments.get("paths") or [])  # 묶어 읽기(`paths`)도 센다
+            for raw in paths:
+                path = str((raw.get("path") if isinstance(raw, dict) else raw) or "").strip()
+                if not path:
+                    continue
+                key = path.replace("\\", "/").lower()
+                if tool in cls._FILE_READ_TOOLS and key not in opened:
+                    opened.append(key)
+                elif tool in cls._FILE_CHANGE_TOOLS and key not in changed:
+                    changed.append(key)
+        # 고친 파일은 읽은 것으로도 센다 — 「3개 고침」인데 「1개 읽음」이면 읽지 않고 고친 것처럼 보인다.
+        return list(dict.fromkeys(opened + changed)), changed
 
     def _cancelled(self, job_id: str) -> bool:
         current = self.store.get_job(job_id)
@@ -2589,6 +2628,8 @@ class BrowserAgent:
         def remap(value: Any) -> Any:
             if isinstance(value, list):
                 return [remap(item) for item in value]
+            if isinstance(value, dict) and "path" in value:  # `paths` 의 {path, line_start, line_end}
+                return {**value, "path": remap(value["path"])}
             if not isinstance(value, str) or not value.strip():
                 return value
             try:
@@ -7954,6 +7995,7 @@ class BrowserAgent:
                             steps=steps,
                             plan_results=plan_results,
                             remaining_sec=deadline - now,
+                            code=model_role == "code",
                         ),
                     )
                     now = time.monotonic()
@@ -9438,6 +9480,11 @@ class BrowserAgent:
                     if anchored is not None:
                         arguments = anchored
                         self.events.publish("agent_relative_path_anchored", {"job_id": job_id, "tool": name, "root": required_local_root[:200]})
+                    # ★ 작업 폴더 끝이 경로에 한 번 더 붙은 것(`…/tools/alture-jarvis/tools/alture-jarvis/…`)은 접는다 (2026-10-19 75aaa296).
+                    folded = collapse_doubled_root(arguments, required_local_root)
+                    if folded is not None:
+                        arguments = folded
+                        self.events.publish("agent_doubled_root_folded", {"job_id": job_id, "tool": name, "root": required_local_root[:200]})
                 arguments = _into_asked_folder(name, arguments, prompt)
                 # ★ 손으로 만든 검색 주소·검색어의 한 글자 오타를 사용자가 쓴 말로 (2026-10-01 「파이서」, `search_typo` 머리말).
                 #   주소 검색어는 도구가 대신 검색칸에 쳐 넣으므로(사고 R) 여기서 바로잡지 않으면 오타를 그대로 친다.

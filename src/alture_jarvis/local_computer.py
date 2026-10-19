@@ -1477,9 +1477,29 @@ class LocalComputerTools:
             self._function(
                 "local_read_text_file",
                 "허용된 경로의 텍스트·코드 파일을 읽는다. 큰 파일은 잘리고 outline(함수와 줄 범위)이 함께 온다 — "
-                "그 다음엔 line_start/line_end 로 필요한 구간만 다시 읽어라. 비밀 파일은 차단한다.",
+                "그 다음엔 line_start/line_end 로 필요한 구간만 다시 읽어라. 비밀 파일은 차단한다. "
+                "여러 파일을 볼 때는 `paths` 로 **한 번에** 읽어라(12개까지 · 파일마다 줄 범위) — 하나씩 부르면 대화 기록이 길어진다.",
                 {
                     "path": {"type": "string"},
+                    "paths": {
+                        "type": "array",
+                        "maxItems": 12,
+                        "description": "여러 파일을 한 번에. 항목은 경로 글자이거나 {path, line_start, line_end}. local_grep 결과의 read_all 을 그대로 넣으면 된다.",
+                        "items": {
+                            "anyOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "path": {"type": "string"},
+                                        "line_start": {"type": "integer", "minimum": 1},
+                                        "line_end": {"type": "integer", "minimum": 1},
+                                    },
+                                    "required": ["path"],
+                                },
+                            ]
+                        },
+                    },
                     "max_chars": {"type": "integer", "minimum": 500, "maximum": 40000},
                     "line_start": {
                         "type": "integer",
@@ -1492,7 +1512,7 @@ class LocalComputerTools:
                         "description": "이 줄까지 읽는다(포함).",
                     },
                 },
-                ["path"],
+                [],  # `path` 하나 또는 `paths` 여럿 — 둘 다 없으면 도구가 갈 곳을 대며 거절한다
             ),
             self._function(
                 "local_read_document",
@@ -3829,6 +3849,7 @@ class LocalComputerTools:
             "truncated": truncated,
             "items": hits,
         }
+        self._attach_read_all(payload, hits)
         if not hits:
             # 0건은 「없다」와 「덜 봤다」가 다르다. 그 둘을 구별해서 말해 준다.
             payload["hint"] = (
@@ -3874,7 +3895,52 @@ class LocalComputerTools:
             "searched_roots": searched,
             "note": "path 를 안 줘서 허용된 자리 전부를 찾았다: " + " · ".join(searched)
                     + ". 다음엔 path 에 그중 한 곳(절대 경로)을 주면 더 빠르다.",
+            **({} if action != "local_grep" else self._attach_read_all({}, merged)),
         }
+
+    #: grep 이 찾은 줄을 둘러 읽을 범위 — 위로 몇 줄 · 아래로 몇 줄 · 한 파일에서 최대 몇 줄.
+    _READ_ALL_ABOVE = 3
+    _READ_ALL_BELOW = 15
+    _READ_ALL_SPAN = 80
+
+    @classmethod
+    def _attach_read_all(cls, payload: dict[str, Any], hits: list[dict[str, Any]]) -> dict[str, Any]:
+        """찾은 줄이 **여러 파일**에 걸치면, 그 자리들을 한 걸음에 읽는 `local_read_text_file` 인자를 결과에 붙인다 (2026-10-19 75aaa296).
+
+        ★ 같은 판에서 모델은 grep 으로 23개 파일을 찾고, 그 줄 둘레를 파일마다 따로 23번 읽었다(한 번 부를 때 여러 개씩).
+          안내문만 두면 안 먹는다(사고 R) — 그대로 넣으면 되는 인자를 만들어 준다. 파일마다 찾은 줄의 위 3줄 ~ 아래 15줄,
+          한 파일에 여러 줄이면 그 범위를 하나로 합친다(80줄까지).
+        """
+        ranges: dict[str, list[int]] = {}
+        for hit in hits:
+            path = str(hit.get("path") or "")
+            try:
+                line = int(hit.get("line") or 0)
+            except (TypeError, ValueError):
+                continue
+            if not path or line < 1:
+                continue
+            low, high = max(1, line - cls._READ_ALL_ABOVE), line + cls._READ_ALL_BELOW
+            if path in ranges:
+                low, high = min(low, ranges[path][0]), max(high, ranges[path][1])
+                high = min(high, low + cls._READ_ALL_SPAN - 1)
+            ranges[path] = [low, high]
+        if len(ranges) < 2:
+            return payload
+        size = cls._READ_MANY_MAX_FILES
+        batches = [
+            [{"path": path, "line_start": low, "line_end": high} for path, (low, high) in list(ranges.items())[start:start + size]]
+            for start in range(0, len(ranges), size)
+        ]
+        payload["read_all"] = {"paths": batches[0]}
+        payload["read_all_hint"] = (
+            f"찾은 줄이 {len(ranges)}개 파일에 있다. 둘레를 읽으려면 파일마다 따로 부르지 말고 "
+            "local_read_text_file 에 read_all 을 그대로 넣어 한 번에 읽어라"
+            + (f" — {size}개씩 {len(batches)}번: 나머지는 read_all_more." if len(batches) > 1 else ".")
+        )
+        if len(batches) > 1:
+            payload["read_all_more"] = [{"paths": batch} for batch in batches[1:]]
+        return payload
 
     def glob_files(self, arguments: dict[str, Any]) -> dict[str, Any]:
         """`**/*.py` 처럼 **트리 전체**에서 이름 패턴으로 찾는다.
@@ -4156,6 +4222,8 @@ class LocalComputerTools:
         사용자가 "이 PDF 읽어줘"라고 지목한 경우라 잘라 내면 안 된다.
         """
         arguments = dict(arguments)
+        if isinstance(arguments.get("paths"), list) and arguments.get("paths"):
+            return self._read_many_text_files(arguments)
         arguments.setdefault("max_chars", SURVEY_READ_CHARS)
         # 줄 범위를 지목했으면 **그 구간만** 준다. outline 을 보고 콕 집어 오는
         # 경로다 — 4,689줄짜리 파일에서 함수 하나만 읽으면 전사가 수십 배 싸다.
@@ -4169,6 +4237,65 @@ class LocalComputerTools:
         result["line_start"] = 1
         result["line_end"] = content.count("\n") + (1 if content else 0)
         return self._attach_outline(result)
+
+    #: 한 번에 묶어 읽는 파일 수와 합친 본문의 끝.
+    _READ_MANY_MAX_FILES = 12
+    _READ_MANY_MAX_CHARS = 24_000
+
+    def _read_many_text_files(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """여러 파일(파일마다 줄 범위)을 **한 걸음에** 읽는다 (2026-10-19 맡기기 75aaa296).
+
+        ★ 벤치 스크립트 23개에 같은 한 줄을 넣는 판이 99걸음 · 18분이었다(도구 시간은 합쳐 6초). 파일마다 따로 읽은 23걸음을 묶으려고 넣었다.
+        ★★ 바로잡음(2026-10-20 같은 과제 다시 · dd6c008c): **걸음 수는 시간이 아니었다.** 앞 판은 99걸음을 모델 호출 31번에 했다 — 한 번에
+          도구를 여러 개 부른다. 묶어 읽기로 읽기 걸음은 40 → 14 로 줄었지만 판은 28.6분으로 오히려 길었고, 그 차이는 생각 예산에 걸려 끊고
+          다시 부른 시간(2번 158초 → 7번 580초)이었다(n=1). 묶어 읽기는 대화 기록을 덜 쌓는 쪽으로만 남긴다 — 시간을 줄인다고 말하지 않는다.
+        파일마다 보통 읽기와 같은 문(허용 범위 · 비밀 파일 차단)을 그대로 지난다. 하나가 안 되면 그 파일만 `error` 로 적고 나머지는 읽는다.
+        """
+        items: list[dict[str, Any]] = []
+        for raw in list(arguments.get("paths") or []):
+            if isinstance(raw, str) and raw.strip():
+                items.append({"path": raw.strip()})
+            elif isinstance(raw, dict) and str(raw.get("path") or "").strip():
+                items.append({key: raw[key] for key in ("path", "line_start", "line_end") if raw.get(key) not in (None, "")})
+        if str(arguments.get("path") or "").strip() and not any(item["path"] == arguments["path"] for item in items):
+            items.insert(0, {"path": str(arguments["path"]).strip()})
+        if not items:
+            raise ValueError('paths_required — `paths` 에 읽을 파일을 넣어라. 예: {"paths": [{"path": "a.py", "line_start": 10, "line_end": 40}, "b.py"]}')
+        skipped = max(0, len(items) - self._READ_MANY_MAX_FILES)
+        items = items[: self._READ_MANY_MAX_FILES]
+        per_file = max(1_500, self._READ_MANY_MAX_CHARS // len(items))
+        files: list[dict[str, Any]] = []
+        blocks: list[str] = []
+        budget = self._READ_MANY_MAX_CHARS
+        for item in items:
+            # 하네스가 붙인 칸(`__job_id` 등)은 파일마다 그대로 넘긴다 — 작업 자리 · 허용 범위가 그걸로 갈린다.
+            one = {**{key: value for key, value in arguments.items() if key.startswith("__")}, **item, "max_chars": per_file}
+            try:
+                got = self.read_text_file(one)
+            except Exception as exc:  # noqa: BLE001 — 한 파일이 안 되어도 나머지는 읽는다
+                files.append({"path": item["path"], "ok": False, "error": str(exc)[:200]})
+                blocks.append(f"=== {item['path']} — 못 읽음: {str(exc)[:200]}")
+                continue
+            content = str(got.get("content") or "")[: max(0, budget)]
+            budget -= len(content)
+            files.append({
+                "path": str(got.get("path") or item["path"]), "ok": True,
+                "line_start": got.get("line_start"), "line_end": got.get("line_end"),
+                "total_lines": got.get("total_lines"), "truncated": bool(got.get("truncated")) or len(content) < len(str(got.get("content") or "")),
+            })
+            blocks.append(f"=== {files[-1]['path']} (줄 {got.get('line_start')}–{got.get('line_end')})\n{content}")
+        read_ok = [entry for entry in files if entry.get("ok")]
+        result: dict[str, Any] = {
+            "ok": bool(read_ok),
+            "path": read_ok[0]["path"] if read_ok else items[0]["path"],
+            "files": files,
+            "file_count": len(read_ok),
+            "content": "\n\n".join(blocks),
+            "char_count": sum(len(block) for block in blocks),
+        }
+        if skipped:
+            result["instruction"] = f"한 번에 {self._READ_MANY_MAX_FILES}개까지 읽는다 — 남은 {skipped}개는 다음 걸음에 paths 로 읽어라."
+        return result
 
     #: 문서 읽기의 결과를 그대로 두는 글자 형식 — 바꿔서 보여 주는 것(RTF · JSON 은 펴서)과
     #: 조사 쪽에서도 읽는 문서성 글(txt·md·csv·log). 여기 없는 글자 형식(코드·설정·HTML)만 원본 배치를 지킨다.

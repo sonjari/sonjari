@@ -466,6 +466,8 @@ def anchor_relative_paths(arguments: dict[str, Any], root: str) -> dict[str, Any
     def fix(value: Any) -> Any:
         if isinstance(value, list):
             return [fix(item) for item in value]
+        if isinstance(value, dict) and "path" in value:  # `paths` 의 {path, line_start, line_end}
+            return {**value, "path": fix(value["path"])}
         if not isinstance(value, str):
             return value
         raw = value.strip()
@@ -480,6 +482,60 @@ def anchor_relative_paths(arguments: dict[str, Any], root: str) -> dict[str, Any
         return str(base / candidate)
 
     changed = {key: (fix(value) if key in _PATH_ARGUMENTS or key == "paths" else value) for key, value in arguments.items()}
+    return None if changed == arguments else changed
+
+
+def collapse_doubled_root(arguments: dict[str, Any], root: str) -> dict[str, Any] | None:
+    """작업 폴더의 **끝 몇 칸이 경로에 한 번 더** 붙은 것을 접은 인자. 바꾼 것이 없으면 None.
+
+    ★ 2026-10-19 맡기기 75aaa296. 작업 폴더는 `<가지>/tools/alture-jarvis` 인데 모델이 저장소 기준 경로
+      `tools/alture-jarvis/tests/x.py` 를 그 뒤에 또 붙여 `<가지>/tools/alture-jarvis/tools/alture-jarvis/tests/x.py` 에 썼다.
+      시험은 진짜 자리에 다시 써서 통과했지만 사본이 남았고, 지우려다 세 겹 경로를 불러 실패해 그대로 돌려줬다.
+    접는 조건: 경로가 작업 폴더 밑이고, 그 밑 첫 칸부터가 작업 폴더의 끝 k 칸과 같고(대소문자 무시), 작업 폴더 밑에 그 첫 칸
+    이름의 폴더가 **실제로 없다**. 있으면 진짜 하위 폴더일 수 있으니 그대로 둔다(`src/src` 같은 저장소).
+    ★ 한 칸만 겹친 것(`poker/poker/…`)은 **접은 자리에 그 파일이 이미 있을 때만** 접는다 — 파이썬 꾸러미는 정말로
+      `calc/calc/__init__.py` 를 새로 만든다. 운영 코드 판 592개(걸음 8,861)에 대 보니 접히는 판 7개 · 걸음 23개는 전부 겹친 실수였다:
+      두 칸 이상 2판(맡기기 75aaa296 · 551f1fa5), 한 칸 5판(폴리글랏 `poker/poker/INSTRUCTIONS.md` 읽기 실패 · 겹친 자리에 `poker.py`
+      사본 쓰기). 이 조건 없이는 오로라 판(c9b6a585 · 작업 폴더가 지금은 없음)도 접혔다 — 맞는 접기였지만 확인할 수 없어 뺐다.
+    """
+    import os
+
+    base = Path(root)
+    base_parts = [part.lower() for part in base.parts]
+    base_key = os.path.normcase(os.path.normpath(str(base)))
+
+    def fold(value: Any) -> Any:
+        if isinstance(value, list):
+            return [fold(item) for item in value]
+        if isinstance(value, dict) and "path" in value:
+            return {**value, "path": fold(value["path"])}
+        if not isinstance(value, str) or not value.strip():
+            return value
+        try:
+            here = os.path.normpath(value.strip())
+        except (TypeError, ValueError):
+            return value
+        if not os.path.normcase(here).startswith(base_key + os.sep):
+            return value
+        rest = list(Path(here[len(base_key):].lstrip("\\/")).parts)
+        folded = single = False
+        while rest:
+            for k in range(min(len(base_parts), len(rest) - 1), 0, -1):
+                if [part.lower() for part in rest[:k]] == base_parts[-k:] and not (base / rest[0]).is_dir():
+                    rest = rest[k:]
+                    folded = True
+                    single = single or k == 1
+                    break
+            else:
+                break
+        if not folded:
+            return value
+        target = base.joinpath(*rest)
+        if single and not target.exists():
+            return value
+        return str(target)
+
+    changed = {key: (fold(value) if key in _PATH_ARGUMENTS or key == "paths" else value) for key, value in arguments.items()}
     return None if changed == arguments else changed
 
 

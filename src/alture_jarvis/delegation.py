@@ -904,6 +904,14 @@ def summarize_job(
         if why in _STUCK_WHY:
             summary["branch"]["stopped_because"] = why
             notes.append(_STUCK_WHY[why])
+        # ★ 설명 글 · 주석만 바뀐 파이썬 파일 (2026-10-19 75aaa296 — 허술한 시험을 설명 글에 낱말을 끼워 넣어 통과시켰다).
+        wording = [str(path) for path in (delegated.get("wording_only") or [])][:60]
+        if wording:
+            summary["branch"]["wording_only"] = wording
+            notes.append(
+                f"바뀐 파일 중 {len(wording)}개는 설명 글 · 주석만 바뀌고 코드는 그대로입니다(branch.wording_only). "
+                "확인 명령을 맞추려고 넣은 글일 수 있으니 가져가기 전에 보세요."
+            )
         if not summary["branch"]["changed_count"]:
             notes.append("가지에 바뀐 파일이 없습니다.")
         else:

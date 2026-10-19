@@ -261,7 +261,7 @@ def describe(tool: dict[str, Any]) -> str:
 
 
 #: 영어 연결에서도 **바꾸지 않는** 칸 — 명령 · 경로 · 저장소(한국어 폴더 이름을 바꾸면 명령이 깨진다) · 모델의 답 원문.
-_KEEP_FOR_HOST = frozenset({"repo", "worktree", "review", "take", "discard", "name", "base", "stat", "changed",
+_KEEP_FOR_HOST = frozenset({"repo", "worktree", "review", "take", "discard", "name", "base", "stat", "changed", "wording_only",
                             "answer", "unverified_claim", "error", "job_id"})
 _HANGUL_RE = re.compile("[가-힣]")
 #: 문장 끝 — 안내문은 여러 문장을 띄어쓰기 하나로 이어 붙여 나간다(`delegation._failure_report` 의 `" ".join(notes)`).

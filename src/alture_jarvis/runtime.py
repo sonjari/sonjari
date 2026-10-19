@@ -5246,6 +5246,7 @@ class JarvisRuntime:
             "worktree": str(delegated.get("worktree") or ""), "base": str(delegated.get("base") or ""),
             "head": str(done.get("head") or ""), "changed": done.get("changed") or [],
             "changed_count": int(done.get("changed_count") or 0), "stat": str(done.get("stat") or ""),
+            "wording_only": list(done.get("wording_only") or []),
             "check": check if isinstance(check, dict) else None,
             "take_home": delegated_branch.take_home(
                 str(delegated.get("repo") or ""), str(delegated.get("branch") or ""),
