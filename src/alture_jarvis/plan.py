@@ -36,7 +36,7 @@ from .quantities import ROLE_CONSTRAINT, ROLE_INPUT, ROLE_OUTPUT, counted_object
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 from .site_atlas import SEED as _SEED
 
@@ -1300,7 +1300,22 @@ def extract(
         if _only_as_topic(folded, name.casefold()):
             continue
         matched.append(name)
-        found.append(Requirement("site", f"{name}에서 하기", aliases[name]))
+    # ★ **한 곳은 한 줄이다** (2026-10-19 판 51f35b07). 「깃허브 저장소 …」와 「GitHub 계정」을 같이 쓴 요청에 「GitHub에서 하기」 ·
+    #   「깃허브에서 하기」 두 줄이 섰다 — 씨앗의 「깃허브」와 배운 표의 「GitHub」가 **같은 주소**인데 이름만 보고 따로 셌다.
+    #   위의 「긴 이름이 짧은 이름을 담으면 하나」(네이버 블로그 ⊃ 네이버)는 글자가 겹칠 때만 일한다. 한글 · 영문 짝(레딧 · Reddit,
+    #   예스24 · YES24, 지마켓 · G마켓, 배운 표의 K-Startup · K-STARTUP)은 글자가 안 겹치니 **주소로** 묶는다. 이름은 요청에
+    #   먼저 나온 쪽을 쓴다 — 사람이 부른 말로 대조표에 찍히게. 줄의 순서는 예전 그대로(긴 이름부터) 둔다.
+    def _hosts(name: str) -> set[str]:
+        return {str(host).casefold() for host in aliases[name]}
+
+    emitted: list[set[str]] = []
+    for name in matched:
+        if any(_hosts(name) & earlier for earlier in emitted):
+            continue
+        same_place = [other for other in matched if _hosts(other) & _hosts(name)]
+        shown = min(same_place, key=lambda each: folded.find(each.casefold()))
+        emitted.append(set().union(*(_hosts(other) for other in same_place)))
+        found.append(Requirement("site", f"{shown}에서 하기", aliases[shown]))
 
     # ★ 2026-10-03 Online-Mind2Web TED 판: 「가장 많이 본 · 12~18분」을 검색어 결과에서 골라 틀렸다(정답은 제목에 robot 이 없는
     #   쿼드콥터 강연 — 사이트 필터 목록의 1위). 지름길(검색)이 「되는 것처럼」 보이면 모델은 필터 방에 안 들어간다.
@@ -2161,7 +2176,57 @@ def pages_results_were_opened_from(steps: list[dict[str, Any]]) -> set[str]:
             if url and tool in _STAYS_ON_THE_PAGE:
                 listings.add(url)
             awaiting_landing = False
-    return listings
+    return listings | pages_turned_through(steps)
+
+
+def pages_turned_through(steps: list[dict[str, Any]]) -> set[str]:
+    """**쪽만 넘긴 같은 목록 화면**의 주소들 — 고를 후보를 훑은 화면이지, 골라서 직접 연 글이 아니다.
+
+    ★ 2026-10-19 긱뉴스 판 1b6df02d. 「목록을 1쪽부터 10쪽까지 넘기며 … 10개 골라 하나씩 직접 열어 읽어 줘」에 손자리는
+      `show` · `show?page=2` … `show?page=10` 목록 열 쪽만 읽고 글은 하나도 안 열었다. 그런데 계획은 「웹 자료 10개 이상 직접 열어
+      읽기 — 10개 읽음」으로 충족을 찍었고, 남은 요구가 없는 줄 안 마무리 문이 판을 접었다(표 아홉 칸 중 다섯이 「확인 못 함」).
+      목록을 알아보는 길이 둘뿐이었다 — 검색 도구가 도착한 화면, 읽는 도구가 `listing` 칸을 붙인 화면(레딧만). 사람이 시킨 대로
+      주소의 쪽 번호를 바꿔 `browser_open` 으로 연 목록은 둘 다 아니었다.
+
+    가르는 것은 낱말이 아니라 **걸음이 남긴 모양**이다. 둘이 다 맞아야 목록이다:
+      1. 주소가 **숫자 값 하나만** 다르고(그 칸이 없는 주소 = 첫 쪽) 그 값이 첫 쪽에서 2 로 이어진다 — 같은 자리 · 같은
+         나머지 조건에서 쪽을 넘긴 것이다.
+      2. 읽은 화면의 **제목이 같다** — 같은 화면을 쪽만 넘긴 것이다. 글 번호만 다른 상세(`topic?id=1` · `topic?id=2`)는
+         글마다 제목이 달라 여기 안 걸린다. 제목을 모르면 가르지 않는다(모르면 안 고친다).
+    한 쪽만 읽은 목록은 이 규칙으로는 못 잡는다 — 그것은 하나를 더 세는 데 그치고, 열 쪽이 열 개가 되는 구멍은 막는다.
+    """
+    titles: dict[str, str] = {}
+    for step in steps or []:
+        evidence = step.get("evidence")
+        if not step.get("ok") or not isinstance(evidence, dict):
+            continue
+        url = str(evidence.get("url") or "")
+        title = " ".join(str(evidence.get("title") or "").split())
+        if url and title and str(step.get("tool") or "").startswith("browser_"):
+            titles[url] = title          # 마지막에 본 제목 — 화면이 다 그려진 뒤의 것
+    first_pages: dict[tuple[Any, ...], str] = {}
+    families: dict[tuple[Any, ...], dict[int, str]] = {}
+    for url, title in titles.items():
+        parsed = urlparse(url)
+        if parsed.scheme.lower() not in {"http", "https"}:
+            continue
+        place = ((parsed.hostname or "").lower(), parsed.path.rstrip("/") or "/", title)
+        pairs = parse_qsl(parsed.query, keep_blank_values=True)
+        first_pages[(*place, tuple(sorted(pairs)))] = url
+        for key, value in pairs:
+            if value.isdigit():
+                rest = tuple(sorted(pair for pair in pairs if pair[0] != key))
+                families.setdefault((*place, key, rest), {})[int(value)] = url
+    turned: set[str] = set()
+    for (host, path, title, _key, rest), members in families.items():
+        first = first_pages.get((host, path, title, rest))
+        # ★ **첫 쪽에서 둘째 쪽으로 넘어간 흔적**이 있어야 한다 — 2 가 있고, 그 앞 쪽(칸 없는 주소나 1)도 읽었다.
+        #   제목만으로는 모자랐다(운영 919판 대조): 공고 상세 제목이 사이트 이름 하나뿐인 곳(k-startup `pbancSn=179287`)은
+        #   글 번호만 다른 상세 아홉이 목록으로 찍혔고, 같은 영상을 `themeRefresh=1` 로 다시 연 것도 걸렸다. 글 번호는
+        #   크고 띄엄띄엄이다 — 1 · 2 로 이어지는 것은 쪽 번호다.
+        if 2 in members and (first or 1 in members):
+            turned |= set(members.values()) | ({first} if first else set())
+    return turned
 
 
 #: 검색 엔진의 바탕 주소. 이것을 「○○에서 하기」로 지목한 요청은 「거기서 찾아라」이지 「그 주소의 글만」이 아니다(`check`).
@@ -2855,10 +2920,26 @@ _ARITHMETIC_TARGET = re.compile(
 _COMPUTE_VERB = re.compile(
     r"(만들어|만들자|생성|생성해|뽑아|뽑아줘|계산해|계산\s*좀|돌려\s*봐|돌려봐"
     r"|정리해\s*(?:서|줘)|저장해|출력해"
-    r"|구해|구하|셈해|산출|답해|답하|얼마(?:인가|야|예요|입니까))"
+    # ★ 2026-10-19: 「산출」이 명사 「산출물」 속에서 동사로 걸렸다(크몽 판 c017950a 「작업 기간, 산출물」) — 뒤에 「물」이면 아니다.
+    #   「세어 줘」는 세는 셈이다(「묶음마다 몇 번 나왔는지 세어 줘」, 판 bb5ab643) — 예전엔 멀리 있던 「만들어」가 대신 짝지어 잡혔다.
+    r"|구해|구하|셈해|산출(?!물)|답해|답하|얼마(?:인가|야|예요|입니까)"
+    r"|(?<![가-힣])세어\s*(?:줘|주|봐|서|라))"
 )
 #: `_COMPUTE_VERB` 중 **만드는·옮기는** 동사. 셈 낱말과 짝지어도 「그 값을 파일·표에 담아라」일 수 있다 — 아래 `_a_listed_column`.
 _ARRANGE_VERB = re.compile(r"만들어|만들자|생성해?|뽑아(?:줘)?|정리해\s*(?:서|줘)|저장해|출력해")
+#: `_ARITHMETIC_TARGET` 중 **값의 이름**(셈의 이름이 아닌 것). 화면·자료에 이미 적힌 값을 옮겨 담을 수 있다.
+#:
+#: ★ 2026-10-19 긱뉴스 판 1b6df02d. 「…점수 높은 글들의 공통점 세 가지를 적어 줘. 파일은 **안 만들어도** 되고 답에 표로 줘」에
+#:   「직접 계산해 보기」가 서서 판 내내 「실행 안 됨」으로 남았다 — 셈 대상 「점수」와 (부정된) 만드는 동사 「만들어」가 40자 안에서
+#:   짝지어졌다. 「점수가 높은 순으로 골라」라는 정렬 말이 원인이 아니었다(그 말에는 셈 동사가 없다).
+#:   원리: 만드는·옮기는 동사는 **셈의 이름**(평균 · 합계 · 비율 · 확률 …)과 짝지을 때만 셈이다 — 그 값은 계산하기 전엔 어디에도
+#:   없다. **값의 이름**(점수 · 등급 · 총액 · 개수 · 몇 번 …)은 이미 있는 값을 옮기는 일일 수 있으니 셈 동사(계산해 · 구해 ·
+#:   얼마야 · 세어)와 짝지을 때만 셈이다. 10-16 의 `_a_listed_column`(늘어놓은 칸 이름)을 일반화한 것이다.
+#:   운영 판 실측: 「학생 점수로 엑셀 성적표 만들어줘」 · 「3행 점수를 91점으로 고쳐 저장해줘」 · 「2.4등급 학생이 갈 대학 후보를
+#:   뽑아줘」 · 「블로그 3개 … 총액이랑 출처를 달아 정리해줘」가 같은 꼴로 섰었다.
+_QUANTITY_NAME = re.compile(r"점수|등급|총액|원가|손익|개수|할인|인상|이자|몇\s*(?:개|명|시간|분|번|가지)")
+#: 동사 바로 앞의 부정 부사 — 「안 만들어도 되고」 · 「못 구해」.
+_NEGATED_BEFORE = re.compile(r"(?<![가-힣])(?:안|못)\s*$")
 
 # ★ 늘어놓은 칸 이름 (2026-10-16 r/LLMDevs 판 · job 759ba894). 「25개의 제목 · 점수(업보트) · 댓글 수 · 올린 지 얼마나
 #   됐는지를 엑셀 파일 하나로 정리해 줘」에 「직접 계산해 보기」가 요구로 붙어 ❌ 로 남고 판이 partial 이 됐다 — 셈 대상
@@ -3993,11 +4074,25 @@ def wants_a_computation(prompt: str) -> bool:
     # 영어는 같은 뜻이 더 길다(「몇 시간…답해라」 ↔ 「How many hours … Answer with the number」) — 창을 넓힌다.
     reach = 60 if english else 40
     arrange = _en.ARRANGE_VERB if english else _ARRANGE_VERB
+    quantity = _en.QUANTITY_NAME if english else _QUANTITY_NAME
+    negated_before = _en.NEGATED_BEFORE if english else _NEGATED_BEFORE
+    # ★ 하지 말라는 동사는 시킨 일이 아니다(「파일은 안 만들어도 되고」 — 2026-10-19 판 1b6df02d).
+    verbs = [
+        verb for verb in verbs
+        if not negated_before.search(compact[max(0, verb.start() - 20):verb.start()])
+    ]
+
+    def _arranging_a_value(target: "re.Match[str]", verb: "re.Match[str]") -> bool:
+        """만드는 동사와 **값의 이름**(또는 늘어놓은 칸 이름)의 짝 — 화면의 값을 옮겨 담는 일이다(셈 아님)."""
+        if not arrange.fullmatch(verb.group(0).strip()):
+            return False
+        return bool(quantity.fullmatch(target.group(0).strip())) or _a_listed_column(
+            compact, target.start(), target.end(), english=english
+        )
+
     return any(
         max(target.start(), verb.start()) - min(target.end(), verb.end()) <= reach
-        # 만드는 동사 + 늘어놓은 칸 이름 = 화면의 값을 옮겨 담는 일이다(셈 아님) — `_a_listed_column`.
-        and not (arrange.fullmatch(verb.group(0).strip())
-                 and _a_listed_column(compact, target.start(), target.end(), english=english))
+        and not _arranging_a_value(target, verb)
         for target in targets
         for verb in verbs
     )

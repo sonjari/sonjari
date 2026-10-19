@@ -463,6 +463,10 @@ COMPUTE_VERB = re.compile(
 )
 #: COMPUTE_VERB 중 **만드는·옮기는** 동사 — 셈이 아니라 파일·표에 담으라는 말일 수 있다(`plan._a_listed_column` 와 짝).
 ARRANGE_VERB = re.compile(r"(?:make|create|generate|save|output|print|organi[sz]e|put|tabulate)", re.I)
+#: ARITHMETIC_TARGET 중 **값의 이름** — 만드는 동사와만 짝지으면 셈이 아니다(`plan._QUANTITY_NAME` 와 짝, 2026-10-19).
+QUANTITY_NAME = re.compile(r"how\s+many|grades?|scores?|total|profit|discount|interest", re.I)
+#: 동사 바로 앞의 부정 — 「no need to make a file」 · 「don't save」.
+NEGATED_BEFORE = re.compile(r"\b(?:not|no\s+need\s+to|don'?t|do\s+not|never|without)\s+$", re.I)
 ARTIFACT_TARGET = re.compile(
     r"\b(?:excel|xlsx|spreadsheets?|csv|word\s+file|docx|document\s+file|graph|chart|plot|simulation"
     r"|as\s+a\s+file|(?:in|into|as)\s+a\s+table)\b",
