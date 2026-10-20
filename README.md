@@ -29,6 +29,25 @@
 
 ---
 
+## See it work
+
+**On its own.** One sentence in, an Excel file out. Sonjari opens GitHub Trending, reads the top three Python
+repositories and saves name, stars and description as a table. Shown at about 9x; the real run took 2 min 46 s on an
+RTX 3090 with Qwen3.8 27B.
+
+https://github.com/user-attachments/assets/91763b31-fe72-4614-b574-b3457ef0518c
+
+**With Claude Code.** Claude Code hands the research to Sonjari over MCP. Sonjari reads the release page on this PC and
+only the answer, its source and a short receipt go back to Claude. Claude then checks it: in this run it flags that the
+top entry is a release candidate and that Sonjari saved a Word file nobody asked for. Shown at 4x.
+
+https://github.com/user-attachments/assets/415a77b1-6126-45cb-afd3-88bf71ddbea9
+
+**First run.** Setup looks at this PC, picks a model that fits, runs it once to check, and connects Claude Code, Codex
+or Cursor. Each step is held for 3 seconds.
+
+https://github.com/user-attachments/assets/c6dd2281-8981-404d-9222-d9f1534f79bc
+
 ## Documentation
 
 | I want to … | Read |
