@@ -148,14 +148,17 @@ ran the 27B on an RTX 3090. 3 products × 3 rounds = 27 rows per arm.
 
 | Arm | Whole rows | Claude cost per whole row | Median time per task |
 |---|---|---|---|
-| Claude Code + Sonjari's browser tools | 23 of 27 | $0.074 | 401 s |
-| Claude Code hands the whole task to Sonjari | 18 of 27 | $0.075 | 391 s |
+| Claude Code + Sonjari's browser tools | 17–23 of 27 | $0.074–0.100 | 401 s |
+| Claude Code hands the whole task to Sonjari | 15–18 of 27 | $0.075–0.090 | 391 s |
 | Claude Code alone (web fetch and search) | 15 of 27 | $0.246 | 96 s |
 | Claude Code + Playwright MCP | 11 of 27 | $0.635 | 162 s |
 
-- At this size only "Sonjari's tools vs Playwright" is a clear difference (13 rows only Sonjari got, 1 only Playwright got;
-  exact sign test p ≈ 0.002). Against Claude alone it is borderline (9 vs 1, p ≈ 0.02 before correcting for several
-  comparisons). The rest is within noise.
+- The two Sonjari arms are shown as a range because some of their rows were graded by hand (6 for the browser tools,
+  3 for the handoff). Automatic grading alone gives the lower number. Details are in the
+  [measurement record](measurements/2026-10-19-head-to-head/README.md).
+- Counting only automatically graded rows, no difference in correct rows is clear at this size: Sonjari's tools vs
+  Playwright 10 vs 4 (sign test p = 0.18), vs Claude alone 7 vs 5 (p = 0.77). With the hand-graded rows the same pairs
+  are 13 vs 1 (p = 0.0018) and 9 vs 1 (p = 0.022). An earlier version of this page quoted only the second set.
 - It is slow: 6–7 minutes a task against about 1.5 for Claude alone.
 - 6 of the handoff arm's 9 misses were the agent waiting for an approval nobody was there to give; 3 were one shop page that
   never finished loading. Playwright lost most of its rows to one shop's bot block.
