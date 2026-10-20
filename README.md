@@ -37,6 +37,7 @@
 | use Sonjari from Claude Code, Codex or Cursor — connect, the three tools, what comes back, code jobs | [MCP guide](docs/guide/mcp.md) |
 | know exactly what leaves my PC when another AI uses Sonjari | [What leaves your PC](docs/guide/privacy.md) |
 | understand which model I got and what to do if it does not fit | [How Sonjari picks a model](docs/guide/models.md) |
+| add know-how or a whole field — skills, skill packs anyone can write, domain packs | [Skills and packs](docs/guide/packs.md) |
 | build from source and run the tests | [Developing](#developing) · [Contributing](CONTRIBUTING.md) |
 
 
