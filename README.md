@@ -29,6 +29,18 @@
 
 ---
 
+## Documentation
+
+| I want to … | Read |
+|---|---|
+| see how the maintainers use it day to day — research and coding with Claude Code, with real numbers | [How we use it](docs/guide/workflows.md) |
+| use Sonjari from Claude Code, Codex or Cursor — connect, the three tools, what comes back, code jobs | [MCP guide](docs/guide/mcp.md) |
+| know exactly what leaves my PC when another AI uses Sonjari | [What leaves your PC](docs/guide/privacy.md) |
+| understand which model I got and what to do if it does not fit | [How Sonjari picks a model](docs/guide/models.md) |
+| add know-how or a whole field — skills, skill packs anyone can write, domain packs | [Skills and packs](docs/guide/packs.md) |
+| build from source and run the tests | [Developing](#developing) · [Contributing](CONTRIBUTING.md) |
+
+
 ## What it does
 
 - **Proof you can check.** Every run leaves its steps, the pages it read and where each value came from. A number that no
@@ -74,7 +86,7 @@ On first launch the wizard measures this PC, recommends one and downloads it (se
 card's name — or pick any Hugging Face GGUF that fits. How far a small card gets is written out under "What we measured" below.
 
 **Connect your AI** — press *Connect* in the app. It adds the `sonjari_task` MCP entry to Claude Code, Claude Desktop, Codex or
-Cursor and backs up the original config first.
+Cursor and backs up the original config first. Setting it up by hand, the tools and what comes back: [MCP guide](docs/guide/mcp.md).
 
 **Build from source**
 
