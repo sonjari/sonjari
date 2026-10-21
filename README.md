@@ -160,7 +160,8 @@ ran the 27B on an RTX 3090. 3 products × 3 rounds = 27 rows per arm.
   Playwright 10 vs 4 (sign test p = 0.18), vs Claude alone 7 vs 5 (p = 0.77). With the hand-graded rows the same pairs
   are 13 vs 1 (p = 0.0018) and 9 vs 1 (p = 0.022). An earlier version of this page quoted only the second set.
 - It is slow: 6–7 minutes a task against about 1.5 for Claude alone.
-- 6 of the handoff arm's 9 misses were the agent waiting for an approval nobody was there to give; 3 were one shop page that
+- The handoff arm missed 9 rows counting the hand-graded ones (12 by the automatic grader alone; the extra 3 are hand-graded rows
+  the saved files cannot confirm). 6 of the 9 were the agent waiting for an approval nobody was there to give; 3 were one shop page that
   never finished loading. Playwright lost most of its rows to one shop's bot block.
 - Our own grader was wrong several times while we built this; each fix was re-run over every past row. Three of the 36
   cells were confirmed by hand, because the pages Sonjari had read were no longer stored at the time.
