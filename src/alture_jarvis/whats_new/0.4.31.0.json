@@ -1,0 +1,34 @@
+{
+  "ko": {
+    "changes": "이번에 새로 생긴 것\n- 첫 화면에 「이번 주 영수증」 카드가 생겼습니다. 이번 주에 클로드가 손자리에게 맡긴 일, 손자리가 이 PC 에서 대신 읽은 페이지, 클로드에 싣지 않은 본문의 양을 보여 줍니다. 본문 양은 센 글자로 낸 최소값이라 실제는 더 큽니다. 요금은 요금제마다 달라서 돈으로 바꿔 보여 주지 않습니다. 「이미지로 저장」을 누르면 정사각형 그림으로 내려받아 나눌 수 있습니다. 이번 주에 셀 것이 없으면 카드가 뜨지 않습니다.\n- 모델이 첫 글자를 내기까지 오래 걸리면 그 까닭을 보여 줍니다. 5초가 지나도 답이 시작되지 않으면 진행 줄에 「모델이 앞의 기록(약 7만 토큰)을 읽는 중 · 첫 글자 전 15초째」처럼 뜨고, 답이 시작되면 원래 줄로 돌아옵니다. 남은 시간은 재 본 적이 없어서 말하지 않고, 지난 초만 셉니다.\n\n이번에 고친 것\n- 서기가 끝난 일을 닫습니다. 정한 것이 바뀌었거나, 남은 일이 끝났거나, 잘못 적은 카드는 지우지 않고 「끝남 · 바뀜 · 틀림」으로 닫아 두고, 닫은 근거가 된 말을 같이 남깁니다. 클로드에게는 아직 열려 있는 카드만 보입니다. 「A 한 다음 B」는 B 가 끝나야, 여러 일을 묶은 카드는 전부 끝나야 닫습니다.\n\n0.4.30.0 에서 바뀐 것\n- 한 번 보여 주면 배웁니다(「배우기 시작」 → 직접 해 보이기 → 「다 했어」).\n- 자주 읽는 사이트는 값이 놓인 칸을 배워 첫 대답이 빨라집니다.\n- 설정 › 실험실에 「서기」가 생겼습니다(처음에는 꺼져 있습니다).",
+    "tour": "이미 되는데 잘 모르시는 것\n- 디스코드로 일 시키기 — 밖에서 휴대폰 디스코드로 손자리에게 일을 맡기고 결과를 받습니다(설정 › 디스코드로 일 시키기).\n- 클로드 · 코덱스 · 커서에서 Sonjari 쓰기 — 그 AI 가 웹 조사 · 파일 일을 손자리에게 맡깁니다. 클로드가 읽을 본문을 이 PC 가 대신 읽어 클로드 사용 한도를 아낍니다(설정 › 연결).\n- 이어받기 — 클로드가 한도로 멈춘 대화를 손자리가 이어서 합니다(설정 › 이어받기).\n- 예약 작업 — 정해 둔 시각에 같은 일을 돌립니다(설정 › 일반).\n- 나에 대한 지침 — 하는 일 · 답 길이 · 말투를 적어 두면 매번 그렇게 답합니다(설정 › 나에 대한 지침).\n- 문서 만들기 — 웹에서 찾은 것을 엑셀 · 워드 · 한글 · PDF 파일로 만들어 줍니다. 로그인된 내 크롬을 그대로 씁니다.",
+    "slides": [
+      {
+        "title": "이번 주에 손자리가 대신 읽은 양",
+        "body": "클로드가 맡긴 일, 손자리가 이 PC 에서 대신 읽은 페이지, 클로드에 싣지 않은 본문을 한 장에 모았습니다. 센 값만 쓰고 돈으로 바꾸지 않습니다.",
+        "try": "첫 화면의 「이번 주 영수증」 카드에서 볼 수 있고, 「이미지로 저장」으로 내려받을 수 있습니다."
+      },
+      {
+        "title": "첫 글자가 늦으면 까닭을 말합니다",
+        "body": "답이 5초 넘게 시작되지 않으면, 모델이 앞의 기록을 얼마나 읽고 있는지와 지난 초를 진행 줄에 보여 줍니다. 멈춘 게 아니라 읽는 중이라는 걸 알 수 있습니다.",
+        "try": "따로 켜실 것은 없습니다. 긴 일을 맡기면 진행 줄에서 보입니다."
+      }
+    ]
+  },
+  "en": {
+    "changes": "New in this update\n- The home screen has a \"This week's receipt\" card. It shows the jobs Claude handed to Sonjari this week, the pages Sonjari read on this PC instead, and how much page text stayed out of Claude. That last number is a floor worked out from the characters counted, so the real amount is larger. It isn't converted to money, since prices differ by plan. Tap \"Save as image\" to download it as a square picture you can share. If there's nothing to count this week, the card doesn't show.\n- When the model takes a while to start answering, it tells you why. If nothing has started after 5 seconds, the progress line reads something like \"The model is reading the earlier record (~71k tokens) · 15s before the first word\", and goes back to normal once the answer starts. It only counts the seconds so far; it doesn't guess how long is left.\n\nFixed in this update\n- The scribe now closes cards. A decision that changed, a to-do that got done, or a card that was wrong is closed as done, replaced or wrong instead of deleted, along with the line that closed it. Claude only sees the cards that are still open. \"Do A, then B\" stays open until B is done, and a card that bundles several jobs stays open until all of them are.\n\nChanged in 0.4.30.0\n- Show it once and it learns (\"start learning\", do it yourself, then \"done\").\n- On sites it reads often, it learns where the values sit, so the first words come sooner.\n- Settings > Lab has a new \"Scribe\" switch (off by default).",
+    "tour": "Things that already work\n- Work from Discord — hand Sonjari a job from Discord on your phone and get the result back (Settings > Work from Discord).\n- Use Sonjari from Claude, Codex or Cursor — that AI hands web research and file work to Sonjari, and this PC reads the pages instead of Claude, saving your Claude usage (Settings > Connect).\n- Take over — Sonjari picks up a Claude conversation that stopped at its usage limit (Settings > Take over).\n- Scheduled tasks — run the same job at set times (Settings > General).\n- About me — write down your work, answer length and tone, and it answers that way every time (Settings > About me).\n- Make documents — turn what it finds on the web into Excel, Word, Hangul or PDF files, using your own signed-in Chrome.",
+    "slides": [
+      {
+        "title": "What Sonjari read for you this week",
+        "body": "One card with the jobs Claude handed over, the pages Sonjari read on this PC instead, and the page text that stayed out of Claude. Counted numbers only, never turned into money.",
+        "try": "Find it as \"This week's receipt\" on the home screen, and use \"Save as image\" to download it."
+      },
+      {
+        "title": "A slow first word now comes with a reason",
+        "body": "If the answer hasn't started after 5 seconds, the progress line shows how much earlier record the model is reading and how many seconds have passed. You can tell it's reading, not stuck.",
+        "try": "Nothing to turn on. It shows up in the progress line on longer jobs."
+      }
+    ]
+  }
+}

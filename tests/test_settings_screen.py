@@ -29,7 +29,8 @@ def _write_settings(data: Path, values: dict) -> None:
 def test_the_table_stays_small_and_has_no_secret_door() -> None:
     # 36 = 권한 모드 「권한 무시」의 손잡이(`approval_bypass_enabled`, 2026-09-23). 모드가 설정값을 정하는
     #   구조라(`permissions.MODES`) 표에 있어야 저장·적용된다 — 셸 자동 실행·되돌릴 수 있는 일 자동 승인과 같은 자리.
-    assert 20 <= len(SETTINGS) <= 36
+    # 38 = 서기(2026-10-21) 켜기 · 읽을 폴더. 대화 기록은 사람 것이라 사람이 화면에서 직접 켜야 한다 — MCP 로 켜는 문은 두지 않는다.
+    assert 20 <= len(SETTINGS) <= 38
     for item in SETTINGS:
         assert not any(mark in item.key for mark in ("token", "secret", "password", "api_key"))
     with pytest.raises(SettingsError):

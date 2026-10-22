@@ -223,6 +223,8 @@ class ConnectService:
         exported_tools: Callable[[], list[dict[str, Any]]] | None = None,
         # 켜진 분야 팩의 바깥 AI 용 사용서(2026-09-27) — 잇기가 지침에 「이 분야면 이 파일」 한 줄씩 더한다.
         pack_guides: Callable[[], list[dict[str, Any]]] | None = None,
+        # 가이드 본문의 언어(2026-10-19) — 잇기가 코덱스 옆에 두는 가이드 사본도 화면 언어를 따른다. 없으면 한국어.
+        guide_lang: Callable[[], str] | None = None,
         # Claude Desktop 을 끄고 켜는 손(`restart_desktop`). 시험은 가짜를 넣는다 — 실제 앱을 끄는 시험을 만들지 않는다.
         desktop_stop: Callable[[list[str]], None] | None = None,
         desktop_launch: Callable[[list[str]], bool] | None = None,
@@ -239,6 +241,7 @@ class ConnectService:
         self.python = python or sys.executable
         self.exported_tools = exported_tools
         self.pack_guides = pack_guides
+        self.guide_lang = guide_lang
         # Claude Desktop 이 켜져 있어 못 이은 것 — 닫히면 이어 준다(`_wait_for_desktop_close`).
         self._desktop_waiting = False
         self._desktop_wait_result: dict[str, Any] | None = None
@@ -596,7 +599,7 @@ class ConnectService:
         try:
             from .guide_skill import GuideSkillService
 
-            service = GuideSkillService(home=self.home, pack_guides=self.pack_guides)
+            service = GuideSkillService(home=self.home, pack_guides=self.pack_guides, lang=self.guide_lang)
             tools = self.exported_tools() if self.exported_tools else []
             note = service.install_note(client_id, tools) if add else service.remove_note(client_id)
         except Exception as exc:  # noqa: BLE001 — 지침 실패가 연결을 되돌리면 안 된다

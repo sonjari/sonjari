@@ -10,6 +10,8 @@
 | 파이썬 의존성(`.venv` site-packages) | 동봉 | 패키지별 — SBOM 으로 목록화 필요 | `uv.lock` | ☐ SBOM |
 | 스킬 묶음 `addyosmani` (22종, `.md` 만) | 동봉 — `skills/vendor/addyosmani/`, 원본 LICENSE·`SOURCE.json`(커밋 be4e44a9) 같이 둠 | MIT | https://github.com/addyosmani/agent-skills | ☑ 폴더 안 LICENSE |
 | 스킬 묶음 `tech-leads-club` (70종, `.md` 만) | 동봉 — `skills/vendor/tech-leads-club/`, 원본 LICENSE·`SOURCE.json`(커밋 0ab82f64) | MIT(코드) · SKILL.md 는 CC-BY-4.0 표기 — 출처 표시 유지 | https://github.com/tech-leads-club/agent-skills | ☑ 폴더 안 LICENSE · ☐ CC-BY 표시 문구 화면 |
+| Hermes Agent (코드 일부 옮김) | 소스에 포함 — `src/alture_jarvis/messaging/base.py`(어댑터 틀 · 긴 글 나누기), `discord_adapter.py` · `onboarding.py`(설계를 본떠 다시 씀). base.py 머리에 저작권 · 허가 문구 원문 | MIT (Copyright (c) 2025 Nous Research) | https://github.com/NousResearch/hermes-agent | ☑ base.py 머리 |
+| discord.py (+ aiohttp) | `.venv` 에 동봉 — 디스코드 다리(`alture_jarvis.messaging`)만 쓴다 | MIT (discord.py) · Apache-2.0 (aiohttp) | https://github.com/Rapptz/discord.py | ☐ 제출 전 |
 | Tauri / WebView2 런타임 | exe 에 링크 / OS 구성요소 | Apache-2.0 또는 MIT / Microsoft | https://tauri.app | ☐ 제출 전 |
 
 스토어 설명 첫머리 공개 문구(정책 10.2.4) 초안: 「이 앱은 로컬 AI 엔진 Ollama 를 사용합니다. 없으면 첫 실행에서 설치할 수 있습니다.」

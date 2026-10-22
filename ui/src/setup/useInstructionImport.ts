@@ -214,6 +214,8 @@ export function useInstructionImport(api: SetupApi | null) {
   };
 
   return {
+    // 「나에 대한 지침」으로 줄을 골라 올리는 칸(`ImportLinePicker`)이 같은 문을 쓴다(2026-10-18).
+    api,
     project,
     projectError: scan?.project_error ?? "",
     candidates: scan?.candidates ?? [],

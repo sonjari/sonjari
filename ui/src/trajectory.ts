@@ -66,6 +66,8 @@ export const WRITE_TOOLS = new Set([
   "local_write_file", "local_apply_edit", "local_delete_file",
   "artifact_from_observations",
   "hwp_apply_edit",
+  "hwp_apply_format",
+  "hwp_export_pdf",
   "claude_code_delegate",
 ]);
 
@@ -196,6 +198,7 @@ const TOOL_LABELS: Record<string, string> = {
   sonjari_task: t("맡은 일 받기"),
   sonjari_task_status: t("맡은 일 결과 알려 주기"),
   sonjari_guide: t("Sonjari 사용법 읽기"),
+  sonjari_story: t("Sonjari 서기 카드 읽기"),
   // 이름 2단계(2026-09-29) 전 기록 — 지난 작업을 다시 열어도 이름표가 나오게.
   ontelic_task: t("맡은 일 받기"),
   ontelic_task_status: t("맡은 일 결과 알려 주기"),
@@ -286,7 +289,7 @@ const TOOL_LABELS: Record<string, string> = {
   artifact_from_observations: t("근거를 파일로 만들기"),
   sandbox_fetch: t("만든 파일 가져오기"),
   sandbox_reset: t("작업판 비우기"),
-  claude_code_delegate: t("Claude Code에게 위임"),
+  claude_code_delegate: t("클로드(내 구독)에게 넘김"),
   // ── 윈도우 창 ──
   windows_list_open_windows: t("열린 창 목록"),
   windows_focus_window: t("창 앞으로"),
@@ -305,6 +308,9 @@ const TOOL_LABELS: Record<string, string> = {
   hwp_read: t("한글 문서 읽기"),
   hwp_preview_edit: t("한글 편집 미리보기"),
   hwp_apply_edit: t("한글 편집 적용"),
+  hwp_preview_format: t("한글 서식 미리보기"),
+  hwp_apply_format: t("한글 서식 적용"),
+  hwp_export_pdf: t("한글 → PDF 저장"),
   ui_find_target: t("누를 곳 찾기"),
   ui_click_target: t("찾은 곳 누르기"),
   ui_verify: t("제대로 눌렸는지 확인"),

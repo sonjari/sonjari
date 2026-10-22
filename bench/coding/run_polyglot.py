@@ -86,7 +86,7 @@ def main() -> None:
         body = {"prompt": PROMPT.format(folder=folder, solution=" · ".join(solution), tests=" · ".join(tests)),
                 "origin": "mcp", "display_prompt": f"바깥 과제 {name}", "open_results": False,
                 "session_id": f"bench-polyglot-{name}-{time.strftime('%H%M%S')}",
-                "workspace_mode": "code", "code_workspace": str(folder)}
+                "workspace_mode": "code", "code_workspace": str(folder), "measurement": True}
         started = time.time()
         job_id = str(httpx.post(f"{BASE}/v1/chat", json=body, headers=H, timeout=60).json().get("id") or "")
         state: dict = {}

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -195,7 +196,7 @@ def test_the_job_reads_the_declaration_from_what_the_person_typed_and_hands_it_t
     assert source.index("pack_work = ") < source.index("pack_ask = "), "문장을 붙이기 전의 글로 가린다"
     assert "declared_work=pack_work" in source, "에이전트에게 넘긴다"
     assert '"skill_pack_work_declared"' in source, "적용했으면 기록에 남긴다"
-    assert "if handoff" in source[source.index("pack_work = "):source.index("pack_work = ") + 120], "이어받은 인계 판은 건드리지 않는다"
+    assert re.search(r"if \(?handoff", source[source.index("pack_work = "):source.index("pack_work = ") + 120]), "이어받은 인계 판은 건드리지 않는다"
 
 
 def test_the_agent_uses_it_where_it_decides_the_kind_of_job() -> None:

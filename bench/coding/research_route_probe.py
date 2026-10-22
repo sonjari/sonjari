@@ -41,7 +41,8 @@ def call(path: str, body: dict | None = None) -> dict:
 
 def run(task: str, n: int, timeout: float = 420.0) -> dict:
     job = call("/v1/chat", {"prompt": TASKS[task], "origin": "mcp", "display_prompt": f"갈래 확인 {task}#{n}",
-                            "open_results": False, "session_id": f"route-probe-{task}-{n}-{int(time.time())}"})
+                            "open_results": False, "session_id": f"route-probe-{task}-{n}-{int(time.time())}",
+                            "measurement": True})
     job_id = str(job.get("id") or job.get("job_id") or "")
     started = time.monotonic()
     status = ""

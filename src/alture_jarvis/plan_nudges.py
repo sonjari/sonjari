@@ -356,6 +356,44 @@ def _read_more_since(reads_now: int, reads_before: int | None) -> bool:
     return reads_before is not None and int(reads_now) > int(reads_before)
 
 
+#: 배수 · 퍼센트 단정(「생산성 10배」 · 「인력 50% 감축」 · 「2~3배」).
+_RATIO_CLAIM = re.compile(r"(\d+(?:\.\d+)?)\s*(?:~\s*\d+(?:\.\d+)?\s*)?(?:배|%|퍼센트)")
+
+
+def _invented_ratios(answer: str, *known: str) -> list[str]:
+    """도구 없이 쓴 답이 단정한 배수 · 퍼센트 중 **질문 · 대화 어디에도 없던 것**(2026-10-18 대표 디스코드 실사용).
+
+    「AI 시대에 불안하다」 · 「손자리가 일자리를 줄이나」 같은 의견 질문에 도구 0걸음으로 「생산성 10배」 · 「3년 뒤 인력 50% 감축,
+    2~3배 증가」를 단정했다. 금액 검사(원 · 포인트)도, 라우터의 숫자 검사(세 자리 이상)도 이 꼴을 안 본다. 운영의 도구 없이 쓴
+    답 117개 중 19개에 이런 수치가 있었다 — 「계약금은 보통 10%」 같은 상식도 섞여 있어 지우게 하지 않고 밝히게 한다.
+    """
+    seen = set(re.findall(r"\d+(?:\.\d+)?", " ".join(known)))
+    found: list[str] = []
+    for match in _RATIO_CLAIM.finditer(answer or ""):
+        if match.group(1) in seen:
+            continue
+        claim = re.sub(r"\s+", "", match.group(0))
+        if claim not in found:
+            found.append(claim)
+    return found
+
+
+def _keep_answer_over_reply(kept: str, reply: str, *, new_steps: int) -> str:
+    """되받기 뒤 최종 답. 되받은 뒤 **새 걸음이 없고** 새 답이 앞 답보다 많이 짧으면 앞 답을 살리고 새 답을 그 뒤에 붙인다.
+
+    새로 한 일이 없으면 내용은 앞 답에 있다 — 새 답은 대개 「그건 할 일이 없었다」 같은 해명이다(2026-10-18 c9910364).
+    새 걸음이 있었거나 새 답이 앞 답만큼 길면 새 답이 고쳐 쓴 답이다 — 그대로 둔다.
+    """
+    kept_text, reply_text = (kept or "").strip(), (reply or "").strip()
+    if not kept_text or new_steps > 0:
+        return reply
+    if not reply_text:
+        return kept
+    if len(reply_text) >= len(kept_text) * 0.6 or kept_text in reply_text or reply_text in kept_text:
+        return reply
+    return f"{kept_text}\n\n{reply_text}"
+
+
 def _pushback_stalled(unmet_now: Any, unmet_before: Any, *, read_more: bool) -> bool:
     """되받아도 소용없는 판인가 — 남은 요구가 지난 되받기 때와 같고 **그 사이에 새로 읽은 것도 없다.**
 
@@ -401,8 +439,13 @@ def _goes_to_unread_site(name: str, arguments: Any, steps: list[dict[str, Any]])
 
     좁게 둔다: 웹 검색(`browser_search`)과 검색엔진 결과 화면에서 여는 것은 예전처럼 막는다(거기는 사이트가 아니다).
     한 사이트 안의 둘째 화면(채용 공고 셋 같은 일)은 이 예외에 들지 않는다 — 예전 그대로다. 걸음이 바닥나기 전의 마지막
-    차례에는 부르는 쪽이 이 예외를 쓰지 않는다.
+    차례에는 부르는 쪽이 이 예외를 쓰지 않는다 — 거기서는 `_owed_read_site` 가 남은 요구에 닿는 곳만 연다.
     """
+    return bool(_unread_site_target(name, arguments, steps))
+
+
+def _unread_site_target(name: str, arguments: Any, steps: list[dict[str, Any]]) -> str:
+    """이 손이 가는 사이트가 **아직 본문을 못 받아 온 곳**이면 그 사이트(`ollama.com`), 아니면 빈 글(`_goes_to_unread_site`)."""
     read_sites = set()
     here = ""
     for step in steps:
@@ -420,8 +463,102 @@ def _goes_to_unread_site(name: str, arguments: Any, steps: list[dict[str, Any]])
     elif name in _SITE_WALK_TOOLS:
         target = here
     else:
+        return ""
+    return target if target and target not in read_sites else ""
+
+
+#: 접기 전 산출물 차례에서도 「아직 못 채운 읽기 요구」로 받아 주는 **사이트 수**(한 판) — `_owed_read_site`.
+_OWED_READ_SITES = 2
+#: 그 사이트 하나에 받아 주는 걸음(열기 · 그 안에서 찾기 · 결과 열기 · 읽기). 넘으면 예전처럼 막는다. 그 사이트를 한 번 읽으면 「안 읽은 곳」이 아니라 거기서 끝난다.
+_OWED_READ_CALLS_PER_SITE = 4
+
+#: 읽기 요구로 보는 대조표 칸의 종류 — 어디서 무엇을 **읽으라는** 요구. 파일 · 행동 · 필터 · 각주는 아니다.
+_READ_REQUIREMENT_KINDS = frozenset({"site", "count", "observe"})
+
+
+def _site_named_in(text: str, site: str) -> bool:
+    """요청 글이 그 사이트를 **이름으로** 댔는가(`ollama.com` ← 「Ollama」 · 「ollama.com」). 낱말표가 아니라 주소 자체와 대 본다.
+
+    주소의 몸통(`ollama`)이 요청에 **낱말 하나로** 있어야 한다 — 「lmstudio」 는 「LM Studio」 와 다르게 쓰였으면 안 댄 것이다
+    (헛맞기보다 못 맞기가 낫다: 못 맞으면 예전처럼 막힐 뿐이다). 세 글자 미만 몸통(`ai.com`)은 안 본다.
+    """
+    site = str(site or "").casefold()
+    haystack = str(text or "").casefold()
+    if not site or not haystack:
         return False
-    return bool(target) and target not in read_sites
+    if site in haystack:
+        return True
+    stem = site.split(".")[0]
+    if len(stem) < 3:
+        return False
+    return re.search(rf"(?<![a-z0-9]){re.escape(stem)}(?![a-z0-9])", haystack) is not None
+
+
+def _owed_read_site(
+    name: str,
+    arguments: Any,
+    steps: list[dict[str, Any]],
+    plan_results: list[tuple[Any, bool, str]] | None,
+    request: str,
+) -> str:
+    """**아직 못 채운 읽기 요구**에 닿는 걸음이면 그 사이트, 아니면 빈 글 — 접기 전 산출물 차례에서도 받는다.
+
+    ★ 2026-10-19 두 판이 「확인 못 함」으로 나갔다. 아픔 넷 × 제품 둘의 홈페이지 조사(8b90144f)는 아픔 ①~③을 읽고 ④의
+      Ollama · LM Studio 홈페이지를 열려는 순간 걸음 상한에 닿았고, 접기 전 산출물 차례(`deliver_turn_used`)가 걸려 두 열기가
+      `not_this_stage` 로 되돌아갔다. inline AI 조사(d0d36f19)는 요청이 「네이버 블로그 후기도 읽어 줘」였고 대조표에
+      「네이버 블로그에서 하기」가 **못 채운 채** 남았는데, 그 블로그 글을 여는 걸음이 같은 문에 막혔다.
+      그 차례는 「아직 안 읽은 사이트로 가는 길」(`_goes_to_unread_site`)을 일부러 안 받는다 — 걸음이 +3 뿐이라 그 셋을
+      읽기에 쓰면 파일을 못 쓴다(10-02 · 9d6942f2: 글 여섯을 읽고도 더 열다 엑셀 0개). 그 까닭은 맞다. 다만 그 문은
+      **시킨 것이 남았는가**를 안 봤다 — 요청이 이름으로 댄 곳과 대조표에 남은 읽기 칸도 「더 찾기」로 막았다.
+
+    가르는 것은 낱말이 아니라 요구 상태다. 이 손이 **아직 본문을 못 받아 온 사이트**로 가고(`_unread_site_target` — 검색엔진 ·
+    읽은 사이트로 되돌아가기는 그대로 막힌다), 다음 중 하나일 때만 받는다:
+      ① 요청이 그 사이트를 이름으로 댔다 — 대조표의 「○○에서 하기」 칸(사이트 표가 「다나와」를 `danawa.com` 으로 푼 것)이
+         그 주소이거나, 요청 글에 주소의 이름이 있다(`_site_named_in` — 「Ollama」 · 「inline-ai.com」).
+         「○○에서 하기」 칸은 그 사이트에 **들르기만 해도** 채워진다(검색 화면을 연 것). 그래서 여기서는 그 칸의 채움 여부를 안
+         본다 — 이 손이 가는 곳은 아직 본문을 하나도 못 받아 온 곳이라는 것이 이미 걸러져 있다(10-13 4cfe1fba: 다나와 검색
+         화면을 연 뒤 「다나와에서 하기」는 채워졌는데 상품을 여는 걸음 다섯이 막혀 파일 없이 끝났다).
+      ② 대조표에 **못 채운 읽기 칸**(개수 · 「대상 실제로 읽기」 — 이 PC 를 보라는 칸은 뺀다)이 있다 — 새 사이트면 된다.
+    둘 다 아니면 예전처럼 막는다 — 차례를 둔 까닭(끝없이 더 읽기)을 지킨다.
+    받는 횟수의 상한(`_OWED_READ_SITES` · `_OWED_READ_CALLS_PER_SITE`)과 걸음 · 시간 돌려주기는 부르는 쪽이 쥔다.
+    """
+    site = _unread_site_target(name, arguments, steps)
+    if not site:
+        return ""
+    if _site_named_in(request, site):
+        return site
+    for requirement, met, _saw in plan_results or []:
+        kind = str(getattr(requirement, "kind", "") or "")
+        if kind == "site":
+            target = getattr(requirement, "target", None)
+            hosts = [str(part).casefold() for part in (target if isinstance(target, (list, tuple)) else (target,)) if part]
+            if any(site == host or site.endswith("." + host) or host.endswith("." + site) for host in hosts):
+                return site
+            continue
+        if met or kind not in _READ_REQUIREMENT_KINDS:
+            continue
+        if str(getattr(requirement, "source_scope", "") or "") == "local":
+            continue
+        if kind == "observe" and str(getattr(requirement, "target", "") or "") == "local":
+            continue
+        return site
+    return ""
+
+
+_OWED_READ_REWRITE_NOTE = (
+    "[도구가 보낸 안내] 시킨 것 중 아직 못 읽은 곳이라 열어 준다. 이 곳을 읽었으면 **앞서 만든 파일을 다시 써서** "
+    "「확인 못 함」으로 둔 칸을 읽은 내용으로 고쳐라(같은 파일 이름). 이 곳 말고 다른 곳을 더 찾지는 마라."
+)
+
+
+def _with_owed_read_note(observation: dict[str, Any], note: str) -> dict[str, Any]:
+    """받아 준 읽기의 결과에 안내를 붙인다 — 모델이 보는 것은 `result` 안이다(`site_first_note` 와 같은 자리)."""
+    if not note:
+        return observation
+    payload = observation.get("result")
+    payload = dict(payload) if isinstance(payload, dict) else {}
+    payload["instruction"] = (note + " " + str(payload.get("instruction") or "")).strip()
+    return {**observation, "result": payload}
 
 
 #: 쓴 파일의 줄이 「열지 않은 주소」로 지적된 뒤, 산출물 차례에서도 받아 주는 **새 주소 열기**의 상한.

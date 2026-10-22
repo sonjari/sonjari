@@ -123,8 +123,14 @@ def main() -> None:
     ap.add_argument("--ollama-url", default="", help="isolate the rehearsal from the running user's Ollama server")
     ap.add_argument("--laptop-like", action="store_true",
                     help="노트북 조건: Claude Desktop 만 설치·켜져 있음, PATH 에 claude 없음(Desktop 에 딸린 Claude Code 만)")
+    ap.add_argument("--lang", default="ko", choices=("ko", "en"),
+                    help="en 이면 마법사 첫 화면의 English 단추를 눌러 영어로 찍는다(README 영어 영상 · 2026-10-20)")
     ap.add_argument("--switch-to", default="", help="설정 › 모델에서 이 이름의 모델로 「바꾸기」까지 해 본다(안 받은 모델이면 실제로 받는다)")
     args = ap.parse_args()
+    en = args.lang == "en"
+
+    def L(ko: str, english: str) -> str:
+        return english if en else ko
     shots = ROOT / "docs" / "walkthrough" / "ontelic_first_run_2026-09-17" / f"r{args.round}"
     shots.mkdir(parents=True, exist_ok=True)
     size = tuple(int(x) for x in args.size.lower().split("x")) if args.size else None
@@ -229,8 +235,13 @@ def main() -> None:
             time.sleep(6)
             check("one_window_after_second_launch", app_windows() == ["Sonjari 시작하기"], app_windows())
 
+            if en:
+                # 언어 단추는 첫 단계의 radio 다. 누르면 화면을 다시 연다(`setLang`).
+                setup.get_by_role("radio", name="English").first.click()
+                setup.wait_for_timeout(1500)
+                setup.wait_for_load_state()
             # ① PC 확인 → 시작 한 번
-            start = setup.get_by_role("button", name="이 PC 에 맞게 설정 시작")
+            start = setup.get_by_role("button", name=L("이 PC 에 맞게 설정 시작", "Start setup for this PC"))
             start.wait_for(timeout=90000)
             setup.wait_for_function("() => !document.querySelector('.setup-actions .setup-btn-go')?.disabled", timeout=90000)
             shot(setup, "1_pc_check")
@@ -241,7 +252,7 @@ def main() -> None:
             # ①-2 모델 단계 — 추천이 골라져 있다. 받기는 사람이 누른다(2026-10-07: 묻지 않고 받지 않는다).
             setup.wait_for_function(
                 "() => { const b = document.querySelector('.setup-actions .setup-btn-go');"
-                " return !!b && !b.disabled && (b.innerText.includes('적용하기')); }", timeout=90000)
+                " return !!b && !b.disabled && ((b.innerText.includes('적용하기') || b.innerText.includes('Apply'))); }", timeout=90000)
             check("nothing_downloads_before_the_click", setup.locator(".setup-dock").count() == 0)
             setup.locator(".setup-actions .setup-btn-go").first.click()
 
@@ -268,13 +279,19 @@ def main() -> None:
                 raise SystemExit("model was not applied — stopping here")
 
             # ③ 쓰임
-            setup.get_by_role("button", name="쓰임 고르기").click()
+            setup.get_by_role("button", name=L("쓰임 고르기", "Choose use")).click()
             setup.wait_for_selector(".skill-domain", timeout=30000)
             shot(setup, "3_usage")
             setup.locator(".setup-actions .setup-btn-go").first.click()
 
+            # ③-2 나에 대해(선택 · 2026-10-18) — 쓰임과 연결 사이에 생긴 단계. 몰라서 「시작하기」를 30초 기다리다 멈췄다(2026-10-20 촬영).
+            setup.get_by_role("heading", name=re.compile(r"나에 대해|About you")).first.wait_for(timeout=30000)
+            shot(setup, "3b_about_me")
+            # 이 단계의 넘기기 단추는 「건너뛰고 연결로」— 앞 단계의 `.setup-btn-go` 모양이 아니라 이름으로 찾는다.
+            setup.get_by_role("button", name=re.compile(r"건너뛰고 연결로|다음|Skip to Connect|Next")).first.click()
+
             # ④ 연결 → 「Sonjari 시작하기」(09-29 이름 2단계 — 옛 「온텔릭 시작하기」를 찾다 30초에 멈췄다, 09-30)
-            finish = setup.get_by_role("button", name=re.compile(r"(Sonjari|손자리|온텔릭) 시작하기"))
+            finish = setup.get_by_role("button", name=re.compile(r"(Sonjari|손자리|온텔릭) 시작하기|Start Sonjari"))
             finish.wait_for(timeout=30000)
             time.sleep(3)
             if args.laptop_like:
@@ -321,13 +338,13 @@ def main() -> None:
             chip = work.locator(".model-chip").first.inner_text() if work.locator(".model-chip").count() else ""
             roles = (health().get("ollama") or {}).get("roles") or {}
             fact("health_chat_model", roles.get("chat"))
-            check("chip_shows_applied_model", bool(chip) and "확인 중" not in chip, chip)
+            check("chip_shows_applied_model", bool(chip) and "확인 중" not in chip and "Checking" not in chip, chip)
             check("no_readiness_banner", work.locator(".readiness-banner").count() == 0,
                   work.locator(".readiness-banner").all_inner_texts() or None)
             shot(work, "5_product")
 
             box = work.locator("textarea").first
-            box.fill("한 줄로만 자기소개해 줘.")
+            box.fill(L("한 줄로만 자기소개해 줘.", "Introduce yourself in one line."))
             box.press("Enter")
             asked = time.time()
             work.wait_for_selector(".message-assistant:not(.streaming-message)", timeout=600000)
@@ -337,15 +354,15 @@ def main() -> None:
             shot(work, "6_first_answer")
 
             # ⑤ 설정 › 모델 — 목록·가능/불가·사용 중
-            work.get_by_role("button", name="설정").first.click()
+            work.get_by_role("button", name=L("설정", "Settings")).first.click()
             work.wait_for_selector(".settings-screen", timeout=20000)
-            work.locator(".settings-nav-item").filter(has_text="모델").first.click()
+            work.locator(".settings-nav-item").filter(has_text=L("모델", "Model")).first.click()
             work.wait_for_selector(".model-row", timeout=60000)
             time.sleep(1.5)
             rows = work.locator(".model-row").all_inner_texts()
-            current = [row for row in rows if "사용 중" in row]
+            current = [row for row in rows if L("사용 중", "In use") in row]
             check("settings_model_list_has_one_current", len(current) == 1, {"rows": len(rows), "current": current})
-            check("settings_model_list_says_fit", any("가능" in row or "불가" in row for row in rows))
+            check("settings_model_list_says_fit", any(word in row for row in rows for word in (("Possible", "Unavailable") if en else ("가능", "불가"))))
             shot(work, "7_settings_model")
 
             if args.switch_to:

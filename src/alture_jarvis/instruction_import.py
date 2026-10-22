@@ -29,6 +29,13 @@
   30KB 짜리 지침 파일이 들어갈 자리가 아니다.
 - 그래서 **같은 SQLite 파일에 전용 표**(`imported_instructions`)를 둔다
   (`ExternalActionStore` 가 이미 쓰는 방식). 이 표는 아직 아무 프롬프트에도 안 실린다.
+
+## ★ 2026-10-18 막다른 길을 열었다 — 「골라 올리기」
+
+가져오기만 하고 아무 데도 안 쓰이는 것이 사람에게는 「가져왔으니 쓰이겠지」로 읽혔다. 그렇다고 이 표를 통째로 프롬프트에
+실으면 30KB 짜리 CLAUDE.md 가 작은 창을 무너뜨린다(조사 `docs/사용자지침_스킬만들기_조사_1018.ko.md` C-1 ④).
+그래서 이 표는 여전히 프롬프트에 안 싣고, 사람이 미리보기에서 **줄을 골라** 「나에 대한 지침」(`about_me.py`) 파일에
+더할 때만 그 줄이 쓰인다. 비밀이 걷힌 줄은 더할 수 없다(`about_me.import_lines`).
 """
 
 from __future__ import annotations
@@ -417,6 +424,15 @@ class InstructionImportService:
                 "status": self._status(row),
             })
         return {"count": len(items), "items": items}
+
+    def get(self, import_id: int) -> dict[str, Any] | None:
+        """가져온 사본 하나(걷은 글). 「나에 대한 지침」이 줄을 골라 올릴 때 읽는다 — 원본 파일은 다시 열지 않는다."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM imported_instructions WHERE id = ?", (int(import_id),)).fetchone()
+        if row is None:
+            return None
+        return {"import_id": int(row["id"]), "tool": row["tool"], "tool_name": TOOL_NAMES.get(row["tool"], row["tool"]),
+                "scope": row["scope"], "source_path": row["source_path"], "text": row["text"]}
 
     def remove(self, import_id: int) -> dict[str, Any]:
         with self._connect() as conn:

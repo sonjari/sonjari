@@ -24,7 +24,8 @@ from collections.abc import Iterable
 
 #: (대목 첫 줄의 앞머리, 그 다음에 남는 줄의 앞머리 — 비면 한 줄짜리, 이 가족 가운데 하나라도 손에 있으면 남긴다)
 SPANS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    ("- GitHub 저장소 탐색은", "", ("github_",)),
+    # 브라우저로 가라는 앞 줄(「- GitHub 은 브라우저로 간다」)은 표시하지 않는다 — github_search 가 손에 없어도 필요한 말이다(2026-10-21).
+    ("- GitHub 저장소 탐색에 github_search", "", ("github_",)),
     ("- ★ **구글 것을 브라우저로 열지 마라.**", "- 내 PC의 파일은 순서가 이것이다:", ("google_",)),
     ("- 내 PC의 파일은 순서가 이것이다:", "- 파일을 만들거나 고칠 때는",
      ("local_search_files", "local_glob", "local_grep", "local_list_directory", "local_index_codebase")),

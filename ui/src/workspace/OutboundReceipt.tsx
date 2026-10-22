@@ -4,10 +4,13 @@ import { callerLabel } from "./TakeoverRelay";
 /** 서버가 답 기록에 남긴 영수증(`outbound.outbound_record`) — 바깥 AI 가 맡긴 판에만 있다. */
 export type OutboundRecord = {
   host?: string;
-  needs?: { label: string; met: boolean }[];
+  /** met: true = 그 이름의 자리에 값이 있음 · false = 그 자리가 비었음 · null = 이름으로 자리를 못 찾아 확인 못 함(2026-10-19). */
+  needs?: { label: string; met: boolean | null }[];
   refined?: { kind: string; count: number }[];
   needs_total?: number;
   needs_met?: number;
+  needs_missing?: number;
+  needs_unknown?: number;
   refined_count?: number;
 };
 
@@ -22,11 +25,20 @@ export function OutboundReceipt({ record }: { record: OutboundRecord }) {
   const needs = Array.isArray(record.needs) ? record.needs : [];
   const refined = Array.isArray(record.refined) ? record.refined : [];
   const total = Number(record.needs_total ?? needs.length);
-  const met = Number(record.needs_met ?? needs.filter((item) => item.met).length);
+  const met = Number(record.needs_met ?? needs.filter((item) => item.met === true).length);
+  const missing = Number(record.needs_missing ?? needs.filter((item) => item.met === false).length);
+  const unknown = Number(record.needs_unknown ?? needs.filter((item) => item.met !== true && item.met !== false).length);
   const hidden = Number(record.refined_count ?? refined.reduce((sum, item) => sum + Number(item.count || 0), 0));
+  // ★ 2026-10-19: 확인 못 한 항목이 있으면 분수를 쓰지 않는다 — 「0/3」은 「셋 다 없다」로 읽힌다(서버 `outbound.receipt` 와 같은 규칙).
+  const needsParts = total <= 0 ? [] : unknown <= 0 ? [t("필요한 것 {0}/{1}", met, total)] : [
+    t("필요한 것 {0}개", total),
+    met > 0 ? t("채움 {0}", met) : "",
+    missing > 0 ? t("비어 있음 {0}", missing) : "",
+    t("확인 못 함 {0}", unknown),
+  ];
   const line = [
     t("{0}에게 보냄", callerLabel(String(record.host || ""))),
-    total > 0 ? t("필요한 것 {0}/{1}", met, total) : "",
+    ...needsParts,
     t("정제 {0}", hidden),
   ].filter(Boolean).join(" · ");
   return (
@@ -34,8 +46,8 @@ export function OutboundReceipt({ record }: { record: OutboundRecord }) {
       <summary>{line}</summary>
       <ul>
         {needs.map((item) => (
-          <li key={`n-${item.label}`} className={item.met ? "sent" : "missing"}>
-            <span>{item.met ? t("보냄") : t("비어 있음")}</span>{item.label}
+          <li key={`n-${item.label}`} className={item.met === true ? "sent" : item.met === false ? "missing" : "unknown"}>
+            <span>{item.met === true ? t("보냄") : item.met === false ? t("비어 있음") : t("확인 못 함")}</span>{item.label}
           </li>
         ))}
         {refined.map((item) => (

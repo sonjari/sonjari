@@ -107,7 +107,8 @@ DELEGATE = {
 
 def run_jarvis_job(task: str, budget: int = 600) -> str:
     started = time.time()
-    job = api("/v1/chat", {"prompt": task, "session_id": f"tok-{int(started)}", "open_results": False}, "POST")
+    job = api("/v1/chat", {"prompt": task, "session_id": f"tok-{int(started)}", "open_results": False,
+                           "measurement": True}, "POST")
     jid = str(job.get("id") or "")
     deadline = started + budget
     detail: dict = {}

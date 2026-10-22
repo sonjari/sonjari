@@ -58,7 +58,7 @@ def run_once(index: int, out_dir: Path, tag: str, limit_sec: int) -> dict:
     created = call("/v1/chat", {
         "prompt": PROMPT, "session_id": session, "origin": "workspace",
         "workspace_mode": "code", "delivery": "screen", "agent_mode": "auto",
-        "code_workspace": WORKSPACE,
+        "code_workspace": WORKSPACE, "measurement": True,
     }, timeout=120)
     job = str(created.get("id") or created.get("job_id") or "")
     if not job:

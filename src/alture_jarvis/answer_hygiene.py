@@ -9,6 +9,7 @@ agent.py 에서 분리했다(2026-10-09). 이 함수들은 전부 입력 문자�
 - _clipboard_overwrote_without_a_file — 클립보드가 덮어썼는데 파일은 없었는가
 - _clipboard_texts — 걸음에서 실제로 clipboard_write 에 넘어갔던 글
 - _tidy_small_model_habits — 숫자 띄어쓰기·끝 인사 걷기
+- _drop_progress_preamble — 답 맨 앞의 진행 보고(「…읽었습니다. 이제 정리하겠습니다.」) 떼기
 - _strip_stray_chinese — 한자 토막 걷기 (stray_han.mend 대용)
 - _strip_schema_labels — 도구 속 필드 이름 걷기
 - _strip_schema_labels_in — 문서 쓰기 인자 안의 글자에 같은 관문
@@ -38,6 +39,7 @@ _FRESH_READ_TOOLS = frozenset({"browser_read", "browser_extract", "browser_open_
 _ARTIFACT_PROGRESS_TOOLS = frozenset({
     "local_write_document", "local_edit_document", "local_write_file",
     "local_edit_spreadsheet", "artifact_from_observations", "hwp_apply_edit",
+    "hwp_apply_format", "hwp_export_pdf",
 })
 
 #: 산출물 차례에 **같이 남기는** 손 — 파일을 만드는 일의 일부이거나, 막혔을 때 물을 손이다 (2026-10-04 도구 전수조사 2-E).
@@ -48,7 +50,7 @@ _ARTIFACT_STAGE_SUPPORT = frozenset({
     "local_read_document", "local_list_directory", "local_search_files",
     "ask_user", "local_request_path_access", "skill_read",
     "sandbox_run", "browser_screenshot", "local_apply_edit",
-    "hwp_list_open", "hwp_read", "hwp_preview_edit",
+    "hwp_list_open", "hwp_read", "hwp_preview_edit", "hwp_preview_format",
     # ★ 프로그램 창을 조작해 파일을 만드는 일(한글 → PDF 저장 · 메모장 저장)은 창 손이 곧 파일 쓰는 손이다 (2026-10-17 화면 자동화 측정).
     #   파일 만들 차례가 걸리면 이 손들이 「이 차례가 아니다」로 막혀 저장 창 앞에서 멈출 자리였다.
     "windows_list_open_windows", "windows_focus_window", "windows_open_path", "windows_uia_snapshot",
@@ -123,6 +125,173 @@ def _tidy_small_model_habits(text: str) -> str:
     parts = re.split(r"(```.*?```)", text or "", flags=re.S)
     tidy = [part if part.startswith("```") else _KO_NUMBER_UNIT_SPACE.sub("", part) for part in parts]
     return _HELPFUL_TAIL.sub("", "".join(tidy)).rstrip()
+
+
+# ── 답 맨 앞의 진행 보고 한 줄 ─────────────────────────────────────────────
+#
+# ★ 2026-10-18 처음 보는 사이트 측정(steamcharts). 답이
+#   「PUBG: 482,875 확인했습니다. 5개 자료를 읽었으니 이제 정리하겠습니다.」로 시작하고 그 아래에 진짜 답(표)이 왔다.
+#   첫 줄은 일하면서 하는 말(마지막 확인 · 「이제 정리하겠다」)이지 답이 아니다 — 사람은 첫 줄에서 「PUBG 482,875」만 읽고
+#   그게 답인 줄 안다. 운영 답 4,490개에 대 보니 이 꼴로 떼이는 답이 28개였다(「두 개를 읽었습니다. 정리해 드릴게요.」).
+#   낱말을 하나씩 더하는 대신 **모양**으로 본다: 첫 단락이 ① 정보를 얻은 일의 과거 보고(읽었·확인했·찾았 …)와
+#   ② 「(이제) 정리·답·말씀하겠다」로 넘어가는 한 문장**만**으로 되어 있고, ③ 그 아래에 진짜 답이 있을 때만 그 단락을 뗀다.
+#   못 했다·틀렸다·정정 같은 말이 섞이면 그것은 답의 일부라 남긴다. 답이 그 단락뿐이면 절대 안 뗀다.
+_PREAMBLE_MAX_CHARS = 240
+#: 사람을 부르거나 받는 말 — 보고도 넘김도 아니고 정보도 없다(「네,」·「○○님,」·「알겠습니다.」).
+_ADDRESS_ONLY = re.compile(r"^(?:(?:네|예|좋습니다|알겠습니다|자|그럼|[가-힣]{1,4}\s*님)(?:\s*[,.!]\s*|\s+|$))+")
+#: 정보를 얻은 일(읽기 · 확인 · 찾기 · 모으기)의 어간. 「무엇을 했다」만 말하는 문장을 가른다 — 일의 종류는 닫혀 있다.
+_GATHER_STEM = re.compile(r"(?:읽|확인|찾|모았|모였|확보|수집|살펴|열어|조사|검색|조회|훑|봤|보았|다녀|마쳤|들어가)")
+#: 이 말이 섞이면 보고가 아니라 **내용**(못 했다 · 틀렸다 · 정정)이다 — 남긴다.
+_CONTENT_SIGNAL = re.compile(r"(?:못|않|없|실패|막혀|막혔|어렵|정정|죄송|틀렸|틀린|잘못|사과|오류|실수|다르|아니|하지만|다만|만\s*있)")
+#: 「이제 답으로 넘어가겠다」의 동사 — 정리 · 종합 · 요약 · 답 · 말씀 · 알려 드림.
+_TURN_VERB = re.compile(r"(?:정리|종합|요약|답|말씀|알려|전해)")
+#: 앞 절이 보고이고 뒤 절이 넘김인 한 문장 — 「5개 자료를 읽었으니 이제 정리하겠습니다」.
+_REPORT_CONNECTIVE = re.compile(r"^(?P<report>.+?(?:으니|니까|으므로|므로|니))\s*,?\s+(?P<turn>.+)$")
+_LEAD_WORDS = re.compile(r"^(?:이제|그럼|그러면|자|다시|바로|지금부터|곧)\s*,?\s*")
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+_BODY_LINE = re.compile(r"^\s*(?:\||#|\d+[.)]\s|[-*•]\s|>)")
+
+_EN_REPORT = re.compile(
+    r"(?i)^(?:i['’]ve|i\s+have)\s+(?:now\s+|already\s+|just\s+)?(?:read|checked|confirmed|verified|found|gathered|collected|"
+    r"reviewed|visited|opened|looked|went\s+through|completed\s+the\s+(?:search|reading)|searched)\b"
+)
+_EN_TURN = re.compile(
+    r"(?i)^(?:(?:now|so|ok(?:ay)?|alright),?\s+)?(?:"
+    r"(?:let\s+me|i['’]ll|i\s+will)\s+(?:now\s+)?(?:summari[sz]e|compile|put\s+(?:it|this|everything)\s+together|answer|lay\s+(?:it\s+)?out|organi[sz]e|write\s+(?:it\s+)?up|present)"
+    r"|(?:summari[sz]|compil|organi[sz])ing(?:\s+(?:now|it|them|the\s+results))?"
+    r"|here(?:['’]s|\s+is|\s+are)\s+(?:the\s+(?:answer|summary|results?)|what\s+i\s+found|what\s+(?:it|they)\s+shows?)"
+    r"|i\s+have\s+(?:what\s+i\s+need|enough|everything(?:\s+i)?\s+needed?)(?:\s+to\s+answer)?"
+    r")\b[^.!?]{0,30}[.!:]?$"
+)
+_EN_CONTENT_SIGNAL = re.compile(r"(?i)\b(?:not|n['’]t|couldn|unable|fail|blocked|but|however|only|wrong|sorry|correct(?:ion)?)\b")
+
+
+def _past_ending(sentence: str) -> bool:
+    """「~었습니다·~했어요·~했다」처럼 받침 ㅆ 으로 끝나는가(한 일). 「~겠습니다」·「있습니다」(상태)는 아니다. 「확인 완료.」도 한 일로 본다."""
+    body = sentence.rstrip(".!?…~ ")
+    if body.endswith("완료"):
+        return True
+    for tail in ("습니다", "어요", "아요", "다"):
+        if body.endswith(tail) and len(body) > len(tail):
+            before = body[-len(tail) - 1]
+            if "가" <= before <= "힣" and (ord(before) - 0xAC00) % 28 == 20 and before not in "겠있":
+                return True
+    return False
+
+
+def _is_gather_report(sentence: str) -> bool:
+    text = _ADDRESS_ONLY.sub("", sentence).strip()
+    if not text or len(text) > 100 or _CONTENT_SIGNAL.search(text):
+        return False
+    if _EN_REPORT.search(text):
+        return not _EN_CONTENT_SIGNAL.search(text)
+    # 맺는 말(마지막 낱말 둘)이 정보를 얻은 일이어야 한다 — 「…읽었는데, 핵심은 두 번째 글에 있습니다」는 내용이다.
+    predicate = " ".join(text.rstrip(".!?…~ ").split()[-2:])
+    return _past_ending(text) and bool(_GATHER_STEM.search(predicate))
+
+
+#: 머리에 적힌 **이름**(어디서 · 무엇을 읽었나)이 본문에 없으면 떼지 않는다 — 출처가 머리에만 있는 답이 있다
+#:   (운영 9648a0c9 「연합뉴스 … 헤드라인 본문을 직접 읽었습니다」 — 본문에는 「연합뉴스」가 없다).
+_NAME_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9.\-]*[A-Za-z0-9]|\d[\d,.:\-]*\d|[가-힣]{2,}")
+_JOSA_TAIL = re.compile(r"(?:에서|까지|으로|이랑|부터|에게|을|를|이|가|은|는|에|의|와|과|도|로|만|랑)$")
+#: 이름이 아닌 일반 낱말 — 「자료」·「본문」처럼 무엇을 읽었는지가 아니라 읽은 **것의 종류**를 말한다.
+_GENERIC_WORDS = frozenset(
+    "자료 내용 결과 본문 원문 페이지 출처 모두 전부 이제 직접 실제로 충분히 충분한 충분 지금까지 오늘 오늘자 두 세 네 개 건 곳 "
+    "핵심 데이터 정보 다시 함께 그럼 상세 가지 공식 전체 완료".split()
+)
+
+
+def _names_missing_from(head: str, rest: str) -> bool:
+    lowered = rest.lower().replace(",", "")
+    for token in _NAME_TOKEN.findall(head):
+        word = _JOSA_TAIL.sub("", token) if token[0] >= "가" else token
+        # 「○○님」은 사람을 부르는 말이지 출처 이름이 아니다(배포판에 특정 호칭을 적지 않으려 낱말 대신 꼴로 본다).
+        if len(word) < 2 or word in _GENERIC_WORDS or word.endswith("님") or _GATHER_STEM.search(word) or _TURN_VERB.search(word):
+            continue
+        if re.search(r"(?:습니다|어요|아요|게요|으니|니까|므로)$", token):
+            continue
+        if word.isdigit() and len(word) < 3:
+            continue  # 「5개 자료」의 5 — 개수는 이름이 아니다
+        if word.isascii() and word.islower():
+            continue  # 영어의 소문자 낱말(read · pages)은 이름이 아니다 — 이름은 대문자나 숫자를 단다(LandWatch · README)
+        if word.lower().replace(",", "") not in lowered:
+            return True
+    return False
+
+
+#: 넘김 문장의 **맺는 동사**가 정리·답·말씀이어야 한다(「정리하겠습니다」·「정리해 드릴게요」·「말씀드리겠습니다」·「답하겠습니다」).
+_KO_TURN_END = re.compile(
+    r"(?:정리|종합|요약|답|말씀|알려|전해)(?:해서|해|하)?\s*(?:드리|드릴|할|하)?\s*(?:겠습니다|겠어요|게요)[.!…~\s:]*$"
+)
+#: 파일·문서를 만들겠다는 말은 넘김이 아니라 **할 일**이다 — 그 일이 됐는지는 다른 검사가 본다.
+_ARTIFACT_WORD = re.compile(r"(?:파일|엑셀|문서|시트|워드|저장)")
+
+
+def _is_turn_to_answer(sentence: str) -> tuple[bool, str]:
+    """(넘김 문장인가, 그 안의 보고 절 — 없으면 빈 문자열)."""
+    text = _ADDRESS_ONLY.sub("", sentence).strip()
+    if not text or _CONTENT_SIGNAL.search(text) or _ARTIFACT_WORD.search(text):
+        return False, ""
+    if _EN_TURN.search(text):
+        return not _EN_CONTENT_SIGNAL.search(text), ""
+    if re.search(r"(?i)^(?:i['’]ve|i\s+have)\b", text) and "," in text:
+        # 「I've read 5 sources, now summarizing.」 — 앞 절 보고 + 뒤 절 넘김.
+        report, _, turn = text.partition(",")
+        if _EN_REPORT.search(report) and _EN_TURN.search(turn.strip()) and not _EN_CONTENT_SIGNAL.search(text):
+            return True, report
+        return False, ""
+    clause = ""
+    split = _REPORT_CONNECTIVE.match(text)
+    if split:
+        clause = split.group("report")
+        # 앞 절이 **정보를 얻은 일**일 때만 뗀다 — 「기준에 따라 답이 달라지니, 3개로 정리하겠습니다」는 내용이다.
+        if not (_GATHER_STEM.search(clause) and re.search(r"[았었였했됐봤왔쳤]", clause)):
+            return False, ""
+        text = split.group("turn").strip()
+    text = _LEAD_WORDS.sub("", text)
+    if len(text) > 45:
+        return False, ""
+    return bool(_KO_TURN_END.search(text)), clause
+
+
+def _drop_progress_preamble(answer: str) -> str:
+    """답 맨 앞 단락이 진행 보고 + 「이제 정리하겠습니다」뿐이고 그 아래 진짜 답이 있으면 그 단락만 뗀다.
+
+    ★ 2026-10-18 steamcharts 판 — 위 주석 참고. 고칠 것이 없으면 받은 글을 그대로 돌려준다.
+    """
+    text = str(answer or "")
+    stripped = text.lstrip()
+    if not stripped:
+        return text
+    lines = stripped.split("\n")
+    # 머리 후보: 첫 빈 줄까지. 그 안에 표·목록 줄이 있으면 첫 줄만 후보로 본다(바로 아래에 표가 붙은 답).
+    end = next((i for i, line in enumerate(lines) if not line.strip()), len(lines))
+    if any(_BODY_LINE.match(line) for line in lines[1:end]):
+        end = 1
+    head_lines = lines[:end]
+    if any(_BODY_LINE.match(line) for line in head_lines):
+        return text
+    head = " ".join(line.strip() for line in head_lines).strip()
+    rest = "\n".join(lines[end:]).strip()
+    # 답이 그 단락뿐이면 절대 안 뗀다 — 아래에 사람에게 줄 글이 충분히 있어야 한다.
+    if not head or len(head) > _PREAMBLE_MAX_CHARS or len(re.sub(r"\s+", "", rest)) < 30:
+        return text
+    sentences = [part.strip() for part in _SENTENCE_SPLIT.split(head) if part.strip()]
+    sentences = [s for s in sentences if _ADDRESS_ONLY.sub("", s).strip(" ,.!")]  # 부르는 말만인 문장은 셈에서 뺀다
+    if not sentences:
+        return text
+    is_turn, clause = _is_turn_to_answer(sentences[-1])
+    if not is_turn:
+        return text
+    reports = sentences[:-1]
+    if not all(_is_gather_report(sentence) for sentence in reports):
+        return text
+    if not (reports or clause):
+        # 「지금까지 확인한 내용을 정리해 드리겠습니다.」 한 문장은 보고가 없다 — 머리말일 수 있어 그대로 둔다.
+        return text
+    if _names_missing_from(" ".join(reports + [clause]), rest):
+        return text
+    return rest
 
 
 def _strip_stray_chinese(text: str) -> tuple[str, list[str]]:
@@ -285,7 +454,77 @@ _LEADING_NUMBER = re.compile(r"^\s*(?:\d+|[IVX]+)\s*[.)]\s*")
 _OUR_APPENDED_NOTES = re.compile(r"\n\s*(?:\*\*(?:시킨 것 대조|Checklist)\*\*|⚠\s*\*\*시킨 조건과 다른)")
 
 
-def _with_document_title(blocks: list[dict[str, Any]], body: str) -> list[dict[str, Any]]:
+#: 이름 재료가 되는 첫 문장의 끝 — 「…해 줘.」 · 「…해줘」 · 마침표.
+_TASK_SENTENCE_END = re.compile(r"(?<=[.!?。])\s|(?<=줘)[.,\s]|(?<=주세요)[.,\s]|\n")
+#: 따옴표로 짚은 대상 — 「삼성 갤럭시 버즈3 프로」 · "로지텍 MX Master 3S".
+_TASK_QUOTED = re.compile(r"「([^」\n]{2,60})」|\"([^\"\n]{2,60})\"|“([^”\n]{2,60})”|‘([^’\n]{2,60})’")
+#: 목적어(을·를)가 붙은 낱말 — 「제품들을」 · 「점(페인포인트)을」.
+_TASK_OBJECT = re.compile(r"(\S+?)(?:을|를)(?=\s|$)")
+#: 이름 앞쪽으로 더 거슬러 가지 않는 낱말 끝 — 조사 · 꾸밈말 · 잇는 말(「사람인에서」 · 「아쉬워하는」 · 「지원할」 · 「조사해서」).
+#: 한 글자 「고」 · 「서」는 넣지 않는다 — 「공고」 · 「이력서」가 거기서 끊겼다(운영 30개 대 봄).
+#: 「의」도 넣지 않는다 — 「레딧 게시판 3곳의 규칙」은 한 덩어리 이름이다.
+_NOT_A_NOUN_END = re.compile(r"(?:에서|에게|에|는|은|던|할|[해어아]서|하고|하며|,|\))$")
+#: 이름에 넣지 않는 셈말 낱말 — 「3개」 · 「10건」 · 「24곳」.
+_COUNT_WORD = re.compile(r"^\d+[가-힣]{0,2}$")
+#: 파일 이름으로 댄 것 — 「X.xlsx 로」 · 「「X.xlsx」로」 · 「C:\…\X.xlsx 에」. 확장자는 문서 · 표 · 그림 꼴만.
+#: 주소의 한 조각(`…/index.html`)은 이름이 아니다 — 「/」 바로 뒤는 안 본다. 줄기 끝이 「(」인 「마크다운(.md)」도 이름이 아니다.
+_TASK_FILE_NAME = re.compile(
+    r"(?<![/\w])([^\s\\/:*?\"<>|'「」`‘’“”]*[\w)\-]\.(?:xlsx|xls|csv|docx|doc|hwpx|hwp|md|txt|pptx|pdf|html|png|jpg|json))"
+    r"(?![A-Za-z0-9])", re.I)
+
+
+def artifact_name_from_task(prompt: str) -> str:
+    """대신 저장하는 파일의 **이름 줄기**를 사람이 시킨 글에서 짓는다 (2026-10-19 판 bb5ab643).
+
+    예전에는 답의 첫 줄로 지었다. 답이 「r/AI_Agents 게시판은 열지 못했고, r/LocalLLaMA는 10개 중 6개만 읽었습니다」로 시작하자
+    파일이 `rAI_Agents_게시판은_열지_못했고_rLocalLLaMA는_1.xlsx` 가 됐다 — 운영에서 이 안전망이 만든 파일 30개 중
+    「지금까지_확인한_내용을_정리합니다」 · 「9개까지_확인했고_나머지_15개(…」 · 「확인하지_못한_항목」처럼 답의 말버릇이 이름이 된 것이 여럿이었다.
+    사람은 자기가 시킨 말로 파일을 찾는다. 순서:
+
+    1. 시킨 글에 파일 이름이 있으면 그 이름의 줄기(확장자는 부르는 쪽이 맞춘다).
+    2. 첫 문장에 따옴표로 짚은 대상이 있으면 그것(「삼성 갤럭시 버즈3 프로」).
+    3. 첫 문장의 **마지막 목적어**(을·를)와 그 앞의 이름 낱말 — 「여수 회계 채용 공고 3개를」 → 여수 회계 채용 공고.
+       목적어에 괄호 풀이가 있으면 그 풀이(「점(페인포인트)을」 → 페인포인트).
+    4. 없으면 첫 문장 앞부분.
+    빈 글이면 빈 글 — 부르는 쪽이 「정리」로 채운다. 늘어놓는 기호(「·」 · 「/」 · 「,」)는 띄어쓰기로 바꾼다 — 파일 이름에서 그 기호를
+    걷으면 「회사·마감일」이 「회사마감일」로 붙는다.
+    """
+    return " ".join(re.sub(r"[·/,、]", " ", _task_name_raw(prompt)).split())
+
+
+def _task_name_raw(prompt: str) -> str:
+    """`artifact_name_from_task` 의 본체 — 기호를 고르기 전의 이름."""
+    compact = " ".join(str(prompt or "").split())
+    if not compact:
+        return ""
+    named = _TASK_FILE_NAME.search(compact)
+    if named:
+        return named.group(1).rsplit(".", 1)[0]   # 이름 칸에는 경로 글자가 못 들어온다 — 마지막 조각이 곧 이름이다
+    first = _TASK_SENTENCE_END.split(compact, maxsplit=1)[0].strip()
+    quoted = _TASK_QUOTED.search(first)
+    if quoted:
+        return next(group for group in quoted.groups() if group).strip()
+    objects = list(_TASK_OBJECT.finditer(first))
+    if objects:
+        last = objects[-1]
+        word = last.group(1)
+        gloss = re.search(r"\(([^()]{2,30})\)$", word)
+        if gloss:
+            return gloss.group(1).strip()
+        words = first[: last.start()].split() + [word]
+        picked: list[str] = []
+        for index, token in enumerate(reversed(words)):
+            if index and (_NOT_A_NOUN_END.search(token) or len(picked) >= 5):
+                break
+            if not _COUNT_WORD.match(token):
+                picked.insert(0, token)
+        name = " ".join(picked).strip()
+        if len(name) >= 2:
+            return name
+    return first[:40].strip()
+
+
+def _with_document_title(blocks: list[dict[str, Any]], body: str, title: str = "") -> list[dict[str, Any]]:
     """문서 맨 앞에 **제목(H1)** 이 서게 한다.
 
     ★ 2026-09-13 양식 검사기가 잡았다. 이 안전망이 만든 파일 넷이 전부 제목 없이
@@ -296,7 +535,8 @@ def _with_document_title(blocks: list[dict[str, Any]], body: str) -> list[dict[s
     - 맨 앞 세 블록 안에 H1 이 있으면 그것을 **맨 앞으로** 옮긴다. 답은 흔히
       「조사한 결과입니다.」 한 줄 뒤에 `# 제목` 을 쓴다 — 문서에선 제목이 먼저다.
     - 첫 블록이 소제목이면 번호를 떼고 H1 로 올린다.
-    - 제목이 하나도 없으면 답의 첫 문장을 제목으로 세운다(짧게).
+    - 제목이 하나도 없으면 ``title``(부르는 쪽이 시킨 글에서 지은 이름)을 세운다. 그것도 없으면 답의 첫 문장(짧게).
+      ★ 2026-10-19 판 bb5ab643: 답 첫 문장이 「r/AI_Agents 게시판은 열지 못했고, …」라 문서 첫 줄이 그 고백이 됐다.
     """
     if not blocks:
         return blocks
@@ -305,8 +545,14 @@ def _with_document_title(blocks: list[dict[str, Any]], body: str) -> list[dict[s
             return [block] + blocks[:index] + blocks[index + 1:]
     first = blocks[0]
     if first.get("type") == "heading":
-        title = _LEADING_NUMBER.sub("", str(first.get("text") or "")).strip()
-        return [{**first, "level": 1, "text": title}] + blocks[1:]
+        heading = _LEADING_NUMBER.sub("", str(first.get("text") or "")).strip()
+        return [{**first, "level": 1, "text": heading}] + blocks[1:]
+    # 첫 문단이 **통째로 굵은 짧은 줄**(「**여수 회계 채용 공고 비교표**」)이면 모델이 쓴 표제다 — 그것을 제목으로 올린다.
+    first_text = str(first.get("text") or "").strip()
+    if first.get("type") == "paragraph" and re.fullmatch(r"\*\*[^*\n]{2,60}\*\*", first_text):
+        return [{"type": "heading", "level": 1, "text": first_text.strip(" *")}] + blocks[1:]
+    if str(title or "").strip():
+        return [{"type": "heading", "level": 1, "text": str(title).strip()[:60]}] + blocks
     line = next((ln.strip() for ln in str(body or "").splitlines() if ln.strip()), "")
     line = re.sub(r"^[#>*\-\s]+", "", line)
     title = re.split(r"(?<=[.!?。])\s|입니다\.|했습니다\.", line, maxsplit=1)[0].strip(" .")[:40] or "정리"

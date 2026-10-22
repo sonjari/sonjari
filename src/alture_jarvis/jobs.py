@@ -240,6 +240,16 @@ class JobStore:
             row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
         return self._row(row)
 
+    def finished_jobs_since(self, since: float, limit: int = 5000) -> list[dict[str, Any]]:
+        """`since` 뒤에 만들어져 **끝난**(완료 · 실패 · 취소) 판 — 영수증(`receipt`)이 센다. 새 것부터 `limit` 개."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM jobs WHERE created_at >= ? AND status IN ('completed', 'failed', 'cancelled') "
+                "ORDER BY created_at DESC LIMIT ?",
+                (float(since), max(1, int(limit))),
+            ).fetchall()
+        return [self._row(row) or {} for row in rows]
+
     def list_jobs(self, limit: int = 50, status: str = "") -> list[dict[str, Any]]:
         limit = max(1, min(int(limit), 200))
         with self._connect() as conn:

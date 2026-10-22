@@ -608,6 +608,82 @@ export interface ContextApplyResult {
   global?: { ok: boolean; error?: string; current?: string; restarted?: string };
 }
 
+// ── 「나에 대한 지침」 (2026-10-18) ─────────────────────────────────────────────
+// ★ 매 턴 실리는 프로필 파일(`JARVIS_PROFILE.md`)에 화면이 없었고, 지침 가져오기는 아무 데도 안 쓰였다. 둘을 파일 하나로
+//   모은다(백엔드 `about_me.py`). 화면은 줄을 **만들지 않는다** — 카드 답 → 줄은 백엔드 결정론 코드 한 곳이다.
+export type AboutMeLength = "" | "short" | "normal" | "long";
+export type AboutMeTone = "" | "casual" | "polite";
+
+export interface AboutMeAnswers {
+  user_label: string;
+  work_text: string;
+  length: AboutMeLength;
+  tone: AboutMeTone;
+  sites: string[];
+  avoid_text: string;
+}
+
+/** 길이 자 — 대화 판에 실제로 실리는 블록을 우리가 잰 글자/토큰 비율로 잰다. */
+export interface AboutMeMeter {
+  sent_chars: number;
+  tokens: number;
+  num_ctx: number;
+  share: number;
+  share_pct: number;
+  warn: boolean;
+  warn_share: number;
+  chars_per_token: number;
+}
+
+export interface AboutMeView extends AboutMeMeter {
+  ok: boolean;
+  error?: string;
+  message?: string;
+  path: string;
+  exists: boolean;
+  content_raw: string;
+  chars: number;
+  max_chars: number;
+  truncated: boolean;
+  has_card: boolean;
+  answers: AboutMeAnswers;
+  saved?: boolean;
+  card_lines?: string[];
+  added?: number;
+  refused?: { index: number; reason: string }[];
+}
+
+export interface AboutMeCardPreview extends AboutMeMeter {
+  ok: boolean;
+  error?: string;
+  answers: AboutMeAnswers;
+  card_lines: string[];
+  content_raw: string;
+  chars: number;
+  max_chars: number;
+  fits: boolean;
+}
+
+/** 「보내는 답」 — 사이트는 쉼표 글 그대로 보내도 백엔드가 나눈다. */
+export type AboutMeAnswersInput = Omit<AboutMeAnswers, "sites"> & { sites: string[] | string };
+
+export interface AboutMeImportLine {
+  index: number;
+  raw: string;
+  allowed: boolean;
+  reason: "" | "blank" | "secret" | "already";
+}
+
+export interface AboutMeImportLines {
+  ok: boolean;
+  error?: string;
+  import_id: number;
+  tool_name: string;
+  source_path: string;
+  lines: AboutMeImportLine[];
+  allowed_count: number;
+}
+
 export interface SetupApi {
   setupState(): Promise<SetupStateView>;
   finishSetup(steps: string[]): Promise<SetupStateView>;
@@ -665,6 +741,14 @@ export interface SetupApi {
   ): Promise<ImportCommitResult>;
   importList(): Promise<{ count: number; items: ImportedItem[] }>;
   importRemove(importId: number): Promise<{ ok: boolean; error?: string }>;
+  aboutMe(): Promise<AboutMeView>;
+  /** 원문 저장(개발자 편집기). 상한을 넘으면 `{ok:false, error:"too_long"}` — 파일은 그대로다. */
+  aboutMeSave(content: string): Promise<AboutMeView>;
+  aboutMeCardPreview(answers: AboutMeAnswersInput, lang: string): Promise<AboutMeCardPreview>;
+  aboutMeCardSave(answers: AboutMeAnswersInput, lang: string): Promise<AboutMeView>;
+  aboutMeImportLines(importId: number): Promise<AboutMeImportLines>;
+  aboutMeAppendImport(importId: number, lines: number[]): Promise<AboutMeView>;
+  aboutMeOpen(): Promise<{ ok: boolean; path?: string; error?: string }>;
 }
 
 export function createSetupApi(bootstrap: BackendBootstrap): SetupApi {
@@ -747,6 +831,16 @@ export function createSetupApi(bootstrap: BackendBootstrap): SetupApi {
       call("/v1/desktop/open-folder", { method: "POST", body: JSON.stringify({ which: "guide_skill" }) }),
     importRemove: (importId) =>
       call("/v1/setup/import/remove", { method: "POST", body: JSON.stringify({ import_id: importId }) }),
+    aboutMe: () => call("/v1/about-me"),
+    aboutMeSave: (content) => call("/v1/about-me", { method: "PUT", body: JSON.stringify({ content }) }),
+    aboutMeCardPreview: (answers, lang) =>
+      call("/v1/about-me/card/preview", { method: "POST", body: JSON.stringify({ answers, lang }) }),
+    aboutMeCardSave: (answers, lang) =>
+      call("/v1/about-me/card", { method: "POST", body: JSON.stringify({ answers, lang }) }),
+    aboutMeImportLines: (importId) => call(`/v1/about-me/import-lines?import_id=${importId}`),
+    aboutMeAppendImport: (importId, lines) =>
+      call("/v1/about-me/import-lines", { method: "POST", body: JSON.stringify({ import_id: importId, lines }) }),
+    aboutMeOpen: () => call("/v1/about-me/open", { method: "POST", body: "{}" }),
   };
 }
 

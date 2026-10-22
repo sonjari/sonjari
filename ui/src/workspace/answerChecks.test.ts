@@ -45,6 +45,31 @@ describe("답 끝의 「확인할 것」을 본문에서 뗀다", () => {
     expect(checks[0]).toMatchObject({ title: "Some percentages are not in what was read", what: "17%" });
   });
 
+  // ★ 2026-10-22: 경고 뒤에 우리 꼬리(시킨 것 대조 · 만든 파일 · ℹ)가 붙으면 경고를 하나도 못 뗐다 — 경고가 붙은 답의 36%.
+  it("경고 뒤에 「시킨 것 대조」가 붙어도 경고는 떼고 대조는 본문 끝에 남긴다", () => {
+    const checklist = "**시킨 것 대조**\n- ❌ 2개 이상 직접 열어 읽기 — 3개 읽음\n- ✅ 깃허브에서 하기 — 1건";
+    const { body, checks } = splitAnswerChecks(`${ANSWER}\n\n${RATE}\n\n${NAMES}\n\n${checklist}`);
+    expect(checks).toHaveLength(2);
+    expect(body).toBe(`${ANSWER}\n\n${checklist}`);
+    expect(body).not.toContain("⚠");
+  });
+
+  it("경고 뒤의 만든 파일 목록과 ℹ 도구 기록은 그대로 둔다", () => {
+    const files = "만든 파일:\n- 가상_조사.xlsx";
+    const info = "ℹ 도구 기록: 손자리가 본 목록 범위는 검색 1번(각 첫 화면)입니다.";
+    const { body, checks } = splitAnswerChecks(`${ANSWER}\n\n${NAMES}\n\n${info}\n\n${files}`);
+    expect(checks).toHaveLength(1);
+    expect(body).toBe(`${ANSWER}\n\n${info}\n\n${files}`);
+    const english = splitAnswerChecks(`Answer.\n\n⚠ **Some amounts are not in anything that was read: $9.** Check.\n\nFiles created:\n- a.xlsx`);
+    expect(english.body).toBe("Answer.\n\nFiles created:\n- a.xlsx");
+    expect(english.checks).toHaveLength(1);
+  });
+
+  it("경고 없이 꼬리만 있는 답은 한 글자도 안 바뀐다", () => {
+    const plain = `${ANSWER}\n\n만든 파일:\n- 가상.xlsx\n\n**시킨 것 대조**\n- ✅ 하기 — 1건`;
+    expect(splitAnswerChecks(plain)).toEqual({ body: plain, checks: [] });
+  });
+
   it("쌍점이 없는 문단은 첫 문장이 한 줄 요약이다", () => {
     const { checks } = splitAnswerChecks(`답입니다.\n\n⚠ **확인하지 못한 값이 있습니다.** 다시 열어 확인해 주세요.`);
     expect(checks[0]).toMatchObject({ title: "확인하지 못한 값이 있습니다", what: "" });

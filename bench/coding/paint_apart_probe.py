@@ -45,7 +45,8 @@ def main() -> None:
             break
     del last
     job = call("/v1/chat", {"prompt": PROMPT, "origin": "workspace", "delivery": "screen", "agent_mode": "auto",
-                            "workspace_mode": "cowork", "session_id": f"paint-apart-probe-{int(time.time())}"})
+                            "workspace_mode": "cowork", "session_id": f"paint-apart-probe-{int(time.time())}",
+                            "measurement": True})
     job_id = str(job.get("id") or job.get("job_id"))
     started = time.time()
     while time.time() - started < 240:

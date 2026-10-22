@@ -36,7 +36,7 @@ from .quantities import ROLE_CONSTRAINT, ROLE_INPUT, ROLE_OUTPUT, counted_object
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 from .site_atlas import SEED as _SEED
 
@@ -125,7 +125,7 @@ def _names_a_readable_place(compact: str, known_sites: "dict[str, tuple[str, ...
         return True
     names = {**SITE_ALIASES, **(known_sites or {})}
     folded = compact.casefold()
-    return any(name.casefold() in folded for name in names)
+    return any(name.casefold() in folded and _names_site(folded, name.casefold()) for name in names)
 
 
 #: 주소를 **산출물에 넣으라는** 말 — 「robometafit.com 주소를 담은 QR 코드」.
@@ -189,7 +189,10 @@ def _has_explicit_input_count(compact: str) -> bool:
 #: ★ 2026-10-04 레딧 기준선 판(8faf3a05): 「…글 30개의 제목·댓글 수를 엑셀 파일로 정리해줘 … 댓글이 7개 이상인 글이 30개 중
 #:   몇 개인지 알려줘」가 「로컬 자료 7개 이상 직접 열어 읽기」가 됐다. 손자리는 채울 수 없는 요구를 붙들고 447초를 헤매다
 #:   파일 없이 예고로 끝났다. 틀린 자리가 둘이었다 — 이 조건의 7, 그리고 아래 「만들 파일」.
-_FILTER_CONDITION = re.compile(r"^\s*(?:인|된|되는|넘는|달린|붙은|있는|없는|짜리)(?![가-힣])")
+# ★ 2026-10-21 새벽: 「글이 **30개 안 되는** 칸은 「표본 적음」으로 표시해 줘」가 「30개 이상 직접 열어 읽기」가 됐다(HN 세기 판).
+#   부정(안 · 못 · 덜)과 조사(가 · 이)가 끼면 조건 숫자가 이 거르개를 빠져나갔다. 동사 목록은 늘리지 않는다 —
+#   「30개 넘게 찾아줘」(넘게)는 진짜 요구다.
+_FILTER_CONDITION = re.compile(r"^\s*(?:[이가]\s*)?(?:(?:안|못|덜)\s*)?(?:인|된|되는|넘는|달린|붙은|있는|없는|짜리)(?![가-힣])")
 
 #: **만들 파일**을 가리키는 「파일」 — 「엑셀 파일 「이름.xlsx」로 정리」·「파일로 저장」. 읽을 로컬 출처가 아니다.
 #: 「파일을 읽고」·「파일에서」는 그대로 출처다(뒤에 「로/으로」가 올 때만 만들 것으로 본다).
@@ -480,6 +483,32 @@ _LOCAL_NOT_SOURCE = re.compile(
 )
 
 
+_HANGUL_SYLLABLE = re.compile("[가-힣]")
+
+
+def _korean_name_starts_a_word(folded: str, name: str) -> bool:
+    """한글 이름이 **다른 낱말의 꼬리가 아닌 채** 한 번이라도 나오는가 — 「크레딧」 속의 「레딧」은 아니다.
+
+    ★ 2026-10-19 inline AI 조사 판(d0d36f19): 「요금제와 크레딧」의 「레딧」이 배운 사이트 이름에 걸려 대조표에
+      「레딧에서 하기」가 섰다. 한글 이름은 뒤에 조사가 바로 붙으므로(「레딧에서」) 뒤는 보지 않는다. 조사는 **앞에는**
+      안 붙는다 — 앞 글자가 한글 음절이면 다른 낱말의 일부다.
+    """
+    at = folded.find(name)
+    while at >= 0:
+        before = folded[at - 1] if at else " "
+        if not _HANGUL_SYLLABLE.match(before):
+            return True
+        at = folded.find(name, at + 1)
+    return False
+
+
+def _names_site(folded: str, name: str) -> bool:
+    """요청(소문자로 접은 글)이 이 사이트 이름을 **이름으로** 댔나 — 다른 낱말 속에 든 글자는 세지 않는다."""
+    if name.isascii():
+        return _ascii_name_as_word(folded, name)
+    return _korean_name_starts_a_word(folded, name)
+
+
 def _ascii_name_as_word(folded: str, name: str) -> bool:
     """영문·숫자 이름이 다른 영문·숫자에 **붙지 않은 채** 한 번이라도 나오는가(「16gb」 속의 `gb` 는 아니다)."""
     at = folded.find(name)
@@ -490,6 +519,21 @@ def _ascii_name_as_word(folded: str, name: str) -> bool:
             return True
         at = folded.find(name, at + 1)
     return False
+
+
+#: 이름 바로 뒤에 오면 그 이름은 **주제**다 — 「깃허브에 관한 규칙」 · 「쿠팡 관련 뉴스」 · 「네이버에 대한 평가」.
+_SITE_AS_TOPIC_TAIL = re.compile(r"\s*(?:에\s*(?:관한|관해|관하여|대한|대해|대하여)|관련|얘기|이야기)")
+
+
+def _only_as_topic(folded: str, name: str) -> bool:
+    """이름이 나오는 자리가 **전부** 「…에 관한 · 에 대한 · 관련」 앞인가 — 그러면 갈 곳이 아니라 다룰 주제다.
+
+    ★ 2026-10-18 r/LocalLLM 규칙 읽기 판(c9910364): 「자기 홍보 · 링크 · 프로젝트 소개 · 깃허브에 관한 규칙은 빠짐없이」의
+      깃허브가 「깃허브에서 하기」가 됐다. 레딧 규칙을 다 읽고 옮겼는데 「❌ 깃허브에서 하기 — 거기서 아무것도 안 함」으로
+      「일부만 끝냄」이 찍혔고, 되받기에 답하다 처음 답의 규칙 전문이 최종 답에서 사라졌다.
+    """
+    positions = [index for index in range(len(folded)) if folded.startswith(name, index)]
+    return bool(positions) and all(_SITE_AS_TOPIC_TAIL.match(folded, index + len(name)) for index in positions)
 
 
 def _only_in_example_lists(folded: str, name: str) -> bool:
@@ -971,6 +1015,8 @@ class Requirement:
     destination: str = ""
     # 사람이 「하나하나 열 필요 없다」고 한 개수 요구(`says_list_only`). 되받기가 「본문을 열어라」 대신 「목록으로 담아라」를 준다.
     list_only: bool = False
+    # 개수 요구의 항목을 사람이 번호로 적어 줬으면 그 항목들(`enumerated_items`). 「N개 처리」를 **손댄 항목 수**로도 센다.
+    items: tuple[str, ...] = ()
 
 
 #: 앞 판 근거를 **이어받지 않을** 말 — 새것·더·다른 것을 달라는 요청 (2026-09-24).
@@ -1039,14 +1085,112 @@ def _without_quoted_sentences(compact: str) -> str:
 #: 읽을 곳이 **내 PC 의 프로그램 창**인 요청 — 「작업 관리자를 열어서」·「메모장 창에서」·「한글 프로그램 화면에서 읽어」.
 #: 프로그램 이름만으로는 안 건다(「엑셀로 정리해 줘」는 만들 형식이다) — 열거나 · 창 · 화면이 같이 와야 한다.
 _DESKTOP_SOURCE = re.compile(
-    r"(?:작업\s*관리자|메모장|그림판|계산기|한글\s*프로그램|엑셀\s*프로그램|워드\s*프로그램|제어판|설정\s*앱)"
-    r"[^.!?\n]{0,12}(?:열어|열고|켜서|켜고|창|화면)"
+    r"(?:작업\s*관리자|메모장|그림판|계산기|한글\s*프로그램|엑셀\s*프로그램|워드\s*프로그램|제어판|설정\s*앱"
+    # ★ 2026-10-18 「모르는 앱」 측정: 「윈도우 설정의 「시스템 → 정보」 화면을 열어서」 · 「「시스템 정보」 프로그램(msinfo32)을
+    #   열어서」가 이 표에 없어 「봐야 하는 일」이 안 됐고, 6판 중 4판이 도구 0걸음 · 기억으로 답했다(「이미 확인된 값」).
+    r"|시스템\s*정보|msinfo32|(?:윈도우|windows)\s*설정|장치\s*관리자|디스크\s*관리|이벤트\s*뷰어)"
+    r"[^.!?\n]{0,24}(?:열어|열고|켜서|켜고|창|화면)"
     r"|(?:프로그램|앱)\s*창(?:에서|을|의)"
+    # 「…프로그램(msinfo32)을 열어서」 · 「…앱을 켜고」 — 프로그램 · 앱을 열라는 말(괄호 속 이름은 건너뛴다).
+    r"|(?:프로그램|앱)\s*(?:\([^)]{1,40}\))?\s*(?:을|를)\s*(?:열어|열고|켜서|켜고)"
     r"|(?i:\b(?:task\s*manager|notepad)\b)"
 )
 
 
-def extract(
+#: 이름으로 여는 윈도우 화면 — (부른 말, `windows_open_path` 의 path 에 적을 이름). 앞의 것이 먼저다.
+_NAMED_SCREENS = (
+    (re.compile(r"시스템\s*정보|msinfo32", re.I), "시스템 정보"),
+    (re.compile(r"(?:윈도우|windows)\s*설정[^.!?\n]{0,24}정보|시스템\s*(?:→|>|->)\s*정보", re.I), "시스템 → 정보"),
+    (re.compile(r"(?:윈도우|windows)\s*설정|설정\s*앱", re.I), "설정"),
+)
+
+
+def named_screen_to_open(prompt: str) -> str | None:
+    """「시스템 정보를 열어서」 · 「윈도우 설정의 시스템 → 정보 화면을 열어서」처럼 이름으로 여는 화면을 열라는 요청이면 그 이름(2026-10-18).
+
+    「모르는 앱」 다시 잼: 모델이 「msinfo32 를 띄우는 도구가 없어」라고 쓰고 셸 명령으로만 읽었다 — 그래서 설정 화면에만 있는
+    값(버전 이름)이 3판 중 2판에서 빠졌다. 열 수 있다는 것을 모르는 것이라 그 이름을 알려 준다.
+    """
+    compact = " ".join((prompt or "").split())
+    if not names_a_desktop_source(compact):
+        return None
+    return next((name for pattern, name in _NAMED_SCREENS if pattern.search(compact)), None)
+
+
+def names_a_desktop_source(prompt: str) -> bool:
+    """내 PC 의 프로그램 · 설정 화면을 열어 읽으라는 요청인가(라우터가 「가서 봐야 하는 일」로 쓴다)."""
+    return bool(_DESKTOP_SOURCE.search(" ".join((prompt or "").split())))
+
+
+#: 문장 **끝**의 시키는 말(뒤에 붙는 마침표 · 괄호 · 따옴표는 건너뛴다). `_REQUEST_ENDING` 은 문장 어디서나 찾아서
+#: 「확인할 것까지」·「확인할 것)」 같은 설명문 속 낱말에도 걸린다 — 덩어리가 지시인지 가를 때는 끝만 본다.
+_ENDS_ASKING = re.compile("(?:" + _REQUEST_ENDING.pattern + r")[\s.!?~)\]」』\"'*]*$")
+
+
+def _block_asks(block: str) -> bool:
+    """이 덩어리에 **시키는 말로 끝나는 문장**이 하나라도 있는가. 줄 · 칸(탭) · 문장마다 끝을 본다."""
+    for line in re.split(r"[\n\t]", block):
+        for unit in _SENTENCE_BREAK.split(_without_quoted_sentences(line)):
+            found = _ENDS_ASKING.search(unit.strip())
+            # 「지켜야 할 것」·「봐야 할 것」은 이름(명사구)이다 — 「제출할 것」만 시키는 말이다(판 6c8de096 의 표 머리 「(지켜야 할 것)」).
+            if found and not (found.group().startswith("할 것") and re.search(r"야\s*$", unit.strip()[: found.start()])):
+                return True
+    return False
+
+
+def own_words(prompt: str) -> str | None:
+    """붙여넣은 글을 뺀 **사람의 말**. 붙여넣은 덩어리가 없으면 None.
+
+    ★ 2026-10-20 대표 실사용 판 6c8de096. 「그러면 mcp 는 … 따로 하는 거는 어떤데」 밑에 설계 문서 9천 자를 붙여넣고
+      「클로드는 이렇게 하자고 하네」로 끝냈다. 문서 속 예시(「깃허브에서 …」·「다나와 최저가 …」·「노션에서 …」)가
+      「깃허브에서 하기 · 다나와에서 하기 · 노션에서 하기 · 사이트 정렬·필터로 보기」가 됐다. 사람은 생각을 물었는데
+      계획은 사이트 세 곳을 돌라고 밀었다. 붙여넣은 글의 이름 · 숫자는 **그 글의 내용**이다.
+
+    붙여넣은 덩어리 = 빈 줄로 나뉜 덩어리 중 **길고(300자+) 시키는 말로 끝나는 문장이 하나도 없는 것**.
+    사람 말(그 밖의 덩어리)이 따로 있을 때만 가른다 — 글 전체가 한 덩어리면 그 글이 곧 지시다.
+
+    ※ 2026-10-07 에 「문단 모양으로 자료를 잘라내는」 규칙을 재 봤다가 버렸다(1,642개 중 39개가 바뀌고 37개가 진짜 요구를
+      잃음 · `_count_only_in_a_statement`). 그때 잃은 것은 이어받기 인계문 · 코딩 과제 · 목록으로 조건을 적은 조사 —
+      전부 **시키는 문장이 든 긴 덩어리**였다. 여기서는 그런 덩어리를 붙여넣은 글로 치지 않는다.
+      운영 요청 2,454개로 재 보니 6개가 바뀌었다: 위 판(사이트 셋 · 정렬) · 회사 소개 속 「일정」 · 앞 모델 답 속
+      「회귀 17건」·「실행한 테스트」 · 사람이 쓴 계획 목록 속 파일 · 인계문 속 「3판 돌려 보자」를 「웹 자료 3개 읽기」로
+      잘못 읽은 것. 진짜 요구를 잃은 판은 없었다.
+    """
+    blocks = [block for block in re.split(r"\n\s*\n", prompt or "") if block.strip()]
+    if len(blocks) < 2:
+        return None
+    pasted = [
+        index for index, block in enumerate(blocks)
+        if len("".join(block.split())) >= _PASTED_TEXT_CHARS and not _block_asks(block)
+    ]
+    if not pasted:
+        return None
+    # 붙여넣은 덩어리 **사이**의 짧은 덩어리(문서의 제목 · 짧은 문단)도 그 글의 일부다 — 시키는 말이 있을 때만 사람 말로 둔다.
+    first, last = pasted[0], pasted[-1]
+    mine = [
+        block for index, block in enumerate(blocks)
+        if index < first or index > last or (index not in pasted and _block_asks(block))
+    ]
+    if not mine:
+        return None
+    return "\n\n".join(mine)
+
+
+def extract(prompt: str, **options: Any) -> list[Requirement]:
+    """이 요청에서 **대조 가능한** 요구만 뽑는다 — 붙여넣은 글에서만 나온 요구는 뺀다(`own_words`).
+
+    글 전체로 뽑은 요구 중 **사람의 말만으로도 서는 것**만 남긴다. 사람 말만으로 다시 뽑은 것을 그대로 쓰지 않는 까닭:
+    개수 · 사이트의 꼴(라벨 · 별칭)은 글 전체 맥락으로 뽑은 쪽이 지금까지 써 온 판정이다 — 빼기만 하고 바꾸지는 않는다.
+    """
+    found = _extract_all(prompt, **options)
+    words = own_words(prompt) if found else None
+    if words is None:
+        return found
+    mine = {(item.kind, str(item.target)) for item in _extract_all(words, **options)}
+    return [item for item in found if (item.kind, str(item.target)) in mine]
+
+
+def _extract_all(
     prompt: str,
     *,
     has_named_source: bool = False,
@@ -1169,7 +1313,11 @@ def extract(
         read_count_context = False
     if target and _is_action_count(outside_quotes, target):
         # 행위에 붙은 개수. **한 횟수로만** 센다 — 적어 놓는 것으로는 못 채운다.
-        found.append(Requirement("count_action", f"{target}개 실제로 처리하기", target))
+        listed = enumerated_items(prompt)
+        found.append(Requirement(
+            "count_action", f"{target}개 실제로 처리하기", target,
+            items=listed if len(listed) == int(target) else (),
+        ))
     elif scoped_counts and read_count_context:
         for scope, scoped_target in scoped_counts:
             found.append(
@@ -1217,7 +1365,8 @@ def extract(
             continue
         # ★ 영문·숫자로 된 이름은 **낱말로** 있을 때만 건다 (2026-10-04 레딧 조사 판 aa741c81). 배운 사이트 이름 「GB」가
         #   「16GB 이하에서」 속에서 걸려 대조표에 「GB에서 하기」가 찍혔다. 한글 이름은 조사가 바로 붙으므로 그대로 둔다.
-        if name.isascii() and not _ascii_name_as_word(folded, name.casefold()):
+        # ★ 한글 이름은 다른 낱말의 꼬리일 때 건너뛴다(2026-10-19 「크레딧」 속 「레딧」) — `_names_site`.
+        if not _names_site(folded, name.casefold()):
             continue
         if any(name.casefold() in longer.casefold() for longer in matched):
             continue
@@ -1225,8 +1374,25 @@ def extract(
         #   깃허브가 「깃허브에서 하기」가 됐고, 웹 글을 10개 읽고도 「시킨 곳에서 안 읽었다」로 41걸음을 헤맸다.
         if _only_in_example_lists(folded, name.casefold()):
             continue
+        if _only_as_topic(folded, name.casefold()):
+            continue
         matched.append(name)
-        found.append(Requirement("site", f"{name}에서 하기", aliases[name]))
+    # ★ **한 곳은 한 줄이다** (2026-10-19 판 51f35b07). 「깃허브 저장소 …」와 「GitHub 계정」을 같이 쓴 요청에 「GitHub에서 하기」 ·
+    #   「깃허브에서 하기」 두 줄이 섰다 — 씨앗의 「깃허브」와 배운 표의 「GitHub」가 **같은 주소**인데 이름만 보고 따로 셌다.
+    #   위의 「긴 이름이 짧은 이름을 담으면 하나」(네이버 블로그 ⊃ 네이버)는 글자가 겹칠 때만 일한다. 한글 · 영문 짝(레딧 · Reddit,
+    #   예스24 · YES24, 지마켓 · G마켓, 배운 표의 K-Startup · K-STARTUP)은 글자가 안 겹치니 **주소로** 묶는다. 이름은 요청에
+    #   먼저 나온 쪽을 쓴다 — 사람이 부른 말로 대조표에 찍히게. 줄의 순서는 예전 그대로(긴 이름부터) 둔다.
+    def _hosts(name: str) -> set[str]:
+        return {str(host).casefold() for host in aliases[name]}
+
+    emitted: list[set[str]] = []
+    for name in matched:
+        if any(_hosts(name) & earlier for earlier in emitted):
+            continue
+        same_place = [other for other in matched if _hosts(other) & _hosts(name)]
+        shown = min(same_place, key=lambda each: folded.find(each.casefold()))
+        emitted.append(set().union(*(_hosts(other) for other in same_place)))
+        found.append(Requirement("site", f"{shown}에서 하기", aliases[shown]))
 
     # ★ 2026-10-03 Online-Mind2Web TED 판: 「가장 많이 본 · 12~18분」을 검색어 결과에서 골라 틀렸다(정답은 제목에 robot 이 없는
     #   쿼드콥터 강연 — 사이트 필터 목록의 1위). 지름길(검색)이 「되는 것처럼」 보이면 모델은 필터 방에 안 들어간다.
@@ -1446,10 +1612,16 @@ def without_excluded_parts(answer: str) -> str:
     제목에 「뺐다」는 말이 있으면 다음 제목까지, 아니면 그 말이 든 줄만 뗀다. 못 잡는 것(같은 줄에 진짜 위반과 「제외」가 같이 있는 경우)은
     있어도 없는 위반을 만들지 않는다 — 이 검사의 원래 약속 그대로다.
     """
+    return "\n".join(_split_excluded_parts(answer)[0])
+
+
+def _split_excluded_parts(answer: str) -> tuple[list[str], list[str]]:
+    """답의 줄을 (남는 줄, **빼 놓은 것을 설명하는 줄**) 둘로 가른다. `without_excluded_parts` · `excluded_item_names` 가 같이 쓴다."""
     # ★ **제목의 층을 본다** (같은 날 실전 판 574826ac). 「### 표에 넣지 않고 뺀 공고 (15건 전체)」 아래에 굵은 글씨 소제목
     #   「**계약직이고 지역도 다른 곳**」이 나오자 「빼 놓은 자리가 끝났다」고 보고, 빼 놓은 계약직 공고 열 건에 경고를 붙였다.
     #   빼 놓은 자리는 **같거나 더 높은 층의 제목**이 와야 끝난다 — 굵은 글씨 줄은 `#` 제목보다 낮은 층이다.
     kept: list[str] = []
+    dropped: list[str] = []
     skip_level = 0  # 0 = 안 건너뜀 · 1~6 = 그 층의 `#` 제목 아래 · 7 = 굵은 글씨 소제목 아래
     for line in str(answer or "").split("\n"):
         heading = _HEADING_LINE.match(line)
@@ -1457,13 +1629,47 @@ def without_excluded_parts(answer: str) -> str:
             level = len(heading.group("hashes")) if heading.group("hashes") else 7
             if _EXCLUDED_WORDS.search(line):
                 skip_level = level if not skip_level else min(skip_level, level)
+                dropped.append(line)
                 continue
             if skip_level and level <= skip_level:
                 skip_level = 0
         if skip_level or _EXCLUDED_WORDS.search(line):
+            dropped.append(line)
             continue
         kept.append(line)
-    return "\n".join(kept)
+    return kept, dropped
+
+
+#: 빼 놓은 항목 줄에서 이름이 끝나는 자리 — 「- **Cursor**: 근거 없음 → 제외」 · 「- Cursor — 제외」 · 「- Cursor(유료) 제외」.
+_ITEM_NAME_END = re.compile(r"\s*(?::|：|—|–|→|\(|（|\s-\s)")
+
+
+def excluded_item_names(answer: str) -> list[str]:
+    """답이 **「뺐다」고 말한 항목의 이름** — 빼 놓은 자리(`_split_excluded_parts`)의 항목 줄(표 · 글머리표 · 번호)에서.
+
+    좁게 문다(운영 답 4,509판에 대 봄 — 넓게 뽑으면 「배송비」 · 「URL」 같은 칸 이름과 「비어 있는 레이어 삭제」 같은 설명문이 이름으로 섞였다):
+    - 그 **줄 자체**에 「뺐다」는 말이 있어야 한다(「- **Cursor**: 근거 없음 → 제외」). 뺀 자리의 제목 아래 줄이라는 것만으로는 안 친다.
+    - 이름은 줄 **앞머리의 굵은 글씨**거나, 표 줄이면 첫 칸(번호 칸은 건너뜀)만. 굵은 글씨 없는 글머리표 줄은 설명문으로 본다.
+    - 세 글자 미만 · 「뺐다」는 말이 든 것은 이름이 아니다. 낱말로 이름을 고르지 않는다 — 자리로만 고른다.
+    """
+    names: list[str] = []
+    for line in _split_excluded_parts(answer)[1]:
+        if not _ITEM_LINE.match(line) or not _EXCLUDED_WORDS.search(line):
+            continue
+        stripped = line.strip()
+        lead = re.match(r"(?:[-*•·▪◦]\s+|\d{1,2}[.)]\s+|[①-⑳]\s*)?\*\*([^*\n]{1,80})\*\*", stripped)
+        if lead:
+            name = _ITEM_NAME_END.split(lead.group(1), maxsplit=1)[0]
+        elif stripped.startswith("|"):
+            cells = [cell.strip(" *") for cell in stripped.strip("|").split("|")]
+            cells = [cell for cell in cells if cell and not re.fullmatch(r"\d{1,3}[.)]?", cell)]
+            name = cells[0] if cells else ""
+        else:
+            continue
+        name = name.strip(" *:·-")
+        if len(name) >= 3 and not _EXCLUDED_WORDS.search(name) and name not in names:
+            names.append(name)
+    return names
 
 
 def broken_conditions(prompt: str, answer: str) -> list[tuple[str, str]]:
@@ -1498,9 +1704,25 @@ def broken_conditions(prompt: str, answer: str) -> list[tuple[str, str]]:
         if wanted not in asked:
             continue
         for bad in conflicts:
+            # ★ 시킨 글이 **둘을 나란히 늘어놓았으면** 조건이 아니라 칸에 적을 값의 보기다 (2026-10-19 판 8b90144f).
+            #   「가격(무료 · 유료 · 월 얼마)」을 「무료만」으로 읽어 「무료≠유료」 모순을 세웠고, 그 이유가 다시 쓰기 안내로 가서
+            #   모델이 멀쩡한 줄 둘을 답에서 뺐다(「지적하신 대로 … 제외」). 「정규직 3개, 계약직은 빼고」처럼 떨어져 있으면 그대로 조건이다.
+            if _listed_together(asked, wanted, bad):
+                continue
             if bad in said and (wanted, bad) not in broken:
                 broken.append((wanted, bad))
     return broken
+
+
+#: 늘어놓기 — 「무료 · 유료」 · 「정규직/계약직」 · 「무료나 유료」.
+_LIST_JOINER = r"\s*(?:·|/|,|、|또는|혹은|이나|나|와|과|or)\s*"
+
+
+def _listed_together(text: str, first: str, second: str) -> bool:
+    """두 값이 글 안에서 **한 늘어놓기 안에** 나오는가(어느 순서든 · 사이에 다른 값 넷까지 — 「정규직/계약직/인턴」)."""
+    a, b = re.escape(first), re.escape(second)
+    between = f"(?:{_LIST_JOINER}[^\\s·/,、()]{{1,12}}){{0,4}}{_LIST_JOINER}"
+    return bool(re.search(f"{a}{between}{b}|{b}{between}{a}", text))
 
 
 def broken_condition_note(prompt: str, answer: str) -> str:
@@ -1637,6 +1859,8 @@ _ARTIFACT_TOOLS = frozenset(
         "sandbox_run",
         "claude_code_delegate",
         "hwp_apply_edit",
+        "hwp_apply_format",
+        "hwp_export_pdf",
         "browser_screenshot",
     }
 )
@@ -1863,6 +2087,8 @@ _ACTION_TOOLS = frozenset({
     "local_apply_edit",
     "local_delete_file",
     "hwp_apply_edit",
+    "hwp_apply_format",
+    "hwp_export_pdf",
     "windows_execute_preview",
     "artifact_from_observations",
 })
@@ -1966,6 +2192,10 @@ def _rows_in_file(path: Path) -> int:
 #: 화면의 칸에 **값을 넣는** 도구 — 성공했으면 그 화면을 보고 한 일이다.
 #: 열린 프로그램 창을 **읽는** 도구 — 내 PC 를 보는 판의 「읽기」로 센다(`answer_claims._DESKTOP_READ_TOOLS` 와 같은 둘).
 _WINDOW_READ_TOOLS = frozenset({"windows_uia_snapshot", "windows_copy_from_window"})
+#: 이 PC 의 상태를 **읽기 전용 명령**으로 읽는 도구 — 허용목록 실행 파일 · 읽기 하위명령만 돈다(`shell_probe.py` 서두).
+_SYSTEM_READ_TOOLS = frozenset({"shell_probe"})
+#: 원본 파일을 **열어서** 다른 형식으로 굽는 도구 — 성공했으면 그 원본을 본 것이다.
+_SOURCE_OPENING_TOOLS = frozenset({"hwp_export_pdf"})
 _DATA_ENTRY_TOOLS = frozenset({
     "browser_fill", "browser_fill_form", "browser_select_option", "browser_pick_suggestion", "browser_type_at",
     "browser_file_upload",
@@ -2023,7 +2253,162 @@ def pages_results_were_opened_from(steps: list[dict[str, Any]]) -> set[str]:
             if url and tool in _STAYS_ON_THE_PAGE:
                 listings.add(url)
             awaiting_landing = False
-    return listings
+    return listings | pages_turned_through(steps) | pages_links_were_followed_from(steps)
+
+
+def pages_turned_through(steps: list[dict[str, Any]]) -> set[str]:
+    """**쪽만 넘긴 같은 목록 화면**의 주소들 — 고를 후보를 훑은 화면이지, 골라서 직접 연 글이 아니다.
+
+    ★ 2026-10-19 긱뉴스 판 1b6df02d. 「목록을 1쪽부터 10쪽까지 넘기며 … 10개 골라 하나씩 직접 열어 읽어 줘」에 손자리는
+      `show` · `show?page=2` … `show?page=10` 목록 열 쪽만 읽고 글은 하나도 안 열었다. 그런데 계획은 「웹 자료 10개 이상 직접 열어
+      읽기 — 10개 읽음」으로 충족을 찍었고, 남은 요구가 없는 줄 안 마무리 문이 판을 접었다(표 아홉 칸 중 다섯이 「확인 못 함」).
+      목록을 알아보는 길이 둘뿐이었다 — 검색 도구가 도착한 화면, 읽는 도구가 `listing` 칸을 붙인 화면(레딧만). 사람이 시킨 대로
+      주소의 쪽 번호를 바꿔 `browser_open` 으로 연 목록은 둘 다 아니었다.
+
+    가르는 것은 낱말이 아니라 **걸음이 남긴 모양**이다. 둘이 다 맞아야 목록이다:
+      1. 주소가 **숫자 값 하나만** 다르고(그 칸이 없는 주소 = 첫 쪽) 그 값이 첫 쪽에서 2 로 이어진다 — 같은 자리 · 같은
+         나머지 조건에서 쪽을 넘긴 것이다.
+      2. 읽은 화면의 **제목이 같다** — 같은 화면을 쪽만 넘긴 것이다. 글 번호만 다른 상세(`topic?id=1` · `topic?id=2`)는
+         글마다 제목이 달라 여기 안 걸린다. 제목을 모르면 가르지 않는다(모르면 안 고친다).
+    한 쪽만 읽은 목록은 이 규칙으로는 못 잡는다 — 그것은 하나를 더 세는 데 그치고, 열 쪽이 열 개가 되는 구멍은 막는다.
+    """
+    titles: dict[str, str] = {}
+    for step in steps or []:
+        evidence = step.get("evidence")
+        if not step.get("ok") or not isinstance(evidence, dict):
+            continue
+        url = str(evidence.get("url") or "")
+        title = " ".join(str(evidence.get("title") or "").split())
+        if url and title and str(step.get("tool") or "").startswith("browser_"):
+            titles[url] = title          # 마지막에 본 제목 — 화면이 다 그려진 뒤의 것
+    first_pages: dict[tuple[Any, ...], str] = {}
+    families: dict[tuple[Any, ...], dict[int, str]] = {}
+    for url, title in titles.items():
+        parsed = urlparse(url)
+        if parsed.scheme.lower() not in {"http", "https"}:
+            continue
+        place = ((parsed.hostname or "").lower(), parsed.path.rstrip("/") or "/", title)
+        pairs = parse_qsl(parsed.query, keep_blank_values=True)
+        first_pages[(*place, tuple(sorted(pairs)))] = url
+        for key, value in pairs:
+            if value.isdigit():
+                rest = tuple(sorted(pair for pair in pairs if pair[0] != key))
+                families.setdefault((*place, key, rest), {})[int(value)] = url
+    turned: set[str] = set()
+    for (host, path, title, _key, rest), members in families.items():
+        first = first_pages.get((host, path, title, rest))
+        # ★ **첫 쪽에서 둘째 쪽으로 넘어간 흔적**이 있어야 한다 — 2 가 있고, 그 앞 쪽(칸 없는 주소나 1)도 읽었다.
+        #   제목만으로는 모자랐다(운영 919판 대조): 공고 상세 제목이 사이트 이름 하나뿐인 곳(k-startup `pbancSn=179287`)은
+        #   글 번호만 다른 상세 아홉이 목록으로 찍혔고, 같은 영상을 `themeRefresh=1` 로 다시 연 것도 걸렸다. 글 번호는
+        #   크고 띄엄띄엄이다 — 1 · 2 로 이어지는 것은 쪽 번호다.
+        if 2 in members and (first or 1 in members):
+            turned |= set(members.values()) | ({first} if first else set())
+    return turned
+
+
+
+#: 걸음 기록의 링크 한 줄 — 장부는 항목을 80자 글로 접어 싣는다(`agent._step_evidence`): `{'url': 'https://…', 'domain': …`.
+#: 닫는 따옴표가 없으면 주소가 잘린 것이다(앞부분만 맞춰 본다).
+_HARVESTED_LINK = re.compile(r"""['"]url['"]\s*:\s*['"]([^'"]+)(['"]?)""")
+#: 잘린 주소를 앞부분으로 맞출 때의 최소 길이 — 사이트 바탕 주소만 남은 토막(`https://site.example/`)으로 아무 글이나 잇지 않는다.
+_HARVESTED_PREFIX_MIN = 32
+#: 같은 모양의 글이 이만큼 이어져야 그 화면을 목록으로 본다.
+_FOLLOWED_MIN = 2
+
+
+def _page_key(url: str) -> str:
+    """같은 페이지를 같은 열쇠로 — 스킴 · 끝 빗금 · 조각(#)만 뗀다(`agent.BrowserAgent._url_key` 와 같은 규칙)."""
+    key = re.sub(r"^https?://", "", str(url or "").strip()).split("#", 1)[0].rstrip("/")
+    host, _, rest = key.partition("/")
+    return host.lower() + ("/" + rest if rest else "")
+
+
+def _item_shape(key: str) -> tuple[Any, ...]:
+    """글 주소의 **모양** — 글마다 다른 칸(숫자가 든 칸 · 긴 제목 칸)을 지우고 남은 뼈대. 쿼리는 이름만 본다.
+
+    `/topic?id=35584` · `/topic?id=35575` → 같은 모양, `/app/730` · `/app/570` → 같은 모양,
+    `/product/ai-browser` · `/trust` → 다른 모양(사이트 안내 링크로 여기저기 간 것).
+    """
+    path, _, query = key.partition("?")
+    host, _, rest = path.partition("/")
+    segments = tuple("*" if re.search(r"\d", seg) or len(seg) >= 12 else seg.lower() for seg in rest.split("/") if seg)
+    names = tuple(sorted({name for name, _value in parse_qsl(query, keep_blank_values=True)}))
+    return host, segments, names
+
+
+def _harvested_links(evidence: dict[str, Any]) -> list[tuple[str, bool]]:
+    """`browser_links` 가 돌려준 주소들 — `(열쇠, 잘렸나)`."""
+    out: list[tuple[str, bool]] = []
+    for item in evidence.get("links") or ():
+        if isinstance(item, dict):
+            url, cut = str(item.get("url") or ""), False
+        else:
+            match = _HARVESTED_LINK.search(str(item))
+            if not match:
+                continue
+            url, cut = match.group(1), not match.group(2)
+        if url.startswith(("http://", "https://")):
+            out.append((_page_key(url), cut))
+    return out
+
+
+def pages_links_were_followed_from(steps: list[dict[str, Any]]) -> set[str]:
+    """**링크를 모아 거기서 글을 골라 연 화면**의 주소들 — 후보를 고른 목록이지, 골라서 직접 연 글이 아니다.
+
+    ★ 2026-10-19. `pages_turned_through`(쪽만 넘긴 목록)는 1 → 2 쪽으로 넘긴 목록만 잡았다 — 목록 **한 쪽**에서 글 아홉을 골라
+      열면 「10개 읽음」이었다(그 고침 커밋 fee4c84c 에 남은 것으로 적어 둔 구멍). 같은 날 긱뉴스 판 1bc39285 도 이 모양이었다:
+      `news.hada.io/show` 를 열어 읽고 `browser_links` 로 글 주소 넷을 받아 하나씩 열었다.
+    가르는 것은 낱말이 아니라 **걸음이 남긴 모양**이다. 셋이 다 맞아야 목록이다:
+      1. 그 화면에서 `browser_links` 로 링크를 받았다(성공한 걸음 · 증거의 주소가 그 화면).
+      2. 그 **뒤에 처음** 연 · 읽은 화면이 그 링크 목록에 있었다 — 링크를 받기 전에 이미 가 본 곳(홈 · 블로그)으로 돌아간 것은 안 센다.
+      3. 그렇게 이어진 글 중 **같은 모양의 주소**(`_item_shape` — `/topic?id=N` 끼리, `/app/N` 끼리)가 둘 이상이다.
+    3 을 넣은 까닭(운영 761판 대조): 처음엔 「서로 다른 글 둘」만 봤더니 회사 누리집 홈 · 보안 안내 페이지와 긱뉴스 안내 페이지가
+    목록으로 찍혔다 — 사이트 메뉴 링크로 요금 · 블로그처럼 **생김새가 다른** 페이지로 간 것이다. 목록에서 고른 글은 주소 모양이 같다.
+    서 있던 곳은 증거가 아니다(`pages_results_were_opened_from` 의 10-08 교훈) — 결과 열기 · 누르기 직전 위치로는 가르지 않는다.
+    """
+    harvested: dict[str, list[tuple[str, bool]]] = {}   # 화면 열쇠 → 거기서 받은 링크
+    seen_before: dict[str, set[str]] = {}               # 화면 열쇠 → 처음 링크를 받을 때까지 가 본 곳
+    followed: dict[str, set[str]] = {}                  # 화면 열쇠 → 그 링크로 처음 이어진 글 열쇠
+    spelled: dict[str, set[str]] = {}                   # 열쇠 → 걸음에 찍힌 주소 그대로(출처 목록과 맞출 때 쓴다)
+    visited: set[str] = set()
+    for step in steps or []:
+        evidence = step.get("evidence")
+        if not step.get("ok") or not isinstance(evidence, dict):
+            continue
+        url = str(evidence.get("url") or "")
+        if not url:
+            continue
+        key = _page_key(url)
+        spelled.setdefault(key, set()).add(url)
+        if str(step.get("tool") or "") == "browser_links":
+            links = _harvested_links(evidence)
+            if links:
+                harvested.setdefault(key, []).extend(links)
+                seen_before.setdefault(key, set(visited) | {key})
+            visited.add(key)
+            continue
+        for page, links in harvested.items():
+            if key in seen_before[page]:
+                continue
+            if any(
+                key == link or (cut and len(link) >= _HARVESTED_PREFIX_MIN and key.startswith(link))
+                for link, cut in links
+            ):
+                followed.setdefault(page, set()).add(key)
+        visited.add(key)
+    lists: set[str] = set()
+    for page, reached in followed.items():
+        shapes: dict[tuple[Any, ...], int] = {}
+        for item in reached:
+            shapes[_item_shape(item)] = shapes.get(_item_shape(item), 0) + 1
+        # ★ **글과 같은 모양의 화면은 목록이 아니다**(2026-10-19 사람인 판 7643c135): 공고 상세(`/jobs/view?rec_idx=N`) 안의 「관련 공고」
+        #   링크로 다른 공고 둘을 열었더니 그 상세가 목록으로 찍혀, 실제로 연 공고 셋이 둘로 세어졌다. 진짜 목록(`/show` · 검색 결과)은
+        #   고른 글(`/topic?id=N`)과 주소 모양이 다르다 — 글에서 글로 건너간 것은 「목록에서 골랐다」가 아니다.
+        own = _item_shape(page)
+        counted = {shape: count for shape, count in shapes.items() if shape != own}
+        if counted and max(counted.values()) >= _FOLLOWED_MIN:
+            lists |= spelled.get(page, set())
+    return lists
 
 
 #: 검색 엔진의 바탕 주소. 이것을 「○○에서 하기」로 지목한 요청은 「거기서 찾아라」이지 「그 주소의 글만」이 아니다(`check`).
@@ -2087,6 +2472,9 @@ def check(
         if req.kind == "count_action":
             target = int(req.target)
             acted = actions_done(steps)
+            # 항목을 번호로 적어 줬으면 **손댄 항목 수**도 센다 — 채팅 사이트에 질문을 넣는 일은 `_ACTION_TOOLS` 에 안 잡힌다(2026-10-20).
+            if req.items:
+                acted = max(acted, len(items_first_used(steps, tuple(req.items))))
             # 답에 몇 줄을 적었는지는 **보지 않는다.** 그게 이 갈래의 존재 이유다.
             out.append((
                 req,
@@ -2224,6 +2612,23 @@ def check(
             window_reads = sum(1 for step in steps if step.get("ok") and str(step.get("tool") or "") in _WINDOW_READ_TOOLS)
             if read < 1 and window_reads and str(req.target or "") == "local":
                 out.append((req, True, f"프로그램 창 {window_reads}번 읽음"))
+                continue
+            # ★ **이 PC 의 상태를 읽기 전용 명령으로 읽은 것도 본 것이다** (2026-10-18 「모르는 앱」 다시 잼). 「시스템 정보를 열어서 BIOS
+            #   버전을 읽어 줘」에 `systeminfo` 로 맞는 값을 읽었는데 「0개 실제로 읽음」이 붙어 ❌ 로 나갔고, 모델은 그 칸을 채우려
+            #   「열 대상 파일이 없습니다」를 답 첫 줄에 썼다. 내 PC 대상일 때만 — 웹을 보라는 판은 그대로다.
+            system_reads = sum(1 for step in steps if step.get("ok") and str(step.get("tool") or "") in _SYSTEM_READ_TOOLS)
+            if read < 1 and system_reads and str(req.target or "") == "local":
+                out.append((req, True, f"이 PC 상태를 읽기 전용 명령으로 {system_reads}번 읽음"))
+                continue
+            # ★ **원본을 열어 바꾼 것도 본 것이다** (2026-10-17 한글→PDF). 「한글 파일을 PDF 로 저장해 줘」에 읽기 요구가 붙고,
+            #   변환 도구는 원본을 열어 굽는데도 「0개 실제로 읽음」이 남아 모델이 원본을 따로 뜯어 읽으러 갔다. 웹 대상은 그대로다.
+            converted = sum(
+                1 for step in steps
+                if step.get("ok") and str(step.get("tool") or "") in _SOURCE_OPENING_TOOLS
+                and not (isinstance(step.get("evidence"), dict) and step["evidence"].get("verified") is False)
+            )
+            if read < 1 and converted and str(req.target or "") in {"local", "any"}:
+                out.append((req, True, f"원본을 열어 {converted}번 변환함"))
                 continue
             out.append((req, read >= 1, f"{read}개 실제로 읽음"))
         elif req.kind == "filter":
@@ -2470,6 +2875,9 @@ _SAW_EN = (
     (re.compile(r"^(\d+)건$"), r"\1"),
     (re.compile(r"^(\d+)개 실제로 읽음$"), r"\1 actually read"),
     (re.compile(r"^화면의 칸에 직접 넣음 (\d+)번$"), r"entered into the page's fields \1 time(s)"),
+    (re.compile(r"^프로그램 창 (\d+)번 읽음$"), r"read the program window \1 time(s)"),
+    (re.compile(r"^원본을 열어 (\d+)번 변환함$"), r"opened and converted the original \1 time(s)"),
+    (re.compile(r"^이 PC 상태를 읽기 전용 명령으로 (\d+)번 읽음$"), r"read this PC's state with read-only commands \1 time(s)"),
     (re.compile(r"^(\d+)개 만들었지만 내용 일부가 빠짐$"), r"\1 made, but part of the content was left out"),
     (re.compile(r"^(\d+)개 읽음 · 답에 (\d+)개$"), r"\1 read · \2 in the answer"),
     (re.compile(r"^(\d+)개 읽음 · 파일 표에 (\d+)줄$"), r"\1 read · \2 rows in the file"),
@@ -2689,16 +3097,51 @@ _ARITHMETIC_TARGET = re.compile(
     r"(소수|약수|배수|최대공약수|최소공배수|경우의\s*수|확률|통계"
     r"|평균|가중평균|중앙값|표준편차|합계|총액|원가|손익"
     r"|몇\s*(?:개|명|시간|분|번|가지|퍼센트|%)|개수|비율|퍼센트"
-    r"|등급|점수|할인|인상|이자|복리|계산기)",
+    r"|등급|점수|할인|인상|이자|복리|계산기"
+    # ★ 2026-10-18: 「1부터 100까지 합을 계산해 줘」가 셈으로 안 잡혔다. 「합」 한 글자는 합격 · 합의 · 종합에 걸리므로 꼴로만 받는다.
+    r"|총합|합산|까지\s*(?:의\s*)?합(?![가-힣])|까지\s*(?:의\s*)?합(?:을|이|은)|(?<![가-힣])합(?:을|이)?\s*(?:계산|구해|구하))",
     re.I,
 )
 _COMPUTE_VERB = re.compile(
     r"(만들어|만들자|생성|생성해|뽑아|뽑아줘|계산해|계산\s*좀|돌려\s*봐|돌려봐"
     r"|정리해\s*(?:서|줘)|저장해|출력해"
-    r"|구해|구하|셈해|산출|답해|답하|얼마(?:인가|야|예요|입니까))"
+    # ★ 2026-10-19: 「산출」이 명사 「산출물」 속에서 동사로 걸렸다(크몽 판 c017950a 「작업 기간, 산출물」) — 뒤에 「물」이면 아니다.
+    #   「세어 줘」는 세는 셈이다(「묶음마다 몇 번 나왔는지 세어 줘」, 판 bb5ab643) — 예전엔 멀리 있던 「만들어」가 대신 짝지어 잡혔다.
+    r"|구해|구하|셈해|산출(?!물)|답해|답하|얼마(?:인가|야|예요|입니까)"
+    r"|(?<![가-힣])세어\s*(?:줘|주|봐|서|라))"
 )
 #: `_COMPUTE_VERB` 중 **만드는·옮기는** 동사. 셈 낱말과 짝지어도 「그 값을 파일·표에 담아라」일 수 있다 — 아래 `_a_listed_column`.
 _ARRANGE_VERB = re.compile(r"만들어|만들자|생성해?|뽑아(?:줘)?|정리해\s*(?:서|줘)|저장해|출력해")
+#: `_ARITHMETIC_TARGET` 중 **값의 이름**(셈의 이름이 아닌 것). 화면·자료에 이미 적힌 값을 옮겨 담을 수 있다.
+#:
+#: ★ 2026-10-19 긱뉴스 판 1b6df02d. 「…점수 높은 글들의 공통점 세 가지를 적어 줘. 파일은 **안 만들어도** 되고 답에 표로 줘」에
+#:   「직접 계산해 보기」가 서서 판 내내 「실행 안 됨」으로 남았다 — 셈 대상 「점수」와 (부정된) 만드는 동사 「만들어」가 40자 안에서
+#:   짝지어졌다. 「점수가 높은 순으로 골라」라는 정렬 말이 원인이 아니었다(그 말에는 셈 동사가 없다).
+#:   원리: 만드는·옮기는 동사는 **셈의 이름**(평균 · 합계 · 비율 · 확률 …)과 짝지을 때만 셈이다 — 그 값은 계산하기 전엔 어디에도
+#:   없다. **값의 이름**(점수 · 등급 · 총액 · 개수 · 몇 번 …)은 이미 있는 값을 옮기는 일일 수 있으니 셈 동사(계산해 · 구해 ·
+#:   얼마야 · 세어)와 짝지을 때만 셈이다. 10-16 의 `_a_listed_column`(늘어놓은 칸 이름)을 일반화한 것이다.
+#:   운영 판 실측: 「학생 점수로 엑셀 성적표 만들어줘」 · 「3행 점수를 91점으로 고쳐 저장해줘」 · 「2.4등급 학생이 갈 대학 후보를
+#:   뽑아줘」 · 「블로그 3개 … 총액이랑 출처를 달아 정리해줘」가 같은 꼴로 섰었다.
+_QUANTITY_NAME = re.compile(r"점수|등급|총액|원가|손익|개수|할인|인상|이자|몇\s*(?:개|명|시간|분|번|가지)")
+#: 동사 바로 앞의 부정 부사 — 「안 만들어도 되고」 · 「못 구해」.
+_NEGATED_BEFORE = re.compile(r"(?<![가-힣])(?:안|못)\s*$")
+#: 표 · 시트에 **칸을 더하라**는 동사 — 「넣어줘 · 추가해줘 · 채워줘」. `_COMPUTED_COLUMN` 하고만 짝짓는다.
+#:
+#: ★ 2026-10-19 판 ac66af89. 「학생 5명 점수로 엑셀 성적표 파일 만들어줘. (이름 다섯과 점수) **평균이랑 등수도 넣어줘.**」 —
+#:   fee4c84c 가 「점수 + 만들어」(값의 이름 + 만드는 동사)를 셈에서 빼자 이 판의 셈이 사라졌다. 남은 짝 「평균 + 만들어」는
+#:   「평균이랑 등수」가 늘어놓은 칸 이름(`_a_listed_column`)으로 읽혀 빠졌고, 진짜 시킨 말 「넣어줘」는 셈 동사가 아니었다.
+#:   평균 · 등수는 계산하기 전엔 어디에도 없는 값이다 — 그 칸을 **넣으라**는 것은 셈을 시킨 것이다. 「넣어줘」를 `_COMPUTE_VERB` 에
+#:   넣지는 않는다(「점수 칸 넣어줘」 · 「사진 넣어줘」까지 셈이 된다). **셈한 칸의 이름**과 바로 이어질 때만 본다.
+_ADD_COLUMN_VERB = re.compile(r"넣어|추가해|추가하(?:고|세요|라|자)|채워")
+#: 계산하기 전엔 어디에도 없는 **칸**의 이름 — `_ARITHMETIC_TARGET` 의 셈 이름 중 칸이 되는 것 + 등수 · 석차 · 증감.
+#: 「등수」는 `_ARITHMETIC_TARGET` 에 넣지 않는다(「넣어줘」하고만 짝). 「순위」는 여기에도 안 넣는다 — 「인기 순위도 넣어줘」는
+#: 사이트에 적힌 순위를 옮기는 일이 흔하다(셈이 아닌데 「직접 계산해 보기」가 서면 판이 ❌ 로 남는다). 운영 4,898 요청에 「순위 +
+#: 넣어줘」 꼴은 0건이라 뺀 값이 없다 — 성적 등수는 「등수 · 석차」로 받는다.
+_COMPUTED_COLUMN = re.compile(
+    r"평균|가중평균|합계|총점|총합|합산|등수|석차|비율|백분율|증감|증가율|감소율|변화율|누계|누적\s*합|표준편차|중앙값"
+)
+#: 셈한 칸 이름과 「넣어줘」 사이 — 조사 · 짧은 이음(「평균이랑 등수도」 · 「합계 칸을 맨 아래에」)만. 문장이 바뀌면 끊는다.
+_ADD_COLUMN_REACH = 24
 
 # ★ 늘어놓은 칸 이름 (2026-10-16 r/LLMDevs 판 · job 759ba894). 「25개의 제목 · 점수(업보트) · 댓글 수 · 올린 지 얼마나
 #   됐는지를 엑셀 파일 하나로 정리해 줘」에 「직접 계산해 보기」가 요구로 붙어 ❌ 로 남고 판이 partial 이 됐다 — 셈 대상
@@ -2830,8 +3273,16 @@ _FORMAT_IS_SOURCE = re.compile(
 #: (운영 요청에 대 보니 그 모양이 코드 과제에 있었다).
 _NAMED_FILE_IS_READ = re.compile(
     # 「…png」 **그림을** 그림판으로 열어서 (2026-10-17 앱 묶음 측정 cf93ca97) — 파일 · 문서 말고도 그림 · 사진 · 이미지 · 표가 재료 이름 자리에 온다.
-    r"[」』\"'”’)\]]?\s*(?:파일|문서|그림|사진|이미지|표)?\s*(?:을|를)\s*"
+    # ★ 「…welcome.hwp」 **한글 파일을** 같은 폴더에 … PDF 로 저장해 줘」 (2026-10-17 한글→PDF 3판) — 따옴표와 「파일」 사이의 형식 이름
+    #   (한글 · 워드 · 엑셀 · 파워포인트)을 못 넘어 원본 .hwp 가 만들 형식이 됐고, PDF 를 제대로 만든 판마다 「열 수 있는 산출물 없음」 ·
+    #   「일부만 끝냄」이 찍혀 모델이 한 번 더 재촉받았다.
+    r"[」』\"'”’)\]]?\s*(?:(?:한글|워드|엑셀|파워\s*포인트|텍스트)\s*)?(?:파일|문서|그림|사진|이미지|표)?\s*(?:을|를)\s*"
+    # 「FAQ 문서(docs/faq.md)를 **찾아 읽고**」 (2026-10-19 판 029fae29) — 찾는 말이 끼어도 읽을 재료다.
+    r"(?:찾아\s*(?:서\s*)?)?"
     r"(?:읽|열어\s*보|보고|참고|분석"
+    # 그 파일을 **다른 형식으로** 저장 · 변환하라는 말이면 그 파일은 재료다(만들 형식은 뒤의 형식 규칙이 잡는다).
+    r"|(?:(?!만들|작성|써)[^,.。!?]){0,40}?(?<![A-Za-z])(?i:pdf|jpe?g|png|hwpx|docx|xlsx|pptx|txt|csv)(?![A-Za-z])"
+    r"[^,.。!?]{0,12}?(?:로|으로)\s*(?:저장|변환|바꿔|바꾸|내보내)"
     # ★ 「「…welcome.hwp」 파일을 한글 프로그램으로 **열어서** PDF로 저장해 줘」 (2026-10-17 화면 자동화 측정) — 원본 이름을 만들 형식으로
     #   읽어 「.hwp 산출물」을 찾았고, PDF 를 만들어 열어 읽은 세 판 모두 「❌ 열 수 있는 산출물 없음」이 붙었다. 닫는 따옴표와
     #   「(프로그램으로) 열어」를 재료로 본다. 사이에 만들기 · 저장 말이 끼면 그것은 만들 파일이다(「결과.md 를 만들어서 열어 줘」).
@@ -2853,7 +3304,8 @@ def _format_is_source(compact: str, end: int, *, named_file: bool = False) -> bo
 
 def _artifact_extensions(prompt: str) -> tuple[str, ...]:
     """요청이 형식을 못 박았을 때만 확장자를 제한한다."""
-    compact = " ".join(prompt.split())
+    # 「엑셀은 안 만들어도 되고 … 워드 파일에」 — 거둔 형식은 시킨 형식이 아니다(`_FILE_DECLINED`, 2026-10-19).
+    compact = " ".join(_without_declined_files(" ".join(prompt.split())).split())
     # ★ 둘 중 하나를 달라고 했으면 둘 다 받는다 (2026-10-13). 예전에는 규칙 순서가 앞선 쪽 하나만 요구가 돼서, 「한글이나 워드
     #   파일로」에 한글 파일을 만들면 「열 수 있는 산출물 없음」이 됐다.
     either = _EITHER_FORMAT.search(compact)
@@ -3488,6 +3940,72 @@ def asks_for_everything(prompt: str) -> bool:
     return bool(_EVERYTHING.search(" ".join((prompt or "").split())))
 
 
+# ★ **번호로 적어 준 항목은 하나하나가 할 일이다** (2026-10-20 AI 큐레이션 측정 · 잡 eec113c2 · 2812c5a7).
+#   「아래 질문 5개를 하나씩 물어보고 … 1) … 5) …」에서 계획이 아는 남은 요구는 「파일 만들기」뿐이라, 질문을 하나 더 넣는 걸음이
+#   「남은 요구에 진척 없음」으로 읽혔다. 걸음이 더 주어지지 않고 「파일 만들 차례」가 걸려 두 판 다 37~38걸음째에 마지막 질문이 잘렸다
+#   (퍼플렉시티 5번 · ChatGPT 4 · 5번). 「N개 처리」 칸도 채팅에 넣은 질문을 행위로 못 세 3개 한 것을 1개로 적었다.
+#   항목 글이 실제 걸음의 인자(입력 · 검색 · 열기)에 **처음** 쓰이면 그 항목을 시작한 것으로 본다.
+_ENUMERATED_LINE = re.compile(r"(?m)^\s*(?:\(?\d{1,2}[).:．]|[①-⑳]|[-*•]\s*\d{1,2}[).])\s*(.+?)\s*$")
+
+
+def enumerated_items(prompt: str) -> tuple[str, ...]:
+    """요청에 줄마다 번호로 적어 준 항목(둘 이상). 항목이 너무 짧으면(4자 미만) 뺀다."""
+    items = [match.group(1).strip() for match in _ENUMERATED_LINE.finditer(str(prompt or ""))]
+    items = [item for item in items if len(item) >= 4]
+    return tuple(items) if len(items) >= 2 else ()
+
+
+def _item_key(text: str) -> str:
+    return " ".join(str(text or "").split()).casefold()[:24]
+
+
+def item_cycle_window(first_used: dict[int, int]) -> int:
+    """항목 하나에 실제로 든 걸음 수의 1.5배(최소 6 · 최대 20) — 「방금 시작한 항목」을 볼 창.
+
+    ChatGPT 는 질문 하나에 10~12걸음이 들었다(새 대화 · 입력 · 보내기 · 기다리기 · 읽기 · 링크). 6걸음 창으로는 셋째 질문을
+    읽는 동안 「진척 없음」이 됐다(잡 2812c5a7 를 대 봄).
+    """
+    starts = sorted(first_used.values())
+    if len(starts) < 2:
+        return 6
+    cycle = (starts[-1] - starts[0]) / (len(starts) - 1)
+    return max(6, min(20, round(cycle * 1.5)))
+
+
+def items_still_going(steps: list[dict[str, Any]], items: tuple[str, ...]) -> bool:
+    """번호 항목을 **실제 입력으로 쓰는 판**인데, 아직 시작 안 한 항목이 있거나 마지막 항목을 방금 시작했는가.
+
+    항목이 하나도 입력으로 안 쓰였으면 그 번호 줄은 입력값이 아니라 **지시문**이다(이어받기 · 코드 일의 「1. 시험 돌리기」) — 그때는
+    아무것도 미루지 않는다. 운영 요청에서 번호 줄이 있는 45개 중 대부분이 그 꼴이었다.
+    """
+    if not items:
+        return False
+    used = items_first_used(steps, items)
+    if not used:
+        return False
+    window = item_cycle_window(used)
+    return len(used) < len(items) or any(position >= len(steps) - window for position in used.values())
+
+
+def items_first_used(steps: list[dict[str, Any]], items: tuple[str, ...]) -> dict[int, int]:
+    """항목 번호 → 그 항목 글이 처음 쓰인 걸음의 자리(성공한 걸음의 문자열 인자에 항목 앞 24자가 들어 있으면)."""
+    keys = [_item_key(item) for item in items]
+    first: dict[int, int] = {}
+    for position, step in enumerate(steps):
+        if not step.get("ok") or not isinstance(step.get("arguments"), dict):
+            continue
+        blob = " ".join(
+            " ".join(str(value).split()).casefold()
+            for value in step["arguments"].values() if isinstance(value, str)
+        )
+        if not blob:
+            continue
+        for index, key in enumerate(keys):
+            if index not in first and key and key in blob:
+                first[index] = position
+    return first
+
+
 #: 받는 곳이 **화면의 폼·입력칸**인 꼴 — 「폼에 넣어」·「칸에 채워」·「입력란에 붙여」.
 _INTO_PAGE_FORM = re.compile(
     r"(?:폼|입력\s*(?:칸|란|창)|(?<![가-힣])칸|필드)\s*(?:에다가|에다|에|으로|로)?\s*(?:만\s*)?(?:넣|채워|채우|붙여|입력)"
@@ -3496,8 +4014,138 @@ _INTO_PAGE_FORM = re.compile(
 _MAKES_A_FILE = re.compile(r"(?:만들(?:어|고|어서|자)|생성해|작성해|파일로\s*저장)")
 
 
+#: 결과 파일을 남기는 앱을 **이름만** 댄 꼴 — 「메모장으로 … 저장해 줘」 · 「VS Code 로 … 한 줄 더해 줘」.
+_APP_NAMED_FOR_RESULT = re.compile(
+    r"(메모장|그림판|VS\s*Code|비주얼\s*스튜디오\s*코드|한글\s*프로그램)\s*(?:으로|로|에서|를\s*써서|를\s*열어)", re.I,
+)
+#: 창 · 화면을 직접 다루라는 말 — 이게 있으면 창으로 한다.
+_ASKS_FOR_THE_WINDOW = re.compile(r"창|직접|화면|메뉴|클릭|눌러|단추|버튼|마우스|키보드")
+
+
+def app_named_only(prompt: str) -> str:
+    """앱 이름은 댔지만 창을 직접 다루라고는 안 한 요청이면 그 앱 이름, 아니면 빈 글.
+
+    ★ 2026-10-17 대표 결정: 「앱 이름만 댔으면 결과 파일을 코드로 바로 쓰고, 창으로 직접이라 했을 때만 창」.
+      평소 말투로 시킨 측정(apptool-*)에서 엑셀 · 워드 · 파워포인트는 스스로 파일 도구로 16~20초에 끝냈지만, 「메모장으로 … 저장」 ·
+      「VS Code 로 … 한 줄 더해」 · 「그림판으로 … JPEG 로」는 창을 몰아 90~160초가 걸렸다. 사람이 앱 이름을 댄 것은 대개 결과의
+      모양을 말한 것이지 그 창을 손으로 돌리라는 뜻이 아니다.
+      운영 요청 2,296개 대조: 걸리는 것은 그 측정 요청 10개뿐(창 · 메뉴를 말한 31개는 빠진다). 엑셀 · 워드 · 파워포인트는 넣지 않았다 —
+      「엑셀로 정리해 줘」 같은 조사 요청이 많고, 그 판들은 이미 파일 도구로 간다. 「한글로」는 언어일 수 있어 「한글 프로그램」만 본다.
+    """
+    compact = " ".join((prompt or "").split())
+    if _ASKS_FOR_THE_WINDOW.search(compact):
+        return ""
+    match = _APP_NAMED_FOR_RESULT.search(compact)
+    return match.group(1) if match else ""
+
+
+#: 작업 관리자가 보여 주는 값을 물은 꼴 — 「작업 관리자 기준으로」 · 「작업 관리자에서 메모리」.
+_TASK_MANAGER_VALUES = re.compile(r"작업\s*관리자|task\s*manager", re.I)
+
+
+def asks_task_manager_values(prompt: str) -> bool:
+    """작업 관리자에 보이는 값을 물었는가 — 그 값은 작업 관리자 창을 읽어야 같은 숫자가 나온다.
+
+    ★ 2026-10-18 평소 말투 측정(작업 관리자 3판): 창을 읽은 판은 56초에 작업 관리자와 같은 값(앱별 개인 작업 집합 —
+      10-17 에 화면과 대조해 맞춘 읽기)을 냈다. 나머지 두 판은 `tasklist` · `Get-Process` 를 돌렸다 — 그 명령들은 **작업 집합**을
+      준다(작업 관리자가 보여 주는 값과 다르다). 프로세스 전체 목록이 통째로 모델에 들어가 읽기에만 31초가 들었고 판은 88 · 164초.
+    """
+    return bool(_TASK_MANAGER_VALUES.search(" ".join((prompt or "").split())))
+
+
 #: 이름 안에 「파일」이 든 앱 — 산출물 낱말 판정 전에 지운다(`wants_an_artifact`).
 _APP_NAMES_WITH_FILE = re.compile(r"파일\s*탐색기|\bfile\s+explorer\b", re.I)
+
+
+# ★ **파일을 만들 필요가 없다고 한 말은 산출물 요구가 아니다** (2026-10-19 판 029fae29 · 클로드 코드가 맡긴 과제).
+#   「…FAQ 문서(docs/faq.md)를 찾아 읽고 … 원문에 적힌 그대로 옮기고 … **파일은 만들지 않아도 되고** 답으로만 알려 줘」에
+#   「실제 산출물 파일 만들기」가 서고 손자리가 시키지 않은 .md 를 만들었다. 쓰기 **금지**(「만들지 마」)는 `forbids_writes` 가 보지만
+#   「않아도 · 필요 없 · 없이」는 금지가 아니라 **안 시킨다는 말**이라 어디에도 안 걸렸다 — 거두는 말은 판을 읽기 전용으로 묶지
+#   않고, 거둔 구절만 걷어 낸 나머지로 판정한다(「엑셀은 안 만들어도 되고 워드 파일에 옮겨 줘」는 여전히 산출물이다).
+_FILE_DECLINED = re.compile(
+    r"(?<![가-힣])(?:파일|문서|산출물|엑셀|워드|한글\s*파일|보고서|마크다운)(?:\s*(?:파일|문서))?"
+    r"\s*(?:은|는|을|를|로|으로|까지는|까지|도)?\s*(?:따로|별도로|굳이|새로|꼭)?\s*"
+    r"(?:(?:만들|작성하|저장하|생성하|쓰|남기)지\s*(?:는|도)?\s*않(?:아도|으셔도)"
+    r"|(?:만들|작성할|저장할|생성할|쓸|남길)\s*필요(?:는|가|까지는|도)?\s*없"
+    r"|안\s*(?:만들어|작성해|저장해|써|남겨)\s*(?:도|줘도)"
+    r"|필요\s*(?:는|가|도)?\s*없"
+    r"|없이)"
+)
+
+
+#: ★ **답을 받을 곳을 대화로 못 박은 말**도 파일을 거두는 말이다 (2026-10-20 README 영어 영상 촬영 · 잡 a1d05ead).
+#:   「Answer in the chat reply — no file needs to be created.」에서 뒤 구절의 꼴을 낱말표가 몰라 시키지 않은 .docx 가 생겼다.
+#:   거두는 꼴을 하나씩 더하면 두더지 잡기다 — 다른 AI 가 맡기는 글은 「채팅으로 답해」 · 「답으로만 알려 줘」처럼 **받는 곳**을
+#:   대놓고 말하는 일이 많다. 그 말이 있으면 거둔 판으로 보고, 엑셀 · 워드처럼 **실제 파일 이름**이 따로 있어야 산출물이다.
+_CHAT_ONLY_DELIVERY_KO = re.compile(
+    # 「한글로 만들어」의 「글로만」을 잡지 않게 「글」은 넣지 않고, 「만」 뒤가 「들」(만들다)이면 아니다.
+    r"(?<![가-힣])(?:답|대답|답변|채팅|대화|텍스트)\s*(?:으로|로|에)\s*만(?!\s*들)"
+    r"|(?:채팅|대화)\s*(?:으로|로)\s*(?:답|알려|말해|정리해)"
+    r"|텍스트로\s*요약만"
+)
+_CHAT_ONLY_DELIVERY_EN = re.compile(
+    r"\b(?:answer|reply|respond)\s+(?:only\s+)?(?:in|via|through|as)\s+(?:the\s+|a\s+|your\s+)?"
+    r"(?:chat(?:\s+reply)?|conversation|reply|message|text)\b"
+    r"|\b(?:in|as)\s+(?:the\s+|a\s+)?chat\s+(?:reply\s+)?only\b|\bchat[-\s]only\b",
+    re.I,
+)
+
+
+def _without_declined_files(compact: str) -> str:
+    """「파일은 만들지 않아도 되고」 · 「no need to create a file」 · 「채팅으로 답해」 같은 거두는 구절을 걷어 낸 글."""
+    if _en.english_dominant(compact):
+        return _CHAT_ONLY_DELIVERY_EN.sub(" ", _en.DECLINED_FILE.sub(" ", compact))
+    return _CHAT_ONLY_DELIVERY_KO.sub(" ", _FILE_DECLINED.sub(" ", compact))
+
+
+#: 옮기는 동사 — 「옮기고 · 담아 · 달아 · 넣어」. 만드는 동사(만들 · 작성 · 저장 · 써 …)와 달리 **받는 곳**을 가진다.
+_TRANSFER_VERB = re.compile(r"옮기|옮겨|담아|달아|넣어")
+#: 대상 낱말 뒤가 이 꼴이면 그 대상이 **받는 곳**이다 — 「한글 파일 하나에」 · 「워드 문서로」 · 「엑셀 시트에다」.
+_TARGET_AS_DESTINATION = re.compile(
+    r"(?:\s*(?:파일|문서|시트|형식|형태|양식|하나|한\s*개|1\s*개|초안))*\s*(?:에다가|에다|에|으로|로|안에|속에)(?![가-힣])"
+)
+
+
+def _names_a_work_file(compact: str) -> bool:
+    """읽을 재료가 아니라 **손댈 파일**로 이름을 댄 파일이 있는가 — 「site_atlas.py 의 SEED 에 여섯을 넣어라」의 site_atlas.py.
+
+    주소 안의 이름(`https://…/index.html`) · 소재(「llama.cpp 저장소」) · 읽는 말이 붙은 이름(「faq.md 를 찾아 읽고」)은 아니다.
+    """
+    for match in _NAMED_FILE_SUFFIX.finditer(compact):
+        token = compact[max(compact.rfind(" ", 0, match.start()), 0):match.end()]
+        if "://" in token or "www." in token.lower():
+            continue
+        if _CODE_TARGET_IS_TOPIC.match(compact, match.end()) or _format_is_source(compact, match.end(), named_file=True):
+            continue
+        return True
+    return False
+
+
+def _verb_meets_its_target(compact: str, *, real_files_only: bool = False) -> bool:
+    """대상 낱말 ∧ 산출 동사 — 옮기는 동사뿐이면 대상이 **받는 곳** 자리에 있어야 한다.
+
+    ★ 2026-10-19 (판 029fae29 · 10-19 arXiv 판 302bf59e). 「FAQ **문서**를 찾아 읽고 … 원문에 적힌 그대로 **옮기고**」 ·
+      「논문 PDF **파일**을 내려받아서 … 초록의 첫 문장을 그대로 **옮겨 줘**」 — 둘 다 「옮기다」가 **답에 그대로 옮겨 적으라**는 말이고
+      문서 · 파일은 **읽을 재료**였다. 글 전체에서 대상 낱말 하나와 동사 하나를 아무렇게나 짝지어 산출물 요구가 섰고, 두 판 다
+      시키지 않은 .md 를 만들었다. 「옮기다 · 담다 · 달다 · 넣다」는 **어디로**를 가지는 동사다 — 「한글 파일**에** 본문을 옮기고」 ·
+      「엑셀**에** 넣어줘」 · 「워드 파일**로** 옮기고」. 그래서 이 동사들만 있을 때는 대상이 받는 곳(에 · 로) 자리에 있어야 짝이다.
+      낱말을 빼지 않는다(「옮기」를 빼면 「한글 파일에 옮기고 각주 달아줘」가 다시 요구 0개가 된다 — 2026-09-01 사고).
+
+    `real_files_only` — 파일을 만들 필요 없다고 거둔 판에서는 「표 · 문서 · 초안」처럼 **답 안에서도 되는 대상**은 세지 않는다
+    (`_TIDY_VERB` 가 이미 지키는 규율: 「표로 정리해줘」는 답에 표를 그리면 되는 일이다).
+    """
+    targets = list((_REAL_FILE_TARGET if real_files_only else _ARTIFACT_REQUEST_TARGET).finditer(compact))
+    verbs = list(_ARTIFACT_REQUEST_VERB.finditer(compact))
+    if not targets or not verbs:
+        return False
+    if any(not _TRANSFER_VERB.match(verb.group(0)) for verb in verbs):
+        return True
+    # 받는 곳은 둘 중 하나다: 대상 낱말이 「에 · 로」 자리에 있거나, 손댈 파일의 이름을 댔다(「ollama.py 의 … 바꾼 자리에 주석을 달아」 —
+    # 운영 요청에 대 보니 저장소 코드 과제 넷이 이 꼴이었다).
+    return _names_a_work_file(compact) or any(
+        target.group(0).endswith("로") or _TARGET_AS_DESTINATION.match(compact, target.end())
+        for target in targets
+    )
 
 
 def wants_an_artifact(prompt: str) -> bool:
@@ -3507,15 +4155,22 @@ def wants_an_artifact(prompt: str) -> bool:
     compact = _APP_NAMES_WITH_FILE.sub("탐색기", " ".join(prompt.split()))
     if forbids_writes(compact):
         return False
+    # 「파일은 만들지 않아도 되고」 — 거둔 구절은 시킨 말이 아니다(`_FILE_DECLINED`). 거둔 판에서는 남은 글에 **파일 · 형식 이름**이
+    # 있어야 산출물이다 — 「표로 정리해서 줘. 파일은 만들 필요 없어」의 표는 답에 그리는 표다.
+    stripped = " ".join(_without_declined_files(compact).split())
+    declined = stripped != compact
+    compact = stripped
     if wants_code(compact):
         return True
     if _en.english_dominant(compact):
         # 한국어와 같은 세 길: 강한 동사 ∧ 대상 · 「정리」류 ∧ 「문서로」 · 「정리」류 ∧ 파일 낱말.
         verb_en = _en.first_unnegated(_en.ARTIFACT_REQUEST_VERB, compact)
         tidy_en = _en.first_unnegated(_en.TIDY_VERB, compact)
-        if _en.ARTIFACT_REQUEST_TARGET.search(compact) and verb_en:
+        if verb_en and _en.verb_meets_its_target(
+            compact, real_files_only=declined, work_file_named=_names_a_work_file(compact)
+        ):
             return True
-        if tidy_en and _en.DOC_FORMAT_REQUEST.search(compact):
+        if tidy_en and not declined and _en.DOC_FORMAT_REQUEST.search(compact):
             return True
         return bool(tidy_en and _en.REAL_FILE_TARGET.search(compact))
     # ★ **화면의 폼·칸에 넣는 것은 파일 만들기가 아니다** (2026-10-07 대표 실사용). 「자기소개서 **초안** … 그거 이제
@@ -3523,9 +4178,9 @@ def wants_an_artifact(prompt: str) -> bool:
     #   「워드 파일부터 만들겠습니다」로 빠졌고 폼은 못 채웠다. 받는 곳이 화면의 폼이면 그건 화면에서 하는 동작이다.
     #   운영 요청 1,643개에서 이 꼴은 5개였고, 산출물 판정이 바뀌는 것은 그 한 판뿐이다.
     into_form = bool(_INTO_PAGE_FORM.search(compact)) and not _MAKES_A_FILE.search(compact)
-    if not into_form and _ARTIFACT_REQUEST_TARGET.search(compact) and _ARTIFACT_REQUEST_VERB.search(compact):
+    if not into_form and _verb_meets_its_target(compact, real_files_only=declined):
         return True
-    if _TIDY_VERB.search(compact) and _DOC_FORMAT_REQUEST.search(compact):
+    if _TIDY_VERB.search(compact) and not declined and _DOC_FORMAT_REQUEST.search(compact):
         return True
     # ★ 문서 파일 이름이 **받는 곳**(「…xlsx 에 / 로」)이면 동사가 무엇이든 산출물이다 (2026-10-02 밤 레딧 기록 예약).
     #   「reddit_반응기록.xlsx 에 … 기록해줘」가 요구 0개(근거 1개 읽기만)로 돌아, 글 6개를 다 읽고 「이제 엑셀에 기록하겠습니다」로
@@ -3687,6 +4342,31 @@ def wants_code_action(prompt: str) -> bool:
     return bool(_CODE_ACTION_EXTRA_VERB.search(compact))
 
 
+#: 「읽기만 하라」는 말 — 맡긴 저장소 일이 **찾기**(고치지 않음)인지 (2026-10-22 코딩 분업 실험).
+#: 「테스트는 건드리지 마」처럼 고치면서 일부만 막는 말은 넣지 않는다 — 고치기 일을 읽기 일로 잘못 낮추면 검증이 빠진다.
+_READ_ONLY_ASK = re.compile(
+    r"(?:고치|수정하)지\s*(?:는\s*)?(?:말|마)|읽(?:고|기만\s*하고)\s*(?:요약|정리|설명)만?|요약만|읽기만|"
+    r"\b(?:do\s+not|don'?t)\s+(?:modify|change|edit|fix)\b|\bread[- ]only\b|\bjust\s+(?:read|summari[sz]e)\b",
+    re.I,
+)
+
+
+def asks_read_only(prompt: str) -> bool:
+    """「고치지 마 · 읽고 요약만」 — 코드를 읽기만 하라는 말이 있는가."""
+    return bool(_READ_ONLY_ASK.search(" ".join(str(prompt or "").split())))
+
+
+def delegated_read_only(delegated: dict | None, prompt: str) -> bool:
+    """바깥 AI 가 `repo` 칸으로 맡긴 일이 **찾기**(읽기만)인가. `check` 를 줬으면 고치는 일이다 — 그 명령이 끝을 가른다."""
+    if not isinstance(delegated, dict) or not delegated:
+        return False
+    return not str(delegated.get("check") or "").strip() and asks_read_only(prompt)
+
+
+#: 답하라는 동사 — 늘어놓은 값을 **읽어 답하라**는 말일 수 있다(`wants_a_computation._arranging_a_value`).
+_ANSWER_VERB = re.compile(r"답해|답하|answer|reply|tell\s+me", re.I)
+
+
 def wants_a_computation(prompt: str) -> bool:
     """**셈**을 시켰는가. 계획 층이 `sandbox_run` 을 요구로 넣을지 정한다.
 
@@ -3695,21 +4375,67 @@ def wants_a_computation(prompt: str) -> bool:
     """
     compact = " ".join(prompt.split())
     english = _en.english_dominant(compact)
-    targets = list((_en.ARITHMETIC_TARGET if english else _ARITHMETIC_TARGET).finditer(compact))
+    # ★ 따옴표 안에 옮겨 적은 **구절**은 다룰 내용이지 시키는 말이 아니다 (2026-10-18 한글 서식 측정).
+    #   「「간편한 작업을 위한 몇 가지 팁」 줄을 16pt … 바꾸고 저장해 줘」에서 따옴표 안의 「몇 가지」와 밖의 「저장해」가
+    #   짝지어 「직접 계산해 보기」 요구가 섰고, 되받기 세 번에 모델이 시키지 않은 확인 문서와 PDF 를 만들었다.
+    #   글 길이는 그대로 두므로(빈칸으로 바꿈) 거리 판정은 원래 글 기준 그대로다.
+    targets = list((_en.ARITHMETIC_TARGET if english else _ARITHMETIC_TARGET).finditer(_without_quoted_sentences(compact)))
     verbs = list((_en.COMPUTE_VERB if english else _COMPUTE_VERB).finditer(compact))
     # 대상과 동사가 같은 절에 있어야 한다. ``페이지를 만들어줘 … 확률을 표시해``의
     # 멀리 떨어진 '만들어'와 '확률'을 짝지으면 UI 작업에 sandbox 계산 요구가 생긴다.
     # 영어는 같은 뜻이 더 길다(「몇 시간…답해라」 ↔ 「How many hours … Answer with the number」) — 창을 넓힌다.
     reach = 60 if english else 40
     arrange = _en.ARRANGE_VERB if english else _ARRANGE_VERB
-    return any(
+    quantity = _en.QUANTITY_NAME if english else _QUANTITY_NAME
+    negated_before = _en.NEGATED_BEFORE if english else _NEGATED_BEFORE
+    # ★ 하지 말라는 동사는 시킨 일이 아니다(「파일은 안 만들어도 되고」 — 2026-10-19 판 1b6df02d).
+    verbs = [
+        verb for verb in verbs
+        if not negated_before.search(compact[max(0, verb.start() - 20):verb.start()])
+    ]
+
+    def _arranging_a_value(target: "re.Match[str]", verb: "re.Match[str]") -> bool:
+        """만드는 동사와 **값의 이름**(또는 늘어놓은 칸 이름)의 짝 — 화면의 값을 옮겨 담는 일이다(셈 아님)."""
+        if not arrange.fullmatch(verb.group(0).strip()):
+            # ★ 「답해」도 늘어놓은 항목 중 하나면 읽어 올 값이다 (2026-10-20 운영 41bd1869 · UI-TARS 정리).
+            #   「… 라이선스, 별 개수와 마지막 커밋 날짜. … 나눠서 답해 줘」의 「개수 + 답해」로 「직접 계산해 보기」가 섰다 —
+            #   별 개수는 페이지에 적힌 값이다. 늘어놓은 항목일 때만이다: 「몇 개 남는지 답해」는 여전히 셈이다.
+            return bool(_ANSWER_VERB.fullmatch(verb.group(0).strip())) and _a_listed_column(
+                compact, target.start(), target.end(), english=english
+            )
+        return bool(quantity.fullmatch(target.group(0).strip())) or _a_listed_column(
+            compact, target.start(), target.end(), english=english
+        )
+
+    if any(
         max(target.start(), verb.start()) - min(target.end(), verb.end()) <= reach
-        # 만드는 동사 + 늘어놓은 칸 이름 = 화면의 값을 옮겨 담는 일이다(셈 아님) — `_a_listed_column`.
-        and not (arrange.fullmatch(verb.group(0).strip())
-                 and _a_listed_column(compact, target.start(), target.end(), english=english))
+        and not _arranging_a_value(target, verb)
         for target in targets
         for verb in verbs
-    )
+    ):
+        return True
+    return _adds_a_computed_column(compact, english=english)
+
+
+def _adds_a_computed_column(compact: str, *, english: bool) -> bool:
+    """「평균이랑 등수도 넣어줘」 — 셈한 칸의 이름 **뒤에**(영어는 앞에) 칸을 더하라는 동사가 같은 문장 안에서 바로 이어진다.
+
+    값의 이름(점수 · 사진 · 링크)은 안 본다 — 「점수 칸 넣어줘」는 이미 있는 값을 옮기는 일이다. 하지 말라는 동사는 시킨 일이 아니다.
+    """
+    text = _without_quoted_sentences(compact)
+    names = (_en.COMPUTED_COLUMN if english else _COMPUTED_COLUMN).finditer(text)
+    adds = [
+        verb for verb in (_en.ADD_COLUMN_VERB if english else _ADD_COLUMN_VERB).finditer(compact)
+        if not (_en.NEGATED_BEFORE if english else _NEGATED_BEFORE).search(compact[max(0, verb.start() - 20):verb.start()])
+    ]
+    for name in names:
+        for verb in adds:
+            # 한국어는 「무엇을 + 넣어줘」, 영어는 「add + what」.
+            first, second = (verb, name) if english else (name, verb)
+            between = compact[first.end():second.start()]
+            if 0 <= len(between) <= _ADD_COLUMN_REACH and not re.search(r"[.!?。\n]", between):
+                return True
+    return False
 
 
 def wants_the_sandbox(prompt: str) -> bool:

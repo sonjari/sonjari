@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import threading
 import time
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -189,6 +191,33 @@ def _select_combo_item(control: Any, wanted: str) -> str | None:
     except Exception:
         return None
     return match
+
+
+def _invoke_changed_something(tools: Any, window_id: int, control: Any, before: dict[int, str]) -> bool:
+    """누름 신호(invoke)를 보내고 **눈에 띄는 변화**가 있었나 — 새 창 · 창 제목 변화 · 그 창의 요소 수 변화(메뉴가 펼쳐짐).
+
+    한글 하위 메뉴처럼 신호를 오류 없이 무시하는 프로그램이 있어(7412255c), 변화가 없으면 False — 그때만 실제로 누른다.
+    신호 자체가 안 되면(패턴 없음) False.
+    """
+    try:
+        window = tools._window(window_id)
+        title_before = str(window.window_text() or "")
+        count_before = len(window.descendants())
+    except Exception:
+        return False
+    try:
+        control.invoke()
+    except Exception:
+        return False
+    time.sleep(0.8)
+    now = _visible_windows_now()
+    if any(hwnd not in before and str(title).strip() for hwnd, title in now.items()):
+        return True
+    try:
+        window = tools._window(window_id)
+        return str(window.window_text() or "") != title_before or len(window.descendants()) != count_before
+    except Exception:
+        return True  # 창이 닫혔다 — 무언가 일어났다
 
 
 def _menu_item_on_screen(control: Any) -> bool:
@@ -397,6 +426,10 @@ class WindowsAutomationTools:
 
     Discovery and preview are read-only. Every state-changing action is stored
     as a short-lived preview and executed through the L2 approval gateway.
+
+    예외 하나(2026-10-19 판 ae395490 뒤): 미리보기는 그림을 떠야 하므로, 창이 최소화됐거나 화면 밖이면 **창 자리**를 바꾼다
+    (펼치기 · 주 모니터로 옮기기 — `_bring_into_view`). 앱 안의 내용은 바꾸지 않고, `windows_focus_window`(L1)가 원래 하던
+    펼치기와 같은 등급이다. 옮겼으면 결과에 `moved_into_view`(어디서 → 어디로)와 `note` 가 실린다.
     """
 
     def __init__(
@@ -404,9 +437,13 @@ class WindowsAutomationTools:
         config: JarvisConfig,
         *,
         visual_planner: VisualPlanner | None = None,
+        on_waiting_for_hands: Callable[[str], None] | None = None,
     ) -> None:
         self.config = config
         self.visual_planner = visual_planner
+        #: 사람 손이 안 멈춰 실제 클릭 · 키 입력을 기다릴 때 부른다(`_wait_for_hands_off`). 무엇을 기다리는지(「키 입력」 등)를 넘긴다.
+        self.on_waiting_for_hands = on_waiting_for_hands
+        self._last_hands_notice = -1e9
         from .user_presence import UserPresence
 
         self.presence = UserPresence(config)
@@ -753,6 +790,32 @@ class WindowsAutomationTools:
             raise RuntimeError("uia_target_stale_refresh_snapshot")
         return ranked[0]
 
+    def _bring_into_view(self, window_id: int) -> dict[str, Any]:
+        """그림을 뜨기 전에 창이 보이게 한다 — 최소화면 펼치고, 화면 밖이면 주 모니터로 옮긴다(`window_view.py`).
+
+        ★ 2026-10-19 판 ae395490 뒤. 화면 밖 창을 뜨면 검은 그림이 오고, 비전은 그 그림에서 엉뚱한 좌표를 고른다. 최소화된 창은
+          `window_not_visible` 로 끝났다(운영 기록 5걸음 · 엑셀 fd555e9b · 메모장 d8ec62f3). 이미 잘 보이는 창은 손대지 않는다.
+          옮기는 것은 눈에 보이는 변화라 사람 손이 멈출 때까지 기다리고(창이 사람이 쓰던 창 위로 올라온다), 옮겼으면 증거에 남긴다.
+        """
+        from . import window_view
+
+        desk = window_view.desktop()
+        if desk is None or window_id <= 0 or not window_view.needs_bringing(window_id, desk):
+            return {}
+        self._wait_for_hands_off("창 옮기기")
+        view = window_view.bring_into_view(window_id, desk)
+        if view.get("still_off_screen"):
+            raise RuntimeError(
+                f"window_off_screen: {view.get('note')} 화면 밖 창은 그림을 뜰 수 없습니다 — 사람이 창을 화면 안으로 끌어와야 합니다."
+            )
+        if view.get("still_minimized"):
+            # 예전에는 그림 뜨기에서 `window_not_visible` 한 낱말로 끝났다 — 무엇이 안 보이는지 말해 준다.
+            raise RuntimeError(
+                "window_minimized: 창이 최소화돼 있는데 펼치지 못해 그림을 뜰 수 없습니다. 같은 창을 다시 미리보기하지 말고, "
+                "파일로 할 수 있는 일이면 파일로 하거나 사람에게 창을 펼쳐 달라고 하세요."
+            )
+        return view
+
     def _capture_window(self, window_id: int, prefix: str) -> tuple[Path, dict[str, int]]:
         window = self._window(window_id)
         rect = window.rectangle()
@@ -771,6 +834,41 @@ class WindowsAutomationTools:
         path = self.preview_dir / f"{prefix}-{int(time.time() * 1000)}.png"
         image.save(path, format="PNG", optimize=True)
         return path, bounds
+
+    def _log_visual_plan(
+        self,
+        window_id: int,
+        instruction: str,
+        x: int,
+        y: int,
+        confidence: float,
+        width: int,
+        height: int,
+        in_bounds: bool,
+        screenshot: Path,
+    ) -> None:
+        """비전 계획의 숫자를 action-previews 폴더의 visual_plans.jsonl 에 한 줄 남긴다.
+
+        오류 문장(같은 실패 되풀이를 세는 열쇠)에 숫자를 넣지 않는 대안으로, 기록에는
+        넣는다. 쓰기가 실패해도 본래 동작은 이어가야 하므로 예외만 삼킨다.
+        """
+        record = {
+            "at": datetime.now().astimezone().isoformat(),
+            "window_id": window_id,
+            "instruction": instruction[:200],
+            "x": x,
+            "y": y,
+            "confidence": confidence,
+            "width": width,
+            "height": height,
+            "in_bounds": in_bounds,
+            "screenshot": str(screenshot),
+        }
+        try:
+            with (self.preview_dir / "visual_plans.jsonl").open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
 
     def _save_preview(
         self,
@@ -915,6 +1013,7 @@ class WindowsAutomationTools:
                 raise PermissionError("password_control_blocked")
             if action == "set_value" and not value:
                 raise ValueError("value_required")
+        view = self._bring_into_view(window_id)
         screenshot, _ = self._capture_window(window_id, "uia")
         preview = self._save_preview(
             source="uia", action=action, window_id=window_id,
@@ -929,6 +1028,7 @@ class WindowsAutomationTools:
             "value_preview": value[:120] if action in {"set_value", "paste"} else "",
             "screenshot_path": str(screenshot),
             "requires_approval": True,
+            **view,
         }
         if action == "key":
             result["key_combo"] = key_combo
@@ -946,6 +1046,7 @@ class WindowsAutomationTools:
             raise ValueError("instruction_required")
         if action not in {"click", "double_click"}:
             raise ValueError("visual_action_not_allowed")
+        view = self._bring_into_view(window_id)
         screenshot, bounds = self._capture_window(window_id, "visual")
         plan = self.visual_planner(screenshot, bounds, instruction)
         relative_x = int(plan.get("x") or -1)
@@ -953,8 +1054,21 @@ class WindowsAutomationTools:
         confidence = float(plan.get("confidence") or 0)
         width = bounds["right"] - bounds["left"]
         height = bounds["bottom"] - bounds["top"]
-        if not (0 <= relative_x < width and 0 <= relative_y < height):
-            raise RuntimeError("visual_coordinate_out_of_bounds")
+        in_bounds = 0 <= relative_x < width and 0 <= relative_y < height
+        self._log_visual_plan(window_id, instruction, relative_x, relative_y, confidence,
+                              width, height, in_bounds, screenshot)
+        if not in_bounds:
+            # ★ 비전이 그림 밖 좌표를 골랐다는 뜻이지, 창이 화면 밖이라는 뜻이 아니다(ae395490: 모델이 이 실패를 「창이 화면 왼쪽
+            #   밖」의 증거로 읽었다 — 그 창은 보조 모니터에 잘 찍혀 있었다). 창은 위 `_bring_into_view` 로 이미 보이는 자리에 있다.
+            #   비전이 고른 숫자는 부를 때마다 달라 문장에 넣지 않는다(같은 실패 되풀이를 세는 열쇠가 문장 전체다).
+            from . import window_view
+
+            place = window_view.describe(window_id).get("where") or "화면 안"
+            raise RuntimeError(
+                f"visual_coordinate_out_of_bounds: 비전이 고른 자리가 창 그림({width}x{height}) 밖입니다. 창은 {place}에 있고 그림도 "
+                "제대로 떴습니다 — 창 위치 문제가 아니라 비전이 목표를 못 찾은 것입니다. 창을 옮기지 말고, 목표를 그림에 보이는 "
+                "글자 그대로 더 짧게 적거나 windows_uia_snapshot 으로 찾으세요."
+            )
         if confidence < 0.55:
             raise RuntimeError("visual_coordinate_low_confidence")
         target = {
@@ -978,11 +1092,25 @@ class WindowsAutomationTools:
             "planned_action": action,
             "screenshot_path": str(screenshot),
             "requires_approval": True,
+            **view,
         }
 
     def _wait_for_hands_off(self, what: str) -> None:
-        """사람 손이 키보드·마우스에서 멈출 때까지 기다린다(인수인계 H2-A). 끝내 안 멈추면 미룬다."""
-        if self.presence.wait_until_idle(quiet_sec=2.0, timeout_sec=45.0):
+        """사람 손이 키보드·마우스에서 멈출 때까지 기다린다(인수인계 H2-A). 끝내 안 멈추면 미룬다.
+
+        ★ 2026-10-17 밤(대표): 기다리는 동안 사람은 손자리가 기다리는 줄 몰랐다. 곧바로 손이 안 멈추면 **한 번 알린다**
+          (`on_waiting_for_hands` — 윈도우 알림. 1분에 한 번까지).
+        """
+        if self.presence.wait_until_idle(quiet_sec=2.0, timeout_sec=1.5):
+            return
+        now = time.monotonic()
+        if self.on_waiting_for_hands is not None and now - self._last_hands_notice >= 60.0:
+            self._last_hands_notice = now
+            try:
+                self.on_waiting_for_hands(what)
+            except Exception:
+                pass
+        if self.presence.wait_until_idle(quiet_sec=2.0, timeout_sec=43.5):
             return
         raise RuntimeError(
             f"user_active_try_later: 사용자가 키보드·마우스를 쓰는 중이라 {what}을 미뤘습니다. "
@@ -1106,8 +1234,14 @@ class WindowsAutomationTools:
                 # ★ **메뉴 항목은 실제로 누른다** (2026-10-17 한글 → PDF 측정 7412255c). 한글의 「파일 > PDF로 저장하기」를 invoke 로
                 #   누르면 오류 없이 **아무 일도 안 일어났다** — 메뉴를 직접 그리는 프로그램은 누름 신호를 무시한다. 모델이 같은 메뉴를
                 #   invoke 로 다섯 번 되풀이하다 41걸음째에 click 으로 바꾸고서야 저장 창이 떴다(46걸음 · 593초). 사람도 메뉴는 클릭한다.
-                control.click_input()
-                checked = {"executed_as": "click"}
+                # ★ 2026-10-17 밤(대표 「사람이 PC 를 쓰는 중이어도」): 실제 클릭은 사람의 마우스를 뺏는다. 먼저 누름 신호를 보내 보고,
+                #   **아무 변화가 없을 때만** 실제로 누른다 — 한글 「파일」 메뉴처럼 신호가 먹는 곳에서는 마우스를 움직이지 않는다.
+                if _invoke_changed_something(self, preview.window_id, control, before):
+                    checked = {"executed_as": "invoke"}
+                else:
+                    self._wait_for_hands_off("메뉴 누르기")
+                    control.click_input()
+                    checked = {"executed_as": "click"}
             elif preview.action == "invoke":
                 try:
                     control.invoke()

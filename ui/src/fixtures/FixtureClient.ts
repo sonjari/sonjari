@@ -9,16 +9,18 @@
  */
 import { JarvisClient } from "../backend";
 import settingsFixture from "./settingsFixture.json";
+import whatsNewFixture from "./whatsNewFixture.json";
 import { FIXTURE_STEPS } from "./observations";
 import type { Observation, StepRow } from "../workspace/observation";
 import type {
   BrowserFrame, BrowserStatus, LiveFrame, ChatAttachment, ConversationHistory, ConversationSummary,
   CoworkTakeoverPrepared, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig,
-  Capabilities, JobOutput, JobSummary, PeopleStatus, ScheduleList, ScheduleRow, UndoOffer,
+  Capabilities, JobDetail, JobOutput, JobSummary, PeopleStatus, ScheduleList, ScheduleRow, UndoOffer,
   WorkspaceMode, ChatOrigin, HandoffDirection, SelfCheckStatus, SelfHealResult, UpdateStatus, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, BackupSummary,
-  PermissionModes, PackInfo, PacksView,
+  PermissionModes, PackInfo, PacksView, WhatsNewStatus, WeeklyReceipt, ReceiptImageSaved,
 } from "../types";
 import type { Scenario, ScriptStep } from "./scenarios";
+import type { Lang } from "../i18n";
 
 const JOB_ID = "fixture-job";
 
@@ -317,6 +319,21 @@ export class FixtureClient extends JarvisClient {
     };
   }
 
+  /**
+   * 업데이트 뒤 「바뀐 것」 리허설(2026-10-21) — `?fixture=…&whatsnew=0.4.30.0` 일 때만 띄운다(없으면 다른 리허설을 가리지 않게 조용히).
+   * 글은 진짜 백엔드 `whats_new.notes_for` 의 출력이다(whatsNewFixture.json · 시험 `test_ui_fixture_matches_the_backend` 가 맞춰 본다).
+   */
+  override async getWhatsNew(language: Lang): Promise<WhatsNewStatus> {
+    const version = new URLSearchParams(window.location.search).get("whatsnew") ?? "";
+    const byVersion = (whatsNewFixture as Record<string, Record<string, WhatsNewStatus>>)[version];
+    if (!byVersion) return { show: false, version: "" };
+    return structuredClone(byVersion[language === "en" ? "en" : "ko"]);
+  }
+
+  override async markWhatsNewSeen(): Promise<{ ok: boolean }> {
+    return { ok: true };
+  }
+
   override async checkUpdate(): Promise<UpdateStatus> {
     return structuredClone(this.scenario.update ?? { ok: true, mine: "", available: false });
   }
@@ -344,6 +361,22 @@ export class FixtureClient extends JarvisClient {
 
   override async openFolder(): Promise<{ ok: boolean }> {
     return { ok: true };
+  }
+
+  // ── 첫 화면 「이번 주 영수증」 리허설 (2026-10-21) — 시나리오에 없으면 셀 것이 없는 판(카드가 숨는다) ──
+  override async getReceipt(days = 7): Promise<WeeklyReceipt> {
+    const base: WeeklyReceipt = {
+      days, delegated: { jobs: 0, pages: 0, tokens_at_least: 0, chars: 0, flagged_numbers_jobs: 0 },
+      direct: { jobs: 0, pages: 0 }, callers: {}, measurement_jobs_skipped: 0, basis: "",
+    };
+    const until = Date.now() / 1000;
+    return { ...base, since: until - days * 86400, until, ...structuredClone(this.scenario.receipt ?? {}) };
+  }
+
+  /** 저장한 그림을 개발 창에 남긴다 — 리허설에서 그림을 꺼내 눈으로 보려고(개발 빌드에서만 이 모듈이 실린다). */
+  override async saveReceiptImage(pngBase64: string): Promise<ReceiptImageSaved> {
+    (window as unknown as { __sonjariReceiptPng?: string }).__sonjariReceiptPng = pngBase64;
+    return { ok: true, name: "sonjari-receipt-2026-10-21.png", short: "Sonjari\\receipts\\sonjari-receipt-2026-10-21.png" };
   }
 
   // ── 설정 › 팩 리허설 (2026-10-11) — 「다시 읽기」를 눌러야 넣은 스킬팩이 나타난다(진짜도 그렇다) ──
@@ -456,7 +489,7 @@ export class FixtureClient extends JarvisClient {
       ],
     };
     this.clock.run(this.scenario.onSend ?? [], (step) => {
-      if (step.event === "job_completed") this.settle();
+      if (step.event === "job_completed") this.settle(jobId);
       this.emit({ event: step.event, payload: { job_id: jobId, ...(step.payload ?? {}) } });
     });
     return { id: jobId, status: "queued" };
@@ -485,7 +518,7 @@ export class FixtureClient extends JarvisClient {
   }
 
   /** 작업이 끝나면 답이 대화 기록으로 안착한다 — 여기가 실제 배선의 마지막 한 걸음이다. */
-  private settle() {
+  private settle(jobId: string) {
     const answer = this.scenario.settledAnswer;
     if (!answer) return;
     this.history = {
@@ -494,7 +527,8 @@ export class FixtureClient extends JarvisClient {
         ...this.history.messages,
         {
           id: Date.now() + 1, session_id: this.history.session_id, role: "assistant",
-          content: answer, kind: "chat", metadata: {}, created_at: Date.now() / 1000,
+          // 실제 백엔드처럼 답에 그 판 번호를 단다 — 답 아래 「답이 기댄 페이지」가 이 번호로 판 결과를 묻는다.
+          content: answer, kind: "chat", metadata: { job_id: jobId }, created_at: Date.now() / 1000,
         },
       ],
     };
@@ -525,6 +559,21 @@ export class FixtureClient extends JarvisClient {
   override async listOutputs(jobId: string) {
     const items = structuredClone(this.scenario.outputs ?? []) as JobOutput[];
     return { job_id: jobId, count: items.length, items };
+  }
+
+  // ── 답이 기댄 페이지 (2026-10-18) ──────────────────────────────────
+  override async getJob(jobId: string): Promise<JobDetail> {
+    const finished = Math.floor(Date.now() / 1000);
+    return {
+      id: jobId, kind: "chat", title: this.lastPrompt, status: "completed", risk_level: "L0", error: "", build: "",
+      created_at: finished - 60, updated_at: finished, started_at: finished - 59, finished_at: finished, attempts: 1,
+      result: { answer: this.scenario.settledAnswer ?? "", showcase: structuredClone(this.scenario.showcase ?? []) },
+    } as JobDetail;
+  }
+
+  override async fetchShowcaseShot(_jobId: string, index: number): Promise<Blob | null> {
+    const shot = (this.scenario.showcase ?? [])[index];
+    return shot ? fakePage(shot.title, shot.url) : null;
   }
 
   override async fetchOutput(_jobId: string, path: string): Promise<Blob | null> {

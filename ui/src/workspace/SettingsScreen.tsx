@@ -15,7 +15,7 @@ import { lang, setLang, t, type Lang } from "../i18n";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Archive, Brain, Cpu, FlaskConical, Link2, Loader2, MessagesSquare, Mic, RotateCcw, Settings2, ShieldCheck,
-  Sparkles, Stethoscope, Undo2, Workflow, X, FileInput, Package,
+  Sparkles, Stethoscope, Undo2, Workflow, X, FileInput, Package, MessageCircle, UserRound, NotebookPen,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { isTauri, loadBootstrap, type JarvisClient } from "../backend";
@@ -30,6 +30,11 @@ import "../setup/setup.css";
 import type { BackupSummary, SettingRow, SettingValue, SettingsView } from "../types";
 import { LearnedPanel } from "./LearnedPanel";
 import { PacksSection } from "./PacksSection";
+import { DiscordSection } from "./DiscordSection";
+import { AboutMeSection } from "./AboutMeSection";
+import { SavingsCard } from "./SavingsCard";
+import { ScribeSection } from "./ScribeSection";
+import { TakeoverHowTo } from "./TakeoverHowTo";
 
 type Section = string;
 type FieldStatus = { state: "saving" | "saved" | "error"; message: string };
@@ -41,8 +46,15 @@ const GROUP_ICON: Record<string, ReactNode> = {
 };
 
 const EXTRA_SECTIONS: { id: Section; label: string; heading: string; icon: ReactNode }[] = [
+  // ★ 2026-10-18: 매 턴 실리는 프로필 파일에 화면이 없었다. 사용자 지침은 이 한 곳(파일 하나)에 모은다 — 「지침 가져오기」도
+  //   여기로 줄을 골라 올린다. 맨 위에 둔다: 손자리가 「나」를 어떻게 대하는지가 사용자 지정의 첫 칸이다.
+  { id: "about_me", label: t("나에 대한 지침"), heading: t("사용자 지정"), icon: <UserRound size={15} /> },
   { id: "packs", label: t("팩"), heading: t("사용자 지정"), icon: <Package size={15} /> },
   { id: "connect", label: t("연결"), heading: t("사용자 지정"), icon: <Link2 size={15} /> },
+  // ★ 2026-10-22 대표: 서기를 실험실에서 꺼냈다 — 클로드 코드와 같이 쓰는 기능이라 「연결」 바로 아래.
+  { id: "scribe", label: t("서기"), heading: t("사용자 지정"), icon: <NotebookPen size={15} /> },
+  // ★ 2026-10-18: 폰 디스코드로 일 시키기 — 명령 창 마법사를 쓸 수 없는 스토어판 사람이 클릭 몇 번으로 잇는다.
+  { id: "discord", label: t("디스코드로 일 시키기"), heading: t("사용자 지정"), icon: <MessageCircle size={15} /> },
   { id: "import", label: t("지침 가져오기"), heading: t("사용자 지정"), icon: <FileInput size={15} /> },
   { id: "data", label: t("데이터와 백업"), heading: t("데스크톱 앱"), icon: <Archive size={15} /> },
   { id: "app", label: t("진단·다시 시작"), heading: t("데스크톱 앱"), icon: <Stethoscope size={15} /> },
@@ -270,18 +282,39 @@ export function SettingsScreen({ client, open, onClose, initialSection = "genera
           )}
           {/* 언어는 맨 위 「일반」에 — 「앱」 구역은 영어로 「Diagnostics · restart」라 거기서 찾지 않는다. */}
           {section === "general" && <LanguageBlock />}
-          {view && rows.length > 0 && section !== "model" && (
+          {/* 연결 묶음의 칸(「막히면 내 클로드에게 넘기기」)은 아래 이음 카드 옆에 그린다. */}
+          {view && rows.length > 0 && section !== "model" && section !== "connect" && section !== "scribe" && (
             <ul className="settings-rows">
               {rows.filter((row) => !(section === "skills" && row.key === "skills_domains")).map(control)}
             </ul>
           )}
           {section === "permissions" && client && <GrantedPaths client={client} />}
+          {/* 2026-10-22: 스위치만 있고 어떻게 시작하는지가 없었다 — 마법사 「연결」과 같은 안내를 여기에도. */}
+          {section === "takeover" && <TakeoverHowTo />}
           {section === "memory" && (
             <div className="settings-block"><LearnedPanel client={client} open /></div>
           )}
 
+          {section === "about_me" && <AboutMeSection api={setupApi} />}
           {section === "packs" && client && <PacksSection client={client} />}
-          {section === "connect" && <div className="settings-block"><ConnectPanel api={setupApi} /></div>}
+          {section === "connect" && (
+            <div className="settings-block">
+              {/* 2026-10-19: 클로드를 이은 까닭이 숫자로 보이는 자리 — 연결 설정 바로 위. */}
+              {client && <SavingsCard client={client} />}
+              <ConnectPanel api={setupApi} />
+              {/* 2026-10-19: 반대 방향 — 클로드가 손자리에 맡기는 길(위) 옆에, 손자리가 막히면 내 클로드에게 넘기는 스위치.
+                  켜고 끄기 · 못 켜는 까닭(클로드 없음 · 로그인 필요 · 관리자가 꺼 둠)은 다른 설정 칸과 같은 부품이 그린다. */}
+              {rows.length > 0 && (
+                <section className="settings-handoff" aria-labelledby="settings-handoff-title">
+                  <h3 id="settings-handoff-title">{t("반대 방향 · 손자리가 막히면 내 클로드에게")}</h3>
+                  <p className="settings-note">{t("넘긴 일은 답에 「클로드(내 구독)에게 넘겨 처리했습니다」와 그 이유가 적힙니다. 손자리 실력을 재는 판은 켜 둬도 넘기지 않습니다.")}</p>
+                  <ul className="settings-rows">{rows.map(control)}</ul>
+                </section>
+              )}
+            </div>
+          )}
+          {section === "scribe" && client && <ScribeSection client={client} rows={rows} control={control} save={save} />}
+          {section === "discord" && client && <DiscordSection client={client} />}
           {section === "import" && <ImportSection api={setupApi} />}
           {section === "data" && client && <DataSection client={client} />}
           {section === "app" && client && <AppSection client={client} onClose={() => void requestClose()} />}
@@ -357,6 +390,7 @@ export function settingErrorText(message: string): string {
     case "too_long": return t("너무 깁니다.");
     case "empty_model": return t("모델 이름을 비울 수 없습니다.");
     case "not_allowed": return t("이 화면에서는 바꿀 수 없는 값입니다.");
+    case "unavailable": return t("지금은 켤 수 없습니다. 아래 안내를 확인해 주세요.");
     default: return t("저장하지 못했습니다: {0}", message);
   }
 }
@@ -391,7 +425,7 @@ function SettingControl({ row, status, draft, onDraft, onSaveDraft, onSave, onRe
         {row.help && <small>{row.help}</small>}
         {unavailable && <small className="settings-unavailable">{unavailable}</small>}
         <span className="settings-source">
-          {unavailable ? t("이 판에서는 못 씁니다") : describeSource(row)}
+          {unavailable ? (row.unavailable_short || t("이 판에서는 못 씁니다")) : describeSource(row)}
           {row.source === "user" && !unavailable && (
             <button type="button" className="settings-reset" onClick={onReset} disabled={busy}><Undo2 size={12} /> {t("기본값으로")}</button>
           )}

@@ -10,17 +10,21 @@ import { MessageAttachments, type ShownAttachment } from "./MessageAttachments";
 import { DELEGATED_PREFIX, callerLabel, originTone } from "./TakeoverRelay";
 import { splitAnswerChecks } from "./answerChecks";
 import { OutboundReceipt, type OutboundRecord } from "./OutboundReceipt";
+import { ShowcaseStrip, type ShowcaseSource } from "./ShowcaseStrip";
 
 /** 지난 말 한 줄. **바뀐 것이 없으면 다시 그리지 않는다**(memo) — 넘기는 함수는 고정된 것이어야 한다(`useStableCallback`). */
 export const MessageView = memo(function MessageView({
   message,
   onObserveAgain,
   onContinue,
+  showcase,
 }: {
   message: ConversationMessage;
   onObserveAgain?: (message: ConversationMessage) => void;
   /** 끝내지 못한 판의 메모 아래 「이어서 하기」 — 대화의 마지막 말일 때만 넘어온다. */
   onContinue?: () => void;
+  /** 답이 기댄 페이지의 사진을 가져오는 손(2026-10-18). 고정된 것이어야 한다 — memo 가 깨진다. */
+  showcase?: ShowcaseSource;
 }) {
   // ★ 출처 도장 (2026-09-30). 이 판에서 성공한 도구 걸음이 0 이면 — 답이 「확인했습니다」라고 써도 —
   //   찾아본 답이 아니다. 낱말을 읽지 않고 서버가 센 걸음 수(`runtime.answer_grounding`)만 믿는다.
@@ -49,6 +53,11 @@ export const MessageView = memo(function MessageView({
   const outbound = message.role === "assistant" && !unfinished && message.metadata?.outbound && typeof message.metadata.outbound === "object"
     ? message.metadata.outbound as OutboundRecord
     : null;
+  // ★ 답이 기댄 페이지(대표사진 · 2026-10-18 대표 결정). 안착한 답에만 — 끝내지 못한 판의 메모 · 기억으로 쓴 답(0걸음)에는
+  //   기댄 페이지가 없다. 그 판 번호(`metadata.job_id`)가 없는 옛 기록도 그리지 않는다.
+  const showcaseJob = message.role === "assistant" && !unfinished && !fromMemory && typeof message.metadata?.job_id === "string"
+    ? message.metadata.job_id
+    : "";
   const thinkingTokens = Number(message.metadata?.thinking_tokens ?? 0);
   const cacheReadTokens = Number(message.metadata?.cache_read_tokens ?? 0);
   const runtime = message.role === "assistant"
@@ -78,6 +87,7 @@ export const MessageView = memo(function MessageView({
             {onContinue && <button type="button" onClick={onContinue}>{t("이어서 하기")}</button>}
           </p>
         ) : message.role === "assistant" ? <MarkdownView className="workspace-markdown">{answer.body}</MarkdownView> : <p>{shownContent}</p>}
+        {showcase && showcaseJob && <ShowcaseStrip jobId={showcaseJob} source={showcase} />}
         {answer.checks.length > 0 && (
           <details className="message-checks">
             <summary>{t("확인할 것 {0}", answer.checks.length)}</summary>

@@ -14,7 +14,7 @@
 import type { Observation } from "../workspace/observation";
 import type {
   BrowserStatus, ConversationHistory, ConversationSummary, GoogleStatus, JobOutput,
-  JobSummary, PeopleStatus, ScheduleRow, SelfCheckStatus, UndoOffer, UpdateStatus,
+  JobSummary, PeopleStatus, ScheduleRow, SelfCheckStatus, ShowcaseShot, UndoOffer, UpdateStatus, WeeklyReceipt,
 } from "../types";
 
 /** 재생 시간표의 한 걸음. `at` 은 재생 시작으로부터의 밀리초다. */
@@ -57,12 +57,16 @@ export interface Scenario {
   selfCheck?: SelfCheckStatus;
   /** 스토어판 업데이트 줄·덮개 (2026-09-18 밤). 없으면 「받을 것 없음」. */
   update?: UpdateStatus;
+  /** 첫 화면 「이번 주 영수증」 (2026-10-21). 없으면 셀 것이 없는 판 — 카드가 숨는다. */
+  receipt?: Partial<WeeklyReceipt>;
   /** 에이전트 화면에 그릴 가짜 페이지 제목. 없으면 프레임이 안 온다. */
   browserFrame?: { url: string; title: string };
   /** 그 작업이 만든 파일 (R4). 궤적을 펼쳐야 뜬다. */
   outputs?: JobOutput[];
   /** 되돌릴 수 있는 것 (R4). job_id 는 재생기가 방금 만든 잡으로 갈아 끼운다. */
   undo?: Omit<UndoOffer, "job_id">[];
+  /** 답이 기댄 페이지 (2026-10-18). 판 결과(`getJob`)의 showcase 로 나간다 — 사진은 가짜 페이지 그림. */
+  showcase?: ShowcaseShot[];
 }
 
 const NOW = Math.floor(Date.now() / 1000);
@@ -206,6 +210,29 @@ export const SCENARIOS: Scenario[] = [
     sessions: [],
     history: emptyHistory("fixture-new"),
     google: { enabled: true, configured: true, connected: false, pending: false, mode: "read_only", scopes: [], last_error: "" },
+    people: PEOPLE,
+    // 10-21 이 PC 최근 7일 실측(커밋 3c91eb19 머리말)과 같은 숫자.
+    receipt: {
+      delegated: { jobs: 136, pages: 611, tokens_at_least: 912788, chars: 4107770, flagged_numbers_jobs: 9 },
+      direct: { jobs: 495, pages: 418 }, callers: { "Claude Code": 136 }, measurement_jobs_skipped: 36,
+      basis: "센 글자 수 ÷ 4.5 의 하한입니다. 한글은 토큰당 약 1.7자라 실제는 더 큽니다. 측정 판은 뺐습니다.",
+    },
+  },
+  {
+    id: "welcome-receipt-direct",
+    label: "첫 화면 — 영수증(직접 시킨 일만)",
+    hint: "바깥 AI 가 맡긴 일이 0건일 때. 영수증이 「대신 읽은 페이지」 한 줄짜리 작은 판으로 줄어드는지 본다.",
+    sessions: [],
+    history: emptyHistory("fixture-receipt-direct"),
+    people: PEOPLE,
+    receipt: { direct: { jobs: 52, pages: 418 }, callers: {} },
+  },
+  {
+    id: "welcome-receipt-empty",
+    label: "첫 화면 — 영수증 0건",
+    hint: "이번 주 셀 것이 하나도 없을 때. 빈 영수증 카드가 아니라 카드가 아예 없어야 한다.",
+    sessions: [],
+    history: emptyHistory("fixture-receipt-empty"),
     people: PEOPLE,
   },
   {
@@ -461,6 +488,42 @@ export const SCENARIOS: Scenario[] = [
       "⚠ **읽은 자료에 없는 비율이 있습니다: 17%** — 원문으로 확인하기 전에는 사실로 쓰지 마세요.",
       "⚠ **읽지 않고 적은 것이 있습니다: 가상 A, 가상 B.** 이 이름들은 이번에 읽은 자료(페이지·파일) 어디에도 없습니다 — 목록 줄에서 옮겨 적었을 수 있습니다. 필요하면 그 항목들을 직접 열어 확인해 달라고 시켜 주세요.",
     ].join("\n\n"),
+  },
+  {
+    // 2026-10-18 대표 결정: 답 아래 「답이 기댄 페이지」 사진 카드. 사이트 · 이름 · 값은 전부 지어낸 것이다.
+    id: "showcase",
+    label: "답이 기댄 페이지",
+    hint: "지난 답 아래 사진 카드 두 장(사이트 · 제목 · 읽은 시각 · 답과 맞은 것). 재생하면 도는 동안엔 카드가 없고, 답이 안착한 뒤에 붙는지. 누르면 크게 보기 + 「원래 페이지 열기」.",
+    prompt: "가상 키보드 K1 최저가랑 배터리 시간 알려줘",
+    sessions: SESSIONS,
+    jobs: [],
+    browser: BROWSER_OK,
+    browserFrame: { url: "https://compare.example/item/k1", title: "가상 키보드 K1 가격 비교" },
+    history: historyOf("office-main", [
+      said("office-main", "user", "가상 키보드 K1 최저가 알려줘", 600, { job_id: "fixture-job-past" }),
+      said("office-main", "assistant", "**가상 키보드 K1 의 최저가는 89,000원입니다.** 가격 비교 사이트 세 곳 중 한 곳이 가장 쌌고, 제조사 판은 배터리 120시간으로 적혀 있습니다.", 590, { job_id: "fixture-job-past" }),
+    ]),
+    google: GOOGLE_CONNECTED,
+    people: PEOPLE,
+    showcase: [
+      { path: "C:/fake/shots/step_004.jpg", url: "https://www.compare.example/item/k1?sort=price&view=list", title: "가상 키보드 K1 — 최저가 비교 · 판매처 12곳", read_at: NOW - 14 * 60, matched: 3, step: 4, contains: [] },
+      { path: "C:/fake/shots/step_007.jpg", url: "https://maker.example/products/k1/spec", title: "K1 무선 기계식 키보드 상세 사양", read_at: NOW - 13 * 60, matched: 1, step: 7, contains: [] },
+    ],
+    onSend: [
+      { at: 50, event: "agent_started" },
+      { at: 500, event: "agent_progress", payload: { step: 1, phase: "act", tool: "browser_search", message: "검색했습니다", status: "completed" } },
+      {
+        at: 1200,
+        event: "agent_progress",
+        payload: {
+          step: 2, phase: "act", tool: "browser_extract", message: "본문을 읽었습니다", status: "completed",
+          evidence: { url: "https://www.compare.example/item/k1", char_count: 5400, truncated: false },
+        },
+      },
+      { at: 1900, event: "agent_answer_delta", payload: { delta: "**가상 키보드 K1 의 최저가는 89,000원**, 배터리는 120시간입니다." } },
+      { at: 2600, event: "job_completed" },
+    ],
+    settledAnswer: "**가상 키보드 K1 의 최저가는 89,000원**, 배터리는 120시간입니다.\n\n가격 비교 사이트의 판매처 12곳 중 가장 싼 곳 기준이고, 배터리 시간은 제조사 사양표에 적힌 값입니다.",
   },
   {
     id: "image-reading",

@@ -20,14 +20,29 @@ export interface AnswerCheck {
 }
 
 const MARK = "⚠";
+/**
+ * 서버가 경고 **뒤에** 덧붙이는 다른 꼬리 — 만든 파일 목록 · 시킨 것 대조 · ℹ 도구 기록.
+ *
+ * ★ 2026-10-22: 떼기를 「맨 끝 문단이 ⚠ 일 때」만 했더니, 경고 뒤에 이 꼬리가 하나라도 붙은 답은 경고를 하나도 못 뗐다.
+ *   10-13 뒤 경고가 붙은 답 169개 중 60개(36%)가 그랬다(만든 파일 35 · 시킨 것 대조 18 · ℹ 도구 기록 7). 그 꼬리들을 건너뛰어
+ *   경고만 떼고, 꼬리 자체는 본문 끝에 그대로 둔다(파일 목록은 사람이 열어야 하는 것이다).
+ */
+const OUR_TAIL = /^(?:ℹ|\*\*(?:시킨 것 대조|Checklist)\*\*|만든 파일:|Files (?:made|created):)/;
 
 export function splitAnswerChecks(content: string): { body: string; checks: AnswerCheck[] } {
   const text = String(content ?? "");
   const blocks = text.split(/\n{2,}/);
   let first = blocks.length;
-  while (first > 0 && blocks[first - 1].trimStart().startsWith(MARK)) first -= 1;
-  if (first === blocks.length || first === 0) return { body: text, checks: [] };
-  const checks = blocks.slice(first).map((block) => {
+  while (first > 0) {
+    const head = blocks[first - 1].trimStart();
+    if (!head.startsWith(MARK) && !OUR_TAIL.test(head)) break;
+    first -= 1;
+  }
+  const tail = blocks.slice(first);
+  const warnings = tail.filter((block) => block.trimStart().startsWith(MARK));
+  if (warnings.length === 0 || first === 0) return { body: text, checks: [] };
+  const kept = [...blocks.slice(0, first), ...tail.filter((block) => !block.trimStart().startsWith(MARK))];
+  const checks = warnings.map((block) => {
     const detail = block.trim().slice(MARK.length).trim();
     const bold = /^\*\*([\s\S]+?)\*\*/.exec(detail);
     const head = (bold ? bold[1] : detail.split(/(?<=[.。])\s/)[0]).trim().replace(/[.。]+$/, "");
@@ -38,5 +53,5 @@ export function splitAnswerChecks(content: string): { body: string; checks: Answ
       detail: detail.replace(/\*\*/g, ""),
     };
   });
-  return { body: blocks.slice(0, first).join("\n\n").trimEnd(), checks };
+  return { body: kept.join("\n\n").trimEnd(), checks };
 }

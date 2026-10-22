@@ -151,10 +151,24 @@ SETTINGS: tuple[Setting, ...] = (
     Setting("skills_route_enabled", "skills", "요청에 맞는 스킬 붙이기", "bool",
             "요청에 맞는 일하는 방법(스킬)을 골라 답에 참고한다.", live=True),
     Setting("skills_domains", "skills", "주로 쓰는 분야", "list", "고른 분야의 스킬만 후보로 둔다. 비우면 전부.", live=True),
+    # ── 연결 ──────────────────────────────────────────────────────────────
+    # ★ 2026-10-19: 실험실의 「Claude Code 에 맡기기」를 제품 기능으로 옮겼다 — 클로드가 손자리에 맡기는 길(MCP)의 반대 방향.
+    #   묶음 「connect」 는 왼쪽 목록(`GROUPS`)에 없다: 화면의 「사용자 지정 › 연결」(이음 카드가 사는 곳)이 이 칸을 그린다.
+    #   기본 꺼짐 · 바로 적용 · 클로드 명령이나 로그인이 없으면 켤 수 없다(`unavailable_reason`) · 측정 판은 늘 꺼짐.
+    Setting("claude_code_enabled", "connect", "막히면 내 클로드에게 넘기기", "bool",
+            "손자리가 코드 일에서 막혔을 때만 이 PC 의 Claude Code 에 넘깁니다. 내 Claude 구독의 사용 한도를 씁니다.",
+            live=True),
     # ── 실험실 ────────────────────────────────────────────────────────────
-    Setting("claude_code_enabled", "labs", "Claude Code 에 맡기기", "bool", "어려운 코드 일을 설치된 Claude Code 에 위임한다.", lab=True),
     Setting("sandbox_enabled", "labs", "격리 상자", "bool", "WSL 격리 상자에서 코드를 돌린다.", lab=True),
     Setting("code_scout_enabled", "labs", "코드 정찰기", "bool", "두 번째 그래픽카드의 작은 모델로 저장소를 먼저 훑는다.", lab=True),
+    # ★ 2026-10-21 서기(`scribe.py`). 대화 기록은 사람 것이라 **기본 꺼짐 · 고른 폴더만** 읽는다. 루프가 매번 설정을 다시 읽어 바로 적용.
+    # ★ 2026-10-22 실험실에서 꺼냈다(대표). 묶음 「scribe」 는 왼쪽 목록(`GROUPS`)에 없다 — 화면의 「사용자 지정 › 서기」가 이 칸과
+    #   프로젝트 고르기(`scribe.claude_projects`)를 같이 그린다. 폴더 경로를 손으로 치게 두면 아무도 못 켠다.
+    Setting("scribe_enabled", "scribe", "서기 켜기", "bool",
+            "손자리가 쉴 때 고른 프로젝트의 클로드 코드 대화를 읽고 정한 것 · 버린 것 · 남은 일을 카드로 쌓습니다. "
+            "대화가 압축되거나 새 대화를 열면 그 카드를 클로드에게 다시 넣어 줍니다.", live=True),
+    Setting("scribe_folders", "scribe", "서기가 읽을 프로젝트", "list",
+            "클로드 코드 대화 기록 폴더(사용자 폴더\\.claude\\projects\\<프로젝트>). 여기 고른 곳만 읽습니다.", live=True),
 )
 
 BY_KEY: dict[str, Setting] = {item.key: item for item in SETTINGS}
@@ -343,10 +357,30 @@ _CAPABILITY_MODULES: dict[str, tuple[tuple[str, ...], str]] = {
 _GOOGLE_ONLY_SETTINGS = frozenset({"google_write_enabled"})
 
 
-def unavailable_reason(key: str) -> str:
+#: 모듈이 아니라 **이 PC 의 바깥 프로그램**이 있어야 되는 설정 — 까닭과 짧은 상태 말을 함께 돌려준다(2026-10-19).
+_EXTERNAL_CAPABILITY = frozenset({"claude_code_enabled"})
+
+
+def _external_block(key: str, config: Any) -> tuple[str, str]:
+    if key == "claude_code_enabled" and config is not None:
+        from .claude_code import cli_status
+
+        status = cli_status(config)
+        return str(status.get("reason") or ""), str(status.get("short") or "")
+    return "", ""
+
+
+def unavailable_short(key: str, config: Any = None) -> str:
+    """화면의 「이 판에서는 못 씁니다」 자리에 들어갈 짧은 말. 빈 값이면 그 기본 말을 쓴다."""
+    return _external_block(key, config)[1] if key in _EXTERNAL_CAPABILITY else ""
+
+
+def unavailable_reason(key: str, config: Any = None) -> str:
     """빈 문자열이면 쓸 수 있다는 뜻. 「못 봤다」와 「없다」를 섞지 않으려고 모듈을 직접 찾아본다."""
     import importlib.util
 
+    if key in _EXTERNAL_CAPABILITY:
+        return _external_block(key, config)[0]
     modules, reason = _CAPABILITY_MODULES.get(key, ((), ""))
     for name in modules:
         try:
@@ -383,6 +417,7 @@ class SettingsService:
                 continue
             current = _get(self.config, item)
             desired = user.get(item.key, self.config._settings_defaults.get(item.key, current))
+            blocked = unavailable_reason(item.key, self.config)
             rows.append({
                 "key": item.key, "group": item.group, "label": item.label, "kind": item.kind, "help": item.help,
                 "choices": list(item.choices), "min": item.minimum, "max": item.maximum, "lab": item.lab,
@@ -390,7 +425,9 @@ class SettingsService:
                 "source": "user" if item.key in user else "default",
                 "live": item.live,
                 # 이 판에서 못 쓰는 기능이면 그 이유. 화면은 켜짐으로 그리지 않는다.
-                "unavailable": unavailable_reason(item.key),
+                "unavailable": blocked,
+                # 그 이유의 짧은 상태 말(「관리자가 꺼 둠」 · 「로그인 필요」). 비면 화면이 「이 판에서는 못 씁니다」를 쓴다.
+                **({"unavailable_short": unavailable_short(item.key, self.config)} if blocked else {}),
                 # 저장했지만 아직 이 프로세스에 안 먹은 값.
                 "restart_required": (not item.live) and desired != current,
             })
@@ -405,6 +442,10 @@ class SettingsService:
         try:
             for key, value in changes.items():
                 cleaned[key] = validate(str(key), value)
+                # 바깥 프로그램이 있어야 되는 기능은 **없으면 켜지지 않는다**(끄는 것은 언제나 된다). 켜짐으로 저장해 두면
+                # 화면은 꺼짐으로 그리는데 나중에 프로그램이 생기는 순간 사람 모르게 켜진다 — 켜는 것은 사람이 그때 한다.
+                if key in _EXTERNAL_CAPABILITY and cleaned[key] is True and unavailable_reason(key, self.config):
+                    raise SettingsError(f"unavailable:{key}")
         except SettingsError as exc:
             return {"ok": False, "error": str(exc)}
         path = settings_path(Path(self.config.data_dir))

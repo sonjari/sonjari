@@ -415,7 +415,9 @@ class Sonjari:
     def run(self, prompt: str, session: str, *, limit: float = TASK_LIMIT_SEC, sleep: Callable[[float], None] = time.sleep) -> dict[str, Any]:
         """한 판을 돌리고 채점에 쓸 것을 모아 돌려준다. 여기서 모은 글은 부른 쪽이 채점한 뒤 버린다."""
         tabs_before = tabs_now(self.chrome)
-        job = self.call("/v1/chat", {"prompt": prompt, "origin": "mcp", "open_results": False, "session_id": session})
+        # `measurement` — 이 PC 의 손자리 실력을 재는 판이다. 「막히면 내 클로드에게 넘기기」가 켜져 있어도 넘기지 않는다.
+        job = self.call("/v1/chat", {"prompt": prompt, "origin": "mcp", "open_results": False, "session_id": session,
+                                     "measurement": True})
         job_id = str(job.get("job_id") or job.get("id") or "")
         started, info, asked = time.time(), {}, False
         while time.time() - started < limit:

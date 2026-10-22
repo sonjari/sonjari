@@ -267,3 +267,68 @@ def test_qwen38_gets_room_to_finish_its_thought_in_both_places() -> None:
     assert JarvisConfig().ollama_thinking_budget_by_model["qwen3.8"] == 16000
     assert _thinking_budgets("")["qwen3.8"] == 16000
     assert _thinking_budgets("")["qwen3.6"] == 3000
+
+
+# ── 끊고 버린 첫 호출도 시간에 넣는다 (2026-10-19 · 긱뉴스 판 1b6df02d) ──────────────────────────────
+#
+# 그 판은 699초였는데 판 기록의 모델 시간(프리필 171 + 생성 304)과 도구 28초를 빼면 196초가 비었다. 서버 기록을 맞대 보니
+# 대부분이 **끊고 버린 첫 호출 두 번**이었다(생각 되풀이 4,096토큰 · 마무리 생각 예산 4,424토큰 · 약 137초). 끊은 호출은 서버의
+# 끝 기록이 안 와서 관측에 시간이 안 남는다. 동작은 그대로 두고 적기만 한다.
+
+
+def test_the_cut_first_pass_is_written_on_the_answer_we_kept(monkeypatch: Any) -> None:
+    client = _client(monkeypatch, [_Response(_thinking_lines(30_000)), _Response([_ANSWERED])])
+    message = client.chat_messages_stream([{"role": "user", "content": "경쟁자 분석"}], think=True)
+
+    inference = message["_inference"]
+    assert inference["cut_first_passes"] == 1, "끊고 다시 부른 호출이 관측에 남아야 한다"
+    assert inference["cut_first_pass_sec"] == pytest.approx(message["_thinking_budget"]["first_pass_sec"], abs=0.01)
+
+
+def test_an_uncut_call_writes_nothing_extra(monkeypatch: Any) -> None:
+    """★ 좋은 표본 — 끊지 않은 호출에는 덧붙는 칸이 없다(0 으로라도 적으면 「끊었다」로 잘못 셀 수 있다)."""
+    client = _client(monkeypatch, [_Response(_thinking_lines(5_000))])
+    message = client.chat_messages_stream([{"role": "user", "content": "짧은 질문"}], think=True)
+
+    assert "cut_first_pass_sec" not in message["_inference"]
+    assert "cut_first_passes" not in message["_inference"]
+
+
+def test_the_job_ledger_counts_the_cut_time_apart_from_server_time() -> None:
+    """서버 시간(프리필 · 생성)과 버린 시간은 따로 센다 — 섞으면 「생성이 느리다」와 「버렸다」가 구별이 안 된다."""
+    from alture_jarvis.agent import _model_time_summary
+
+    summary = _model_time_summary([
+        {"telemetry": {"prompt_eval_count": 63297, "prompt_eval_duration": 76_137_510_000,
+                       "eval_count": 97, "eval_duration": 1_924_170_000}, "cut_first_pass_sec": 70.02, "cut_first_passes": 1},
+        {"telemetry": {"prompt_eval_count": 65158, "prompt_eval_duration": 4_703_230_000,
+                       "eval_count": 7348, "eval_duration": 122_958_760_000}},
+    ])
+    assert summary["cut_first_pass_sec"] == pytest.approx(70.0, abs=0.1)
+    assert summary["cut_first_passes"] == 1
+    assert summary["prefill_sec"] == pytest.approx(80.8, abs=0.2), "버린 시간을 프리필에 섞지 않는다"
+    assert summary["generate_sec"] == pytest.approx(124.9, abs=0.2), "버린 시간을 생성에 섞지 않는다"
+    empty = _model_time_summary([{"telemetry": {"eval_count": 10, "eval_duration": 1_000_000_000}}])
+    assert empty["cut_first_pass_sec"] == 0 and empty["cut_first_passes"] == 0
+
+
+def test_the_report_uses_the_whole_job_not_the_last_twelve_turns() -> None:
+    """★ 판 기록의 관측은 마지막 12개만 남는다 — 23턴 판의 프리필을 113초로 셌다(전체 171초). 판의 `model_time` 을 먼저 쓴다."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "report_model_time.py"
+    spec = importlib.util.spec_from_file_location("report_model_time_under_test", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    last_twelve = [{"telemetry": {"prompt_eval_duration": 9_440_000_000, "eval_duration": 10_000_000_000}}] * 12
+    whole = {"turns": 23, "prefill_sec": 170.9, "generate_sec": 304.4, "cut_first_pass_sec": 137.0}
+    split = module._split({"verification": {"inference_observations": last_twelve, "model_time": whole},
+                           "steps": [{"took_ms": 28_000}]}, 699.0)
+    assert split["prefill"] == pytest.approx(170.9) and split["generate"] == pytest.approx(304.4)
+    assert split["cut"] == pytest.approx(137.0) and split["turns"] == 23
+    # 옛 판(요약 없음)은 예전처럼 남은 관측으로 센다 — 양쪽 표본.
+    old = module._split({"verification": {"inference_observations": last_twelve}, "steps": []}, 300.0)
+    assert old["prefill"] == pytest.approx(113.3, abs=0.1) and old["turns"] == 12 and old["cut"] == 0
