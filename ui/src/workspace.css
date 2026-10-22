@@ -965,6 +965,53 @@ select:focus-visible,
 .message-checks li b { color: rgb(var(--text-2)); font-weight: 600; }
 .message-checks li span { margin-left: 8px; color: rgb(var(--hold-bright)); }
 .message-checks li p { margin: 4px 0 0; color: rgb(var(--text-4)); }
+/* ── 답이 기댄 페이지 (2026-10-18 대표 결정) ──────────────────────────────────
+   꾸밈이 아니라 증거 — 「이 답이 이 화면에서 나왔다」. 카드는 대화 쪽이 아니라 **기계 쪽 온도**(`--machine-*`)다:
+   오른쪽 「손자리의 컴퓨터」에서 본 화면을 한 장 떼어 답 아래 붙인 것이라, 따뜻한 바닥 위에서 찬 면 하나로 읽힌다.
+   주소 · 읽은 시각은 기계가 적은 값이라 고정폭. 「답과 맞은 것」의 초록 점은 「확인할 것」의 노란 점과 같은 문법 —
+   노랑은 「확인하라」, 초록은 「확인됐다」(tokens.css 뜻 있는 색). */
+.showcase-anchor { display: block; height: 0; }
+.showcase { margin: 14px 0 0; container-type: inline-size; }
+.showcase > p.showcase-label { margin: 0 0 6px; color: rgb(var(--text-4)); font-size: var(--fs-1); font-weight: var(--fw-bold); letter-spacing: .1em; line-height: 1.4; }
+/* 두 장은 좁은 칸(오른쪽 판을 편 대화 · 휴대폰 폭)에서도 나란히 — 한 장씩 세로로 쌓으면 답보다 사진이 길어진다(10-18 미리보기). */
+.showcase-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 248px)); gap: 8px; }
+.showcase-card { display: flex; flex-direction: column; min-width: 0; padding: 0; overflow: hidden; border: 1px solid rgb(var(--machine-line)); border-radius: var(--r-2); background: rgb(var(--machine-2)); color: inherit; font: inherit; text-align: left; cursor: zoom-in; box-shadow: var(--lift-1); transition: border-color var(--t-move) var(--ease), box-shadow var(--t-move) var(--ease), transform var(--t-move) var(--ease); }
+.showcase-card:hover { border-color: rgb(var(--machine-line-strong)); box-shadow: var(--lift-2); transform: translateY(-1px); }
+.showcase-card:active { transform: translateY(0) scale(.995); }
+.showcase-card:focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 2px; }
+/* 페이지 윗부분이 그 페이지가 무엇인지 말한다(제목 · 가격 줄) — 가운데가 아니라 위에 맞춰 자른다. */
+.showcase-shot { display: block; aspect-ratio: 16 / 10; overflow: hidden; border-bottom: 1px solid rgb(var(--machine-line)); background: rgb(var(--machine-3)); }
+.showcase-shot img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: left top; }
+.showcase-meta { display: grid; gap: 3px; min-width: 0; padding: 7px 10px 9px; }
+.showcase-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; font-family: var(--font-mono); font-size: var(--fs-1); line-height: 1.5; }
+.showcase-site { min-width: 0; overflow: hidden; color: rgb(var(--m-text-2)); white-space: nowrap; text-overflow: ellipsis; }
+.showcase-clock { flex: none; color: rgb(var(--m-text-3)); font-variant-numeric: tabular-nums; }
+.showcase-title { min-width: 0; overflow: hidden; color: rgb(var(--m-text-1)); font-size: var(--fs-2); line-height: 1.45; white-space: nowrap; text-overflow: ellipsis; }
+.showcase-matched { display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; white-space: nowrap; color: rgb(var(--ok-bright)); font-size: var(--fs-1); font-variant-numeric: tabular-nums; }
+.showcase-matched::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--ok)); }
+/* 크게 보기 — 첨부 그림의 확대 보기(.image-lightbox)를 그대로 쓰고, 아래 줄에 출처와 「원래 페이지 열기」만 더한다. */
+.showcase-lightbox figcaption { align-items: center; }
+.showcase-lightbox-text { display: grid; gap: 2px; min-width: 0; }
+.showcase-lightbox-title { overflow: hidden; color: rgb(var(--text-1)); font-size: var(--fs-2); white-space: nowrap; text-overflow: ellipsis; }
+.showcase-lightbox-sub { color: rgb(var(--text-4)); font-family: var(--font-mono); font-size: var(--fs-1); font-variant-numeric: tabular-nums; }
+.showcase-open { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border: 1px solid rgb(var(--line)); border-radius: var(--r-1); background: rgb(var(--surface-3)); color: rgb(var(--text-2)); font: inherit; font-size: var(--fs-1); cursor: pointer; transition: color var(--t-tap) var(--ease), border-color var(--t-tap) var(--ease); }
+.showcase-open:hover { color: rgb(var(--text-1)); border-color: rgb(var(--line-strong)); }
+.showcase-open:focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 2px; }
+/* 두 장도 나란히 못 놓을 만큼 좁으면(휴대폰 폭) 카드를 가로로 눕힌다 — 사진은 왼쪽 작은 창, 글은 오른쪽. */
+@container (max-width: 303px) {
+  .showcase-cards { grid-template-columns: 1fr; }
+  .showcase-card { flex-direction: row; }
+  .showcase-shot { flex: none; width: 76px; aspect-ratio: auto; border-bottom: 0; border-right: 1px solid rgb(var(--machine-line)); }
+  .showcase-meta { flex: 1; align-content: center; padding: 7px 9px 8px; }
+  .showcase-line { flex-wrap: wrap; justify-content: flex-start; gap: 0 8px; }
+  .showcase-site { flex: 1 1 100%; }
+}
+@media (max-width: 520px) {
+  .showcase-lightbox figcaption { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .showcase-card, .showcase-card:hover, .showcase-card:active { transition: none; transform: none; }
+}
 /* 한 줄 영수증 (2026-10-15 · §55-32) — 출처 도장과 같은 결: 조용한 글씨, 펼치면 보낸 것 · 비어 있는 것 · 가린 것. */
 .message-body > details.message-outbound { margin: 10px 0 0; font-size: var(--fs-1); color: rgb(var(--text-5)); }
 .message-outbound > summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: rgb(var(--text-4)); list-style: none; user-select: none; font-variant-numeric: tabular-nums; }
@@ -1544,6 +1591,14 @@ button.output-name { color: rgb(var(--brand)); cursor: pointer; text-decoration:
 /* 버튼이 둘이면 둘째는 첫째 옆에 붙는다 — 각자 margin-left:auto 면 양 끝으로 벌어진다(2026-09-18 밤). */
 .update-bar button + button { margin-left: 0; }
 .update-bar.good { border-color: rgb(var(--ok) / .45); background: rgb(var(--ok) / .1); }
+/* 업데이트 뒤 「바뀐 것 보기」 (2026-10-20). 펼치면 띠 아래 한 줄 전체를 쓴다 — 길면 띠 안에서 넘긴다. */
+.whats-new-bar { flex-wrap: wrap; }
+.whats-new-bar .whats-new-body {
+  flex-basis: 100%; max-height: 46vh; overflow-y: auto; margin-top: .35rem; padding-top: .45rem;
+  border-top: 1px solid rgb(var(--ok) / .3); color: rgb(var(--text-2));
+}
+.whats-new-bar .whats-new-tour { margin-top: .6rem; }
+.whats-new-bar .whats-new-hint { margin: .5rem 0 0; color: rgb(var(--text-4)); font-size: var(--fs-1, .8rem); }
 .update-bar.bad  { border-color: rgb(var(--stop) / .45); background: rgb(var(--stop) / .1); }
 .update-bar .spin { animation: update-spin 1s linear infinite; }
 @keyframes update-spin { to { transform: rotate(360deg); } }
@@ -1826,6 +1881,21 @@ button.code-think-raw:disabled { cursor: default; opacity: .6; }
 .settings-error { margin: 8px 0; padding: 8px 12px; border: 1px solid rgb(var(--stop-dim)); border-radius: var(--r-1); font-size: var(--fs-2); color: rgb(var(--stop-bright)); }
 .settings-path code, .settings-foot code { font-size: var(--fs-1); color: rgb(var(--text-3)); overflow-wrap: anywhere; }
 .settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
+/* 설정 › 연결 맨 위 — 손자리가 대신 읽은 양(하한) 카드 (2026-10-19). 숫자 하나가 눈에 들어오게, 나머지는 보조 글. */
+.savings-card { margin: 0 0 22px; padding: 14px 16px; border: 1px solid rgb(var(--line)); border-radius: var(--r-2); background: rgb(var(--surface-2)); }
+.savings-card h3 { margin: 0 0 6px; font-size: var(--fs-3); color: rgb(var(--text-2)); }
+.savings-figure { margin: 4px 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.savings-figure strong { font-size: var(--fs-5); color: rgb(var(--text-1)); font-variant-numeric: tabular-nums; }
+.savings-figure span { font-size: var(--fs-2); color: rgb(var(--text-3)); }
+.savings-top { margin-top: 6px; font-size: var(--fs-2); color: rgb(var(--text-3)); }
+.savings-top summary { cursor: pointer; }
+.savings-top ol { margin: 6px 0 0; padding-left: 18px; }
+.savings-top li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin: 3px 0; }
+.savings-top-prompt { overflow-wrap: anywhere; }
+.savings-top-tokens { color: rgb(var(--text-4)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* 설정 › 연결 — 이음 카드 뒤의 반대 방향 스위치(「막히면 내 클로드에게 넘기기」 · 2026-10-19). 위 카드와 한 줄 띄운다. */
+.settings-handoff { margin-top: 26px; padding-top: 18px; border-top: 1px solid rgb(var(--line)); }
+.settings-handoff h3 { margin: 0 0 4px; }
 .settings-generations { list-style: none; margin: 8px 0; padding: 0; font-size: var(--fs-2); color: rgb(var(--text-3)); }
 .settings-generations li { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 7px 0; border-top: 1px solid rgb(var(--line)); }
 .settings-generations li:first-child { border-top: 0; }

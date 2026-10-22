@@ -28,9 +28,10 @@ def test_a_heading_with_nothing_under_it_does_not_count() -> None:
 
 def test_a_short_heading_does_not_fill_a_longer_item() -> None:
     # 「정리」 제목 하나가 「정리 날짜」를 채운 것으로 세면 안 된다 — 제목이 이름을 담을 때만.
+    # ★ 2026-10-19: 채운 것으로 세지 않는 것은 그대로다. 다만 이름 붙은 자리를 못 찾았으니 「없음」이 아니라 「확인 못 함(None)」.
     answer = "### 정리\n- 이것저것\n"
 
-    assert _met(["정리 날짜"], answer) == {"정리 날짜": False}
+    assert _met(["정리 날짜"], answer) == {"정리 날짜": None}
 
 
 def test_a_table_whose_first_cell_names_the_item_counts() -> None:
@@ -42,7 +43,8 @@ def test_a_table_whose_first_cell_names_the_item_counts() -> None:
 def test_a_row_name_inside_a_longer_item_does_not_fill_it() -> None:
     answer = "| 항목 | 내용 |\n|---|---|\n| 국가/위치 | 가상국 |\n| 설립 | 2023년 |\n"
 
-    assert _met(["회사 국적과 설립"], answer) == {"회사 국적과 설립": False}
+    # ★ 2026-10-19: 채운 것으로 세지 않는다(True 아님). 그런데 값은 답에 있다 — 그러니 「없음」도 아니고 「확인 못 함」이다.
+    assert _met(["회사 국적과 설립"], answer) == {"회사 국적과 설립": None}
 
 
 def test_a_row_with_only_blanks_beside_the_name_does_not_count() -> None:

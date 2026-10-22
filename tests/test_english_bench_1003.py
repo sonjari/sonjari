@@ -438,7 +438,9 @@ def test_an_english_request_answered_in_korean_is_rewritten_once_in_english() ->
     """B 판 3차 IGN: 같은 과제가 2차엔 영어, 3차엔 「찾았습니다. IGN에서 …」 — 안내문만으론 흔들려 결정론으로 한 번 다시 쓴다."""
     source = inspect.getsource(agent)
     assert '"agent_final_language_rewrite"' in source
-    assert "len(_HANGUL_RE.findall(answer)) >= 20" in source
+    # 2026-10-20: 문턱은 `english.needs_english_rewrite` 하나로 모았다(짧은 한국어 답도 잡는다 — 바로 답하는 길과 같은 판정).
+    assert "_english.needs_english_rewrite(prompt, answer)" in source
     assert "if english_final and _english.english_dominant" in source  # 다시 쓴 답이 영어일 때만 바꾼다
     korean = "찾았습니다. IGN에서 젤다 워크스루를 확인했습니다. 결과 페이지 주소와 내용은 아래와 같습니다."
     assert len(agent._HANGUL_RE.findall(korean)) >= 20
+    assert agent._english.needs_english_rewrite("Find a Zelda walkthrough on IGN", korean)

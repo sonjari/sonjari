@@ -39,6 +39,7 @@ from . import site_sources as _site_sources
 from . import layout_probe as _layout_probe
 from . import page_look as _page_look
 from . import search_boxes as _search_boxes
+from .demo_recorder import RECORDER_JS_TEMPLATE, DemoRecorder
 from .models import RiskLevel
 from .proof import ProofSpec, finalize_proof, same_fingerprint
 from .serp import canonical_url, collect_results, opaque_outbound, unwrap_redirect
@@ -464,6 +465,48 @@ def _read_only_blocks(name: str, element_type: str) -> bool:
     return element_type == "submit" and not _read_only_submit(name)
 
 
+# ★ 누르고 채운 요소를 **다음 판에서도 다시 찾을 수 있는 꼴**로 적는다 (2026-10-20 · 확장 설계 P1 「잘 해낸 판 → 레시피」).
+#   판 기록의 `j5` 는 그 판의 스냅샷 번호라 다음 판에서는 아무것도 아니다. 좌표도 창 크기만 바뀌면 깨진다.
+#   안정적인 것부터: data-testid · id(숫자 범벅이 아닌 것) · name · placeholder · aria-label · 역할+이름 · 짧은 글자.
+#   각 후보는 80자 안 — 판 기록은 목록 항목을 80자로 자른다(`agent._step_evidence`). 잘린 셀렉터는 틀린 셀렉터다.
+_DURABLE_SELECTORS_JS = """el => {
+  if (!el) return [];
+  const out = [];
+  const q = v => '"' + String(v).replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"') + '"';
+  const add = s => { if (s && s.length <= 80 && !out.includes(s)) out.push(s); };
+  const tag = el.tagName.toLowerCase();
+  for (const attr of ['data-testid', 'data-test', 'data-qa', 'data-cy']) {
+    const v = el.getAttribute(attr); if (v) add('[' + attr + '=' + q(v) + ']');
+  }
+  const id = el.id || '';
+  if (id && id.length <= 40 && !/\\d{3,}|[:.]|^(?:[a-f0-9]{8,}|r\\d|:r)/i.test(id)) add('#' + id);
+  const nm = el.getAttribute('name'); if (nm && ['input', 'textarea', 'select', 'button'].includes(tag)) add(tag + '[name=' + q(nm) + ']');
+  // 안내문은 **실제 속성 이름 그대로** 적는다(data-placeholder 를 placeholder 로 적으면 다음 판에 안 걸린다).
+  // 역할+이름에는 화면 낭독기가 읽는 이름(placeholder · aria-placeholder)만 쓴다 — data-placeholder 는 이름이 아니다.
+  let ph = '';
+  for (const attr of ['placeholder', 'aria-placeholder', 'data-placeholder']) {
+    const v = (el.getAttribute(attr) || '').trim();
+    if (v) { add('[' + attr + '=' + q(v) + ']'); if (!ph && attr !== 'data-placeholder') ph = v; }
+  }
+  const al = (el.getAttribute('aria-label') || '').trim(); if (al) add('[aria-label=' + q(al) + ']');
+  const type = (el.getAttribute('type') || '').toLowerCase();
+  let role = (el.getAttribute('role') || '').toLowerCase();
+  if (!role) {
+    if (tag === 'a' && el.hasAttribute('href')) role = 'link';
+    else if (tag === 'button' || ['button', 'submit'].includes(type)) role = 'button';
+    else if (tag === 'textarea' || (tag === 'input' && ['', 'text', 'email', 'url', 'tel'].includes(type))) role = 'textbox';
+    else if (tag === 'input' && type === 'search') role = 'searchbox';
+    else if (tag === 'select') role = 'combobox';
+    else if (el.isContentEditable) role = 'textbox';
+  }
+  const text = (el.innerText || el.value || '').replace(/\\s+/g, ' ').trim();
+  const name = al || (role === 'textbox' || role === 'searchbox' ? (ph || '').trim() : text);
+  if (role && name && name.length <= 40) add('role=' + role + '[name=' + q(name) + ']');
+  if (!['input', 'textarea', 'select'].includes(tag) && text && text.length <= 30) add('text=' + q(text));
+  return out.slice(0, 6);
+}"""
+
+
 # 검색칸인가 — 읽기 전용에서도 Enter 로 검색해도 되는 칸. 구조(type·role)나 이름·안내문·id 로 본다.
 _SEARCH_FIELD_JS = """el => {
   if (!el) return false;
@@ -612,6 +655,8 @@ _MODAL_PROBE_JS = """() => {
 _NO_EVIDENCE_ERRORS = (
     # 요청이 가리키지 않은 사이트의 화면이다 — 실패 화면으로 찍어 둘 이유가 없다(`_another_site_tab`).
     "tab_is_another_site",
+    # 사람이 쓰던 화면이다 — 그 화면(로그인 · 계정)을 실패 증거로 찍어 남기지 않는다(`_hold_if_human_on_tab`).
+    "human_on_tab",
     "screen_is_another_site",
     "read_only_action_blocked",
     "stale_element_ref",
@@ -1087,6 +1132,37 @@ _SCREEN_HANDS = frozenset({
 })
 #: 이 판이 **스스로 주소를 연** 손. 그 탭은 그때부터 이 판의 탭이다(전부터 있던 탭이 아니다).
 _NAVIGATING_HANDS = frozenset({"browser_open", "browser_search", "browser_site_search", "browser_open_result"})
+
+#: 사람이 같은 탭을 쓰고 있는 것 같으면 **멈추는** 손 (2026-10-19 · `_hold_if_human_on_tab`). 그 화면의 내용을 바꾸거나
+#: (누르기 · 쓰기 · 고르기 · 그 화면의 검색칸에 치기 · 더 보기 단추 · 알림창 답하기) 사람의 방문 기록을 따라가는(뒤로) 손이다.
+_HANDS_ON_THE_PAGE = _SCREEN_HANDS | frozenset({
+    "browser_back", "browser_site_search", "browser_load_more", "browser_dismiss_dialog", "browser_handle_dialog",
+    "naver_blog_fill_editor", "naver_blog_upload_image", "naver_blog_click_save_draft", "naver_blog_click_publish",
+})
+#: 이 판이 **제 주소로** 가는 손 — 사람이 쓰던 화면을 건드리지 않고 이 판의 화면을 새로 연다. 멈추지 않고, 열면 다시 이 판의 화면이다.
+#: (`browser_site_search` 는 지금 화면의 검색칸에 치므로 여기 아니라 위에 있다.)
+_OWN_ADDRESS_HANDS = frozenset({"browser_open", "browser_search", "browser_open_result"})
+#: 보기만 하는 손 — 사람이 쓰던 화면이어도 읽기는 이어 가되(알림을 붙인다), 그 결과 주소를 「이 판이 간 곳」으로 치지 않는다.
+_LOOKING_HANDS = frozenset({
+    "browser_extract", "browser_page_data", "browser_site_sources", "browser_links", "browser_find", "browser_snapshot",
+    "browser_probe_frames", "browser_screenshot", "browser_annotate", "browser_verify", "browser_find_selector",
+    "browser_read", "browser_tabs", "browser_download", "browser_wait", "browser_hover", "browser_scroll",
+    "naver_blog_read_account", "naver_blog_capture_screen",
+})
+
+
+def _own_key(url: str) -> str:
+    """「같은 화면」을 가르는 열쇠 — 호스트(앞 `www.` 뗌) + 경로. 물음표 · `#` 뒤는 안 본다(같은 화면의 정렬 · 앵커 · 추적값)."""
+    try:
+        parsed = urlparse(url or "")
+        host = (parsed.hostname or "").lower()
+    except ValueError:
+        return ""
+    if parsed.scheme not in ("http", "https") or not host:
+        return ""
+    if host.startswith("www."):
+        host = host[4:]
+    return host + (parsed.path.rstrip("/") or "")
 
 #: 요청문에 **적혀 있는 주소**. 한글에서 끊는다 — 「…/basic에서」처럼 조사가 붙어 온다.
 _WRITTEN_ADDRESS = re.compile(r"https?://[^\s<>\"'「」『』()\[\]가-힣]+", re.IGNORECASE)
@@ -2214,6 +2290,18 @@ class BrowserWorker:
         self.live_view = LiveView(self)
         #: 사람이 넘겨받았다가 돌려준 뒤 **다음 도구 결과**에 한 번 싣는 알림. 화면이 바뀌었으니 다시 보라는 뜻이다.
         self._human_took_over: dict[str, Any] | None = None
+        # ── 이 탭을 지금 누가 쓰나 (2026-10-19 · `_hold_if_human_on_tab`) ──
+        #: 이 판이 **스스로 간** 화면들의 열쇠(`_own_key`) · 그 주소 · 마지막으로 간 주소 · 그 시각.
+        self._own_page_keys: set[str] = set()
+        self._own_pages: list[str] = []
+        self._last_own_page = ""
+        self._own_page_at = 0.0
+        #: 사람이 무대에서 크롬을 마지막으로 만진(돌려준) 시각. 이 판이 마지막으로 간 뒤에 만졌으면 화면이 사람 손으로 바뀌었을 수 있다.
+        self._human_hand_at = 0.0
+        #: 사람이 이 탭을 쓰고 있는 것 같아 손을 멈춘 상태 — {"from", "to", "at"}. 이 판이 제 주소를 열거나 「이어서」로 풀린다.
+        self._human_on_tab: dict[str, Any] | None = None
+        #: 사람이 「이어서」를 눌렀다 — 다음 걸음의 지금 화면을 이 판의 화면으로 받는다(`hand_tab_back`).
+        self._tab_handed_back = False
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="jarvis-browser")
         # 시간이 끊겼는데도 스레드에 남아 계속 도는 작업. 있으면 다음 호출은
         # 줄 서지 않고 바로 사실을 말한다(`_submit` 주석 참고).
@@ -2253,6 +2341,9 @@ class BrowserWorker:
         # 이게 없으면 **사람이 연 팝업이 about:blank 에 갇힌다.**
         self._pump_stop = threading.Event()
         self._pump_thread: threading.Thread | None = None
+        # 사람 시연 기록(「배우기」 · 확장 설계 T8). 다리는 문맥마다 한 번만 건다 — 문맥이 바뀌면 다시 건다.
+        self._demo = DemoRecorder()
+        self._demo_wired_for = 0
         self._lock = threading.Lock()
         self._playwright: Any = None
         self._context: Any = None
@@ -2945,6 +3036,154 @@ class BrowserWorker:
             raw = page.screenshot(type="jpeg", quality=55, scale="css", timeout=4000)
         return {"jpeg": bytes(raw), "url": url, "title": title, "at": time.time()}
 
+    # ── 읽은 순간의 사진 (대표사진의 재료 · 2026-10-18 대표 결정) ─────────────────
+    #
+    # 본문을 읽은 그 탭을 한 장. 실시간 화면(`live_frame`)과 같은 규칙을 지킨다:
+    #   1. **브라우저를 띄우지 않는다 · 재기동하지 않는다** — 사진 한 장이 크롬을 여는 계기가 되면 안 된다.
+    #   2. **창을 앞으로 올리지 않고 시간 제한을 건다**(`_capture` 의 조용한 길). 최소화 · 뒤 탭은 2.5초 안에 포기하고 이유를 남긴다.
+    #   3. **오버레이를 끄지 않는다** — 껐다 켜면 사용자가 보는 진짜 크롬 창이 깜빡인다(`live_frame` 주석). 그래서 손자리 표시가
+    #      사진에 같이 찍힐 수 있다.
+    # 판의 걸음 사이에 부르므로 앞 동작에 줄 서도 된다(`background=False`) — 읽기 걸음 바로 뒤라 보통 비어 있다.
+    _READ_SHOT_TIMEOUT_SEC = 6.0
+    _READ_SHOT_QUALITY = 70
+
+    def capture_read_shot(self, destination: str | Path) -> dict[str, Any]:
+        """지금 탭의 보이는 영역을 `destination` 에 JPEG 로(가로 1280 이하). 실패는 예외가 아니라 `{"ok": False, "reason"}` 다."""
+        started = time.monotonic()
+
+        def done(result: dict[str, Any]) -> dict[str, Any]:
+            return {**result, "ms": int((time.monotonic() - started) * 1000)}
+
+        if not getattr(self, "_connected", False):
+            return done({"ok": False, "reason": "browser_not_started"})
+        try:
+            shot = self._submit(self._capture_read_shot, self._READ_SHOT_TIMEOUT_SEC, operation="browser_read_shot")
+        except Exception as exc:  # noqa: BLE001 — 사진 한 장 때문에 판을 멈추지 않는다
+            return done({"ok": False, "reason": _clean(str(exc), 200)})
+        try:
+            from .showcase import save_jpeg
+
+            saved = save_jpeg(shot["jpeg"], destination)
+        except Exception as exc:  # noqa: BLE001
+            return done({"ok": False, "reason": "save_failed: " + _clean(str(exc), 160)})
+        return done({"ok": True, "path": saved["path"], "url": shot["url"], "title": shot["title"], "at": shot["at"],
+                     "bytes": saved["bytes"], "width": saved["width"], "height": saved["height"]})
+
+    def _capture_read_shot(self) -> dict[str, Any]:
+        """Playwright 전용 스레드 안에서 도는 본체. **재기동하지 않는다**(`_capture_live_frame` 과 같다)."""
+        if not self._context_alive():
+            raise RuntimeError("browser_not_started")
+        pages = [item for item in self._context.pages if not item.is_closed()]
+        page = self._page if self._page in pages else None
+        if page is None:
+            # 읽은 탭이 아니면 찍지 않는다 — 엉뚱한 탭의 사진은 증거가 아니라 거짓말이다.
+            raise RuntimeError("read_tab_gone")
+        url = str(getattr(page, "url", "") or "")
+        try:
+            title = _clean(page.title(), 200)
+        except Exception:  # noqa: BLE001
+            title = ""
+        raw = self._capture(page, quiet=True, quality=self._READ_SHOT_QUALITY)
+        if raw is None and self._capture_skip_reason:
+            raise RuntimeError(self._capture_skip_reason)
+        if raw is None:
+            raw = page.screenshot(type="jpeg", quality=self._READ_SHOT_QUALITY, scale="css",
+                                  timeout=self._QUIET_CAPTURE_TIMEOUT_MS)
+        return {"jpeg": bytes(raw), "url": url, "title": title, "at": time.time()}
+
+    # ── 사람 시연 기록 「배우기」 (2026-10-20 확장 설계 T8) ─────────────────────────
+    def start_demo(self) -> dict[str, Any]:
+        """사람이 이 크롬에서 하는 클릭 · 입력 · 이동을 **요소 단위로** 적기 시작한다. 비밀번호 · 파일 칸은 적지 않는다."""
+        return self._submit(self._start_demo, 30, operation="demo_start")
+
+    def stop_demo(self) -> dict[str, Any]:
+        """기록을 멈추고 적은 것을 돌려준다(`events` · `start_url` · `secrets_skipped`)."""
+        return self._submit(self._stop_demo, 30, operation="demo_stop")
+
+    def show_hint(self, host: str, text: str) -> bool:
+        """그 사이트를 띄운 손자리 크롬 탭 구석에 잠깐 알림. **창은 앞으로 안 올린다**(대표 10-20). 그린 탭이 있으면 True."""
+        return bool(self._submit(lambda: self._show_hint(host, text), 15, operation="stuck_hint", background=True))
+
+    def _show_hint(self, host: str, text: str) -> bool:
+        from .recipe_from_run import HINT_JS
+
+        shown = False
+        for page in list(self._context.pages if self._context is not None else []):
+            try:
+                page_host = (urlparse(str(page.url or "")).hostname or "").lower()
+                if host and page_host != host.lower():
+                    continue
+                shown = bool(page.evaluate(HINT_JS, text)) or shown
+            except Exception:  # noqa: BLE001 — 알림은 덤이다. 못 그려도 대화 한 줄은 나간다
+                continue
+        return shown
+
+    def _wire_demo(self) -> None:
+        context = self._context
+        if context is None or self._demo_wired_for == id(context):
+            return
+        recorder = self._demo
+        script = RECORDER_JS_TEMPLATE.replace("__DURABLE__", _DURABLE_SELECTORS_JS)
+        context.expose_binding("__sonjariDemo", lambda _source, payload: recorder.on_event(payload))
+        context.expose_binding("__sonjariDemoState", lambda _source: recorder.state())
+        context.add_init_script(script)
+
+        def watch(page: Any) -> None:
+            page.on("framenavigated", lambda frame: recorder.on_navigation(frame.url) if frame == page.main_frame else None)
+
+        context.on("page", watch)
+        for page in context.pages:
+            watch(page)
+            try:
+                page.evaluate(script)
+            except Exception:  # noqa: BLE001 — 막 열리는 탭은 다음 문서에서 깔린다
+                pass
+        self._demo_wired_for = id(context)
+
+    def _start_demo(self) -> dict[str, Any]:
+        if not self._context_alive():
+            raise RuntimeError("browser_not_started")
+        self._wire_demo()
+        page = self._current_page()
+        url = str(getattr(page, "url", "") or "")
+        self._demo.start(url)
+        self._demo_badge(True)
+        return {"action": "demo_started", "url": url}
+
+    def _demo_badge(self, on: bool) -> None:
+        """열린 탭마다 「배우는 중」 띠를 켜고 끈다. 새로 여는 페이지는 기록기가 스스로 묻고 그린다."""
+        state = self._demo.state() if on else {"on": False, "steps": 0}
+        for page in list(self._context.pages if self._context is not None else []):
+            try:
+                page.evaluate("state => window.__sonjariDemoBadge && window.__sonjariDemoBadge(state)", state)
+            except Exception:  # noqa: BLE001 — 띠는 알림이다. 못 그려도 기록은 간다
+                pass
+        if on:
+            # ★ 사람이 **이 창**에서 해 보여야 한다 — 평소 쓰는 크롬이 아니다(대표 10-20). 사람이 직접 「배우기」를 청했으니
+            #   「사람이 PC 를 쓰는 중이면 창을 안 올린다」(`_bring_to_front`) 규칙을 거치지 않고 앞으로 올린다.
+            page = self._current_page()
+            try:
+                if page is not None:
+                    page.bring_to_front()
+            except Exception:  # noqa: BLE001
+                pass
+
+    def _stop_demo(self) -> dict[str, Any]:
+        if self._context is not None:
+            for page in list(self._context.pages):
+                try:
+                    # 아직 칸에 남은 입력(떠나지 않은 칸)을 마저 보낸다 — 「다 했어」 직전에 친 검색어가 빠지지 않게.
+                    page.evaluate("() => window.__sonjariDemoFlush && window.__sonjariDemoFlush()")
+                except Exception:  # noqa: BLE001
+                    pass
+            page = self._page
+            if page is not None and not page.is_closed():
+                page.wait_for_timeout(300)
+        events = self._demo.stop()
+        self._demo_badge(False)
+        return {"action": "demo_stopped", "events": events, "start_url": self._demo.start_url,
+                "secrets_skipped": self._demo.secrets_skipped}
+
     def _wait_while_human_controls(self) -> float:
         """사람이 무대에서 크롬을 넘겨받았으면 돌려줄 때까지 기다린다. 기다린 초를 돌려준다.
 
@@ -2959,6 +3198,7 @@ class BrowserWorker:
             time.sleep(0.4)
         waited = time.time() - started
         self._human_took_over = {"waited_sec": round(waited, 1), "released_at": time.time()}
+        self.note_human_hand()
         return waited
 
     def _with_takeover_note(self, result: Any) -> Any:
@@ -3183,6 +3423,161 @@ class BrowserWorker:
         self._named_addresses = ()
         self._named_request = ""
         self._tabs_before_job = []
+        # 이 탭의 주인 기록도 판의 것이다 — 앞 판이 간 화면을 이 판이 간 곳으로 치지 않는다(첫 걸음의 화면이 새 출발점이다).
+        self._own_page_keys = set()
+        self._own_pages = []
+        self._last_own_page = ""
+        self._own_page_at = 0.0
+        self._human_on_tab = None
+        self._tab_handed_back = False
+
+    # ── 사람이 같은 탭을 쓰고 있으면 손을 멈춘다 (2026-10-19 · 잡 51f35b07) ─────────────────────────────
+    #
+    # ## 무슨 일이 있었나
+    #
+    #   browser_open(github.com/sonjari/sonjari) → find → snapshot → click j15 → snapshot(★ accounts.google.com 계정 고르기 ·
+    #   「사람이 111.3초 직접 조작」) → back(★ github.com/login?add_account=1&return_to=…/ollama/ollama — 이 판이 연 적 없는 화면) →
+    #   snapshot(★ github.com/ollama/ollama · 「30.4초 직접 조작」) → **click j15** → snapshot
+    #
+    # 대표가 같은 탭에서 깃허브 계정을 더하고 있었다. 손자리는 「사람이 만졌다 · 다시 보라」는 알림(`_with_takeover_note`)을 받고도
+    # 그 화면에서 뒤로 가고 눌렀다. 알림은 안내문이라 안 먹는다(사고 R). 결제 · 글쓰기 화면이었다면 사람 화면에서 단추를 눌렀다.
+    #
+    # ## 규칙 (안내가 아니라 문)
+    #
+    # 1. 이 판이 **스스로 간** 화면을 적는다 — 제 동작(열기 · 누르기 · 쓰기 …)이 끝난 뒤의 주소와, 열라고 한 주소.
+    #    읽기 손(`_LOOKING_HANDS`)의 결과 주소는 적지 않는다(읽었다고 그 화면이 이 판의 것이 되지 않는다).
+    # 2. 걸음마다 지금 주소를 본다. 적힌 화면이면 그대로.
+    # 3. 적히지 않은 화면인데 **이 판이 마지막으로 간 뒤에 사람이 무대에서 크롬을 만졌으면** → 사람이 이 탭을 쓰고 있는 것 같다.
+    #    화면을 바꾸는 손(`_HANDS_ON_THE_PAGE`)은 멈추고 `human_on_tab` 으로 돌려보낸다(반복문이 사람에게 넘긴다 —
+    #    `stuck_hands._stuck_report`). 읽기는 이어 가되 알림을 붙인다. 제 주소를 여는 손(`_OWN_ADDRESS_HANDS`)은 막지 않는다 —
+    #    사람 화면을 건드리지 않고 이 판의 화면을 새로 연다.
+    # 4. 사람이 만진 흔적이 없으면 **받아들인다** — 우리 누르기 뒤 늦게 끝난 이동 · 광고 다리 주소 · 화면이 스스로 바꾼 주소다.
+    #    운영 2,654판을 되짚으니 이런 「말없이 바뀐 주소」가 100번 넘게 있었고(다른 사이트로 바뀐 것도 30번 넘게 — 다나와 · 네이버
+    #    광고 다리) 사람 흔적은 없었다 — 여기서 멈추면 전부 헛멈춤이다.
+    # 5. 예외: 이 판이 간 **로그인 화면**에서 사람이 로그인을 마쳐 원래 사이트로 돌아온 것 — 같은 사이트로 돌아왔거나 로그인 주소가
+    #    돌아갈 곳으로 적은 화면이면 이 판의 화면이다.
+    #
+    # 사람이 무대가 아니라 **크롬 창을 직접** 만지면(붙어 쓰는 남의 크롬) 흔적이 없어 이 문이 못 본다 — 남은 구멍이다.
+
+    def hand_tab_back(self) -> None:
+        """사람이 「이어서」를 눌렀다 — 다음 걸음의 지금 화면을 이 판의 화면으로 받고 멈춤을 푼다(멈춘 판을 이을 때 부른다)."""
+        self._tab_handed_back = True
+
+    def note_human_hand(self) -> None:
+        """사람이 무대에서 크롬을 만졌다(돌려줄 때 `live_view` 가 부른다)."""
+        self._human_hand_at = time.time()
+
+    def _adopt_own_page(self, url: str) -> None:
+        key = _own_key(url)
+        if not key:
+            return
+        if key not in self._own_page_keys:
+            self._own_page_keys.add(key)
+            self._own_pages.append(url)
+            if len(self._own_pages) > 400:
+                self._own_pages = self._own_pages[-400:]
+        self._last_own_page = url
+
+    def _human_in_control_now(self) -> bool:
+        view = getattr(self, "live_view", None)
+        try:
+            return bool(view is not None and view.human_in_control())
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _finished_a_login(self, url: str) -> bool:
+        """이 판이 간 로그인 화면에서 사람이 로그인을 마치고 돌아온 화면인가(규칙 5)."""
+        from .url_privacy import is_sign_in_url
+
+        last = self._last_own_page
+        if not last or not is_sign_in_url(last):
+            return False
+        site = _site_of_url(url)
+        if site and any(_site_of_url(own) == site for own in self._own_pages if not is_sign_in_url(own)):
+            return True
+        try:
+            pairs = parse_qs(urlparse(last).query)
+        except ValueError:
+            return False
+        want = _own_key(url)
+        return any(
+            _own_key(unquote(value)) == want
+            for values in pairs.values() for value in values if value.startswith("http")
+        )
+
+    def _hold_if_human_on_tab(self, action: str, page: Any) -> None:
+        """걸음 앞에서 지금 화면이 이 판의 것인지 본다. 사람이 쓰는 화면이면 화면을 바꾸는 손을 멈춘다(위 규칙)."""
+        from .url_privacy import safe_url
+
+        try:
+            url = str(getattr(page, "url", "") or "")
+        except Exception:  # noqa: BLE001
+            return
+        if not _own_key(url):
+            return
+        if self._tab_handed_back:
+            self._tab_handed_back = False
+            self._human_on_tab = None
+            self._adopt_own_page(url)
+            self._own_page_at = time.time()
+            return
+        if self._human_on_tab is None:
+            if not self._own_page_keys:
+                # 판의 첫 화면 — 사람이 맡기며 띄워 둔 화면이거나 지난 판이 남긴 화면이다. 여기가 출발점이다.
+                self._adopt_own_page(url)
+                return
+            if _own_key(url) in self._own_page_keys:
+                return
+            if not (self._human_in_control_now() or self._human_hand_at > self._own_page_at):
+                self._adopt_own_page(url)  # 규칙 4 — 우리 동작의 늦은 이동
+                return
+            if self._finished_a_login(url):
+                self._adopt_own_page(url)  # 규칙 5
+                return
+            self._human_on_tab = {"from": self._last_own_page, "to": url, "at": time.time()}
+        if action in _HANDS_ON_THE_PAGE:
+            hold = self._human_on_tab
+            raise ValueError(
+                "human_on_tab — 사람이 이 탭을 쓰고 있는 것 같다. 지금 화면("
+                + safe_url(str(hold.get("to") or ""))[:160]
+                + ")은 이 작업이 연 화면이 아니고, 이 작업이 마지막으로 간 뒤에 사람이 브라우저를 직접 만졌다(이 작업이 마지막으로 간 화면: "
+                + safe_url(str(hold.get("from") or ""))[:160]
+                + "). 여기서는 아무것도 누르거나 쓰지 않았다. 사람에게 이 탭을 다 썼는지 물어라 — 사람이 「이어서」를 누르면 "
+                "그때의 화면에서 잇는다. 이 작업의 화면이 필요하면 browser_open 으로 그 주소를 새로 열어라(사람 화면은 건드리지 않는다)."
+            )
+
+    def _note_own_page_after(self, action: str, arguments: dict[str, Any], started: float) -> None:
+        """제 동작이 끝난 뒤의 주소를 「이 판이 간 화면」으로 적는다(규칙 1). 사람이 그 사이에 만졌으면 끝 주소는 적지 않는다."""
+        if action in _LOOKING_HANDS:
+            return
+        navigating = action in _OWN_ADDRESS_HANDS
+        if self._human_on_tab is not None and not navigating:
+            return
+        asked = str(arguments.get("url") or "") if navigating else ""
+        if asked:
+            self._adopt_own_page(asked)
+        if not self._human_in_control_now() and self._human_hand_at < started:
+            try:
+                self._adopt_own_page(str(getattr(self._page, "url", "") or ""))
+            except Exception:  # noqa: BLE001
+                pass
+        elif not asked:
+            return
+        if navigating:
+            self._human_on_tab = None
+        self._own_page_at = time.time()
+
+    def _with_human_on_tab_note(self, result: Any) -> Any:
+        """사람이 쓰던 화면을 읽은 결과에 붙이는 알림 — 읽기는 하되 그 화면에서 손은 쓰지 않는다고."""
+        hold = self._human_on_tab
+        if not hold or not isinstance(result, dict):
+            return result
+        from .url_privacy import safe_url
+
+        return {**result, "human_on_tab": (
+            "사람이 이 탭을 쓰고 있는 것 같다 — 지금 화면(" + safe_url(str(hold.get("to") or ""))[:160]
+            + ")은 이 작업이 연 화면이 아니다. 읽기만 했다. 이 화면에서 누르기 · 쓰기는 사람이 「이어서」를 누른 뒤에만 된다."
+        )}
 
     def set_named_addresses(self, prompt: str) -> tuple[str, ...]:
         """이번 판의 요청문이 **적어 준 주소**를 읽어 두고, 지금 열려 있는 탭을 「전부터 있던 탭」으로 적는다. 판이 바뀔 때 부른다.
@@ -5628,7 +6023,7 @@ class BrowserWorker:
     #: 태우면 브라우저 일꾼을 사실상 계속 쥐게 된다 — 그것이 이번에 고친 병의 약한 판이다.
     _QUIET_CAPTURE_BACKOFF_SEC = 20.0
 
-    def _capture(self, page: Any, *, quiet: bool) -> bytes | None:
+    def _capture(self, page: Any, *, quiet: bool, quality: int = 55) -> bytes | None:
         """사람이 PC 를 쓰는 중이면 **창을 안 올리고, 시간 제한을 걸고** 찍는다.
 
         못 찍으면 None 이고 `_capture_skip_reason` 에 이유가 남는다. 조용한 모드에서 None 을 받은
@@ -5663,7 +6058,7 @@ class BrowserWorker:
             self._capture_skip_reason = stalled[1]
             return None
         try:
-            raw = page.screenshot(type="jpeg", quality=55, scale="css",
+            raw = page.screenshot(type="jpeg", quality=quality, scale="css",
                                   timeout=self._QUIET_CAPTURE_TIMEOUT_MS)
         except Exception as exc:  # noqa: BLE001
             text = str(exc)
@@ -6109,8 +6504,12 @@ class BrowserWorker:
             self._show_visual(page, self._visual_label(action))
             self._doing = "handler"
             self._refuse_hand_on_another_site(action, page)
+            self._hold_if_human_on_tab(action, page)
+            started_at = time.time()
             result = handler(page, arguments)
             self._note_job_navigated(action)
+            self._note_own_page_after(action, arguments, started_at)
+            result = self._with_human_on_tab_note(result)
             self._doing = "show_visual_done"
             self._show_visual(self._page, "작업 단계 완료", completed=True)
             with self._lock:
@@ -10389,7 +10788,9 @@ class BrowserWorker:
         try:
             digits = list(page.evaluate(_ROLLER_DIGITS_JS) or [])
         except Exception:
-            return text
+            # ★ 2026-10-22: 읽기가 예외로 실패하면 「0 1 2 … 9」 원문을 그대로 냈다 — 아래 규칙(못 읽은 칸은 「?」, 열 숫자를 그대로
+            #   두지 않는다)과 어긋났다. 띠가 있는 것은 알았으니 칸 수만큼 「?」로 — 지어내지도, 열 숫자를 값처럼 넘기지도 않는다.
+            return _fold_rollers(text, [])
         return _fold_rollers(text, digits) if digits else text
 
     def _read(self, page: Any, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -11138,6 +11539,8 @@ class BrowserWorker:
             300,
         )
         tag = _clean(locator.evaluate("el => el.tagName.toLowerCase()"), 20)
+        # 누르기 **전에** 적는다 — 누르고 나면 다른 화면으로 넘어가 요소가 사라질 수 있다.
+        durable = self._durable_selectors(locator)
         element_type = _clean(locator.get_attribute("type"), 30)
         if self.config.browser_read_only and _read_only_blocks(name, element_type):
             raise RuntimeError(f"read_only_action_blocked:{name or element_type}")
@@ -11261,6 +11664,8 @@ class BrowserWorker:
             if str(expect.get("kind") or "") == "text_appears":
                 before = False  # 옛 창에서 잰 「전」은 새 창의 기준이 아니다
         result = self._evidence("clicked", ref=ref, element={"name": name, "tag": tag})
+        if durable:
+            result["selectors"] = durable
         # 눌렀더니 토글 상태가 뒤집혔으면, **같은 것을 다시 누르는 것이 역동작**이다.
         # 사이트를 몰라도 알 수 있는 몇 안 되는 되돌리기다(`_toggle_state` 참고).
         # 누르기 전에 토글이 아니었으면 뒤집힐 것도 없다. 다른 페이지로 넘어가 요소가 사라졌으면 읽을 것도 없다.
@@ -11674,6 +12079,9 @@ class BrowserWorker:
         except Exception as exc:
             raise RuntimeError(self._fill_failure_hint(locator, exc)) from exc
         evidence = self._evidence("filled", ref=ref, value_length=len(value))
+        durable = self._durable_selectors(locator)
+        if durable:
+            evidence["selectors"] = durable
         # 어느 칸에 넣었는지 **이름으로** 돌려준다 — 번호만 보고 옆 칸에 넣은 것을 그 자리에서 알아보게.
         remembered = (getattr(self, "_ref_memory", None) or {}).get(str(ref)) or {}
         field_name = _clean(remembered.get("name"), 80)
@@ -12304,6 +12712,17 @@ class BrowserWorker:
     _TOGGLE_ATTRS = ("aria-pressed", "aria-checked")
 
     @staticmethod
+    def _durable_selectors(locator: Any) -> list[str]:
+        """이 요소를 **다음 판에서도** 찾을 셀렉터 후보(`_DURABLE_SELECTORS_JS`). 못 읽으면 빈 목록 — 기록용이라 일을 막지 않는다."""
+        try:
+            found = locator.evaluate(_DURABLE_SELECTORS_JS)
+        except Exception:
+            return []
+        if not isinstance(found, (list, tuple)):
+            return []
+        return [str(item) for item in found if isinstance(item, str)][:6]
+
+    @staticmethod
     def _still_there(locator: Any) -> bool:
         """누른 요소가 **아직 화면에 있나** — 기다리지 않고 센다 (2026-10-05 AWS 영어 윈도우 첫 실행).
 
@@ -12709,8 +13128,12 @@ class BrowserWorker:
                 search_field = False
             if not search_field:
                 raise RuntimeError("read_only_enter_blocked")
+        durable = self._durable_selectors(locator)
         locator.press(key)
-        return self._evidence("pressed", ref=ref, key=key)
+        pressed = self._evidence("pressed", ref=ref, key=key)
+        if durable:
+            pressed["selectors"] = durable
+        return pressed
 
     def _scroll(self, page: Any, arguments: dict[str, Any]) -> dict[str, Any]:
         amount = max(-3000, min(int(arguments.get("amount") or 700), 3000))
@@ -13532,14 +13955,40 @@ class BrowserWorker:
 
         받은 파일은 `browser_download_dir` 에 남고, 그 폴더는 로컬 읽기 허용 루트에
         들어 있으므로 곧바로 `local_read_document` 로 읽을 수 있다.
+
+        ★ 2026-10-18 LH 청년전세임대 공고 판(잡 760b04f4 · 413초 · 23걸음) — **받고도 못 읽었다.**
+        「1순위 자격」은 공고의 첨부 PDF 에 있었다. 모델은 14걸음째에 이 도구를 불러 `ok` 를 받았지만, 그 뒤 4분 동안
+        같은 HTML 화면에서 찾기·내리기만 하다가 **읽지 않은 조건**(나이 · 거주)을 답에 적었다(답 스스로 「읽지 않고 적은 것」).
+        파일을 열어 보니 PDF 가 아니라 **공고 화면 HTML(695KB)** 이었다 — 첨부 링크가 `javascript:fileDownLoad('…')`
+        라 모델은 받을 주소를 몰랐고, 화면 주소에 이름만 `.pdf` 로 붙여 넘겼다. 도구는 그걸 `ok` 로 저장해 줬다.
+        「받은 path 를 local_read_document 로 읽어라」는 안내는 있었지만 안 먹었다(사고 R). 그래서 셋을 코드로 박는다.
+
+          ① **링크 ref 로 받는다** — 주소가 없는 첨부(`javascript:`)는 도구가 그 링크를 눌러 내려오는 파일을 붙잡는다.
+          ② **문서라 부른 것이 웹 화면이면 저장하지 않는다** — 「받았다」가 아니라 「받은 것은 화면이다, ref 로 다시」를 준다.
+          ③ **받은 문서는 그 자리에서 읽어 본문을 결과에 싣는다**(`content`) — 읽는 걸음을 모델에게 맡기지 않는다.
         """
-        url = str(arguments.get("url") or "").strip()
-        if not url:
-            raise ValueError("url_required")
-        if not url.lower().startswith(("http://", "https://")):
-            raise ValueError("http_url_required")
         directory = self.config.browser_download_dir
         directory.mkdir(parents=True, exist_ok=True)
+        ref = str(arguments.get("ref") or "").strip()
+        url = str(arguments.get("url") or "").strip()
+        if ref:
+            from urllib.parse import urljoin
+
+            locator = self._ref_locator(page, ref)
+            label = _clean(locator.get_attribute("title") or locator.inner_text(timeout=1000), 200)
+            # 받기는 누르기다 — 결제·삭제처럼 되돌릴 수 없는 이름이 붙은 것은 이 문으로 누르지 않는다(`_click` 과 같은 규칙).
+            if _IRREVERSIBLE_ACTION.search(label):
+                raise RuntimeError(f"irreversible_click_needs_approval:{label}")
+            href = str(locator.get_attribute("href") or "").strip()
+            if href and not href.lower().startswith(("javascript:", "#", "mailto:", "tel:")):
+                # 진짜 주소가 붙은 링크면 세션 요청으로 받는다 — 누르는 것보다 조용하고 같은 자격이다.
+                url = urljoin(str(getattr(page, "url", "") or ""), href)
+            else:
+                return self._download_by_click(page, locator, label, directory, arguments)
+        if not url:
+            raise ValueError("url_or_ref_required")
+        if not url.lower().startswith(("http://", "https://")):
+            raise ValueError("http_url_required")
 
         context = page.context
         response = context.request.get(url, timeout=120_000)
@@ -13562,18 +14011,143 @@ class BrowserWorker:
         name = re.sub(r"[^0-9A-Za-z_.가-힣-]+", "_", name)[:80] or "download"
         if "." not in name:
             name += _EXTENSION_BY_TYPE.get(content_type, ".bin")
+        refused = self._download_is_a_page(name, body[:4096], url=url, status=status, content_type=content_type)
+        if refused is not None:
+            return refused
         path = directory / f"{time.strftime('%Y%m%d_%H%M%S')}_{name}"
         path.write_bytes(body)
+        return self._downloaded(path, url=url, status=status, content_type=content_type, arguments=arguments)
+
+    #: 링크를 눌러 받을 때 파일이 내려오기를 기다리는 시간.
+    _DOWNLOAD_CLICK_TIMEOUT_MS = 60_000
+
+    def _download_by_click(
+        self, page: Any, locator: Any, label: str, directory: Path, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        """주소가 없는 첨부 링크(`javascript:fileDownLoad('…')`)를 눌러 **내려오는 파일을 붙잡는다.**
+
+        공공기관 게시판의 첨부는 거의 이 꼴이다 — 받을 주소가 화면에 없고, 누르면 스크립트가 주소를 만들어 이동한다.
+        누르기만 하면 파일은 조용히 다운로드 폴더로 가고 모델은 「화면에 변화 없음」만 받는다(760b04f4 의 16걸음째).
+        """
+        try:
+            with page.expect_download(timeout=self._DOWNLOAD_CLICK_TIMEOUT_MS) as info:
+                locator.click()
+            download = info.value
+        except Exception as exc:  # noqa: BLE001 — 안 내려온 것은 실패로 알린다, 판을 죽이지 않는다
+            if "timeout" not in type(exc).__name__.lower() and "timeout" not in str(exc).lower():
+                raise
+            return {
+                "action": "browser_download", "ok": False, "label": label,
+                "instruction": (
+                    f"「{label}」를 눌렀지만 {self._DOWNLOAD_CLICK_TIMEOUT_MS // 1000}초 안에 파일이 내려오지 않았다 — "
+                    "새 창 미리보기로 열렸을 수 있다. browser_tabs 로 새 탭을 보고, 그 주소를 browser_download(url=…) 로 넘겨라."
+                ),
+            }
+        name = str(arguments.get("name") or "").strip() or str(getattr(download, "suggested_filename", "") or "")
+        name = re.sub(r"[^0-9A-Za-z_.가-힣-]+", "_", name)[:80] or "download"
+        if "." not in name:
+            name += ".bin"
+        path = directory / f"{time.strftime('%Y%m%d_%H%M%S')}_{name}"
+        download.save_as(str(path))
+        url = str(getattr(download, "url", "") or "")
+        size = path.stat().st_size
+        if size > self._DOWNLOAD_MAX_BYTES:
+            path.unlink(missing_ok=True)
+            raise ValueError(f"download_too_large:{size}")
+        with path.open("rb") as handle:
+            head = handle.read(4096)
+        refused = self._download_is_a_page(name, head, url=url, status=200, content_type="")
+        if refused is not None:
+            path.unlink(missing_ok=True)
+            return refused
+        return self._downloaded(path, url=url, status=200, content_type="", arguments=arguments, label=label)
+
+    #: 그 자리에서 읽어 결과에 싣는 형식. 옛 한글(.hwp)·옛 오피스(.doc/.xls)는 읽는 자가 없어 따로 안내한다.
+    _DOWNLOAD_READABLE = frozenset({
+        ".pdf", ".docx", ".xlsx", ".pptx", ".hwpx", ".odt", ".ods", ".odp", ".epub",
+        ".txt", ".md", ".csv", ".tsv", ".json", ".rtf",
+    })
+    #: 이름이 이 꼴이면 **문서 파일을 받으려 한 것**이다 — 받은 것이 웹 화면이면 저장하지 않는다.
+    _DOWNLOAD_DOCUMENT_SUFFIXES = _DOWNLOAD_READABLE | frozenset({".hwp", ".doc", ".xls", ".ppt", ".zip"})
+    _HTML_HEAD = re.compile(rb"^\s*(?:<!--.*?-->\s*)*<(?:!doctype\s+html|html|head|body)\b", re.I | re.S)
+    #: 받은 그 자리에서 결과에 싣는 본문 글자 수 — 기본은 `browser_extract` 와 같은 20,000. 위로는 도구 결과 한 건
+    #: 상한(`transcript_policy._TOOL_RESULT_MAX_CHARS`)까지만 받는다. 그보다 크게 실으면 그 상한이 조용히 자른다(사고 Q).
+    _DOWNLOAD_READ_CHARS = 20_000
+
+    def _download_is_a_page(
+        self, name: str, head: bytes, *, url: str, status: int, content_type: str
+    ) -> dict[str, Any] | None:
+        """문서라고 받은 것이 **웹 화면(HTML)** 이면 거절 결과를, 아니면 None 을 준다(760b04f4 — 화면을 `.pdf` 로 저장했다)."""
+        suffix = Path(name).suffix.lower()
+        if suffix not in self._DOWNLOAD_DOCUMENT_SUFFIXES:
+            return None
+        is_html = bool(self._HTML_HEAD.match(head.lstrip(b"\xef\xbb\xbf")))
+        not_pdf = suffix == ".pdf" and b"%PDF" not in head[:1024]
+        if not is_html and not (not_pdf and content_type.startswith("text/")):
+            return None
         return {
-            "action": "browser_download",
-            "url": url,
-            "status": status,
-            "ok": True,
-            "path": str(path),
-            "bytes": len(body),
-            "content_type": content_type,
-            "note": "local_read_document 로 이 path 를 읽어라",
+            "action": "browser_download", "url": url, "status": status, "ok": False,
+            "got": "web_page", "content_type": content_type or "text/html",
+            "instruction": (
+                f"받은 것은 {suffix} 문서가 아니라 웹 화면(HTML)이다 — 저장하지 않았다. 이 주소는 문서가 아니라 화면이다. "
+                "첨부가 `javascript:` 링크로 받는 사이트(공공기관 게시판 등)는 주소로 못 받는다: browser_find 로 첨부 "
+                "파일 이름(예: 「.pdf」)을 찾아 그 ref 를 browser_download(ref=…) 로 넘겨라 — 도구가 링크를 눌러 받은 "
+                "파일을 저장하고 본문까지 읽어 준다."
+            ),
         }
+
+    def _downloaded(
+        self, path: Path, *, url: str, status: int, content_type: str, arguments: dict[str, Any], label: str = "",
+    ) -> dict[str, Any]:
+        """저장한 파일의 결과 — 읽을 수 있는 문서면 **본문을 같이 싣는다**(`content`)."""
+        result: dict[str, Any] = {
+            "action": "browser_download", "url": url, "status": status, "ok": True,
+            "path": str(path), "bytes": path.stat().st_size, "content_type": content_type,
+            **({"label": label} if label else {}),
+        }
+        suffix = path.suffix.lower()
+        if suffix == ".hwp":
+            # local_read_document 도 옛 한글은 거절한다 — 갈 길을 같이 준다(local_computer.read_document 와 같은 말).
+            result["instruction"] = (
+                "옛 한글(.hwp)은 그 자리에서 못 읽었다. hwp_export_pdf(path) 로 PDF 로 바꾼 뒤 local_read_document 로 읽어라."
+            )
+            return result
+        if suffix not in self._DOWNLOAD_READABLE:
+            result["note"] = "문서 형식이 아니라 읽지 않았다 — 파일만 저장했다."
+            return result
+        from .document_reader import DocumentReader
+        from .transcript_policy import _TOOL_RESULT_MAX_CHARS
+
+        try:
+            limit = max(1_000, min(int(arguments.get("max_chars") or self._DOWNLOAD_READ_CHARS), _TOOL_RESULT_MAX_CHARS))
+        except (TypeError, ValueError):
+            limit = self._DOWNLOAD_READ_CHARS
+        try:
+            document = DocumentReader().read_path(path)
+        except Exception as exc:  # noqa: BLE001 — 받기는 됐다, 읽기 실패만 알린다
+            result["read_error"] = str(exc)[:200]
+            result["instruction"] = "받았지만 그 자리에서 못 읽었다 — local_read_document 로 path 를 읽어라."
+            return result
+        text = document.text
+        result.update({
+            "format": document.format, "pages": document.pages, "content": text[:limit],
+            "char_count": min(len(text), limit), "total_chars": len(text),
+            "truncated": len(text) > limit or document.truncated,
+        })
+        if document.warnings:
+            result["warnings"] = list(document.warnings)
+        if not text.strip():
+            result["instruction"] = (
+                "받은 문서에 글자 층이 없다(스캔 PDF 일 수 있다). local_read_document 로 path 를 읽으면 그림 판독을 시도한다."
+            )
+        elif len(text) > limit:
+            result["instruction"] = (
+                f"받은 문서의 본문을 content 에 실었다 — 앞 {limit:,}자(전체 {len(text):,}자). 뒷부분이 필요하면 "
+                "local_read_document(path, max_chars) 로 더 읽어라. 화면에서 다시 찾지 마라."
+            )
+        else:
+            result["instruction"] = "받은 문서의 본문 전체를 content 에 실었다 — 이것으로 답하라. 화면에서 다시 찾지 마라."
+        return result
 
     def _screenshot(self, page: Any, arguments: dict[str, Any]) -> dict[str, Any]:
         """A PNG of what is on screen right now, saved to the evidence dir.
@@ -14758,10 +15332,18 @@ class BrowserTools:
             ),
             self._function(
                 "browser_download",
-                "URL 의 PDF·문서·파일을 **지금 브라우저 세션 그대로** 받아 저장한다(로그인 뒤 자료도 된다). "
-                "받은 path 는 local_read_document 로 바로 읽어라. 화면에 띄워 눈으로 읽지 마라.",
-                {"url": {"type": "string"}, "name": {"type": "string", "description": "저장할 파일 이름(생략 가능)"}},
-                ["url"],
+                # ★ 2026-10-18 LH 공고 판(760b04f4): 첨부가 `javascript:` 링크라 주소가 없었고, 모델은 화면 주소를 넘겨
+                #   HTML 을 `.pdf` 로 받았다. 주소를 모르는 첨부는 browser_find 의 ref 로 받는다 — 도구가 눌러 붙잡는다.
+                "PDF·한글·워드·엑셀 같은 **첨부 문서**를 지금 브라우저 세션 그대로 받아 저장하고, 읽을 수 있는 문서면 "
+                "**본문을 결과의 content 에 실어 준다**(로그인 뒤 자료도 된다). 파일 주소를 알면 url, 주소가 안 보이는 "
+                "첨부 링크(공공기관 게시판의 javascript 링크 등)는 browser_find 로 찾은 그 링크의 ref 를 넘겨라. "
+                "웹 화면 주소를 넘기지 마라 — 화면은 문서가 아니다. 화면에 띄워 눈으로 읽지 마라.",
+                {
+                    "url": {"type": "string", "description": "파일 자체의 주소(화면 주소 아님)"},
+                    "ref": {"type": "string", "description": "browser_find 가 준 첨부 링크의 ref — 주소가 없는 첨부는 이것으로"},
+                    "name": {"type": "string", "description": "저장할 파일 이름(생략 가능)"},
+                    "max_chars": {"type": "integer", "description": "결과에 실을 본문 글자 수(기본 20000, 최대 30000)"},
+                },
             ),
             self._function(
                 "browser_screenshot",

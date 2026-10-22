@@ -1,0 +1,98 @@
+/*
+ * 첫 화면의 「이번 주 영수증」 (2026-10-21). 새 색은 없다(tokens.css 의 뜻 그대로).
+ *
+ *   사람 쪽 카드(따뜻한 흑연) — 퀘스트 판 · 제안 칸과 같은 폭 · 같은 모서리 · 같은 면.
+ *   숫자 — 큰 숫자 하나만 크게, 나머지는 셋이 한 줄. 자리 맞춤(tabular-nums)은 하되 고정폭 글꼴은 쓰지 않는다:
+ *          고정폭에서는 쉼표가 숫자 한 칸을 먹어 「912 , 788」처럼 벌어졌다(v1 비평). 단위(건 · 개)는 작고 옅게.
+ *   점선 — 영수증의 칸 나눔. 선을 굵게 긋지 않는다.
+ *   유채색 없음 — 「이미지로 저장」은 사람이 움직여야 할 일이 아니라(읽기 · 나눔) 노랑을 쓰지 않는다.
+ */
+.receipt-card {
+  width: 100%;
+  margin-top: 32px;
+  padding: 16px 18px 14px;
+  box-sizing: border-box;
+  border: 1px solid rgb(var(--line) / .8);
+  border-radius: var(--r-3);
+  background: rgb(var(--surface-3));
+  text-align: left;
+}
+.quest-board + .receipt-card { margin-top: 12px; }
+
+.receipt-card header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.receipt-card h2 { margin: 0; font-size: var(--fs-3); font-weight: var(--fw-mid); color: rgb(var(--text-1)); white-space: nowrap; }
+/* 기간은 사람 말(「최근 7일」)이라 고정폭이 아니다 — 고정폭이면 한글 사이가 벌어졌다(v1). */
+.receipt-period { font-size: var(--fs-1); color: rgb(var(--text-5)); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.receipt-save {
+  margin-left: auto; align-self: center; padding: 5px 12px;
+  border: 1px solid rgb(var(--line-strong)); border-radius: var(--r-pill);
+  background: none; color: rgb(var(--text-3)); font-size: var(--fs-2); white-space: nowrap; cursor: pointer;
+  transition: background var(--t-move) var(--ease), color var(--t-move) var(--ease);
+}
+.receipt-save:hover:not(:disabled) { color: rgb(var(--text-1)); background: rgb(var(--surface-4)); }
+.receipt-save:disabled { cursor: progress; color: rgb(var(--text-5)); }
+
+.receipt-num { font-variant-numeric: tabular-nums; }
+.receipt-num b { font-weight: inherit; }
+.receipt-unit-sm { margin: 0 1px; font-size: var(--fs-2); font-weight: var(--fw-body); color: rgb(var(--text-3)); }
+
+/* 주인공 — 클로드에 안 실은 본문 */
+.receipt-hero { margin-top: 12px; padding: 14px 0 16px; border-top: 1px dashed rgb(var(--line-strong)); }
+.receipt-hero p { margin: 0; }
+.receipt-hero-label { font-size: var(--fs-2); color: rgb(var(--text-3)); }
+.receipt-hero-figure { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 4px !important; }
+.receipt-hero-figure .receipt-num {
+  font-size: clamp(30px, 4.2vw, 40px); font-weight: var(--fw-bold); line-height: 1.15;
+  letter-spacing: -.02em; color: rgb(var(--text-1));
+}
+.receipt-floor, .receipt-unit { font-size: var(--fs-4); font-weight: var(--fw-mid); color: rgb(var(--text-3)); }
+.receipt-hero-note { margin-top: 6px !important; font-size: var(--fs-2); line-height: 1.55; color: rgb(var(--text-4)); }
+
+/* 세 숫자 */
+.receipt-stats {
+  margin: 0; padding: 12px 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;
+  border-top: 1px dashed rgb(var(--line-strong));
+}
+.receipt-stats div { min-width: 0; display: flex; flex-direction: column-reverse; gap: 2px; }
+.receipt-stats dt { font-size: var(--fs-1); color: rgb(var(--text-5)); }
+.receipt-stats dd { margin: 0; font-size: var(--fs-4); font-weight: var(--fw-mid); color: rgb(var(--text-1)); }
+
+.receipt-basis {
+  margin: 0; padding-top: 10px; border-top: 1px dashed rgb(var(--line-strong));
+  font-size: var(--fs-1); line-height: 1.5; color: rgb(var(--text-5));
+}
+
+/* 저장 결과 — 저장한 자리를 짧게(집 경로 없이) */
+.receipt-saved {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  margin: 10px 0 0; padding: 8px 10px; border-radius: var(--r-1);
+  background: rgb(var(--surface-2)); font-size: var(--fs-2); color: rgb(var(--text-2));
+}
+.receipt-saved code { font-family: var(--font-mono); font-size: var(--fs-1); color: rgb(var(--text-3)); overflow-wrap: anywhere; }
+.receipt-saved button {
+  margin-left: auto; padding: 3px 10px; border: 1px solid rgb(var(--line-strong)); border-radius: var(--r-pill);
+  background: none; color: rgb(var(--text-3)); font-size: var(--fs-1); cursor: pointer;
+}
+.receipt-saved button:hover { color: rgb(var(--text-1)); background: rgb(var(--surface-4)); }
+.receipt-saved.is-failed { color: rgb(var(--stop-bright)); }
+
+/* 작은 판 — 직접 시킨 일만 있을 때 */
+.receipt-card.is-small { padding-bottom: 14px; }
+/* 이름과 숫자를 붙여 둔다 — 양 끝으로 벌리면 넓은 창에서 눈이 1,000px 를 건너야 했다(v1). */
+.receipt-small-line {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed rgb(var(--line-strong));
+  font-size: var(--fs-2); color: rgb(var(--text-3));
+}
+.receipt-small-line strong { font-size: var(--fs-4); font-weight: var(--fw-mid); color: rgb(var(--text-1)); }
+
+.receipt-card button:focus-visible { outline: 2px solid rgb(var(--signal)); outline-offset: 2px; }
+
+/* 좁은 카드 — 창 폭이 아니라 카드 폭으로 본다(사이드바가 있어 창 폭으로는 못 맞춘다). */
+.receipt-card { container-type: inline-size; }
+@container (max-width: 440px) {
+  .receipt-save { margin-left: 0; }
+  .receipt-stats { grid-template-columns: 1fr; gap: 8px; }
+  .receipt-stats div { flex-direction: row-reverse; justify-content: space-between; align-items: baseline; }
+}

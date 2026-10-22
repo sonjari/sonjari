@@ -188,6 +188,8 @@ WRITE_TOOLS = frozenset(
         # 클립보드는 사람 손이 닿는 곳까지 잇는 다리다 — 실제로 밖에 남는다.
         "clipboard_write",
         "hwp_apply_edit",
+        "hwp_apply_format",  # 서식 반영(2026-10-17) — 글자 바꾸기와 같은 무게, 백업 되돌리기가 붙는다
+        "hwp_export_pdf",  # 한글 → PDF(2026-10-17) — 새 파일을 만든다(local_write_document 와 같은 칸)
         # 지목 폴더의 코드를 실제로 읽고 고치는 외부 코딩 손. 결과가 git 변경으로
         # 남으므로 읽기나 중립으로 세면 L3 분모가 조용히 샌다.
         "claude_code_delegate",
@@ -217,6 +219,8 @@ COMMIT_TOOLS = frozenset(
         "local_edit_spreadsheet",
         "artifact_from_observations",
         "hwp_apply_edit",
+        "hwp_apply_format",  # 서식 반영(2026-10-17) — 글자 바꾸기와 같은 무게, 백업 되돌리기가 붙는다
+        "hwp_export_pdf",  # 한글 → PDF(2026-10-17) — 새 파일을 만든다(local_write_document 와 같은 칸)
         # 남의 달력을 고치고 지운다. `google_calendar_create` 와 같은 무게이고,
         # 참석자가 있으면 밖으로 알림이 나간다 — 되돌려도 이미 나간 것은 남는다.
         "google_calendar_update",
@@ -249,6 +253,7 @@ PREPARE_TOOLS = frozenset(
         # 확정은 `windows_execute_preview`(WRITE·COMMIT)다.
         "windows_visual_preview",
         "hwp_preview_edit",
+        "hwp_preview_format",  # 서식 미리보기(2026-10-17) — 사본에만 건다. 확정은 hwp_apply_format
     }
 )
 
@@ -269,6 +274,7 @@ NEUTRAL_TOOLS = frozenset(
         "sonjari_task",
         "sonjari_task_status",
         "sonjari_guide",  # 가이드 본문을 돌려주는 읽기 전용 문(2026-09-17) — 잡이 아니다
+        "sonjari_story",  # 서기 카드를 돌려주는 읽기 전용 문(2026-10-21) — 잡이 아니다
         "unity_list_recipes",  # 레시피 목록(2026-09-27) — 무엇을 할 수 있나일 뿐, 읽은 근거가 아니다
         "unity_try_script",  # 바깥 AI 전용 초안 문(2026-09-27) — 온텔릭 잡 안 걸음으로는 안 나온다
         "browser_find",

@@ -1,0 +1,34 @@
+{
+  "ko": {
+    "changes": "이번에 새로 생긴 것\n- 서기가 실험실에서 나와 설정 › 서기 에 자리를 잡았습니다. 이 PC 에서 클로드 코드로 대화한 작업 폴더가 최근 것부터 보이고, 체크로 고르면 됩니다. 경로를 손으로 적지 않아도 됩니다.\n- 서기를 켜면 클로드 코드 설정 파일에 훅 셋이 들어갑니다. 대화가 압축된 직후와 새 대화를 열 때, 서기가 적어 둔 카드(정한 것 · 버린 것 · 남은 일)와 주제 색인을 클로드에게 다시 넣어 줍니다. 넣기 전에 원래 설정 파일을 백업하고, 서기를 끄면 손자리가 넣은 훅만 뺍니다.\n- 카드마다 주제가 붙고, 주제마다 그 이야기가 나온 날짜와 대화 기록의 줄 번호를 모아 둡니다. 클로드는 필요한 주제의 줄만 열어 봅니다.\n- 이어받기를 어떻게 시작하는지 알려 줍니다. 처음 설정의 「연결」 칸과 설정 › 이어받기에, 손자리 창에 그대로 말하면 되는 예시가 생겼습니다.\n\n이번에 고친 것\n- 큰 저장소에서 코드를 물을 때, 바뀐 파일을 색인에 다시 넣는 속도가 훨씬 빨라졌습니다. 같은 색인을 한 질문 안에서 두 번 따라잡던 것도 고쳤습니다.\n- 「찾아보겠습니다」처럼 예고만 하고 끝나던 답을 다시 쓰게 할 때, 표를 답에 바로 쓰면 손자리가 파일로 옮겨 저장합니다.\n- 클로드가 돌려받을 항목을 정해 맡기면, 그 이름을 그대로 붙여 답하라고 손자리에게 함께 전합니다.\n- 「못 찾음」만 적힌 표 줄에 「읽지 않고 적었다」는 헛경고가 붙던 것을 고쳤습니다. 금액은 소수점 끝자리까지 대조합니다.\n- 숫자가 굴러가는 칸을 못 읽으면 엉뚱한 숫자 대신 「?」로 적습니다.",
+    "tour": "이미 되는데 잘 모르시는 것\n- 디스코드로 일 시키기 — 밖에서 휴대폰 디스코드로 손자리에게 일을 맡기고 결과를 받습니다(설정 › 디스코드로 일 시키기).\n- 클로드 · 코덱스 · 커서에서 Sonjari 쓰기 — 그 AI 가 웹 조사 · 파일 일을 손자리에게 맡깁니다. 클로드가 읽을 본문을 이 PC 가 대신 읽어 클로드 사용 한도를 아낍니다(설정 › 연결).\n- 예약 작업 — 정해 둔 시각에 같은 일을 돌립니다(설정 › 일반).\n- 나에 대한 지침 — 하는 일 · 답 길이 · 말투를 적어 두면 매번 그렇게 답합니다(설정 › 나에 대한 지침).\n- 문서 만들기 — 웹에서 찾은 것을 엑셀 · 워드 · 한글 · PDF 파일로 만들어 줍니다. 로그인된 내 크롬을 그대로 씁니다.",
+    "slides": [
+      {
+        "title": "클로드 코드가 대화를 압축해도 정한 것이 남습니다",
+        "body": "서기가 클로드 코드 대화를 읽어 정한 것 · 버린 것 · 남은 일을 카드로 적어 두고, 압축된 직후와 새 대화를 열 때 클로드에게 다시 넣어 줍니다. 대화 기록은 이 PC 안에서만 읽습니다.",
+        "try": "설정 › 서기 에서 읽을 프로젝트를 고르고 켜 보세요."
+      },
+      {
+        "title": "클로드가 한도로 멈추면 이렇게 말하세요",
+        "body": "손자리 창에 「클로드 한도 걸렸어, 이어받아 줘」라고 말하면, 이 PC 에 남은 기록에서 멈춘 자리를 찾아 이어서 할지 먼저 묻습니다. 이 PC 의 Claude Code · Codex 대화만 됩니다.",
+        "try": "설정 › 이어받기 에서 다시 볼 수 있습니다."
+      }
+    ]
+  },
+  "en": {
+    "changes": "New in this update\n- The scribe moved out of the lab into Settings > Scribe. Folders you've worked in with Claude Code on this PC are listed, most recent first, and you pick them with a checkbox. No more typing paths.\n- Turning the scribe on adds three hooks to your Claude Code settings file. Right after a conversation is compacted, and when you open a new one, the scribe's cards (what was decided, dropped and left to do) and a topic index go back to Claude. The original settings file is backed up first, and turning the scribe off removes only the hooks Sonjari added.\n- Each card now has topics, and each topic keeps the dates and log line numbers where it came up, so Claude opens only the lines it needs.\n- It now tells you how to start a takeover. The Connect step of setup and Settings > Take over show phrases you can say in the Sonjari window as is.\n\nFixed in this update\n- Asking about code in a large repository is faster: re-indexing changed files runs much quicker, and the index is no longer caught up twice in one question.\n- When an answer only promised (\"I'll look it up\") and is rewritten, a table written in the answer is now saved to a file by Sonjari.\n- When Claude hands over a job with named fields, Sonjari is now told to label its answer with those exact names.\n- Table rows that only say \"not found\" no longer get a false \"written without reading\" warning. Prices are checked to the last decimal.\n- When a rolling-digit counter can't be read, it shows \"?\" instead of a wrong number.",
+    "tour": "Things that already work\n- Work from Discord — hand Sonjari a job from Discord on your phone and get the result back (Settings > Work from Discord).\n- Use Sonjari from Claude, Codex or Cursor — that AI hands web research and file work to Sonjari, and this PC reads the pages instead of Claude, saving your Claude usage (Settings > Connect).\n- Scheduled tasks — run the same job at set times (Settings > General).\n- About me — write down your work, answer length and tone, and it answers that way every time (Settings > About me).\n- Make documents — turn what it finds on the web into Excel, Word, Hangul or PDF files, using your own signed-in Chrome.",
+    "slides": [
+      {
+        "title": "Decisions survive when Claude Code compacts",
+        "body": "The scribe reads your Claude Code conversations, writes down what was decided, dropped and left to do as cards, and hands them back to Claude right after a compaction and when you open a new conversation. Logs are read on this PC only.",
+        "try": "Pick the projects to read in Settings > Scribe and turn it on."
+      },
+      {
+        "title": "When Claude stops at its limit, say this",
+        "body": "Say \"Claude hit its limit, take over\" in the Sonjari window. It finds where the conversation stopped in the logs on this PC and asks before continuing. Works with Claude Code and Codex on this PC.",
+        "try": "You can find this again in Settings > Take over."
+      }
+    ]
+  }
+}

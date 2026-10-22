@@ -76,7 +76,9 @@ def test_prices_dates_and_order_numbers_are_untouched() -> None:
 def test_a_need_is_met_by_a_filled_table_column_or_a_labelled_line() -> None:
     answer = TABLE + "\n배송비: 무료\n"
     checked = {item["label"]: item["met"] for item in check_needs(["상품 이름", "가격", "배송비", "리뷰 수"], answer)}
-    assert checked == {"상품 이름": True, "가격": True, "배송비": True, "리뷰 수": False}
+    # ★ 2026-10-19: 이름이 붙은 자리를 못 찾은 「리뷰 수」는 「없음(False)」이 아니라 「확인 못 함(None)」이다 —
+    #   이름 낱말로 못 찾은 것을 없다고 단정하던 것이 Ollama FAQ 세 판의 거짓 0/n 이었다(test_needs_check_1019).
+    assert checked == {"상품 이름": True, "가격": True, "배송비": True, "리뷰 수": None}
 
 
 def test_a_column_with_only_blanks_does_not_count() -> None:
@@ -90,13 +92,16 @@ def test_a_column_with_only_blanks_does_not_count() -> None:
 def test_the_summary_reports_needs_refines_and_carries_a_receipt() -> None:
     summary = summarize_job(_job(TABLE + "\n문의: 010-1234-5678", needs=["상품 이름", "가격", "리뷰 수"]))
     assert summary["needs"] == [{"label": "상품 이름", "met": True}, {"label": "가격", "met": True},
-                                {"label": "리뷰 수", "met": False}]
+                                {"label": "리뷰 수", "met": None}]
     assert "010-1234-5678" not in summary["answer"]
     assert summary["refined"] == [{"kind": "전화번호", "count": 1}]
     assert any("리뷰 수" in note for note in summary.get("review_notes") or [])
     receipt = summary["receipt"]
     assert receipt["needs_met"] == 2 and receipt["needs_total"] == 3 and receipt["refined"] == 1
-    assert "필요한 것 2/3" in receipt["line"] and "정제 1" in receipt["line"]
+    assert receipt["needs_unknown"] == 1 and receipt["needs_missing"] == 0
+    # 확인 못 한 항목이 있으면 분수(「2/3」)를 쓰지 않는다 — 셋을 따로 센다 (2026-10-19).
+    assert "필요한 것 3개 · 채움 2 · 확인 못 함 1" in receipt["line"] and "정제 1" in receipt["line"]
+    assert "2/3" not in receipt["line"]
     assert "원문" not in receipt["line"], "남긴 원문 숫자는 역검증 전에는 한 줄에 싣지 않는다"
 
 
@@ -168,8 +173,9 @@ def test_the_answer_record_carries_the_same_receipt_for_delegated_jobs_only() ->
 
     payload = {"origin": "mcp", "caller": "claude-code", "needs": ["가격", "리뷰 수"]}
     record = outbound_record(TABLE + "\n문의 010-1234-5678", payload)
-    assert record == {"host": "claude-code", "needs": [{"label": "가격", "met": True}, {"label": "리뷰 수", "met": False}],
-                      "refined": [{"kind": "전화번호", "count": 1}], "needs_total": 2, "needs_met": 1, "refined_count": 1}
+    assert record == {"host": "claude-code", "needs": [{"label": "가격", "met": True}, {"label": "리뷰 수", "met": None}],
+                      "refined": [{"kind": "전화번호", "count": 1}], "needs_total": 2, "needs_met": 1,
+                      "needs_missing": 0, "needs_unknown": 1, "refined_count": 1}
     summary = summarize_job({**_job(TABLE + "\n문의 010-1234-5678", needs=["가격", "리뷰 수"]),
                              "payload": {"prompt": "가격", **payload}})
     assert summary["needs"] == record["needs"] and summary["refined"] == record["refined"]

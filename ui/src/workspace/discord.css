@@ -1,0 +1,117 @@
+/* 설정 › 디스코드로 일 시키기 (2026-10-18).
+   설정 화면의 면 · 선 · 단추를 그대로 쓴다. 이 칸만의 것은 하나 — 단계를 잇는 세로 줄(레일).
+   색은 뜻대로: 지금 눌러야 하는 단계 = signal, 끝난 단계 · 연결됨 = ok, 끊기 = stop. */
+
+.discord-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* 소개 — 무엇을 하는지 한 줄, 데이터가 어디를 지나는지 한 줄 */
+.discord-lede { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+.discord-lede-icon { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid rgb(var(--line)); border-radius: var(--r-1); color: rgb(var(--text-2)); }
+.discord-lede-title { margin: 4px 0 2px; font-size: var(--fs-3); color: rgb(var(--text-1)); }
+.discord-lede .settings-note { margin: 0; }
+
+/* ── 단계 레일 ─────────────────────────────────────────────────── */
+.discord-steps { list-style: none; margin: 6px 0 0; padding: 0; }
+.discord-step { position: relative; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; padding-bottom: 16px; }
+.discord-step:last-child { padding-bottom: 0; }
+/* 표식과 표식을 잇는 줄 — 지나온 구간만 ok 색 */
+.discord-step:not(:last-child)::before { content: ""; position: absolute; left: 11.5px; top: 26px; bottom: 2px; width: 1px; background: rgb(var(--line-strong)); }
+.discord-step.is-done:not(:last-child)::before { background: rgb(var(--ok) / .55); }
+.discord-step-mark { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgb(var(--line-strong)); color: rgb(var(--text-5)); background: rgb(var(--surface-2)); font-size: var(--fs-1); font-weight: var(--fw-mid); font-variant-numeric: tabular-nums; }
+.discord-step.is-done .discord-step-mark { border-color: rgb(var(--ok-dim)); color: rgb(var(--ok-bright)); background: rgb(var(--ok) / .14); }
+.discord-step.is-current .discord-step-mark { border-color: rgb(var(--signal)); color: rgb(var(--ground)); background: rgb(var(--signal)); }
+.discord-step-body { min-width: 0; padding-top: 2px; }
+.discord-step-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; font-size: var(--fs-3); }
+.discord-step-title b { font-weight: var(--fw-mid); color: rgb(var(--text-3)); }
+.discord-step.is-current .discord-step-title b { color: rgb(var(--text-1)); }
+.discord-step.is-next .discord-step-title b { color: rgb(var(--text-5)); font-weight: var(--fw-body); }
+.discord-step-done { font-size: var(--fs-1); color: rgb(var(--ok-bright)); }
+.discord-step.is-current .discord-step-body { display: grid; justify-items: start; gap: 10px; margin-top: 2px; padding: 12px 14px 14px; border: 1px solid rgb(var(--line)); border-radius: var(--r-2); background: rgb(var(--surface-3)); }
+.discord-step.is-current .discord-step-title { margin-bottom: 0; }
+.discord-step-body > .settings-note,
+.discord-step-body > .firstrun-fine,
+.discord-step-body > .settings-error { margin: 0; justify-self: stretch; }
+
+/* 단계 안의 할 일 — 포털에서 누를 이름은 원문 그대로 */
+.discord-howto { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: var(--fs-2); color: rgb(var(--text-2)); line-height: 1.55; }
+.discord-howto li::marker { color: rgb(var(--text-5)); font-variant-numeric: tabular-nums; }
+.discord-inline-action { margin-top: 6px; }
+.discord-open { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: var(--fs-2); }
+.discord-open svg { opacity: .7; }
+.discord-big { min-width: 220px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-3); }
+.discord-tip { color: rgb(var(--signal-bright)); }
+.discord-last-error { color: rgb(var(--text-4)); }
+
+/* 서버가 없는 사람을 위한 곁길 — 본 길보다 한 단 조용하게 */
+.discord-aside { justify-self: stretch; display: grid; justify-items: start; gap: 6px; padding: 10px 12px; border: 1px dashed rgb(var(--line-strong)); border-radius: var(--r-1); }
+.discord-aside p { margin: 0; font-size: var(--fs-2); color: rgb(var(--text-2)); }
+.discord-aside .settings-note { color: rgb(var(--text-4)); }
+
+/* 단계 결과 한 줄 */
+.discord-notice { margin: 8px 0; padding: 8px 12px; border: 1px solid rgb(var(--line)); border-radius: var(--r-1); font-size: var(--fs-2); line-height: 1.5; color: rgb(var(--text-2)); }
+.discord-notice.is-ok { border-color: rgb(var(--ok-dim)); color: rgb(var(--ok-bright)); }
+.discord-notice.is-warn { border-color: rgb(var(--signal-dim)); color: rgb(var(--signal-bright)); }
+
+/* ── 상태 점 ─────────────────────────────────────────────────────── */
+.discord-dot { flex: none; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--text-5) / .6); }
+.discord-dot.is-on { background: rgb(var(--ok-bright)); box-shadow: 0 0 0 3px rgb(var(--ok) / .18); }
+.discord-dot.is-warn { background: rgb(var(--signal)); box-shadow: 0 0 0 3px rgb(var(--signal) / .18); }
+
+/* ── 연결됨 · 다른 창 ─────────────────────────────────────────────── */
+.discord-state { margin-top: 6px; padding: 14px 16px; border: 1px solid rgb(var(--line)); border-radius: var(--r-2); background: rgb(var(--surface-3)); }
+.discord-state.is-connected { border-color: rgb(var(--ok-dim)); }
+.discord-state-head { display: flex; align-items: center; gap: 9px; margin: 0 0 8px; font-size: var(--fs-3); color: rgb(var(--text-1)); }
+.discord-state-label { margin-left: auto; padding: 2px 9px; border: 1px solid rgb(var(--ok-dim)); border-radius: var(--r-pill); font-size: var(--fs-1); color: rgb(var(--ok-bright)); }
+.discord-facts { display: grid; gap: 4px; margin: 0 0 10px; font-size: var(--fs-2); }
+.discord-facts div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; }
+.discord-facts dt { color: rgb(var(--text-4)); }
+.discord-facts dd { margin: 0; color: rgb(var(--text-2)); overflow-wrap: anywhere; }
+.discord-try { margin: 0 0 4px; padding: 9px 12px; border-radius: var(--r-1); background: rgb(var(--surface-2)); font-size: var(--fs-2); color: rgb(var(--text-1)); }
+.discord-model-row { margin-top: 12px; padding-bottom: 0; }
+
+/* ── 가족 · 동료 추가 카드 ─────────────────────────────────────────── */
+.discord-requests { margin-top: 18px; display: grid; gap: 8px; }
+.discord-requests h3 { margin: 0 0 2px; }
+.discord-request { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; border: 1px solid rgb(var(--signal-bright) / .32); border-radius: var(--r-2); background: linear-gradient(120deg, rgb(var(--signal) / .14), rgb(var(--signal) / .08)); }
+.discord-request-icon { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-1); color: rgb(var(--signal-bright)); background: rgb(var(--signal) / .16); }
+.discord-request-body { flex: 1; min-width: 0; }
+.discord-request-body strong { display: block; font-size: var(--fs-2); color: rgb(var(--text-1)); overflow-wrap: anywhere; }
+.discord-request-said { display: block; margin: 5px 0 0; padding-left: 9px; border-left: 2px solid rgb(var(--signal) / .5); font-size: var(--fs-2); color: rgb(var(--text-2)); overflow-wrap: anywhere; }
+.discord-request-body p { margin: 5px 0 0; font-size: var(--fs-1); line-height: 1.6; color: rgb(var(--text-3)); }
+.discord-request-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+.discord-request-actions button { padding: 7px 14px; font-size: var(--fs-2); }
+.discord-request-close { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: var(--r-1); color: rgb(var(--text-4)); background: transparent; cursor: pointer; }
+.discord-request-close:hover { color: rgb(var(--text-1)); background: rgb(var(--text-1) / .07); }
+/* 앱 아래 알림 자리 — 자동 승인 띠와 같은 폭 */
+.discord-request-dock { width: min(820px, 100%); margin: 0 auto 8px; }
+.discord-request-dock .discord-notice { margin: 6px 0 0; }
+.mode-code .discord-request-dock { width: calc(100% - 42px); }
+
+/* ── 모델 별명 표 ─────────────────────────────────────────────────── */
+.discord-alias-fold { margin-top: 22px; }
+.discord-aliases { padding-top: 4px; }
+.discord-aliases code { padding: 1px 5px; border-radius: var(--r-0); font-family: var(--font-mono); font-size: var(--fs-1); color: rgb(var(--text-2)); background: rgb(var(--surface-4)); }
+.discord-ignored { margin-top: 8px; }
+.discord-alias-table { width: 100%; margin-top: 6px; border-collapse: collapse; font-size: var(--fs-2); }
+.discord-alias-table th { padding: 0 6px 6px 0; font-weight: var(--fw-body); font-size: var(--fs-1); color: rgb(var(--text-5)); text-align: left; }
+.discord-alias-table td { padding: 5px 6px 5px 0; border-top: 1px solid rgb(var(--line)); vertical-align: top; }
+.discord-alias-table th:nth-child(1) { width: 26%; }
+.discord-alias-table th:nth-child(2) { width: 38%; }
+.discord-alias-table th:last-child, .discord-alias-table td:last-child { width: 30px; padding-right: 0; }
+.discord-alias-table input { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid rgb(var(--line-strong)); border-radius: var(--r-1); color: rgb(var(--text-1)); background: rgb(var(--surface-3)); font: inherit; font-size: var(--fs-2); }
+.discord-alias-table input:focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 1px; }
+.discord-alias-tag { font-family: var(--font-mono) !important; font-size: var(--fs-1) !important; }
+.discord-alias-name { display: flex; align-items: center; gap: 8px; }
+.discord-alias-pc { display: block; margin-top: 3px; font-size: var(--fs-1); color: rgb(var(--text-5)); }
+.discord-icon-btn { width: 28px; height: 30px; display: grid; place-items: center; border: 0; border-radius: var(--r-1); color: rgb(var(--text-4)); background: transparent; cursor: pointer; }
+.discord-icon-btn:hover { color: rgb(var(--stop-bright)); background: rgb(var(--stop) / .1); }
+.discord-icon-btn:focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 1px; }
+
+@media (max-width: 640px) {
+  .discord-alias-table thead { display: none; }
+  .discord-alias-table tr { display: grid; grid-template-columns: 1fr 30px; gap: 4px 6px; padding: 6px 0; border-top: 1px solid rgb(var(--line)); }
+  .discord-alias-table td { border-top: 0; padding: 0; }
+  .discord-alias-table td:not(:last-child) { grid-column: 1; }
+  .discord-alias-table td:last-child { grid-row: 1; grid-column: 2; }
+  .discord-big { width: 100%; }
+}

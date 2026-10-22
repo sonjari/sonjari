@@ -80,8 +80,14 @@ class ChatRequest(BaseModel):
     # 출처 도장의 「찾아보고 다시 답하기」(2026-09-30). 참이면 갈래를 추측하지 않고 에이전트로 가서,
     # 실제로 본 걸음이 있어야 답한다(`runtime.answer_grounding` 주석).
     observe: bool = False
+    # ★ 측정용(2026-10-21 「밀기 켬/끔」). 거짓이면 이 판은 계획 요구로 **도중에** 모델을 밀지 않고 끝 검사만 한다(`agent.run(plan_push=)`).
+    #   비면(None) 설정 `plan_push_enabled` 를 따른다. 화면 · 사람 판은 이 칸을 안 쓴다.
+    plan_push: bool | None = None
     # 바깥 AI 가 맡긴 일이면 그 호스트 이름(MCP clientInfo) — 화면이 출처 색 이음선과 이름을 두른다(2026-09-30).
     caller: str = Field(default="", max_length=80)
+    # 어느 문으로 들어왔나 (2026-10-21 원격 첫 판) — "remote" 는 노트북 등에서 테일스케일로 들어온 판(`remote_gateway`).
+    #   모르는 칸은 조용히 버려지므로 칸을 둬야 잡 기록(payload)에 남는다. 영수증 · 화면이 원격 판을 가른다.
+    via: Literal["", "remote"] = ""
     # ★ 바깥 AI 가 **코드 일**을 맡길 때의 칸 둘 (2026-10-09). 저장소(또는 그 안의 폴더)와, 끝을 가르는 확인 명령.
     #   서버가 그 저장소의 새 가지를 만들어 거기서 일하게 하고(`delegated_branch.prepare`), 과제 글에서 요구를 뽑는 대신
     #   그 명령으로 끝을 가른다. 폴더는 **이미 허락된 자리**여야 한다 — 바깥 AI 가 넘긴 경로로 범위를 넓히지 않는다.
@@ -98,6 +104,12 @@ class ChatRequest(BaseModel):
     #   결과의 경로와 채움 채점기로 이미 코드가 확인한다. 사람이 시킨 일은 지금처럼
     #   띄운다(기본 참) — 벤치가 끄고 들어온다.
     open_results: bool = True
+    # ★ 측정 판 표시 (2026-10-19). 참이면 「막히면 내 클로드에게 넘기기」를 켜 둬도 이 판은 넘기지 않는다 — 로컬 실력을 재는
+    #   판이 클로드 몫으로 부풀지 않게(2026-08-27 6/24). 이름(`bench` · `measure` …)으로도 잡지만 새 스크립트는 이 칸을 싣는다.
+    measurement: bool = False
+    # ★ 판 하나만 다른 모델로 (2026-10-18 · 디스코드 「@빠른」 · `/모델`). **별명**만 받는다 — 본체가 별명 표
+    #   (`model_aliases.py`)로 태그를 푼다. 바깥이 아무 태그나 넘겨 모델을 올리게 하는 길은 열지 않는다.
+    model_alias: str = Field(default="", max_length=12)
 
 
 class ResearchRequest(BaseModel):
@@ -270,7 +282,8 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         allow_credentials=False,
         # ★ 2026-09-18: PATCH·DELETE 가 빠져 포장 앱에서 설정 저장·사람 잊기가 통째로 죽어 있었다
         #   (사전 확인에서 막혀 요청이 안 나감 — 서버 로그에도 안 남음). 라우트 메서드는 시험이 전부 찌른다.
-        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        # ★ 2026-10-18: PUT 을 더했다(`/v1/models/aliases` · `/v1/discord/settings`). 빠지면 포장 앱에서 사전 확인에 막힌다.
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "X-JARVIS-TOKEN"],
         # ★ 이걸 안 적으면 화면이 **자기 앞에 온 헤더를 못 읽는다.** CORS 는 기본으로
         # 몇 가지 표준 헤더만 통과시키고 나머지는 브라우저가 가린다 — 응답은 멀쩡히
@@ -426,6 +439,40 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             ".gif": "image/gif", ".webp": "image/webp", ".pdf": "application/pdf",
         }.get(suffix, "application/octet-stream")
         return Response(content=target.read_bytes(), media_type=media)
+
+    # ★ 답이 기댄 페이지의 사진(대표사진 · 2026-10-18 대표 결정) — 손자리 앱 답 아래 출처 카드가 쓴다.
+    #   사진은 `outputs/shots/<job>/` 에 있어 「만든 것」 장부(`/v1/outputs/file`)에 안 실린다(만든 것이 아니라 읽은 것이다).
+    #   화면 CSP 가 `img-src 'self' data: blob:` 라 PC 경로를 `<img>` 로 못 연다 — 토큰을 들고 바이트를 받아 blob 으로 건다.
+    #   경로는 **인자로 안 받는다**: 그 판 result.showcase 의 index 번째만, 그것도 그 판의 사진 자리(`showcase.shot_dir`) 안의
+    #   jpg 만 준다. 기록이 고쳐졌거나 옛 판이 엉뚱한 경로를 들고 있어도 그 자리 밖은 안 나간다(경로 순회 막기).
+    @app.get("/v1/jobs/{job_id}/showcase/{index}", dependencies=[Depends(require_token)])
+    def job_showcase_shot(job_id: str, index: int) -> Response:
+        from .showcase import shot_dir
+
+        found = runtime.store.get_job(job_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail="job_not_found")
+        shots = (found.get("result") or {}).get("showcase") if isinstance(found.get("result"), dict) else None
+        if not isinstance(shots, list) or not 0 <= index < len(shots) or not isinstance(shots[index], dict):
+            raise HTTPException(status_code=404, detail="showcase_not_found")
+        raw = str(shots[index].get("path") or "")
+        try:
+            home = shot_dir(runtime.config.output_dir, job_id).resolve()
+            target = Path(raw).resolve() if raw else None
+        except (OSError, ValueError):
+            target = None
+        if (
+            target is None
+            or Path(job_id).name != job_id
+            or not target.is_relative_to(home)
+            or target.suffix.lower() not in {".jpg", ".jpeg"}
+        ):
+            raise HTTPException(status_code=404, detail="showcase_outside_shots")
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail="showcase_missing")
+        # 끝난 판의 사진은 안 바뀐다 — 대화를 다시 열 때 또 받지 않게 이 창 안에서는 잡아 둔다.
+        return Response(content=target.read_bytes(), media_type="image/jpeg",
+                        headers={"Cache-Control": "private, max-age=3600"})
 
     # ★ 만든 파일을 **이 PC 의 기본 앱**으로 연다 (2026-09-17). 화면의 blob 새 창은 데스크톱 앱에서 막혔다.
     #   이 PC 에서 온 요청만 연다 — 위성·다른 기기가 부르면 **그 사람 화면이 아니라 이 PC** 에 창이 뜬다.
@@ -816,6 +863,12 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     @app.post("/v1/chat", dependencies=[Depends(require_token)])
     def chat(request: ChatRequest) -> dict[str, Any]:
         payload = request.model_dump()
+        alias = request.model_alias.strip()
+        if alias:
+            tag = runtime.model_aliases.resolve(alias)
+            if not tag:
+                raise HTTPException(status_code=400, detail={"code": "unknown_model_alias", "alias": alias})
+            payload["model_override"] = tag   # `runtime._chat_job` 이 이 판 동안만 `pin_model` 로 묶는다
         # 프로젝트 탐색은 대화 기억과 묶인다. 잡이 실행될 때가 아니라 접수 순간의
         # 대화를 확정해야, 사용자가 그 사이 다른 대화로 옮겨도 엉뚱한 저장소를 잇지 않는다.
         payload["session_id"] = runtime.resolve_session_id(payload.get("session_id", ""))
@@ -1096,6 +1149,37 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def tools() -> list[dict[str, Any]]:
         return runtime.gateway.list_tools()
 
+    # 영수증(`receipt.py`) — 이번 주 손자리가 대신 읽은 양. 판 기록에서 세므로 토큰 없이는 안 준다.
+    @app.get("/v1/receipt", dependencies=[Depends(require_token)])
+    def weekly_receipt(days: int = 7) -> dict[str, Any]:
+        from .receipt import weekly
+
+        return weekly(runtime.store, days=days)
+
+    # 첫 화면 영수증 카드의 「이미지로 저장」 — 화면이 그린 PNG 를 결과물 폴더의 고정 칸에 쓴다(경로는 받지 않는다).
+    @app.post("/v1/receipt/image", dependencies=[Depends(require_token)])
+    def weekly_receipt_image(body: dict[str, Any]) -> dict[str, Any]:
+        import base64
+        import binascii
+
+        from .receipt import save_image
+
+        try:
+            data = base64.b64decode(str(body.get("png_base64") or ""), validate=True)
+        except (binascii.Error, ValueError):
+            return {"ok": False, "error": "bad_base64"}
+        return save_image(runtime.config.documents_dir, data)
+
+    # 서기 카드(`scribe.py`) — 대화 기록에서 뽑은 것이라 토큰 없이는 안 준다.
+    # 설정 › 서기 — 프로젝트 목록(체크로 고름) · 훅 상태 · 카드 수. 대화 본문은 안 준다.
+    @app.get("/v1/scribe/status", dependencies=[Depends(require_token)])
+    def scribe_status() -> dict[str, Any]:
+        return runtime.scribe_status()
+
+    @app.get("/v1/scribe/story", dependencies=[Depends(require_token)])
+    def scribe_story(session: str = "", limit: int = 30) -> dict[str, Any]:
+        return runtime.scribe_story(session=session, limit=limit)
+
     # ── 할 수 있는 일 (R5) ───────────────────────────────────────────────────
     #
     # 도구 102개(L0 35 · L1 53 · L2 14)와 사이트 레시피와 아는 사이트가 전부 코드
@@ -1111,6 +1195,32 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         publish=runtime.events.publish,
         patch_settings=runtime.settings.patch,
     )
+    # 대화로 「그림 읽기 켜 줘」를 받는 쪽(`runtime.self_talk`)이 화면과 **같은 손**으로 바꾸게 잇는다(2026-10-20).
+    runtime.setup_service = setup_service
+
+    # ── 업데이트 뒤 「바뀐 것 · 이미 되는 것」 (2026-10-20 대표 · `whats_new`) ──────────────────────
+    from . import whats_new as _whats_new
+
+    def _whats_new_version() -> str:
+        from . import msix as _msix_for_notes
+
+        return _msix_for_notes.package_version()
+
+    @app.get("/v1/whats-new", dependencies=[Depends(require_token)])
+    def whats_new_status(lang: str = "ko") -> dict[str, Any]:
+        from . import setup_state as _setup_state
+
+        try:
+            done = bool((_setup_state.read(runtime.config.data_dir) or {}).get("completed"))
+        except Exception:  # noqa: BLE001 — 못 읽으면 막 깐 사람으로 보지 않는다(한 줄을 한 번 더 보는 쪽이 낫다)
+            done = True
+        return _whats_new.status(runtime.config.data_dir, _whats_new_version(), setup_done=done,
+                                 lang="en" if lang == "en" else "ko")
+
+    @app.post("/v1/whats-new/seen", dependencies=[Depends(require_token)])
+    def whats_new_seen(body: dict[str, Any]) -> dict[str, Any]:
+        version = str(body.get("version") or "") or _whats_new_version()
+        return _whats_new.mark_seen(runtime.config.data_dir, version)
 
     @app.get("/v1/setup/profile", dependencies=[Depends(require_token)])
     def setup_profile(fresh: bool = False) -> dict[str, Any]:
@@ -1439,12 +1549,72 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             import_id = 0
         return import_service.remove(import_id)
 
+    # ── 「나에 대한 지침」 (2026-10-18) ───────────────────────────────────────────
+    # ★ 매 턴 실리는 프로필 파일(`JARVIS_PROFILE.md`)은 있었는데 화면이 없었고, 지침 가져오기는 화면만 있고 아무 데도 안
+    #   쓰였다(막다른 길). 둘을 이 파일 하나로 모은다 — 설명은 `about_me.py` 머리말. 경로는 받지 않는다(파일은 설정의 한 자리뿐).
+    from .about_me import AboutMe
+
+    about_me = AboutMe(runtime.config, runtime.profile, settings=runtime.settings, imports=import_service)
+
+    def _lang(body: dict[str, Any]) -> str:
+        return "en" if str(body.get("lang") or "") == "en" else "ko"
+
+    @app.get("/v1/about-me", dependencies=[Depends(require_token)])
+    def about_me_view() -> dict[str, Any]:
+        return about_me.view()
+
+    @app.put("/v1/about-me", dependencies=[Depends(require_token)])
+    def about_me_save(body: dict[str, Any]) -> dict[str, Any]:
+        content = body.get("content")
+        if not isinstance(content, str):
+            raise HTTPException(status_code=400, detail="expected_content")
+        return about_me.save(content)
+
+    @app.post("/v1/about-me/card/preview", dependencies=[Depends(require_token)])
+    def about_me_card_preview(body: dict[str, Any]) -> dict[str, Any]:
+        return about_me.preview_card(body.get("answers"), _lang(body))
+
+    @app.post("/v1/about-me/card", dependencies=[Depends(require_token)])
+    def about_me_card_save(body: dict[str, Any]) -> dict[str, Any]:
+        return about_me.save_card(body.get("answers"), _lang(body))
+
+    @app.get("/v1/about-me/import-lines", dependencies=[Depends(require_token)])
+    def about_me_import_lines(import_id: int) -> dict[str, Any]:
+        return about_me.import_lines(import_id)
+
+    @app.post("/v1/about-me/import-lines", dependencies=[Depends(require_token)])
+    def about_me_append_import(body: dict[str, Any]) -> dict[str, Any]:
+        try:
+            import_id = int(body.get("import_id") or 0)
+        except (TypeError, ValueError):
+            import_id = 0
+        return about_me.append_import(import_id, body.get("lines"))
+
+    @app.post("/v1/about-me/open", dependencies=[Depends(require_token)])
+    def about_me_open(request: Request) -> dict[str, Any]:
+        """설정의 파일 **하나만** 연다(경로를 받지 않는다). 연결된 편집기가 없으면 메모장으로(`file_open`)."""
+        import os
+
+        client = request.client.host if request.client else ""
+        if client not in {"127.0.0.1", "::1", "localhost"}:
+            return {"ok": False, "error": "not_this_pc"}
+        path = about_me.ensure_file()
+        from .msix import external_path
+
+        real = external_path(path)
+        if os.name != "nt":
+            return {"ok": False, "error": "not_windows", "path": str(real)}
+        from .file_open import open_file
+
+        open_file(real)
+        return {"ok": True, "path": str(real)}
+
     # ── 첫 실행: 클로드·코덱스·커서에 잇기 (전략안 §43 P5) ─────────────────────────
     # ★ 다른 프로그램의 영구 설정을 바꾸는 문이다. 화면에서 사람이 눌러야 불린다.
     from .mcp_connect import ConnectService
 
     connect_service = ConnectService(runtime.config, exported_tools=lambda: _exported_tools(),
-                                     pack_guides=lambda: _pack_guides())
+                                     pack_guides=lambda: _pack_guides(), guide_lang=ui_i18n.lang)
     # 지난번에 누른 「Claude Desktop 잇기」가 재부팅·재시작으로 끊겼으면 이어서 기다린다(mcp_connect.resume_pending).
     try:
         connect_service.resume_pending()
@@ -1491,7 +1661,8 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
                 rows.append({"id": pack.id, "name": pack.name, "text": path.read_text(encoding="utf-8")})
         return rows
 
-    guide_skill = GuideSkillService(pack_guides=_pack_guides)
+    # 가이드 본문은 화면 언어를 따른다(2026-10-19) — 영어 화면이면 클로드·코덱스도 영어 가이드를 읽고 영어로 맡긴다.
+    guide_skill = GuideSkillService(pack_guides=_pack_guides, lang=ui_i18n.lang)
 
     def _refresh_pack_guides() -> None:
         # ★ 게임 팩을 켜면 이미 이어 둔 클로드·코덱스의 지침에 「게임 일이면 이 사용서」가 저절로 들어간다(끄면 빠진다).
@@ -1588,6 +1759,79 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         keys = (body or {}).get("keys")
         return runtime.settings.reset([str(k) for k in keys] if isinstance(keys, list) else None)
 
+    # ── 디스코드 연결 (2026-10-18) ──────────────────────────────────────
+    # 명령 창 마법사(`python -m alture_jarvis.messaging setup`)의 단계를 화면이 하나씩 부른다. 봇 토큰은 이 문들로
+    # **들어오지도 나가지도 않는다** — 본체가 클립보드를 직접 읽고 자격 증명 관리자에만 둔다(`messaging/service.py`).
+    # 실패도 200 + {"ok": false, "error": 코드, "message": 사람 말} 로 돌려준다 — 화면이 status 모양 하나로 그린다.
+    @app.get("/v1/discord/status", dependencies=[Depends(require_token)])
+    def discord_status() -> dict[str, Any]:
+        return runtime.discord.status()
+
+    @app.post("/v1/discord/token/from-clipboard", dependencies=[Depends(require_token)])
+    def discord_token_from_clipboard() -> dict[str, Any]:
+        return runtime.discord.token_from_clipboard()
+
+    @app.post("/v1/discord/recheck", dependencies=[Depends(require_token)])
+    def discord_recheck() -> dict[str, Any]:
+        return runtime.discord.recheck()
+
+    @app.post("/v1/discord/finish", dependencies=[Depends(require_token)])
+    def discord_finish() -> dict[str, Any]:
+        return runtime.discord.finish()
+
+    @app.post("/v1/discord/disconnect", dependencies=[Depends(require_token)])
+    def discord_disconnect() -> dict[str, Any]:
+        return runtime.discord.disconnect()
+
+    # 허용 요청(가족 · 동료 추가 카드). 주인 말고 다른 사람이 들어오는 문은 allow 하나뿐이다.
+    @app.get("/v1/discord/requests", dependencies=[Depends(require_token)])
+    def discord_requests() -> dict[str, Any]:
+        return runtime.discord.access_requests()
+
+    @app.post("/v1/discord/requests", dependencies=[Depends(require_token)])
+    def discord_request_record(body: dict[str, Any]) -> dict[str, Any]:
+        """다리(본체 안 · 따로 띄운 것)가 부른다 — 허용 목록 밖 사람이 봇에게 말을 걸었다."""
+        return runtime.discord.record_access_request(body if isinstance(body, dict) else {})
+
+    @app.post("/v1/discord/requests/{user_id}/allow", dependencies=[Depends(require_token)])
+    def discord_request_allow(user_id: str) -> dict[str, Any]:
+        return runtime.discord.allow_request(user_id)
+
+    @app.post("/v1/discord/requests/{user_id}/ignore", dependencies=[Depends(require_token)])
+    def discord_request_ignore(user_id: str) -> dict[str, Any]:
+        return runtime.discord.ignore_request(user_id)
+
+    @app.put("/v1/discord/settings", dependencies=[Depends(require_token)])
+    def discord_settings(body: dict[str, Any]) -> dict[str, Any]:
+        """디스코드 쪽 비밀 아닌 설정 — 지금은 기본 모델 별명(`default_model_alias`, 빈 값 = PC 와 같음)만."""
+        return runtime.discord.update_settings(body if isinstance(body, dict) else {})
+
+    # ── 모델 별명 표 (2026-10-18) ───────────────────────────────────────
+    # 「똑똑한」 · 「빠른」 같은 짧은 이름 → Ollama 태그. 표가 없으면 깔린 모델에서 둘쯤 채운다(읽기만 — 모델을 올리지 않는다).
+    @app.get("/v1/models/aliases", dependencies=[Depends(require_token)])
+    def model_aliases_view() -> dict[str, Any]:
+        return runtime.model_aliases.view()
+
+    @app.put("/v1/models/aliases", dependencies=[Depends(require_token)])
+    def model_aliases_replace(body: dict[str, Any]) -> dict[str, Any]:
+        from .model_aliases import clean_items
+
+        try:
+            clean_items(body.get("aliases") if isinstance(body, dict) else None)
+            runtime.model_aliases.replace(body.get("aliases"))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail={"code": str(exc)}) from exc
+        return {"ok": True, **runtime.model_aliases.view()}
+
+    # ── 아껴 준 양 영수증 (2026-10-19) ─────────────────────────────────
+    # 바깥 AI 가 맡긴 판에서 손자리가 대신 읽은 본문의 **하한** 토큰을 기간으로 모은다. 읽기 전용 — DB 를 `mode=ro` 로 연다.
+    # 어떤 판을 세는지 · 왜 하한만 말하는지는 `savings_receipt` 머리말.
+    @app.get("/v1/savings", dependencies=[Depends(require_token)])
+    def savings_view(days: int = 7) -> dict[str, Any]:
+        from .savings_receipt import collect
+
+        return collect(runtime.store.path, days=days)
+
     @app.post("/v1/ollama/prime-front", dependencies=[Depends(require_token)])
     def ollama_prime_front() -> dict[str, Any]:
         """고정 앞부분을 지금 한 번 데운다(`ollama.prime_front`). 평소에는 한가할 때 스스로 한다 — 재 볼 때와 진단용."""
@@ -1654,7 +1898,7 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
 
     @app.post("/v1/desktop/open-folder", dependencies=[Depends(require_token)])
     def desktop_open_folder(body: dict[str, Any]) -> dict[str, Any]:
-        """데이터·백업·진단·가이드 스킬 zip·스킬팩 폴더 **다섯 중 하나만** 연다. 경로를 받지 않는다 — 받으면 아무 폴더나 여는 문이 된다."""
+        """데이터·백업·진단·가이드 스킬 zip·스킬팩·영수증 그림 폴더 **여섯 중 하나만** 연다. 경로를 받지 않는다 — 받으면 아무 폴더나 여는 문이 된다."""
         import os
 
         which = str(body.get("which") or "")
@@ -1665,6 +1909,8 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             "guide_skill": guide_skill.documents,
             # 「내 스킬팩 넣기」 — 받은 폴더를 끌어다 놓을 자리(문서 폴더 안이라 가상화 밖이다).
             "skillpacks": runtime.config.skillpacks_dir,
+            # 영수증 그림(`receipt.save_image`) — 첫 화면 카드의 「폴더 열기」.
+            "receipts": runtime.config.documents_dir / "receipts",
         }
         folder = folders.get(which)
         if folder is None:

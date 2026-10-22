@@ -74,6 +74,14 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
     # 목록·본문을 실제로 가져오는 길
     "read": (
         "agent.py", "browser.py", "site_recipes.py", "site_atlas.py",
+        # 잘 해낸 판을 레시피 초안으로 옮긴다(2026-10-20 확장 설계 P1) — 그 초안이 다음 판의 읽는 길이 된다.
+        "recipe_from_run.py",
+        # 사람이 손자리 크롬에서 해 보인 것을 레시피 초안으로(2026-10-20 확장 설계 T8) — 같은 출구라 같은 축.
+        "demo_recorder.py",
+        # 손자리가 스스로 배우고 검증한 값 칸으로 상세 본문을 줄여 읽는다(2026-10-21) — 모델이 받는 글이 달라진다.
+        "value_cells.py",
+        # 노는 시간에 대화 기록으로 카드를 쓴다(2026-10-21 서기) — 같은 Ollama 를 쓰므로 사람 판의 기다림이 달라질 수 있다.
+        "scribe.py",
         # 이 PC 안 페이지를 열 때 화면을 재서(덮인 글자 · 가로 넘침 · 깨진 그림) 결과에 붙인다(2026-10-11) — 모델이 받는 글이 달라진다.
         "layout_probe.py",
         # 이 PC 안 페이지를 따로 찍어 모델의 눈으로 본 인상을 결과에 붙인다(2026-10-11) — 모델이 받는 글이 달라진다.
@@ -96,6 +104,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "answer_gate.py",
         # 답 안의 클레임(성공·완료·출처·끝맺음) 판정과 자기 모순 검사 — agent.py 에서 분리(2026-10-10). 조사 답의 완성 판정이 바뀐다.
         "answer_claims.py",
+        # 「없다 · 아직 없다」에 본 범위(목록 화면 · 연 글 수)를 붙인다(2026-10-19) — 조사 답에 붙는 글이 바뀐다.
+        "absence_scope.py",
         # 모델이 보는 도구 목록을 갈래·단계·요청으로 고르는 쪽 — agent.py 에서 분리(2026-10-09). 조사 갈래 좁히기·산출물 차례 손·플랫폼 쓰기 관문이 바뀐다.
         "tool_roster.py",
         # 상세 첫머리에서 판매가·적립을 도구가 읽어 표 칸을 채운다(2026-09-28 T1, 동결 예외 A) — 표의 값을 직접 바꾼다.
@@ -167,6 +177,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         # 모델이 보는 도구 목록을 갈래·단계·요청으로 고르는 쪽 — agent.py 에서 분리(2026-10-09). 산출물 차례 손과 플랫폼 쓰기 관문이 쓰기의 결과를 바꾼다.
         "tool_roster.py",
         "windows_automation.py", "ui_vision.py", "sandbox.py", "scheduler.py",
+        # 화면 밖 · 최소화된 창을 주 모니터로 데려온다(2026-10-19 ae395490 뒤) — 창 자리를 바꾸는 손이라 windows_automation 과 같은 자리.
+        "window_view.py",
         "watch_service.py", "external_actions.py", "mimo_control.py",
         "hwp.py",
         # `undo_action` 이 여기 있다 — 되돌리는 것도 쓰기다(눈금도 WRITE 로 센다).
@@ -191,6 +203,9 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "claude_code.py", "code_runtime.py", "code_scout.py", "project_discovery.py",
         # 이어받기 — 채팅 갈래를 정하기 전에 가로채고, 가지에서 코드 잡을 올린다. 판의 길을 바꾼다.
         "takeover.py",
+        # 손자리 자신에 대한 말(2026-10-20) — 이어받기와 같은 자리에서 채팅 갈래 전에 가로채 답하고 · 그림 읽기를 바꾸고 ·
+        #   그림을 못 읽은 판의 답 끝에 질문을 붙인다. 「뭐가 바뀌었어?」 답의 글(whats_new)도 판의 답을 바꾼다.
+        "self_talk.py", "whats_new.py",
         # 큰 코드 갈림길(2026-10-02) — 작은 모델에게 통째로 시킨 코드 일을 시작 전에 묻고, 클로드 코드에 맡기거나 나눠서 한다.
         "big_code.py",
         # 코드 판 관문(2026-10-09) — agent.py 에서 분리. 보기 루프·검증 되받기·손 좁히기. 위임 판의 걸음을 직접 바꾼다.
@@ -199,6 +214,13 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "tool_roster.py",
         # 바깥 AI 에게 나가는 답의 정제 · 돌려받아야 할 것 · 영수증(2026-10-15 · §55-32) — 위임 결과로 무엇이 나가는지를 바꾼다.
         "outbound.py",
+        # 답이 기댄 페이지 사진(대표사진)을 고르고 거르는 쪽(2026-10-18) — 판 결과와 바깥으로 나가는 것을 바꾼다.
+        "showcase.py",
+        # 모델 별명(2026-10-18) — `@별명` · `/모델` 로 판 하나를 어느 모델이 돌지 정한다.
+        "model_aliases.py",
+        # 로그인 화면 · 한 번 쓰는 값을 줄여 내보낸다(2026-10-19) — 위임 결과의 sources · 답 · 바깥 사본이 바뀐다.
+        # 「사람이 같은 탭을 쓰나」 문(browser.py)의 로그인 예외도 이 판정을 쓴다.
+        "url_privacy.py",
     ),
 }
 
@@ -700,6 +722,16 @@ class JarvisConfig:
     startup_warmup_enabled: bool = True
     # 한가할 때 고정 앞부분(도구 목록 + 고정 지침)을 데워 둔다 — 새 일의 첫 걸음이 그것을 처음부터 다시 읽지 않게(`ollama.prime_front`).
     front_prime_enabled: bool = True
+    # 계획 요구로 판 도중에 모델을 미는가(되받기 · 힌트 · 단계 거절 · 대신 열기). 끄면 끝 검사만(2026-10-21 「밀기 켬/끔」 측정 — 요청의 `plan_push` 가 판마다 이긴다).
+    plan_push_enabled: bool = True
+    # 서기(2026-10-21 · `scribe`): 손자리가 놀 때 클로드 코드 대화 기록을 읽어 「이야기 카드」 초안을 쌓는다. **기본 꺼짐** —
+    # 남의 대화 기록을 읽는 일이라 사람이 켜고, 읽을 폴더(`~/.claude/projects/<프로젝트>`)도 사람이 고른다(`;` 로 여럿).
+    scribe_enabled: bool = False
+    scribe_folders: str = ""
+    # 읽을 새 말이 없을 때 다시 보기까지(초). 새 말이 남아 있으면 조용해진 뒤 바로 다음 덩어리를 읽는다.
+    scribe_interval_sec: int = 900
+    #: 압축 직후 서기 카드와 같이 다시 넣을 「일하는 방식」 파일(선택 · 비우면 안 넣음 · 2026-10-22 서기 훅 제품화).
+    scribe_style_file: str = ""
     # 손자리가 켜는 Ollama 에 넘기는 서버 보관함 한도(MiB). -1 = 이 PC 메모리에 맞춰 · 0 = 손대지 않음(`ollama_install.ollama_launch_env`).
     ollama_prompt_cache_mib: int = -1
     startup_warmup_retry_sec: int = 120
@@ -765,6 +797,9 @@ class JarvisConfig:
     # 있어야 할 그래픽카드 수. 0 이면 안 센다. 같은 날 3090 이 드라이버 사고로
     # 통째로 사라졌는데 자비스는 한마디도 안 했다 — 그 자리를 메운다.
     self_check_expected_gpus: int = 0
+    # 본체 안에서 디스코드 다리를 돌린다(2026-10-18, `messaging/service.py`). 저장된 봇 토큰이 없으면 어차피 안 뜬다.
+    # 끄면 따로 띄우는 다리(`python -m alture_jarvis.messaging`)만 쓴다.
+    discord_bridge_enabled: bool = True
     scheduled_mail_recipients: str = ""
     supertonic_base_url: str = "http://127.0.0.1:7788"
     supertonic_voice: str = "F1"
@@ -1106,7 +1141,13 @@ class JarvisConfig:
     # Claude Code는 로컬 상자가 같은 파일에서 두 번 막히거나, 처음부터 다중 파일·git
     # 저장소 작업일 때만 결정론으로 열린다. 임대시간을 넘으면 session_id를 보존해
     # 다음 판에서 --resume으로 잇는다 — 단일 JobRunner를 계속 붙들지 않기 위해서다.
-    claude_code_enabled: bool = True
+    # ★ 2026-10-19: 사용자 설정 「막히면 내 클로드에게 넘기기」(설정 › 연결)의 **기본값**이다. 기본 꺼짐 —
+    #   2026-08-27 측정에서 24판 중 6판이 다중 파일 조건으로 클로드에게 빠져 로컬 실력이 부풀어 보였다(운영 .env 도 그래서 0).
+    #   이 값(환경변수 포함)은 기본값일 뿐이고 화면에서 켠 값이 이긴다(`settings.apply_user_settings`).
+    #   측정 판은 이 값과 무관하게 언제나 꺼진다(`claude_code.measurement_reason`).
+    claude_code_enabled: bool = False
+    # 관리자 잠금(`JARVIS_CLAUDE_CODE_LOCKED`). 참이면 화면에서 켤 수 없고(「관리자가 꺼 둠」) 켜 둔 값도 일하지 않는다.
+    claude_code_locked: bool = False
     claude_code_command: str = "claude"
     claude_code_lease_sec: int = 90
     claude_code_result_max_chars: int = 16_000
@@ -1455,6 +1496,11 @@ class JarvisConfig:
             small_window_research_bundle=_bool("JARVIS_SMALL_WINDOW_RESEARCH_BUNDLE", True),
             startup_warmup_enabled=_bool("JARVIS_STARTUP_WARMUP_ENABLED", True),
             front_prime_enabled=_bool("JARVIS_FRONT_PRIME_ENABLED", True),
+            plan_push_enabled=_bool("JARVIS_PLAN_PUSH", True),
+            scribe_enabled=_bool("JARVIS_SCRIBE_ENABLED", False),
+            scribe_folders=_env("JARVIS_SCRIBE_FOLDERS", ""),
+            scribe_interval_sec=_int("JARVIS_SCRIBE_INTERVAL_SEC", 900),
+            scribe_style_file=_env("JARVIS_SCRIBE_STYLE_FILE", ""),
             ollama_prompt_cache_mib=_int("JARVIS_OLLAMA_PROMPT_CACHE_MIB", -1),
             startup_warmup_retry_sec=_int("JARVIS_STARTUP_WARMUP_RETRY_SEC", 120),
             conversation_session_id=_env("JARVIS_CONVERSATION_SESSION_ID", "office-main"),
@@ -1477,6 +1523,7 @@ class JarvisConfig:
             self_check_on_boot=_bool("JARVIS_SELF_CHECK_ON_BOOT", True),
             self_check_boot_delay_sec=_float("JARVIS_SELF_CHECK_BOOT_DELAY_SEC", 45.0),
             self_check_expected_gpus=_int("JARVIS_SELF_CHECK_EXPECTED_GPUS", 0),
+            discord_bridge_enabled=_bool("JARVIS_DISCORD_BRIDGE_ENABLED", True),
             scheduled_mail_recipients=_env("JARVIS_SCHEDULED_MAIL_RECIPIENTS", ""),
             supertonic_base_url=_env("JARVIS_SUPERTONIC_BASE_URL", "http://127.0.0.1:7788"),
             supertonic_voice=_env("JARVIS_SUPERTONIC_VOICE", "F1"),
@@ -1640,7 +1687,8 @@ class JarvisConfig:
                     fresh=product_dir(Path.home()) / "sandbox",
                 )))
             ),
-            claude_code_enabled=_bool("JARVIS_CLAUDE_CODE_ENABLED", True),
+            claude_code_enabled=_bool("JARVIS_CLAUDE_CODE_ENABLED", False),
+            claude_code_locked=_bool("JARVIS_CLAUDE_CODE_LOCKED", False),
             claude_code_command=_env("JARVIS_CLAUDE_CODE_COMMAND", "claude"),
             claude_code_lease_sec=_int("JARVIS_CLAUDE_CODE_LEASE_SEC", 90),
             claude_code_result_max_chars=_int(
@@ -1845,6 +1893,14 @@ class JarvisConfig:
         (2026-09-18 노트북 실측). 프로그램 폴더는 잠겨 있고 판마다 새것으로 바뀐다.
         """
         return Path(self.user_packs_dir) if self.user_packs_dir else self.documents_dir / "skillpacks"
+
+    @property
+    def user_recipes_dir(self) -> Path:
+        """사람이 승인한 **배운 레시피** 자리 — 문서 폴더 안이다(스킬팩 폴더와 같은 까닭 · 확장 설계 §3-5).
+
+        손자리에 들어 있는 레시피(`site_recipe_dir` — 프로그램 폴더라 스토어 판에서 잠긴다)와 섞지 않는다.
+        """
+        return self.documents_dir / "recipes"
 
     def public_dict(self) -> dict[str, Any]:
         raw = asdict(self)

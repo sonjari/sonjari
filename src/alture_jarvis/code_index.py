@@ -371,8 +371,21 @@ class CodeIndex:
         return chr(10).join(part for part in parts if part)
 
     @classmethod
+    def _fts_rowids_aligned(cls, db: sqlite3.Connection) -> bool:
+        """FTS 줄 번호가 조각 번호(`chunks.id`)와 같은가 — 같으면 옛 조각을 **줄 번호로** 지울 수 있다.
+
+        2026-10-22 이 PC 의 색인 넷(1.8만~3.7만 조각)은 전부 같았다(어긋난 줄 0). 다른 PC 의 옛 색인이 어긋나 있으면 예전처럼
+        `path` 로 지운다 — 줄 번호로 지우면 남의 줄을 지울 수 있다. 표 한 번 훑기(0.05초 안팎)라 갱신마다 한 번만 본다.
+        """
+        for tokenizer in cls.FTS_TOKENIZERS:
+            if db.execute(f"SELECT 1 FROM chunk_fts_{tokenizer} WHERE rowid != chunk_id LIMIT 1").fetchone():
+                return False
+        return True
+
+    @classmethod
     def _replace_chunks(
-        cls, db: sqlite3.Connection, path: str, language: str, chunks: list[dict[str, Any]]
+        cls, db: sqlite3.Connection, path: str, language: str, chunks: list[dict[str, Any]],
+        *, aligned: bool = False,
     ) -> None:
         # ★ 옛 조각은 **파일당 한 번**에 지운다 (2026-10-06 대표 실사용: 「이 파일 열어 줘」 한마디에 색인이 2분).
         #
@@ -381,10 +394,18 @@ class CodeIndex:
         #   `browser.py`(조각 343개) 하나를 다시 넣는 데 약 41초였고, 바뀐 파일이 16개면 몇 분이다.
         #   `path` 로 한 번에 지우면 같은 파일이 0.2초다(같은 사본, 0.08 + 0.14초). 지워지는 줄은 같다 —
         #   FTS 줄의 `path` 는 아래에서 조각과 같은 값으로 넣는다.
+        # ★ 그래도 FTS 의 `path` 는 UNINDEXED 라 **파일 하나마다 표 전체를 두 번 훑었다** (2026-10-22 대표 실사용 · 판 84e3771a).
+        #   운영 색인(조각 37,454개 · 436MB) 사본: 파일당 147ms → 줄 번호로 지우면 12ms. 바뀐 파일 267개를 따라잡는 데 지우기만
+        #   약 39초였다(그 판의 45초 상한을 거의 다 썼다 — 새 색인은 초당 125개를 읽는데 운영은 초당 6개였던 까닭).
+        #   줄 번호는 조각 번호와 같게 넣는다(아래 INSERT 의 rowid). 옛 색인이 어긋나 있으면(`aligned=False`) 예전처럼 path 로.
         had_chunks = db.execute("SELECT 1 FROM chunks WHERE path = ? LIMIT 1", (path,)).fetchone()
         if had_chunks:
             for tokenizer in cls.FTS_TOKENIZERS:
-                db.execute(f"DELETE FROM chunk_fts_{tokenizer} WHERE path = ?", (cls._safe(path),))
+                if aligned:
+                    db.execute(f"DELETE FROM chunk_fts_{tokenizer} WHERE rowid IN (SELECT id FROM chunks WHERE path = ?)",
+                               (path,))
+                else:
+                    db.execute(f"DELETE FROM chunk_fts_{tokenizer} WHERE path = ?", (cls._safe(path),))
             db.execute("DELETE FROM chunks WHERE path = ?", (path,))
         # ★ 청크 하나당 3 번 부르던 것을 **파일당 3 번**으로 묶는다 (2026-08-28).
         #
@@ -417,6 +438,7 @@ class CodeIndex:
             )
             fts_rows.append(
                 (
+                    chunk_id,
                     cls._safe(cls._fts_body(path, chunk)),
                     cls._safe(path),
                     chunk_id,
@@ -429,8 +451,8 @@ class CodeIndex:
         )
         for tokenizer in cls.FTS_TOKENIZERS:
             db.executemany(
-                f"INSERT INTO chunk_fts_{tokenizer}(body, path, chunk_id) "
-                "VALUES (?, ?, ?)",
+                f"INSERT INTO chunk_fts_{tokenizer}(rowid, body, path, chunk_id) "
+                "VALUES (?, ?, ?, ?)",
                 fts_rows,
             )
 
@@ -903,6 +925,23 @@ class CodeIndex:
     #: (같은 16파일을 다시 읽는 데 14.8초였다 — 2026-10-06. 처음 보는 큰 저장소는 여러 번에 나눠 읽힌다.)
     REFRESH_BUDGET_SEC = 45.0
 
+    #: 밀린 따라잡기를 방금 시간 상한까지 하고 멈췄으면, 이 안에 온 질의는 **다시 따라잡지 않는다**.
+    #: ★ 2026-10-22 대표 실사용(판 84e3771a · 모노레포): 첫 걸음 전 지도(`repo_card`)가 45초를 쓰고 멈춘 직후, 첫 걸음의 색인 도구가
+    #:   또 48초를 따라잡았다 — 첫 모델 부르기까지 2분 31초. 코드 판 691개 전수: 정찰 색인은 작은 폴더에선 중앙 0.7초라 안 보였고,
+    #:   큰 저장소에서만 중앙 11.6초 · 최대 110초. 다 따라잡은 갱신(밀린 것 없음)은 1초 안팎이라 그대로 다시 한다(방금 고친 파일도 들어오게).
+    BACKLOG_REUSE_SEC = 120.0
+
+    def _reused_backlog(self, root: Path) -> dict[str, Any] | None:
+        """방금 같은 저장소를 시간 상한까지 따라잡고 멈췄으면 그 결과를 그대로 쓴다(None 이면 평소처럼 갱신)."""
+        last = self.last_refresh or {}
+        ended = last.get("ended")
+        if (
+            last.get("root") == str(root) and last.get("stopped") == "time" and isinstance(ended, (int, float))
+            and time.monotonic() - ended < self.BACKLOG_REUSE_SEC
+        ):
+            return {"reused_backlog": True, "stopped": "time", "updated_files": 0, "seconds": 0.0}
+        return None
+
     def refresh(
         self, root: Path, *, scan_limit: int = 50_000,
         on_progress: "Callable[[dict[str, int]], None] | None" = None,
@@ -938,6 +977,8 @@ class CodeIndex:
                 )"""
             )
             self._ensure_chunk_tables(db)
+            # 옛 조각을 줄 번호로 지워도 되는가 — 갱신마다 한 번(`_fts_rowids_aligned`).
+            aligned = self._fts_rowids_aligned(db)
             existing = {
                 row[0]: (int(row[1]), int(row[2]))
                 for row in db.execute("SELECT path, mtime_ns, size FROM files")
@@ -994,7 +1035,7 @@ class CodeIndex:
                         if relative not in chunked:
                             text = path.read_text(encoding="utf-8", errors="replace")
                             self._replace_chunks(
-                                db, relative, language, self._chunks_for(text, language)
+                                db, relative, language, self._chunks_for(text, language), aligned=aligned
                             )
                             backfilled += 1
                         continue
@@ -1005,7 +1046,7 @@ class CodeIndex:
                         else self._generic_facts(text)
                     )
                     self._replace_chunks(
-                        db, relative, language, self._chunks_for(text, language)
+                        db, relative, language, self._chunks_for(text, language), aligned=aligned
                     )
                     db.execute(
                         """INSERT INTO files(path, mtime_ns, size, sha256, language,
@@ -1034,13 +1075,13 @@ class CodeIndex:
             if stale:
                 db.executemany("DELETE FROM files WHERE path = ?", [(path,) for path in stale])
                 for path in stale:
-                    self._replace_chunks(db, path, "", [])
+                    self._replace_chunks(db, path, "", [], aligned=aligned)
             db.commit()
             total = int(db.execute("SELECT COUNT(*) FROM files").fetchone()[0])
             chunk_total = int(db.execute("SELECT COUNT(*) FROM chunks").fetchone()[0])
         self.last_refresh = {"root": str(root), "stopped": "time" if out_of_time else "scan_limit" if stopped_early else "",
                              "updated_files": indexed, "scanned": scanned,
-                             "seconds": round(time.monotonic() - started, 1)}
+                             "seconds": round(time.monotonic() - started, 1), "ended": time.monotonic()}
         return {
             "database": str(db_path),
             "total_files": total,
@@ -1128,7 +1169,7 @@ class CodeIndex:
         max_chars: int = 16_000,
     ) -> dict[str, Any]:
         root = root.resolve(strict=True)
-        stats = self.refresh(root, budget_sec=self.REFRESH_BUDGET_SEC)
+        stats = self._reused_backlog(root) or self.refresh(root, budget_sec=self.REFRESH_BUDGET_SEC)
         terms = self._query_terms(query)
         candidates: list[dict[str, Any]] = []
         all_candidates: list[dict[str, Any]] = []

@@ -29,8 +29,9 @@ from typing import Any
 from .brand import NAME, NAME_KO
 from .evidence import WRITE_EFFECTS, code_string_values, numbers_claimed_in, unsupported_numbers
 from .outbound import check_needs, clean_needs, receipt, refine
+from .url_privacy import safe_url
 
-__all__ = ["TASK_TOOL", "STATUS_TOOL", "GUIDE_TOOL", "DELEGATION_TOOLS", "summarize_job", "partial_work",
+__all__ = ["TASK_TOOL", "STATUS_TOOL", "GUIDE_TOOL", "STORY_TOOL", "DELEGATION_TOOLS", "summarize_job", "partial_work",
            "host_context_kept_out", "MAX_WAIT_SEC", "CLAUDE_CODE_MAX_WAIT_SEC", "is_claude_code"]
 
 MAX_WAIT_SEC = 50
@@ -68,13 +69,17 @@ TASK_TOOL: dict[str, Any] = {
     "parameters": {
         "type": "object",
         "properties": {
-            "task": {"type": "string", "description": "맡길 과제 한 문장(한국어 권장). 최대 4,000자."},
+            # ★ 2026-10-19: 전에는 「(한국어 권장)」이었다 — 영어로 시킨 클로드 코드가 그 말을 따라 과제를 한국어로 넘겼다.
+            #   손자리 모델은 두 언어를 다 읽는다. 사용자의 말로 적게 해야 답도 사용자의 말로 돌아온다.
+            "task": {"type": "string", "description": (
+                "맡길 과제 한 문장 — 사용자가 당신과 쓰는 언어로 적으세요. 최대 4,000자(넘으면 보내지 않고 돌려보냅니다).")},
             "skill": {"type": "string", "description": "지목할 스킬 이름(선택, skill_list 로 확인). 모르면 비워 두세요."},
             # ★ 코드 일을 맡기는 칸 둘 (2026-10-09). 과제 글에서 짐작하지 않고 **칸으로** 받는다.
             "repo": {"type": "string", "description": (
                 "코드 일을 맡길 때만: 이 PC 의 git 저장소(또는 그 안의 폴더) 절대 경로. 주면 그 저장소의 **새 가지**를 따로 꺼내 "
                 "거기서만 고칩니다 — 원래 폴더는 건드리지 않습니다. 커밋 안 한 변경(추적 중인 파일)은 같이 가져갑니다. "
-                "끝나면 결과의 branch 에 바뀐 파일과 가져가는 명령이 옵니다.")},
+                "끝나면 결과의 branch 에 바뀐 파일과 가져가는 명령이 옵니다. check 없이 repo 만 주고 과제 글에 「고치지 마 · "
+                "읽고 요약만」이라고 적으면, 고치지 않고 관련 코드를 이 PC 에서 읽어 파일 · 함수 · 줄로 요약해 줍니다.")},
             "check": {"type": "string", "description": (
                 "repo 와 같이: 끝났는지 가르는 **확인 명령** 한 줄(그 폴더에서 실행 · 종료 코드 0 이면 통과). "
                 "예: python -m pytest -q tests/test_x.py. 주면 과제 글에서 요구를 짐작하지 않고 이 명령으로 끝을 가릅니다 — "
@@ -83,7 +88,9 @@ TASK_TOOL: dict[str, Any] = {
             #   밝힌 연락처(전화 · 메일)는 정제에서 빼고 내보낸다. 안 밝히면 지금처럼 답 전체 — 연락처 모양은 가려서.
             "needs": {"type": "array", "items": {"type": "string"}, "maxItems": 12, "description": (
                 "선택: 결과로 꼭 돌려받아야 할 항목 이름들(예: [\"상품 이름\", \"가격\", \"주소\"]). 주면 결과의 needs 에 항목마다 "
-                "채웠는지(met)가 옵니다. 답에서 주민번호 · 카드 번호 · 비밀 키는 늘 가리고, 전화번호 · 메일 주소는 여기에 "
+                "채웠는지(met)가 옵니다 — true 는 그 이름의 칸 · 제목 · 「이름: 값」 줄에 값이 있음, false 는 그 자리가 비어 있음, "
+                "null 은 그 이름의 자리를 못 찾아 확인 못 함(비었다는 뜻이 아님 — 답 본문을 직접 보세요). "
+                "답에서 주민번호 · 카드 번호 · 비밀 키는 늘 가리고, 전화번호 · 메일 주소는 여기에 "
                 "밝혔을 때만(예: \"연락처\") 내보냅니다.")},
         },
         "required": ["task"],
@@ -137,6 +144,132 @@ GUIDE_TOOL: dict[str, Any] = {
     "risk_level": "L0",
     "enabled": True,
 }
+
+# ★ 2026-10-21 서기(`scribe.py`). 클로드 대화가 잘리면 앞에서 정한 것 · 버린 것 · 남은 일이 요약에서 빠진다(그날 밤 실측:
+#   열 덩어리 앞의 핵심 결정 12개 중 마지막 요약에 0개). 손자리가 노는 시간에 대화 기록에서 초안 카드를 쌓아 두고,
+#   클로드는 이 문으로 꺼내 읽는다. 줄마다 기록의 줄 번호와 원문 인용이 붙어 있어 클로드가 직접 확인할 수 있다.
+STORY_TOOL: dict[str, Any] = {
+    "name": "sonjari_story",
+    "description": ("손자리 서기가 이 PC 의 클로드 코드 대화 기록에서 뽑아 둔 「이야기 카드」(정한 것 · 버린 것과 까닭 · 남은 일 · "
+                    "사람이 거듭 고쳐 준 것)를 돌려준다. 대화가 잘린 뒤 이어 갈 때나 「그 중간이 뭐였지」 할 때 부르세요. "
+                    "줄마다 기록의 줄 번호와 원문 인용이 붙어 있습니다 — 초안이니 중요한 줄은 그 자리를 직접 확인하세요. "
+                    "읽기만 하고 아무것도 바꾸지 않습니다."),
+    "parameters": {"type": "object", "properties": {
+        "session": {"type": "string", "description": "이 세션 것만(대화 기록 파일 이름의 앞부분). 비우면 전부."},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 120, "description": "최근 몇 줄까지(기본 30)."},
+    }},
+    "risk_level": "L0",
+    "enabled": True,
+}
+
+
+# ★ 영어 연결용 설명 (2026-10-19). 이름 · 칸 · 스키마는 한국어판과 **같은 것**을 쓴다 — 설명 글만 바꿔 끼운다.
+#   한국어판의 말을 더하거나 빼지 않는다(같은 규칙이 두 언어로 갈리면 안 된다 — `test_mcp_language_1019`).
+_EN_DESCRIPTIONS: dict[str, dict[str, str]] = {
+    TASK_TOOL["name"]: {
+        "": (
+            "Hand one whole task to Sonjari, a local AI running on this PC. It works in the user's real Chrome "
+            "(including logged-in sites), files, and Word/Excel/Hangul documents. Examples: \"find 3 marketing jobs in "
+            "Seoul on a job board and put them in a spreadsheet\", \"compare the two contracts in my Documents and write "
+            "a summary\".\n"
+            "Returns a job_id right away. Get the result with sonjari_task_status.\n"
+            "Put what, where, and which file you want back in one sentence. One call here is faster and uses fewer "
+            "tokens than calling low-level tools (browser_*) many times.\n"
+            "Leave the save folder out by default — results go to Sonjari's output folder (under Documents) and the "
+            "path comes back in files. If you name another folder, a person has to approve it in the Sonjari window "
+            "(if nobody is there, the job waits)."
+        ),
+        "task": ("The task in one sentence — write it in the language the user is using with you. Up to 4,000 characters "
+                 "(longer tasks are sent back, not cut)."),
+        "skill": "Optional skill name to use (see skill_list). Leave empty if unsure.",
+        "repo": (
+            "Code jobs only: absolute path of a git repository on this PC (or a folder inside it). Sonjari checks out "
+            "a **new branch** of it separately and changes only that — the original folder is untouched. Uncommitted "
+            "changes to tracked files come along. When done, branch in the result lists the changed files and the "
+            "commands to take them. Give repo without check and say \"don't change anything, just read and summarize\" "
+            "in the task, and Sonjari reads the relevant code on this PC and summarizes it by file, function and line "
+            "without editing."
+        ),
+        "check": (
+            "With repo: one **check command** that decides when the job is done (run in that folder; exit code 0 "
+            "passes). Example: python -m pytest -q tests/test_x.py. With it, Sonjari does not guess requirements from "
+            "the task text — it fixes until the command passes, or reports that it could not."
+        ),
+        "needs": (
+            "Optional: names of items you must get back (e.g. [\"product name\", \"price\", \"address\"]). The result's "
+            "needs then says, item by item, whether it was filled (met): true means a column, heading or \"name: value\" "
+            "line with that name has a value, false means that place is empty, and null means no place with that name "
+            "was found so it could not be checked (not that it is empty — read the answer itself). "
+            "National ID numbers, card numbers and secret "
+            "keys are always masked; phone numbers and email addresses are only returned when you name them here "
+            "(e.g. \"contact\")."
+        ),
+    },
+    STATUS_TOOL["name"]: {
+        "": (
+            "Get the progress or result of a task handed off with sonjari_task. If it is not finished, it waits up "
+            "to wait_sec seconds and returns the current state — then call it again.\n"
+            "status needs_review means the answer or a file contains **numbers no tool ever returned** "
+            "(unsupported_numbers). Do not pass those on as fact; tell the user they need checking.\n"
+            "needs_approval means an irreversible action is waiting for the approval card in the Sonjari window — "
+            "tell the user.\n"
+            "If resume is present, the task is not finished. The addresses in resume.evidence were already read — "
+            "**do not open them again**; continue only with what resume.next lists.\n"
+            "Even when failed or cancelled, files, sources and resume are work done before the failure — use them, "
+            "do not throw them away. unverified_claim is an unchecked last statement; do not pass it on as fact.\n"
+            "While running, pass progress.doing (what it is doing now) and progress.requested (requested n/m) to the "
+            "user in one line — e.g. \"reading job posts on the site now, requested 2/3\". It does not predict time "
+            "left (that has never been measured) — do not make one up.\n"
+            "cost is the record of this errand on this PC (seconds taken, pages read locally, a lower bound from "
+            "counted values and its basis). You can use it when explaining to the user; when you state the lower "
+            "bound, state its basis too. cost.host_context_kept_out.tokens_at_least is a **lower bound** from counted "
+            "values — say \"at least N tokens of page text were read on this PC and kept out of this conversation\", "
+            "and do not inflate it with \"about\" or \"x times\". Do not claim time was saved (local can be slower)."
+        ),
+        "job_id": "The job_id returned by sonjari_task",
+        "wait_sec": (
+            f"Maximum seconds to wait for it to finish. Empty means {CLAUDE_CODE_MAX_WAIT_SEC} s for Claude Code and "
+            f"{MAX_WAIT_SEC} s for other apps (larger values are cut to that app's limit). Leave it empty and do not "
+            "ask often — every call re-reads the whole conversation."
+        ),
+    },
+    GUIDE_TOOL["name"]: {
+        "": (
+            "Returns the Sonjari guide (how to write and hand off a task, how to pass on the result, what to do when "
+            "stuck). Call it once before handing Sonjari its first task. Read-only; changes nothing."
+        ),
+    },
+    STORY_TOOL["name"]: {
+        "": (
+            "Returns the \"story cards\" Sonjari's scribe drafted from this PC's Claude Code conversation logs (what was "
+            "decided, what was dropped and why, what is left to do, what the person corrected more than once). Call it "
+            "when you continue after the conversation was cut, or when you need to recall \"what came in between\". "
+            "Each line carries the log's line number and a verbatim quote — they are drafts, so check that spot "
+            "yourself for anything important. Read-only; changes nothing."
+        ),
+        "session": "Only this session (start of the conversation log's file name). Empty means all.",
+        "limit": "How many of the most recent lines (default 30).",
+    },
+}
+
+
+def localized_tool(tool: dict[str, Any], lang: str) -> dict[str, Any]:
+    """도구 사전 하나를 그 언어로 — 영어면 설명 글만 바꾼 **새 사전**(원본은 그대로)."""
+    texts = _EN_DESCRIPTIONS.get(str(tool.get("name") or "")) if lang == "en" else None
+    if not texts:
+        return dict(tool)
+    out = dict(tool)
+    out["description"] = texts.get("", out.get("description", ""))
+    params = out.get("parameters")
+    if isinstance(params, dict) and isinstance(params.get("properties"), dict):
+        props = {}
+        for key, spec in params["properties"].items():
+            spec = dict(spec)
+            if key in texts:
+                spec["description"] = texts[key]
+            props[key] = spec
+        out["parameters"] = {**params, "properties": props}
+    return out
 
 
 #: 코드가 든 인자 이름 — 계산 상자(`sandbox_run`)로 파일을 만든 판.
@@ -210,7 +343,8 @@ def partial_work(get_step: Any, steps: list[dict[str, Any]]) -> dict[str, list[s
             if path in files:
                 files.remove(path)
         elif tool.startswith("browser_"):
-            url = str(payload.get("url") or arguments.get("url") or "").strip()
+            # 로그인 화면 · 한 번 쓰는 값은 줄여서 내보낸다(`url_privacy` — 2026-10-19 잡 51f35b07 의 구글 계정 고르기 주소).
+            url = safe_url(str(payload.get("url") or arguments.get("url") or "").strip())
             if url.startswith("http") and url not in sources:
                 sources.append(url)
     return {"files": files[:20], "sources": sources[:20]}
@@ -310,7 +444,8 @@ def _failure_report(job: dict[str, Any], result: dict[str, Any], steps: list[dic
     """실패·취소된 잡이 **어디까지 갔는가**. 상태와 오류만 주면 호스트는 남은 일을 버린다."""
     partial = result.get("partial") if isinstance(result.get("partial"), dict) else {}
     files = [str(p) for p in (partial.get("files") or [])][:20]
-    sources = [str(u) for u in (partial.get("sources") or [])][:20]
+    # 저장된 `partial` 은 이 고침 전에 쌓인 것일 수 있다 — 나가는 자리에서 한 번 더 줄인다(`url_privacy`).
+    sources = list(dict.fromkeys(safe_url(str(u)) for u in (partial.get("sources") or [])))[:20]
     diagnosis = result.get("diagnosis") if isinstance(result.get("diagnosis"), dict) else {}
     error = str(job.get("error") or result.get("error") or "")
     report: dict[str, Any] = {}
@@ -621,6 +756,8 @@ def summarize_job(
             if waiting.get("reason") == "stuck" and report:
                 # ★ 헛돌다 멈춘 판(2026-09-23): 「계속할까요」가 아니라 **사람이 할 일**이 있다. 그걸 그대로 전하게 한다.
                 summary["stuck"] = {key: str(report.get(key) or "") for key in ("done", "blocked", "ask", "url")}
+                # 멈춘 화면이 로그인 화면일 수 있다(사람이 같은 탭을 쓰다 멈춘 판) — 한 번 쓰는 값은 줄여서(`url_privacy`).
+                summary["stuck"]["url"] = safe_url(summary["stuck"]["url"])
                 summary["message"] = (f"{NAME_KO}가 같은 자리에서 막혀 멈췄습니다. 사용자에게 다음을 그대로 전하세요 — "
                                       f"한 것: {report.get('done') or '-'} / 막힌 곳: {report.get('blocked') or '-'} / "
                                       f"해 주실 일: {report.get('ask') or '-'}. 사용자가 그 일을 한 뒤 {NAME} 창에서 "
@@ -702,7 +839,10 @@ def summarize_job(
                 files.append(path)
             _strings(step.get("arguments") or {}, written)
         elif str(record.get("effect") or "").startswith("read"):
-            source = str(record.get("source_id") or "")
+            # ★ 2026-10-19 잡 51f35b07: 사람이 같은 탭에서 계정을 더하는 사이 읽은 구글 계정 고르기 화면이 `client_id` ·
+            #   `code_challenge` · `nonce` · `state` 를 단 채 sources 로 나갔다. 출처는 「그 화면을 봤다」면 충분하다 — 로그인 화면과
+            #   한 번 쓰는 값이 붙은 주소는 `scheme://host/path` 로 줄인다(지우지 않는다 · `url_privacy.safe_url`).
+            source = safe_url(str(record.get("source_id") or ""))
             if source.startswith("http") and source not in sources:
                 sources.append(source)
 
@@ -751,9 +891,15 @@ def summarize_job(
     notes: list[str] = []
     if unsupported:
         notes.append(f"도구가 준 적 없는 숫자 {len(unsupported)}개 — 사실로 전하기 전에 확인하세요.")
-    missing = [item["label"] for item in needs_checked or [] if not item["met"]]
+    # ★ 2026-10-19: met 은 셋이다 — False(이름 붙은 자리가 비었다)만 「비어 있다」고 말한다. None(이름으로 자리를 못 찾음)은
+    #   「확인 못 함」이다. 둘을 섞어 「비어 있는 항목」으로 알리던 탓에 답에 다 있는 판이 0/4 로 나갔다(Ollama FAQ 세 판).
+    missing = [item["label"] for item in needs_checked or [] if item.get("met") is False]
+    unchecked = [item["label"] for item in needs_checked or [] if item.get("met") is None]
     if missing:
         notes.append(f"돌려받아야 할 것 중 비어 있는 항목: {', '.join(missing)} — 이 항목 없이 끝낼 수 있는지, 다시 맡길지 정하세요.")
+    if unchecked:
+        notes.append(f"이름이 붙은 칸 · 제목을 찾지 못해 확인하지 못한 항목: {', '.join(unchecked)} — 비어 있다는 뜻이 아닙니다. "
+                     "답 본문에서 직접 확인하세요.")
     if refined:
         notes.append("답에서 가린 것이 있습니다(" + ", ".join(f"{item['kind']} {item['count']}" for item in refined)
                      + "). 연락처가 꼭 필요하면 needs 에 밝혀 다시 맡기세요 — 주민번호 · 카드 번호 · 비밀 키는 내보내지 않습니다.")
@@ -791,6 +937,14 @@ def summarize_job(
         if why in _STUCK_WHY:
             summary["branch"]["stopped_because"] = why
             notes.append(_STUCK_WHY[why])
+        # ★ 설명 글 · 주석만 바뀐 파이썬 파일 (2026-10-19 75aaa296 — 허술한 시험을 설명 글에 낱말을 끼워 넣어 통과시켰다).
+        wording = [str(path) for path in (delegated.get("wording_only") or [])][:60]
+        if wording:
+            summary["branch"]["wording_only"] = wording
+            notes.append(
+                f"바뀐 파일 중 {len(wording)}개는 설명 글 · 주석만 바뀌고 코드는 그대로입니다(branch.wording_only). "
+                "확인 명령을 맞추려고 넣은 글일 수 있으니 가져가기 전에 보세요."
+            )
         if not summary["branch"]["changed_count"]:
             notes.append("가지에 바뀐 파일이 없습니다.")
         else:

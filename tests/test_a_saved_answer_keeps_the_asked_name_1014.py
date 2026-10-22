@@ -48,10 +48,12 @@ def test_a_full_path_keeps_the_name() -> None:
     assert Path(args["path"]).name == "레딧_홍보규칙_조사_2.xlsx"
 
 
-def test_no_named_file_keeps_the_old_title_rule() -> None:
+def test_no_named_file_takes_the_name_from_the_task() -> None:
+    # 2026-10-19 판 bb5ab643: 이름을 댄 적이 없으면 예전엔 답의 첫 문장(「9개까지 확인했고 …」)으로 지었다. 이제는 시킨 글에서 짓는다.
     args = _call("레딧 게시판 3곳의 규칙을 읽어 엑셀로 정리해 줘.")
     assert args["path"].endswith(".xlsx") and "/" not in args["path"] and "\\" not in args["path"]
-    assert args["path"].startswith("9개까지")
+    assert args["path"] == "레딧_게시판_규칙.xlsx"
+    assert "9개까지" not in args["path"]
 
 
 def test_a_name_with_another_format_keeps_its_stem_only() -> None:

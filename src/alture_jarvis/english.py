@@ -46,6 +46,23 @@ def english_dominant(text: str) -> bool:
     return hangul < 0.15 * (hangul + latin)
 
 
+def needs_english_rewrite(prompt: str, answer: str) -> bool:
+    """영어로 물었는데 답이 한국어인가 — 바로 답하는 길(`runtime._english_if_asked`)과 에이전트 길이 **같이** 쓰는 판정.
+
+    ★ 2026-10-20 README 영어 영상 촬영: 화면을 영어로 두고 「Introduce yourself in one line.」에 「저는 사용자의 로컬 AI 비서
+    손자리입니다.」로 답했다. 두 길 모두 「한글 20자 이상」일 때만 다시 썼는데 이 답은 한글 16자였다. 짧은 답일수록 통째로
+    한국어다. 그래서 20자 문턱은 두고(긴 답에 회사 이름 같은 한글이 섞인 경우), **한글이 4자 이상이고 글자의 절반 이상**이면
+    짧아도 한국어 답으로 본다. 운영 영어 질문 48개에 대 보니 새로 걸리는 옛 답은 0개였다(오탐 없음).
+    """
+    flat_prompt = " ".join(str(prompt or "").split())
+    flat_answer = " ".join(str(answer or "").split())
+    if not flat_answer or not english_dominant(flat_prompt) or english_dominant(flat_answer):
+        return False
+    hangul = len(_HANGUL.findall(flat_answer))
+    latin = len(_LATIN.findall(flat_answer))
+    return hangul >= 20 or (hangul >= 4 and hangul >= 0.5 * (hangul + latin))
+
+
 # ── 부정 ─────────────────────────────────────────────────────────────────────
 #
 # 한국어는 부정이 동사 **뒤**에 온다(「발행하지 마」). 영어는 **앞**이다(「Don't publish」). 그래서 매치 **앞**의 같은 문장만 본다.
@@ -376,6 +393,52 @@ ARTIFACT_REQUEST_VERB = re.compile(
     r"|insert|attach|add|convert|turn\s+(?:[\w'-]+\s+){0,6}?into)\b",
     re.I,
 )
+#: 옮기는 동사 — 받는 곳(into · to · in …)을 가진다. 한국어 `plan._TRANSFER_VERB`(옮기 · 담아 · 달아 · 넣어)의 짝.
+TRANSFER_VERB = re.compile(r"(?:copy|move|insert|attach|add)", re.I)
+#: 대상 낱말 **앞**이 이 꼴이면 그 대상이 받는 곳이다 — 「into an Excel file」 · 「to the report」 · 「in a new document」.
+_DESTINATION_BEFORE = re.compile(
+    r"\b(?:into|to|in|onto|inside)\s+(?:(?:a|an|the|one|my|your|this|that|new|single|separate|same)\s+){0,2}(?:[\w-]+\s+){0,2}$",
+    re.I,
+)
+
+
+def verb_meets_its_target(compact: str, *, real_files_only: bool = False, work_file_named: bool = False) -> bool:
+    """대상 ∧ 부정되지 않은 산출 동사 — 옮기는 동사(copy · add …)뿐이면 대상이 받는 곳 자리에 있어야 한다.
+
+    ★ 2026-10-19 (한국어 `plan._verb_meets_its_target` 와 같은 고침). 「Download the PDF … and copy the first sentence of the
+      abstract exactly」의 copy 는 **답에 옮겨 적으라**는 말이고 PDF 는 읽을 재료다. 「copy the results into an Excel file」만 산출물이다.
+    """
+    targets = list((REAL_FILE_TARGET if real_files_only else ARTIFACT_REQUEST_TARGET).finditer(compact))
+    verbs = [verb for verb in ARTIFACT_REQUEST_VERB.finditer(compact) if not negated_before(compact, verb.start())]
+    if not targets or not verbs:
+        return False
+    if any(not TRANSFER_VERB.fullmatch(verb.group(0)) for verb in verbs):
+        return True
+    # 받는 곳: 대상 앞이 into · to · in … 이거나, 손댈 파일의 이름을 댔다(`plan._names_a_work_file` — 부르는 쪽이 넘긴다).
+    return work_file_named or any(
+        _DESTINATION_BEFORE.search(compact[max(0, target.start() - 60):target.start()]) for target in targets
+    )
+
+
+#: 파일을 만들 **필요가 없다**고 거두는 말 — 「no need to create a file」 · 「you don't need to save a document」 · 「no file needed」.
+#: 한국어 `plan._FILE_DECLINED`(「파일은 만들지 않아도 되고」)의 짝. 금지(「Don't create any files」)는 `JOB_WIDE_PROHIBITION` 이 본다.
+DECLINED_FILE = re.compile(
+    r"\b(?:(?:there'?s\s+|there\s+is\s+)?no\s+need\s+(?:to|for)|(?:you\s+)?(?:don'?t|do\s+not)\s+(?:need|have)\s+to|needn'?t"
+    r"|(?:it'?s\s+|it\s+is\s+)?not\s+necessary\s+to|without)\s+"
+    r"(?:(?:create|make|save|write|produce|generate|export|creating|making|saving|writing|producing|generating|exporting)\s+)?"
+    r"(?:(?:a|an|any|the)\s+)?(?:separate\s+|new\s+|output\s+)?(?:files?|documents?|docs?|spreadsheets?|reports?)\b"
+    r"|\bno\s+(?:separate\s+|new\s+|output\s+)?(?:files?|documents?)\s+(?:is\s+|are\s+)?(?:needed|necessary|required)\b"
+    # ★ 2026-10-20 README 영어 영상 촬영(잡 a1d05ead · 클로드 코드가 맡김): 「Answer in the chat reply — no file needs to be created.」
+    #   위 꼴은 「no file (is) needed」만 알아서 「file … created」가 그대로 산출물 요구가 됐고, 시키지 않은 .docx 를 만들었다.
+    #   「no file needs/has to be created」 · 「no file should be made」 · 「a file is not needed」 · 「file isn't necessary」 꼴을 더한다.
+    r"|\bno\s+(?:separate\s+|new\s+|output\s+)?(?:files?|documents?|docs?|spreadsheets?|reports?)\s+"
+    r"(?:needs?|has|have|should|must|will)\s+(?:to\s+)?be\s+(?:created|made|saved|written|produced|generated|exported)\b"
+    r"|\b(?:a|any|the)\s+(?:separate\s+|new\s+|output\s+)?(?:files?|documents?|reports?)\s+(?:is|are)(?:n'?t|\s+not)\s+"
+    r"(?:needed|necessary|required)\b",
+    re.I,
+)
+
+
 #: 「정리해줘」류 — **파일 낱말이 있을 때만**, 또는 「문서로」처럼 형식을 댔을 때만 산출물이다.
 TIDY_VERB = re.compile(r"\b(?:organi[sz]e|compile|summari[sz]e|tidy|put|list|arrange|sort|write\s+up|put\s+together)\b", re.I)
 DOC_FORMAT_REQUEST = re.compile(
@@ -424,6 +487,16 @@ COMPUTE_VERB = re.compile(
 )
 #: COMPUTE_VERB 중 **만드는·옮기는** 동사 — 셈이 아니라 파일·표에 담으라는 말일 수 있다(`plan._a_listed_column` 와 짝).
 ARRANGE_VERB = re.compile(r"(?:make|create|generate|save|output|print|organi[sz]e|put|tabulate)", re.I)
+#: ARITHMETIC_TARGET 중 **값의 이름** — 만드는 동사와만 짝지으면 셈이 아니다(`plan._QUANTITY_NAME` 와 짝, 2026-10-19).
+QUANTITY_NAME = re.compile(r"how\s+many|grades?|scores?|total|profit|discount|interest", re.I)
+#: 동사 바로 앞의 부정 — 「no need to make a file」 · 「don't save」.
+NEGATED_BEFORE = re.compile(r"\b(?:not|no\s+need\s+to|don'?t|do\s+not|never|without)\s+$", re.I)
+#: 표에 **셈한 칸을 더하라** — 「add the average column」(`plan._ADD_COLUMN_VERB` 와 짝, 2026-10-19 판 ac66af89).
+ADD_COLUMN_VERB = re.compile(r"\b(?:add|include|fill\s+in)\b", re.I)
+#: 계산하기 전엔 어디에도 없는 칸의 이름(`plan._COMPUTED_COLUMN` 와 짝 — rank 는 사이트 값을 옮기는 일이 흔해 뺀다).
+COMPUTED_COLUMN = re.compile(
+    r"\b(?:average|mean|sum|ratio|percent(?:age)?\s+change|growth\s+rate|running\s+total)\b", re.I
+)
 ARTIFACT_TARGET = re.compile(
     r"\b(?:excel|xlsx|spreadsheets?|csv|word\s+file|docx|document\s+file|graph|chart|plot|simulation"
     r"|as\s+a\s+file|(?:in|into|as)\s+a\s+table)\b",
@@ -433,7 +506,13 @@ ARTIFACT_TARGET = re.compile(
 #: 이름이 붙은 파일 **앞**이 이것이면 그 파일은 만들 것이 아니라 읽을 재료다 — 「Read INSTRUCTIONS.md and implement …」.
 #: 한국어 `plan._NAMED_FILE_IS_READ`(「…md 를 읽고」)와 같은 판정이고, 영어는 읽는 말이 앞에 온다 (2026-10-13).
 #: 「in tidy.py」 · 「from app.py」는 넣지 않는다 — 고칠 파일을 가리키는 말이기도 하다.
-NAMED_FILE_IS_READ_BEFORE = re.compile(r"\b(?:read|reading|open|look\s+at|parse|load|based\s+on|according\s+to)\s+(?:the\s+)?(?:file\s+)?$", re.I)
+#: ★ 2026-10-19: 「read the FAQ document (docs/faq.md)」처럼 읽는 말과 이름 사이에 이름을 꾸미는 말이 둘까지 끼어도 재료다
+#:   (and · then · or 는 다른 동사를 잇는 말이라 넘지 않는다 — 「Read and fix app.py」의 app.py 는 고칠 파일이다).
+NAMED_FILE_IS_READ_BEFORE = re.compile(
+    r"\b(?:read|reading|open|look\s+at|parse|load|based\s+on|according\s+to)\s+(?:the\s+)?"
+    r"(?:(?!(?:and|then|or)\b)[\w-]+\s+){0,2}(?:file\s+)?$",
+    re.I,
+)
 
 
 #: 형식 → 확장자. 한국어 `_artifact_extensions` 의 규칙 순서를 그대로 따른다.

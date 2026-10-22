@@ -507,6 +507,38 @@
     "source": "default",
     "live": false,
     "restart_required": false
+   },
+   {
+    "key": "scribe_enabled",
+    "group": "labs",
+    "label": "서기(클로드 대화 정리)",
+    "kind": "bool",
+    "help": "손자리가 놀 때 고른 폴더의 클로드 코드 대화 기록을 읽고, 정한 것 · 버린 것 · 남은 일을 카드로 쌓는다. 클로드가 sonjari_story 로 꺼내 읽는다. 기록은 이 PC 밖으로 나가지 않는다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": true,
+    "value": false,
+    "source": "default",
+    "live": true,
+    "unavailable": "",
+    "restart_required": false
+   },
+   {
+    "key": "scribe_folders",
+    "group": "labs",
+    "label": "서기가 읽을 폴더",
+    "kind": "list",
+    "help": "클로드 코드 대화 기록 폴더(예: 사용자 폴더\\.claude\\projects\\<프로젝트>). 여기 고른 곳만 읽는다.",
+    "choices": [],
+    "min": null,
+    "max": null,
+    "lab": true,
+    "value": [],
+    "source": "default",
+    "live": true,
+    "unavailable": "",
+    "restart_required": false
    }
   ],
   "path": "C:\\Users\\me\\AppData\\Local\\AltureJarvis\\data\\settings.json"

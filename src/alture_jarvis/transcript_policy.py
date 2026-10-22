@@ -251,9 +251,12 @@ def _model_time_summary(observations: list[dict[str, Any]]) -> dict[str, Any]:
     거의 전부 **생성**이고, 그중에서도 예산 상한까지 쓴 턴 몇 개가 가져간다.
     이 줄이 없어서 「느리다」에 답할 때마다 손으로 더해야 했다.
     """
-    prefill = generate = 0.0
-    prompt_tokens = eval_tokens = capped = 0
+    prefill = generate = cut_sec = 0.0
+    prompt_tokens = eval_tokens = capped = cut_passes = 0
     for item in observations:
+        # ★ 끊고 버린 첫 호출 (2026-10-19 · `ollama._note_cut_first_pass`). 서버 시간이 안 와서 위 둘에 안 잡힌다 — 따로 센다.
+        cut_sec += float(item.get("cut_first_pass_sec") or 0.0)
+        cut_passes += int(item.get("cut_first_passes") or 0)
         timing = item.get("telemetry") or item.get("timing") or {}
         prefill += float(timing.get("prompt_eval_duration") or 0) / 1e9
         generate += float(timing.get("eval_duration") or 0) / 1e9
@@ -270,6 +273,9 @@ def _model_time_summary(observations: list[dict[str, Any]]) -> dict[str, Any]:
         "prompt_tokens": prompt_tokens,
         "generated_tokens": eval_tokens,
         "turns_at_predict_cap": capped,
+        # 생각 예산 · 되풀이 · 느린 답으로 **끊고 버린** 첫 호출의 벽시계 시간(읽기 + 쓰다 만 생성)과 그 횟수.
+        "cut_first_pass_sec": round(cut_sec, 1),
+        "cut_first_passes": cut_passes,
     }
 
 

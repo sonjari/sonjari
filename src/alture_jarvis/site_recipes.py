@@ -238,10 +238,54 @@ class SiteRecipeTools:
     def __init__(self, config: JarvisConfig, worker: BrowserWorker) -> None:
         self.config = config
         self.worker = worker
-        self.recipes = load_recipes(config.site_recipe_dir)
+        self.recipes = self._load_all()
         # 되돌리기 **실적** 장부. `register` 에서 게이트웨이 것을 받는다.
         # 없으면(시험 등) 실적이 없는 것으로 친다 — 모르면 안 내려간다.
         self.store: Any = None
+
+    def _load_all(self) -> dict[str, SiteRecipe]:
+        """손자리에 든 레시피 + 사람이 승인한 배운 레시피(`config.user_recipes_dir`). 이름이 겹치면 든 것이 이긴다."""
+        found = load_recipes(self.config.site_recipe_dir)
+        user_dir = getattr(self.config, "user_recipes_dir", None)
+        if user_dir is not None:
+            try:
+                learned = load_recipes(Path(user_dir))
+            except Exception:  # noqa: BLE001 — 사람 폴더의 깨진 파일이 손자리를 못 뜨게 하면 안 된다
+                learned = {}
+            for name, recipe in learned.items():
+                found.setdefault(name, recipe)
+        return found
+
+    def save_learned(self, recipe: dict[str, Any]) -> dict[str, Any]:
+        """사람이 「응」 한 배운 레시피를 저장한다 — 확정본과 **같은 규칙**을 먼저 통과시킨다."""
+        user_dir = Path(self.config.user_recipes_dir)
+        name = str(recipe.get("name") or "").strip()
+        if not name or not re.fullmatch(r"[A-Za-z0-9_\-]+", name):
+            raise RecipeError(f"배운 레시피 이름이 이상하다: {name!r}")
+        path = user_dir / f"{name}.json"
+        SiteRecipe(path, recipe)
+        user_dir.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(recipe, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.recipes = self._load_all()
+        self._tell_browser_about_search_recipes()
+        return {"saved": True, "name": name, "path": str(path)}
+
+    def forget_learned(self, name: str) -> dict[str, Any]:
+        """배운 레시피를 지운다(「되돌려」). 손자리에 든 레시피는 여기서 못 지운다 — 사람 폴더 안의 것만."""
+        path = Path(self.config.user_recipes_dir) / f"{name}.json"
+        existed = path.exists()
+        if existed:
+            path.unlink()
+        self.recipes = self._load_all()
+        self._tell_browser_about_search_recipes()
+        return {"removed": existed, "name": name}
+
+    def has_search_for(self, url: str) -> bool:
+        """이 주소의 사이트에 검색 절차가 이미 있는가 — 있으면 배우기를 권하지 않는다."""
+        return any(
+            recipe.allows(url) and any(any(word in key.lower() for word in self._SEARCH_ACTION) for key in recipe.actions)
+            for recipe in self.recipes.values()
+        )
 
     # ---- tools ----------------------------------------------------------
     @property
@@ -628,7 +672,7 @@ class SiteRecipeTools:
             target.unlink()
             restored = "removed"
 
-        self.recipes = load_recipes(self.config.site_recipe_dir)
+        self.recipes = self._load_all()
         return {
             "action": "undo_site_promote_draft",
             "site": site,
@@ -1113,7 +1157,7 @@ class SiteRecipeTools:
         self.config.site_recipe_dir.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         path.unlink()
-        self.recipes = load_recipes(self.config.site_recipe_dir)
+        self.recipes = self._load_all()
         return {
             "action": "site_promote_draft",
             "site": site,

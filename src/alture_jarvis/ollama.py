@@ -5,6 +5,7 @@ import re
 import threading
 import time
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
@@ -33,6 +34,20 @@ def shared_verify() -> Any:
     return _VERIFY
 
 from .config import JarvisConfig
+
+#: 부르기 기록(`model_calls.jsonl`)에 붙일 이름표 — 「왜 불렀나」는 부르는 쪽만 안다 (2026-10-21 · `docs/측정계획_첫글자대기`).
+#: 20초 넘은 첫 글자 대기 105건 중 생각 켬/끔 뒤집기 15건 · 기록 줄어듦 21건이 어느 부르기에서 나왔는지 몰라 짐작만 했다.
+_CALL_TAGS: ContextVar[dict[str, Any]] = ContextVar("model_call_tags", default={})
+
+
+@contextmanager
+def tagged_call(**tags: Any) -> Iterator[None]:
+    """이 안에서 부른 모델 호출의 기록에 이름표를 붙인다. 안쪽이 바깥을 덮는다(예: 걸음 안의 생각 예산 뒤 두 번째 부르기)."""
+    token = _CALL_TAGS.set({**_CALL_TAGS.get(), **{key: value for key, value in tags.items() if value is not None}})
+    try:
+        yield
+    finally:
+        _CALL_TAGS.reset(token)
 
 
 #: 흐름을 열다 404 를 맞았을 때 다시 물어보는 횟수와 간격.
@@ -232,6 +247,22 @@ class _Transient404(RuntimeError):
     """
 
 
+def _note_cut_first_pass(message: dict[str, Any], seconds: float) -> None:
+    """끊고 다시 부른 호출의 관측에 **버린 첫 호출의 시간**을 더해 적는다 (2026-10-19 · 긱뉴스 판 1b6df02d).
+
+    끊은 첫 호출은 흐름을 중간에 닫아서 서버의 끝 기록(`done` · 시간)이 안 온다. 그래서 관측(`_inference.telemetry`)에는
+    두 번째 호출의 시간만 남고, 판의 `model_time` 은 첫 호출을 통째로 못 셌다. 그 판(699초)에서 그렇게 빠진 생성이
+    두 번 · 약 137초였다(서버 기록: 4,096 + 4,424 토큰을 쓰다 끊김) — 「모델 시간 475초 + 도구 28초 = 나머지 196초는 어디?」의
+    대부분이 이것이었다. 두 번째 호출이 또 끊겨 다시 부르면(드물다) 시간을 더해 간다. 동작은 바꾸지 않는다 — 적기만 한다.
+    """
+    inference = message.get("_inference")
+    if not isinstance(inference, dict):
+        return
+    # 끊은 일 자체가 기록이다 — 시간이 0 으로 재져도(시험 · 아주 빠른 끊김) 횟수는 센다.
+    inference["cut_first_pass_sec"] = round(float(inference.get("cut_first_pass_sec") or 0.0) + max(0.0, float(seconds)), 2)
+    inference["cut_first_passes"] = int(inference.get("cut_first_passes") or 0) + 1
+
+
 #: 최근에 본 상주 러너 컨텍스트 `{주소|모델: (ctx, monotonic)}` — `OllamaClient._resident_context` 가 「모른다」일 때 쓴다.
 _RESIDENT_SEEN: dict[str, tuple[int, float]] = {}
 
@@ -288,6 +319,8 @@ class OllamaClient:
         self._pin_lock = threading.Lock()
         self._pin_role = ""
         self._pin_depth = 0
+        # 판 하나만 다른 대화 모델로 돌린다(`pin_model`, 2026-10-18 디스코드 「@빠른」).
+        self._pin_model = ""
 
     @property
     def pinned_role(self) -> str:
@@ -320,6 +353,29 @@ class OllamaClient:
                     self._pin_role = ""
                 else:
                     self._pin_role = previous
+
+    @property
+    def pinned_model(self) -> str:
+        return self._pin_model
+
+    @contextmanager
+    def pin_model(self, model: str) -> Iterator[None]:
+        """이 블록 안에서는 **대화 모델로 가던 호출**이 이 태그로 간다 — 판 하나에만 거는 모델 바꾸기 (2026-10-18).
+
+        디스코드에서 「@빠른 오늘 날씨」처럼 그 판만 다른 모델로 돌린다(`runtime._chat_job`). `pin_role` 과 같은 까닭으로
+        프로세스 전체를 묶는다 — 판 도중 다른 스레드가 대화 모델을 한 번 부르면 3090 에서 둘이 서로를 쫓아낸다(사고 P).
+        - 따로 정한 역할 모델(그림 · 코더 등, 대화 모델과 태그가 다른 역할)은 그대로 둔다. 바꾸는 것은 대화 모델 자리뿐이다.
+        - 호출부가 태그를 찍었으면 안 바꾼다. 시스템 앞머리 · 설정 파일은 건드리지 않는다 — 블록을 나가면 흔적이 없다.
+        """
+        tag = str(model or "").strip()
+        with self._pin_lock:
+            previous = self._pin_model
+            self._pin_model = tag
+        try:
+            yield
+        finally:
+            with self._pin_lock:
+                self._pin_model = previous
 
     def _effective_role(self, role: str, model: str = "") -> str:
         pinned = self.pinned_role
@@ -546,6 +602,10 @@ class OllamaClient:
     def _selected_model(self, model: str | None = None, *, role: str = "chat") -> str:
         if not model:
             role = self._effective_role(role)
+            override = self._pin_model
+            if override and role != "vision" and self._same_model(
+                    self.config.model_for(role), self.config.model_for("chat")):
+                return override
         selected = str(model or self.config.model_for(role)).strip()
         if not selected:
             raise ValueError("ollama_model_required")
@@ -956,6 +1016,64 @@ class OllamaClient:
         except Exception:  # noqa: BLE001
             pass
 
+    #: 부르기 기록 파일이 이만큼 커지면 반으로 줄인다(최근 것만 남긴다).
+    CALL_LOG_MAX_BYTES = 4_000_000
+
+    def _log_call(self, body: dict[str, Any], payload: dict[str, Any], first_byte: float, first_token: float = 0.0,
+                  *, cut: str = "", elapsed: float = 0.0, thinking_chars: int | None = None,
+                  content_chars: int | None = None) -> None:
+        """부르기마다 한 줄 — **첫 글자까지 몇 초 · 앞부분 몇 토큰을 몇 초에 읽었나** · 도구 목록 · 지시문 앞머리 지문.
+
+        ★ 2026-10-20 대표: 「처음 생각 토큰이 나오기까지 너무 오래 걸린다 — 이거 제일 짜증 나」. 같은 엑셀 판이 10-16 엔 앞부분 읽기 5.9초,
+          오늘은 32.3초였다(글 만드는 시간은 같음). 판 합계만 남아서 **어느 부르기에서 캐시가 깨졌는지** 몰랐다. 「첫 바이트」는 재고 있었는데
+          버리고 있었다. 이제 남긴다 — 짐작으로 고치지 않으려고. 글 · 도구 내용은 안 남기고 지문(해시)만.
+        """
+        try:
+            import hashlib
+
+            messages = body.get("messages") if isinstance(body.get("messages"), list) else []
+            system = next((str(item.get("content") or "") for item in messages if isinstance(item, dict) and item.get("role") == "system"), "")
+            tools = body.get("tools") if isinstance(body.get("tools"), list) else []
+            names = [str(((tool or {}).get("function") or {}).get("name") or "") for tool in tools]
+            row = {
+                "model": str(body.get("model") or "")[-40:],
+                "messages": len(messages),
+                "tools": len(names),
+                "tools_sig": hashlib.sha1("|".join(names).encode("utf-8")).hexdigest()[:10],
+                "system_chars": len(system),
+                "system_head_sig": hashlib.sha1(system[:4000].encode("utf-8")).hexdigest()[:10],
+                "first_byte_sec": round(float(first_byte or 0.0), 2),
+                "first_token_sec": round(float(first_token or 0.0), 2),
+                "prompt_tokens": int(payload.get("prompt_eval_count") or 0),
+                "prefill_sec": round(float(payload.get("prompt_eval_duration") or 0) / 1e9, 2),
+                "eval_tokens": int(payload.get("eval_count") or 0),
+                "load_sec": round(float(payload.get("load_duration") or 0) / 1e9, 2),
+                "temperature": (body.get("options") or {}).get("temperature"),
+                "think": body.get("think"),
+            }
+            # 이름표(왜 불렀나 · 지난번과 앞에서부터 같은 메시지 수) — 기록 칸 이름을 덮지 않는다.
+            row.update({key: value for key, value in _CALL_TAGS.get().items() if key not in row})
+            # ★ 2026-10-22 대표: 코딩 분업 판 33분 중 「글 쓰기 약 16분」을 생각과 실제 답으로 나누지 못했다(생성 토큰은 둘을 합친 수).
+            #   글자 수만 남긴다(내용은 안 남긴다).
+            if thinking_chars is not None:
+                row["thinking_chars"] = int(thinking_chars)
+            if content_chars is not None:
+                row["content_chars"] = int(content_chars)
+            if cut:
+                # ★ 우리가 중간에 끊은 부르기(생각 예산 · 되풀이 · 느린 글)도 남긴다 — 예전엔 기록 줄보다 먼저 빠져나가
+                #   「생각하다 끊긴 몇 분」이 기록에 없었다. 서버가 끝까지 안 가 토큰 수는 0 이다.
+                row["cut"] = cut
+                row["elapsed_sec"] = round(float(elapsed or 0.0), 2)
+            path = Path(self.config.data_dir) / "model_calls.jsonl"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.exists() and path.stat().st_size > self.CALL_LOG_MAX_BYTES:
+                lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+                path.write_text("\n".join(lines[len(lines) // 2:]) + "\n", encoding="utf-8")
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"at": time.strftime("%Y-%m-%d %H:%M:%S"), **row}, ensure_ascii=False) + "\n")
+        except Exception:  # noqa: BLE001 — 기록은 덤이다. 부르기를 실패시키지 않는다
+            pass
+
     def _note_reload(self, body: dict[str, Any], payload: dict[str, Any]) -> None:
         try:
             load_ms = float(payload.get("load_duration") or 0) / 1_000_000
@@ -1080,10 +1198,54 @@ class OllamaClient:
                 front = None
         return front
 
+    # ── 노는 시간 일(서기 · 2026-10-21) ──────────────────────────────────────────
+    def background_chat(self, system: str, user: str, *, model: str, options: dict[str, Any]) -> str | None:
+        """손자리가 놀 때만 하는 짧은 부르기(`scribe`). **사람 일이 오면 끊긴다**(`_front_seen` → `cancel_background`). 끊기면 None.
+
+        ★ 2026-10-21 새벽 실측: 서기 실험이 같은 모델에 1만 7천 토큰을 밀어 넣는 동안 대표 판의 부르기가 첫 글자까지 15.8초를
+          기다렸다(모델 서버는 한 번에 하나). 그래서 노는 시간 일은 **사람 요청이 오는 순간 끊기는** 문으로만 보낸다 — 앞부분 데우기와 같은 문.
+        끝나면 본 지시문을 다시 데우게 표시한다(`_front_dirty`) — 서기가 캐시를 밀었어도 다음 사람 질문의 첫 글자가 늦지 않게.
+        """
+        body = {"model": model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                "stream": False, "think": False, "format": "json", "options": dict(options),
+                "keep_alive": self.config.ollama_keep_alive}
+        self._make_room_for(model)
+        client = httpx.Client(verify=shared_verify(), timeout=httpx.Timeout(600.0, connect=5.0))
+        self.__dict__["_background_cancelled"] = False
+        self.__dict__["_background_client"] = client
+        try:
+            response = client.post(f"{self.config.ollama_base_url}/api/chat", json=body)
+            response.raise_for_status()
+            if self.__dict__.get("_background_cancelled"):
+                return None
+            return str((response.json().get("message") or {}).get("content") or "")
+        except Exception:  # noqa: BLE001 — 끊긴 것도 결과다(사람 일이 왔다)
+            return None
+        finally:
+            self.__dict__["_background_client"] = None
+            self.__dict__["_front_dirty"] = True
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    def cancel_background(self) -> bool:
+        """노는 시간 일이 나가 있으면 끊는다. 끊었으면 True."""
+        client = self.__dict__.get("_background_client")
+        if client is None:
+            return False
+        self.__dict__["_background_cancelled"] = True
+        try:
+            client.close()
+        except Exception:  # noqa: BLE001
+            pass
+        return True
+
     def _front_seen(self, body: dict[str, Any]) -> None:
         """모델에 요청을 보내기 직전에 한 번. 데우는 중이면 비켜 주고, 큰 일의 요청이면 그 앞부분을 기억한다."""
         try:
             self.cancel_front_prime()
+            self.cancel_background()
             self.__dict__["_last_send_at"] = time.monotonic()
             tools = body.get("tools") or []
             messages = body.get("messages") or []
@@ -1629,6 +1791,7 @@ class OllamaClient:
         self._wait_out_transient_404(body)
         started = time.monotonic()
         first_byte = 0.0
+        first_token = 0.0  # 첫 생각 · 글 · 도구 조각이 실제로 들어온 때(`_log_call`)
         # ★ **스트리밍에도 404 재시도를 단다** (2026-09-11).
         #
         #   `_post_chat`(비스트리밍)에만 재시도가 있었다. 그런데 실제 판이 타는 길은
@@ -1712,6 +1875,8 @@ class OllamaClient:
                             thinking = str(chunk.get("thinking") or "")
                             content = str(chunk.get("content") or "")
                             calls = [dict(item) for item in chunk.get("tool_calls") or []]
+                            if not first_token and (thinking or content or calls):
+                                first_token = time.monotonic() - started
                             if thinking:
                                 thinking_parts.append(thinking)
                                 thinking_chars += len(thinking)
@@ -1838,48 +2003,58 @@ class OllamaClient:
             if fingerprint not in seen:
                 seen.add(fingerprint)
                 unique_calls.append(call)
+        if budget_hit or (slow_content and not content_loop and not unique_calls):
+            self._log_call(body, final_payload or {}, first_byte, first_token,
+                           cut=("repeat" if repeat_hit else "budget") if budget_hit else "slow_content",
+                           elapsed=time.monotonic() - started,
+                           thinking_chars=len("".join(thinking_parts)), content_chars=len("".join(content_parts)))
         if budget_hit and after_budget:
             # 생각을 켠 채 부른 두 번째 호출마저 예산을 넘겼다 — 예전 방식(생각 끔)으로 한 번 더. 안내는 이미 실려 있다.
-            fallback = self.chat_messages_stream(
-                messages, tools=tools, temperature=temperature, think=False, on_chunk=on_chunk,
-                model=model, role=role, inference_profile=inference_profile, thinking_char_budget=0,
-            )
+            with tagged_call(purpose="budget_fallback"):
+                fallback = self.chat_messages_stream(
+                    messages, tools=tools, temperature=temperature, think=False, on_chunk=on_chunk,
+                    model=model, role=role, inference_profile=inference_profile, thinking_char_budget=0,
+                )
             fallback["_fell_back_to_no_thinking"] = True
             return fallback
         if budget_hit:
-            return self._answer_after_thinking_budget(
-                messages,
-                resolved_model=selected,
-                thinking=_drop_repeats("".join(thinking_parts)) if repeat_hit else "".join(thinking_parts),
-                reason="repeat" if repeat_hit else "budget",
-                budget=budget,
-                tools=tools,
-                temperature=temperature,
-                on_chunk=on_chunk,
-                model=model,
-                role=role,
-                inference_profile=inference_profile,
-                first_pass_sec=round(time.monotonic() - started, 2),
-            )
+            with tagged_call(purpose="budget_second"):
+                return self._answer_after_thinking_budget(
+                    messages,
+                    resolved_model=selected,
+                    thinking=_drop_repeats("".join(thinking_parts)) if repeat_hit else "".join(thinking_parts),
+                    reason="repeat" if repeat_hit else "budget",
+                    budget=budget,
+                    tools=tools,
+                    temperature=temperature,
+                    on_chunk=on_chunk,
+                    model=model,
+                    role=role,
+                    inference_profile=inference_profile,
+                    first_pass_sec=round(time.monotonic() - started, 2),
+                )
         if slow_content and not content_loop and not unique_calls:
-            return self._answer_again_without_tools(
-                messages,
-                partial="".join(content_parts),
-                thinking="".join(thinking_parts),
-                observed={
-                    "cut_at_chunks": content_chunks,
-                    "base_rate": round(base_rate, 1),
-                    "rate": round(last_rate, 1),
-                    "tools": len(tools or []),
-                    "first_pass_sec": round(time.monotonic() - started, 2),
-                },
-                temperature=temperature,
-                on_chunk=on_chunk,
-                model=model,
-                role=role,
-                inference_profile=inference_profile,
-            )
+            with tagged_call(purpose="slow_again"):
+                return self._answer_again_without_tools(
+                    messages,
+                    partial="".join(content_parts),
+                    thinking="".join(thinking_parts),
+                    observed={
+                        "cut_at_chunks": content_chunks,
+                        "base_rate": round(base_rate, 1),
+                        "rate": round(last_rate, 1),
+                        "tools": len(tools or []),
+                        "first_pass_sec": round(time.monotonic() - started, 2),
+                    },
+                    temperature=temperature,
+                    on_chunk=on_chunk,
+                    model=model,
+                    role=role,
+                    inference_profile=inference_profile,
+                )
         self._note_reload(body, final_payload or {})
+        self._log_call(body, final_payload or {}, first_byte, first_token,
+                       thinking_chars=len("".join(thinking_parts)), content_chars=len("".join(content_parts)))
         if content_loop:
             metrics = {**metrics, "done_reason": "content_loop_cut"}
         message: dict[str, Any] = {
@@ -1947,6 +2122,7 @@ class OllamaClient:
                 "used_partial": not answered,
             },
         }
+        _note_cut_first_pass(second, float(observed.get("first_pass_sec") or 0.0))
         return second
 
     #: 두 번째 호출에 들려줄 생각의 **끝부분**. 앞이 아니라 끝인 이유는 모델이 결론에 가까운
@@ -2039,6 +2215,7 @@ class OllamaClient:
                 "content_head": str(second.get("content") or "")[:300],
             },
         }
+        _note_cut_first_pass(second, first_pass_sec)
         return second
 
     def chat(

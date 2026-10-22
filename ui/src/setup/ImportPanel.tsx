@@ -244,7 +244,8 @@ function ImportedList({ imp }: { imp: ImportState }) {
       <h3>
         {t("가져온 지침")} <span className="num">{imp.imported.length}</span>
       </h3>
-      <p className="imp-hint">{t("아직 대답에는 쓰지 않습니다. 넣어 두고, 보고, 지울 수 있습니다.")}</p>
+      {/* ★ 2026-10-18: 가져온 사본은 여전히 그대로는 안 쓰인다. 「보기」에서 줄을 골라 「나에 대한 지침」에 더한 것만 쓰인다. */}
+      <p className="imp-hint">{t("가져온 글은 그대로는 대답에 쓰지 않습니다. 「보기」에서 줄을 골라 「나에 대한 지침」에 더한 것만 씁니다.")}</p>
       <ul className="imp-list">
         {imp.imported.map((item) => (
           <li key={item.import_id} className="imp-row">

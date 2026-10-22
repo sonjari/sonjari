@@ -14,6 +14,7 @@ import time
 import traceback
 import urllib.parse
 import urllib.request
+from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -41,7 +42,7 @@ from .attention import AttentionService
 from .brand import SELF_NAME_PATTERN, SELF_NAMES
 from .browser import BrowserTools, BrowserWorker
 from .clock import now_line_ko
-from .claude_code import ClaudeCodeTools, initial_delegation_reason
+from .claude_code import ClaudeCodeTools, handoff_receipt, hold_reason, initial_delegation_reason, with_handoff_receipt
 from .code_scout import CodeScout
 from .config import JarvisConfig, build_id
 from .delegation import partial_work, unfinished_turn_note
@@ -77,7 +78,10 @@ from .notifications import NotificationService
 from .observations import ObservationStore
 from .ollama import OllamaClient
 from .transcript import with_job_context
+from .plan_nudges import _invented_ratios
 from .plan import (
+    delegated_read_only,
+    names_a_desktop_source,
     asks_for_site_filter,
     is_continuation as plan_is_continuation,
     mutating_google_tools,
@@ -89,7 +93,7 @@ from .plan import (
 )
 from .plopfit import PlopfitTools
 from .presentation import PresentationPolicy, paint_answer
-from .profile import OperatorProfile
+from .profile import OperatorProfile, profile_block
 from .state_machine import InvalidStateTransition, StateMachine
 from .scheduler import TaskScheduler
 from .self_care import SelfCare
@@ -98,6 +102,7 @@ from .ask_user import AskUserTool
 from .sandbox import SandboxBox
 from .skills import SkillLibrary, match_skills
 from .takeover import TakeoverService, handoff_contract
+from .self_talk import SelfContext, SelfTalk, eyes_offer_text, recipe_offer_text, unread_picture_pages
 from .backup import DailyBackup, MemoryBackup
 from .settings import SettingsService
 from .skill_domains import allowed_skills
@@ -309,7 +314,9 @@ UNEXECUTED_PLAN_NOTE = "(모델이 작업 계획만 적고 끝냈습니다 — �
 #   않고 지금까지 읽은 근거로 산출물을 만들어라.」였다. 하네스가 대화에 끼운 안내(`[시스템] …`·`★ 아직 남은 것이 있다`)를 모델이
 #   **흉내 내** 답 앞머리에 적은 것이다. 사람에게는 내부 지시문이 새어 나온 것으로 보인다. 답 **앞머리** 줄만 걷는다.
 _LEAKED_HARNESS_LINE = re.compile(
-    r"\A(?:\s*(?:\[\s*시스템(?:\s*안내)?\s*\]|\[\s*도구가\s*보낸\s*안내\s*\]|★\s*아직\s*남은\s*것이\s*있다)[^\n]*\n+)+"
+    # 「[자동 점검 · 사용자가 한 말 아님]」은 하네스 안내에 다는 공통 머리다(2026-10-19 `transcript.frame_harness_notes`) — 흉내 내면 같이 걷는다.
+    r"\A(?:\s*(?:\[\s*시스템(?:\s*안내)?\s*\]|\[\s*도구가\s*보낸\s*안내\s*\]|★\s*아직\s*남은\s*것이\s*있다"
+    r"|\[\s*자동\s*점검[^\]\n]*\]|\[\s*Automatic\s+check[^\]\n]*\])[^\n]*\n+)+"
 )
 
 
@@ -367,7 +374,11 @@ _OUTPUT_FOLLOWUP_EDIT = re.compile(
 )
 
 _HWP_EDIT_TARGET = re.compile(r"(한글\s*(?:문서|파일)|HWPX?|\.hwp\b|열린\s*문서)", re.I)
-_HWP_EDIT_ACTION = re.compile(r"(고쳐|수정|바꿔|편집|교체|반영|덧붙|삭제)", re.I)
+# ★ 서식 말도 같은 길로 보낸다 (2026-10-17 hwp_*_format). 「한글 문서 제목을 굵게 해 줘」에는 고치라는 낱말이 없다.
+_HWP_EDIT_ACTION = re.compile(
+    r"(고쳐|수정|바꿔|편집|교체|반영|덧붙|삭제|굵게|기울|밑줄|글꼴|폰트|서식|정렬|줄\s*간격|(?:글자|글씨)\s*(?:크기|색)|PDF)",
+    re.I,
+)
 
 
 # 예고만 하고 끝나는 답변 판정은 agent.PROMISED_ACTION 하나를 공유한다. 라우터와
@@ -1098,7 +1109,7 @@ class JarvisRuntime:
         )
         self.naver_blog.register(self.gateway)
         self.windows_automation = WindowsAutomationTools(
-            self.config, visual_planner=self._plan_screen_action
+            self.config, visual_planner=self._plan_screen_action, on_waiting_for_hands=self._notify_waiting_for_hands,
         )
         self.windows_automation.register(self.gateway)
         self.hwp = HwpTools(self.config, self.local_computer, self.events)
@@ -1160,6 +1171,9 @@ class JarvisRuntime:
             publish=self.events.publish,
         )
         self.takeover.register(self.gateway)
+        # 손자리가 자기 설정을 대화로 알려 주고 · 묻고 · 바꾼다(2026-10-20 대표 · `self_talk`). 모델 설정 서비스는 api 가 이어 준다.
+        self.self_talk = SelfTalk()
+        self.setup_service: Any = None
         # 기억 복제 폴더(W1-3). 앱을 지워도 대화·배운 사실이 남게 사용자 폴더에 세대 3개를 둔다.
         self.backup = MemoryBackup(
             data_dir=self.config.data_dir,
@@ -1171,6 +1185,14 @@ class JarvisRuntime:
         # 설정 화면(W3). 바로 적용되는 값은 여기서 쥐고 있는 사본까지 맞춘다 — 설정 객체만 바꾸고
         # 생성 때 복사해 둔 쪽을 안 바꾸면 「켰는데 안 켜진」 칸이 된다(이어받기가 그 모양이었다).
         self.settings = SettingsService(self.config, on_live_change=self._settings_changed)
+        # 디스코드 다리를 본체 안에서 돌린다(2026-10-18). 스토어판 사용자는 명령 창으로 따로 띄울 수 없다.
+        # 저장된 봇 토큰이 없으면 아무것도 안 하고, 따로 띄운 다리가 이미 돌면 비켜 선다(`messaging/service.py`).
+        from .messaging.service import DiscordService
+        from .model_aliases import ModelAliasBook
+
+        # 모델 별명 표(「똑똑한」 · 「빠른」 → 태그). 디스코드 「@별명」 · `/모델` 이 쓴다 — 판 하나에만 건다(`_chat_job`).
+        self.model_aliases = ModelAliasBook(self.config, resident=self.ollama._resident_names)
+        self.discord = DiscordService(self.config, publish=self.events.publish, aliases=self.model_aliases)
         # Ollama 버튼 한 번 설치(W2). 공식 zip 을 해시 대조 뒤 데이터 폴더에 풀고 자비스가 켜고 끈다.
         self.ollama_installer = OllamaInstaller(
             install_root=self.config.ollama_install_dir,
@@ -1364,6 +1386,16 @@ class JarvisRuntime:
         }
         register_system_tools(self.config, self.gateway)
         self._register_jobs()
+
+    def _notify_waiting_for_hands(self, what: str) -> None:
+        """사람이 키보드 · 마우스를 쓰는 중이라 손자리가 실제 클릭 · 키 입력을 기다릴 때 윈도우 알림 한 번 (2026-10-17 밤 대표)."""
+        from . import brand as _brand
+        from . import ui_i18n
+
+        if ui_i18n.lang() == "en":
+            self.notifications.notify(_brand.NAME, "Sonjari is waiting to use the screen. Please take your hands off the mouse and keyboard for a moment (up to 45 seconds).")
+        else:
+            self.notifications.notify(_brand.NAME, f"손자리가 화면을 쓰려고 기다리는 중이에요({what}). 잠깐 마우스 · 키보드에서 손을 떼 주세요(최대 45초).")
 
     def _plan_screen_action(
         self, screenshot: Path, bounds: dict[str, Any], instruction: str
@@ -1816,7 +1848,13 @@ class JarvisRuntime:
         hotkey_status = self.hotkey.start()
         self._hotkey_status = hotkey_status
         self._start_background_warmup()
+        self._start_discord()
+        # 서기 훅: 스토어 판은 업데이트마다 설치 경로가 바뀐다 — 켜져 있으면 켤 때마다 지금 경로로 맞춘다(같으면 안 쓴다).
+        self.__dict__["_started_for_real"] = True
+        if getattr(self.config, "scribe_enabled", False):
+            self._sync_scribe_hooks()
         threading.Thread(target=self._front_prime_loop, name="jarvis-front-prime", daemon=True).start()
+        threading.Thread(target=self._scribe_loop, name="jarvis-scribe", daemon=True).start()
         if self.config.self_check_on_boot:
             threading.Thread(target=self._boot_self_check, name="jarvis-boot-self-check", daemon=True).start()
         if self.config.camera_control_enabled and self.config.camera_autorecover_enabled:
@@ -1833,6 +1871,13 @@ class JarvisRuntime:
                 "media_recovery": media_recovery,
             },
         )
+
+    def _start_discord(self) -> None:
+        """디스코드 다리 — 넘어져도 본체 기동은 계속한다. 까닭은 `/v1/discord/status` 의 last_error 와 이벤트에 남는다."""
+        try:
+            self.discord.start()
+        except Exception as exc:  # noqa: BLE001 — DiscordService.start 는 예외를 안 올리지만 한 겹 더
+            self.events.publish("discord_bridge", {"event": "error", "error": type(exc).__name__})
 
     def _settings_changed(self, keys: list[str]) -> None:
         # ★ 승인 관문은 생성 때 설정값을 **복사해** 들고 있다. 설정이 라이브로 바뀌어도 이 복사본은 안 따라와서,
@@ -1851,7 +1896,30 @@ class JarvisRuntime:
             self.takeover.enabled = bool(self.config.takeover_enabled)
             self.takeover.branch_enabled = bool(self.config.takeover_branch_enabled)
             self.takeover.register(self.gateway)
+        if "claude_code_enabled" in keys:
+            # 「막히면 내 클로드에게 넘기기」 — 게이트웨이의 켜짐 표시도 같이 바꾼다(등록 때 값을 복사해 둔다).
+            self.claude_code.register(self.gateway)
+        if {"scribe_enabled", "scribe_style_file"} & set(keys):
+            self._sync_scribe_hooks()
         self.events.publish("settings_changed", {"keys": keys})
+
+    def _sync_scribe_hooks(self) -> dict[str, Any]:
+        """서기를 켜면 클로드 코드 훅 셋을 넣고, 끄면 우리 것만 뺀다(`scribe_hooks`). 바뀐 게 없으면 쓰지 않는다.
+
+        ★ **앱이 실제로 시작된 런타임에서만**(`start()` 를 거친 것) — 시험은 런타임을 만들어 설정만 바꾸는데, 그때 진짜 사용자의
+          `~/.claude/settings.json` 을 건드리면 안 된다(시험 쪽은 `Path.home()` 을 임시로 돌려 두지 않는다).
+        """
+        if not self.__dict__.get("_started_for_real"):
+            return {"skipped": "앱이 시작되지 않음"}
+        from . import scribe_hooks
+
+        try:
+            result = scribe_hooks.apply(self.config, bool(getattr(self.config, "scribe_enabled", False)))
+        except Exception as exc:  # noqa: BLE001 — 훅을 못 맞춰도 앱은 돈다. 까닭은 남긴다
+            result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:200]}
+        if result.get("changed") or not result.get("ok"):
+            self.events.publish("scribe_hooks", result)
+        return result
 
     def stop(self) -> None:
         self._warmup_stop.set()
@@ -1862,6 +1930,10 @@ class JarvisRuntime:
         self.watches.stop()
         self.unity_schedule.stop()
         self.runner.stop()
+        try:
+            self.discord.stop(timeout=5.0)
+        except Exception:  # noqa: BLE001, S110 — 종료를 막지 않는다
+            pass
         self.browser.stop()
         self.daily_backup.stop()
         self.ollama_installer.stop()
@@ -2052,6 +2124,95 @@ class JarvisRuntime:
             except Exception:  # noqa: BLE001 — 데워 두기는 덤이다
                 pass
 
+    #: 마지막 모델 요청 뒤 이만큼 조용해야 서기가 돈다 — 사람이 막 일을 마친 직후에 끼어들지 않게.
+    SCRIBE_QUIET_SEC = 90.0
+
+    def _scribe_folders(self) -> list[Path]:
+        return [Path(part.strip()).expanduser() for part in str(getattr(self.config, "scribe_folders", "") or "").split(";") if part.strip()]
+
+    def _scribe_loop(self) -> None:
+        """노는 시간에 서기 한 덩어리씩(`scribe.Scribe`). 사람 일이 오면 그 부르기는 끊긴다(`ollama.background_chat`).
+
+        ★ 2026-10-21 새벽 실측: 서기 실험을 사람이 쓰는 중에 돌렸더니 사람 판의 첫 글자가 15.8초를 기다렸다. 그래서 세 겹으로 막는다 —
+          (1) 손자리가 쉬고 있을 때만 (2) 마지막 모델 요청 뒤 `SCRIBE_QUIET_SEC` 조용할 때만 (3) 그래도 사람 요청이 오면 끊는다.
+        새 말이 남아 있으면 조용한 동안 다음 덩어리로 이어 가고, 다 따라잡으면 `scribe_interval_sec` 만큼 쉰다.
+        """
+        next_at = 0.0
+        while not self._warmup_stop.wait(30.0):
+            if time.monotonic() < next_at:
+                continue
+            try:
+                result = self._scribe_tick()
+            except Exception as exc:  # noqa: BLE001 — 서기는 덤이다. 본 일을 망치지 않는다
+                self.events.publish("scribe_error", {"error": f"{type(exc).__name__}: {exc}"[:200]})
+                next_at = time.monotonic() + 600
+                continue
+            if "ran" not in result:
+                continue
+            self.events.publish("scribe_ran", {k: v for k, v in result.items() if k != "log"})
+            if not result.get("done") and result.get("why") == "읽을 새 말이 없음":
+                next_at = time.monotonic() + max(60, int(getattr(self.config, "scribe_interval_sec", 900) or 900))
+            elif not result.get("done"):
+                # 비켰다(사람 일) 또는 모델 서버가 답을 못 줬다 — 둘 다 곧바로 다시 두드리지 않는다.
+                next_at = time.monotonic() + 120
+
+    def _scribe_tick(self) -> dict[str, Any]:
+        """서기 한 차례. 돌지 않으면 {"skipped": 까닭}, 돌았으면 `Scribe.run_once` 결과에 "ran" 을 붙여서."""
+        from .scribe import Scribe
+
+        if not getattr(self.config, "scribe_enabled", False):
+            return {"skipped": "꺼짐"}
+        folders = self._scribe_folders()
+        if not folders:
+            return {"skipped": "고른 폴더 없음"}
+        if self.state.snapshot().state != JarvisState.IDLE:
+            return {"skipped": "일하는 중"}
+        last_send = float(self.ollama.__dict__.get("_last_send_at", 0.0) or 0.0)
+        if last_send and time.monotonic() - last_send < self.SCRIBE_QUIET_SEC:
+            return {"skipped": "방금 모델을 썼다"}
+        model = str(self.config.model_for("chat") or "")
+        options = {"num_ctx": int(self.config.num_ctx_for("chat") or 32768), "temperature": 0}
+        result = Scribe(Path(self.config.data_dir), folders).run_once(
+            lambda system, user: self.ollama.background_chat(system, user, model=model, options=options)
+        )
+        return {"ran": True, **result}
+
+    def scribe_status(self, home: Path | None = None) -> dict[str, Any]:
+        """설정 › 서기 화면 — 이 PC 의 클로드 코드 프로젝트(체크로 고름) · 훅이 들어갔는지 · 쌓인 카드. 본문은 읽지 않는다.
+
+        `home` 은 시험용 — 시험이 진짜 사용자 폴더(`~/.claude`)를 읽지 않게 한다.
+        """
+        from . import scribe_hooks
+        from .scribe import claude_projects, scribe_status
+
+        folders = self._scribe_folders()
+        chosen = {os.path.normcase(str(path)) for path in folders}
+        projects = [{**item, "chosen": os.path.normcase(item["folder"]) in chosen} for item in claude_projects(home)]
+        listed = {os.path.normcase(item["folder"]) for item in projects}
+        # 목록 밖에서 고른 폴더(직접 적었거나 40개 밖)도 보여 준다 — 화면에서 안 보이면 끌 수도 없다.
+        projects += [{"folder": str(path), "name": path.name, "workdir": "", "sessions": 0, "last_at": 0.0, "chosen": True,
+                      "missing": not path.is_dir()} for path in folders if os.path.normcase(str(path)) not in listed]
+        try:
+            hooks = scribe_hooks.status(home)
+        except Exception:  # noqa: BLE001 — 설정 파일이 깨져도 화면은 뜬다
+            hooks = {"installed": False, "events": []}
+        return {"enabled": bool(getattr(self.config, "scribe_enabled", False)), "projects": projects, "hooks": hooks,
+                **scribe_status(Path(self.config.data_dir), folders)}
+
+    def scribe_story(self, session: str = "", limit: int = 30) -> dict[str, Any]:
+        """서기가 쌓은 이야기 카드(근거 줄 포함) — MCP `sonjari_story` 와 화면이 같이 쓴다."""
+        from .scribe import Scribe, render
+
+        scribe = Scribe(Path(self.config.data_dir), self._scribe_folders())
+        items = scribe.recent(limit=max(1, min(int(limit or 30), 120)), session=session)
+        # 2차(10-21 저녁): 닫힌 카드는 열린 목록에서 빠지고, 최근에 닫힌 것은 까닭과 함께 아래에 — 끝난 일을 「남았다」고 넘기지 않게.
+        closed = scribe.closed(limit=8, session=session)
+        # 주제 색인(10-22): 주제 → 날짜 · 줄 번호. 압축 · 새 세션 때 펼쳐 주고, 자세한 건 대화 기록 파일의 그 줄을 연다.
+        index = scribe.index(session=session)
+        return {"enabled": bool(getattr(self.config, "scribe_enabled", False)), "folders": [str(p) for p in self._scribe_folders()],
+                "count": len(items), "items": items, "closed": closed, "card": render(items, closed),
+                "index": index["text"], "index_dropped": index["dropped"]}
+
     def _start_background_warmup(self) -> None:
         if not self.config.startup_warmup_enabled:
             return
@@ -2104,12 +2265,16 @@ class JarvisRuntime:
                 "사용자가 직접 설정한 호칭은 "
                 f"{self.config.user_label!r}이다. 호칭이 꼭 필요한 문장에서만 사용하라."
             )
-        if self.profile.content:
-            parts.append(
-                "다음은 사용자가 직접 관리하는 신뢰 가능한 상시 프로필이다. "
-                "질문과 관련될 때만 자연스럽게 활용하고, 프로필에 없는 최신 사실은 추정하지 마라.\n"
-                f"<jarvis-profile>\n{self.profile.content}\n</jarvis-profile>"
-            )
+        # ★ 2026-10-20: 손자리가 **자기 상태**를 안다(대표 「설정이 지금 어떻게 돼 있는지 다 보고 있어야」). 모르면 「무슨 모델이야?」에
+        #   지어낸다. 설정이 바뀔 때만 바뀌는 줄이라 지침 블록 앞에 둬도 캐시를 거의 안 깬다. 바꾸는 말은 `self_talk` 가 받는다.
+        self_line = self._self_status_line()
+        if self_line:
+            parts.append(self_line)
+        # ★ 2026-10-18: 이 블록(`<jarvis-profile>`)이 화면의 「나에 대한 지침」이다. 글은 `profile.profile_block` 한 곳에서 만든다 — 설정 화면의
+        #   길이 자가 같은 글을 잰다. 파일이 바뀌면 `content` 가 다시 읽으므로 저장한 다음 턴부터 실린다(다시 켤 필요 없음).
+        profile_text = self.profile.content
+        if profile_text:
+            parts.append(profile_block(profile_text))
         # ── 배운 것 (2026-08-24, P3) ────────────────────────────────────────
         #
         # ★ 프로필 **뒤**다. 앞에 두면 사실이 하나 늘 때마다 프로필까지 프리필
@@ -2255,6 +2420,8 @@ class JarvisRuntime:
         "local_write_file": ("output_path",),
         "local_apply_edit": ("output_path",),
         "hwp_preview_edit": ("output_path",),
+        "hwp_preview_format": ("output_path",),
+        "hwp_export_pdf": ("output_path",),
         # ★ 만든 것을 사람이 못 찾으면 안 만든 것과 같다 (2026-09-01 라이브).
         #
         #   HWPX 를 11,410바이트로 제대로 만들어 놓고, 답에는 파일명만 적고 경로를
@@ -3114,16 +3281,16 @@ class JarvisRuntime:
             verb in compact for verb in LOCAL_INSPECTION_VERBS
         )
 
-    def _requires_claude_delegation(self, prompt: str) -> bool:
+    def _requires_claude_delegation(self, prompt: str, *, job_id: str = "") -> bool:
         """처음부터 다중 파일·git 저장소인 코딩 요청인가.
 
         반복 실패·남은 테스트·무지 응답은 실행 중 걸음이 있어야 판정할 수 있으므로
-        agent 쪽 한 벌짜리 ``delegation_decision``이 맡는다.
+        agent 쪽 한 벌짜리 ``delegation_decision``이 맡는다. 측정 판(`hold_for_job`)이면 갈래부터 열지 않는다.
         """
         return bool(
             self._requires_coding(prompt)
             and getattr(self, "claude_code", None)
-            and self.claude_code.available()
+            and self.claude_code.available(job_id)
             and initial_delegation_reason(prompt)
         )
 
@@ -3264,6 +3431,9 @@ class JarvisRuntime:
         named = bool(LOCAL_PATH_PATTERN.search(compact)) or any(
             phrase in compact for phrase in LOCAL_SOURCE_PHRASES
         ) or (english and bool(_english.LOCAL_SOURCE_PHRASES.search(compact)))
+        # ★ 내 PC 의 프로그램 · 설정 화면을 열어 읽으라는 요청도 「가서 봐야 하는 일」이다 (2026-10-18 「모르는 앱」 측정 —
+        #   설정 · 시스템 정보를 열어 읽으라는 6판 중 4판이 도구 0걸음 · 기억으로 답했다). 낱말 표는 `plan._DESKTOP_SOURCE` 한 곳.
+        named = named or names_a_desktop_source(compact)
         if not named:
             return False
         if english:
@@ -3843,7 +4013,7 @@ class JarvisRuntime:
                 {"route": "hwp_document_edit", "reason": "open_hwp_edit_requested", "prompt": prompt[:200]},
             )
             return "agent", "", None
-        if self._requires_claude_delegation(prompt):
+        if self._requires_claude_delegation(prompt, job_id=job_id):
             reason = initial_delegation_reason(prompt)
             self.events.publish(
                 "agent_route_selected",
@@ -4245,6 +4415,27 @@ class JarvisRuntime:
                     },
                 )
                 return "agent", "", {"route_reason": "unsourced_particulars", "numbers": unsourced[:8]}
+        # ★ **아무도 준 적 없는 배수 · 퍼센트를 둘 이상 단정한 초안도 내보내지 않는다** (2026-10-18 · `plan_nudges._invented_ratios`).
+        #   대표가 폰 디스코드로 「손자리가 일자리를 줄이지 않을까」를 묻자 이 길이 「생산성 10배 · 3년 뒤 인력 50% 감축 · 2~3배 증가」로
+        #   바로 답했다. 위의 숫자 검사는 세 자리 이상 수만 세서 이 꼴을 못 본다. 운영 직답 813개 중 22개(질문만 대 본 어림 —
+        #   대화 · 지시문을 같이 보는 여기서는 더 적다). 손이 있는 길로 올리면 거기서 「상식이면 상식, 예측이면 짐작」으로 다시 쓴다.
+        #   찾으러 보내는 것(`unsourced_particulars`)이 아니다 — 의견 질문에는 찾을 사실이 없다.
+        invented = _invented_ratios(
+            answer, prompt, str(kwargs.get("system") or ""),
+            *(str(m.get("content") or "") if isinstance(m, dict) else str(m) for m in history or []),
+        )
+        if len(invented) >= 2:
+            discard_draft()
+            self.events.publish(
+                "agent_route_selected",
+                {
+                    "route": "agent",
+                    "reason": "answer_had_invented_ratios",
+                    "numbers": invented[:8],
+                    "prompt": prompt[:200],
+                },
+            )
+            return "agent", "", {"route_reason": "invented_ratios", "numbers": invented[:8]}
         # ★ 도구 없이 쓴 초안이 **새 파일을 저장했다고 말하면 답이 아니다** (2026-10-13 · `_claimed_files` 의 설명).
         #   손이 있는 길로 보내 실제로 만들게 한다.
         claimed = _claimed_files(
@@ -4278,11 +4469,9 @@ class JarvisRuntime:
     def _english_if_asked(self, prompt: str, answer: str) -> str:
         """영어로 물었는데 답이 한국어 위주면 영어로 다시 쓴 답. 아니면(또는 다시 쓴 것도 영어가 아니면) 빈 글.
 
-        기준은 에이전트 길의 관문과 같다 — 한글 20자 이상 · 답이 영어 위주가 아님. 내용은 그대로 두라고 한다.
+        기준은 에이전트 길의 관문과 같은 `english.needs_english_rewrite` 다. 내용은 그대로 두라고 한다.
         """
-        if not (_english.english_dominant(" ".join(str(prompt or "").split()))
-                and len(re.findall(r"[가-힣]", answer or "")) >= 20
-                and not _english.english_dominant(" ".join(str(answer or "").split()))):
+        if not _english.needs_english_rewrite(prompt, answer):
             return ""
         try:
             rewritten = str(self.ollama.chat(
@@ -4445,6 +4634,299 @@ class JarvisRuntime:
                 "memory_compaction_failed", {"session_id": session_id, "error": str(exc)}
             )
 
+    # ── 손자리 자신에 대한 말 (2026-10-20 · `self_talk`) ─────────────────────────────
+    def _self_context(self) -> SelfContext:
+        from . import msix, ui_i18n, whats_new
+
+        def version() -> str:
+            return msix.package_version() or whats_new.newest_version()
+
+        def current_eyes() -> dict[str, Any]:
+            service = getattr(self, "setup_service", None)
+            return service.current_eyes() if service is not None else {}
+
+        def apply_eyes(on: bool) -> dict[str, Any]:
+            service = getattr(self, "setup_service", None)
+            eyes = current_eyes()
+            if service is None or not eyes.get("source_tag"):
+                return {"ok": False, "error": "no_model_setup"}
+            return service.apply_tag(str(eyes["source_tag"]), int(self.config.num_ctx_for("chat") or 32768), eyes=on)
+
+        def summary() -> dict[str, Any]:
+            try:
+                eyes = current_eyes()
+            except Exception:  # noqa: BLE001 — 못 읽은 칸은 빼고 답한다
+                eyes = {}
+            return {
+                "version": version(),
+                "model": str(self.config.model_for("chat") or ""),
+                "reads_pictures": eyes.get("reads_pictures") if eyes else None,
+                "can_switch": bool(eyes.get("can_switch")) if eyes else False,
+                "num_ctx": self.config.num_ctx_for("chat"),
+            }
+
+        recipes = getattr(self, "site_recipes", None)
+        return SelfContext(
+            version=version, lang=ui_i18n.lang, current_eyes=current_eyes, apply_eyes=apply_eyes, summary=summary,
+            save_recipe=recipes.save_learned if recipes is not None else None,
+            forget_recipe=recipes.forget_learned if recipes is not None else None,
+            decline_recipe=self._decline_recipe_offer,
+            start_demo=self._start_demo if getattr(self, "browser", None) is not None else None,
+            stop_demo=self._stop_demo if getattr(self, "browser", None) is not None else None,
+        )
+
+    def _learn_value_cells(self, job_id: str, answer: str, agent_trace: dict[str, Any], lang: str = "ko") -> str:
+        """판이 끝났을 때 값 칸을 검증 · 배우고, 답 아래 조용한 한 줄을 돌려준다(`value_cells`). 할 것이 없으면 빈 글.
+
+        상세 페이지를 **딱 한 곳** 읽은 잘 끝난 판에서만 배운다 — 두 곳 이상이면 답의 값이 어느 페이지 것인지 헷갈려
+        맞는 칸을 틀렸다고 버릴 수 있다. 줄여 읽은 판은 배우지 않는다(줄인 본문은 칸 검증의 근거가 아니다).
+        """
+        from .recipe_from_run import run_is_a_candidate
+        from .value_cells import ValueCellBook
+
+        if not isinstance(agent_trace, dict):
+            return ""
+        steps = [step for step in (agent_trace.get("steps") or []) if isinstance(step, dict)]
+        used = next((step for step in steps if (step.get("evidence") or {}).get("value_cells_used")), None)
+        if used:
+            evidence = used.get("evidence") or {}
+            names = " · ".join(str(item) for item in (evidence.get("value_cells_used") or [])[:5])
+            before = int(evidence.get("value_cells_from_chars") or 0)
+            after = int(evidence.get("char_count") or 0)
+            if lang == "en":
+                return f"\n\n— Read with learned value cells ({names}) · page text {before:,} → {after:,} chars"
+            return f"\n\n— 배운 값 칸({names})으로 읽었습니다 · 본문 {before:,}자 → {after:,}자"
+        verification = agent_trace.get("verification") if isinstance(agent_trace.get("verification"), dict) else {}
+        if run_is_a_candidate({"completion_state": verification.get("completion_state"), "answer": answer, "agent_trace": agent_trace}):
+            return ""
+        reads = [step for step in steps if step.get("ok") and step.get("tool") in {"browser_extract", "browser_read"}]
+        urls = {str((step.get("evidence") or {}).get("url") or "") for step in reads} - {""}
+        if len(urls) != 1:
+            return ""
+        url = urls.pop()
+        body = ""
+        for step in reversed(reads):
+            try:
+                # ★ `get()` 은 화면용 사전을 준다 — 본문은 `payload.text` 다(처음엔 없는 칸 `raw_result_json` 을 읽어 한 판도 못 배웠다).
+                found = self.observations.get(job_id, int(step.get("step") or 0)) or {}
+                payload = found.get("payload") if isinstance(found, dict) else {}
+                body = str((payload or {}).get("text") or "")
+            except Exception:  # noqa: BLE001
+                body = ""
+            if body:
+                break
+        if not body:
+            return ""
+        book = ValueCellBook(Path(self.config.user_recipes_dir) / "value_cells")
+        changed = book.observe(url, answer, body)
+        host = str(changed.get("host") or "")
+        if int(changed.get("newly_trusted") or 0):
+            return (f"\n\n— Learned value cells on {host} are now trusted (checked twice) · next time I'll read just those cells"
+                    if lang == "en" else
+                    f"\n\n— {host} 값 칸 {changed['trusted']}개를 믿게 됐습니다(두 번 확인) · 다음부터 본문 대신 그 칸을 읽습니다")
+        if int(changed.get("learned") or 0):
+            return (f"\n\n— Learned {changed['learned']} value cell(s) on {host} (checked 0/2)" if lang == "en"
+                    else f"\n\n— {host} 값 칸 {changed['learned']}개를 배웠습니다(확인 0/2)")
+        return ""
+
+    def _show_me_offer(self, answer: str, agent_trace: dict[str, Any], lang: str = "ko") -> tuple[str, str]:
+        """누르기 · 고르기로 막힌 판이면 (답 끝 「보여 주시겠어요?」, 호스트). 같은 사이트는 두 번까지만 묻는다.
+
+        창은 앞으로 올리지 않는다 — 손자리 크롬의 그 탭 구석에 잠깐 알림만 띄운다(대표 10-20 「흐름을 안 해치게 살짝」).
+        실측(10-20): 브라우저 판 2,632 중 이렇게 막힌 판 53(실사용 약 19) — 드문 순간이라 묻는 말이 요란해질 일은 적다.
+        """
+        from .recipe_from_run import demo_offer_text, stuck_on_a_site
+
+        if getattr(self, "browser", None) is None or not isinstance(agent_trace, dict):
+            return "", ""
+        verification = agent_trace.get("verification") if isinstance(agent_trace.get("verification"), dict) else {}
+        host = stuck_on_a_site({"completion_state": verification.get("completion_state"), "answer": answer, "agent_trace": agent_trace})
+        if not host or f"show:{host}" in self._declined_recipe_names():
+            return "", ""
+        self._count_recipe_offer(f"show:{host}")
+        try:
+            hint = ("Sonjari got stuck here — say yes in the Sonjari chat to show me once." if lang == "en"
+                    else "손자리가 여기서 막혔어요 — 한 번 보여 주시면 배워 둘게요(손자리 대화창에서 「응」).")
+            self.browser.show_hint(host, hint)
+        except Exception:  # noqa: BLE001 — 알림은 덤이다
+            pass
+        return demo_offer_text(host, lang), host
+
+    # ── 사람 시연 「배우기」 (2026-10-20 확장 설계 T8) ─────────────────────────────
+    def _start_demo(self) -> dict[str, Any]:
+        browser = self.browser
+        try:
+            browser.start_demo()
+        except Exception as exc:  # noqa: BLE001 — 크롬이 아직 안 떴으면 띄우고 한 번 더
+            if "browser_not_started" not in str(exc):
+                return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:160]}
+            browser.start()
+            browser.start_demo()
+        return {"ok": True}
+
+    def _stop_demo(self, label: str) -> dict[str, Any]:
+        from .demo_recorder import steps_from_demo
+        from .recipe_from_run import DraftRefused, demo_recipe, draft_from_run, read_out_steps
+        from . import ui_i18n
+
+        stopped = self.browser.stop_demo() or {}
+        events = list(stopped.get("events") or [])
+        if not events:
+            return {"refused": "기록된 걸음이 없습니다"}
+        try:
+            draft = draft_from_run(label, steps_from_demo(events, str(stopped.get("start_url") or "")))
+        except DraftRefused as exc:
+            return {"refused": str(exc)}
+        recipe = demo_recipe(draft, label)
+        return {"recipe": recipe, "read_out": read_out_steps(recipe, "from_demo", ui_i18n.lang()),
+                "secrets_skipped": int(stopped.get("secrets_skipped") or 0)}
+
+    # ── 배운 레시피 (2026-10-20 확장 설계 P1 · T5) ───────────────────────────────
+    def _recipe_offers_path(self) -> Path:
+        return Path(self.config.data_dir) / "recipe_offers.json"
+
+    #: 대답 없이 지나간 제안은 같은 레시피에 이만큼까지만 다시 묻는다(설계 §4-4 「요란하지 않게」 · 같은 일에는 한 번만).
+    RECIPE_OFFER_MAX = 2
+
+    def _recipe_offer_book(self) -> dict[str, Any]:
+        try:
+            data = json.loads(self._recipe_offers_path().read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _write_recipe_offer_book(self, book: dict[str, Any]) -> None:
+        path = self._recipe_offers_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(book, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    def _declined_recipe_names(self) -> set[str]:
+        """다시 묻지 않을 레시피 — 「아니」 했거나, 대답 없이 `RECIPE_OFFER_MAX` 번 지나간 것."""
+        book = self._recipe_offer_book()
+        offered = book.get("offered") if isinstance(book.get("offered"), dict) else {}
+        return {str(name) for name in (book.get("declined") or [])} | {
+            str(name) for name, count in offered.items() if int(count or 0) >= self.RECIPE_OFFER_MAX
+        }
+
+    def _decline_recipe_offer(self, name: str) -> None:
+        """「아니」 한 사이트는 다시 묻지 않는다(설계 §4-4 — 「아니」면 다시 안 물음)."""
+        if not name:
+            return
+        book = self._recipe_offer_book()
+        book["declined"] = sorted({str(item) for item in (book.get("declined") or [])} | {name})
+        self._write_recipe_offer_book(book)
+
+    def _count_recipe_offer(self, name: str) -> None:
+        book = self._recipe_offer_book()
+        offered = book.get("offered") if isinstance(book.get("offered"), dict) else {}
+        offered[name] = int(offered.get(name) or 0) + 1
+        book["offered"] = offered
+        self._write_recipe_offer_book(book)
+
+    def _recipe_offer(self, prompt: str, answer: str, agent_trace: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        """잘 끝난 판이 「검색 주소 + 빈칸 하나」로 옮겨지면 (답 끝에 붙일 제안 글, 저장할 레시피). 아니면 ("", {}).
+
+        권하는 판: 시킨 것 n/n · 경고 없음 · 그 사이트에 검색 절차가 아직 없음 · 그 사이트를 「아니」 한 적 없음.
+        P0 재생 실측(설계 §10)에서 잘 도는 쪽(주소 열기 28/30)만 권한다 — 누르는 절차(1/14)는 시연 입구로 간다.
+        """
+        from .recipe_from_run import DraftRefused, draft_from_run, learned_search_recipe, read_out, run_is_a_candidate
+
+        recipes = getattr(self, "site_recipes", None)
+        if recipes is None or not isinstance(agent_trace, dict):
+            return "", {}
+        verification = agent_trace.get("verification") if isinstance(agent_trace.get("verification"), dict) else {}
+        result = {"completion_state": verification.get("completion_state"), "answer": answer, "agent_trace": agent_trace}
+        if run_is_a_candidate(result):
+            return "", {}
+        try:
+            draft = draft_from_run(prompt, list(agent_trace.get("steps") or []))
+        except DraftRefused:
+            return "", {}
+        recipe = learned_search_recipe(draft)
+        if not recipe or recipe["name"] in self._declined_recipe_names():
+            return "", {}
+        url = str(recipe["actions"]["search"]["steps"][0]["url"]).replace("{query}", "x")
+        if recipes.has_search_for(url):
+            return "", {}
+        from . import ui_i18n
+
+        lang = ui_i18n.lang()
+        return recipe_offer_text(read_out(recipe, lang), lang), recipe
+
+    @staticmethod
+    def _learned_recipe_receipt(steps: list[dict[str, Any]], lang: str = "ko") -> str:
+        """배운 레시피로 연 판이면 답 아래 조용한 한 줄(설계 §4-4 — 색과 경고는 실패해서 멈췄을 때만)."""
+        from .recipe_from_run import DEMO_SUFFIX, LEARNED_SUFFIX
+
+        for step in steps or []:
+            evidence = step.get("evidence") if isinstance(step.get("evidence"), dict) else {}
+            site = str(evidence.get("site") or (step.get("arguments") or {}).get("site") or "")
+            if not site.endswith((LEARNED_SUFFIX, DEMO_SUFFIX)):
+                continue
+            if evidence.get("strategy") != "reviewed_site_recipe" and step.get("tool") != "site_run":
+                continue
+            ok = bool(step.get("ok")) and str(evidence.get("status") or "done") == "done"
+            if site.endswith(DEMO_SUFFIX):
+                # 보여 주신 절차는 걸음이 여럿이다 — 멈췄으면 몇 번째에서인지(설계 §3-4 「3번째 걸음에서 멈춘다」).
+                shown = site[: -len(DEMO_SUFFIX)]
+                done = len(evidence.get("steps") or []) if isinstance(evidence.get("steps"), list) else 0
+                if lang == "en":
+                    return (f"\n\n— Ran the steps you showed me ({shown}) · all checks ✓" if ok
+                            else f"\n\n— The steps you showed me ({shown}) stopped at step {max(done, 1)} — the page may have changed.")
+                return (f"\n\n— 보여 주신 절차(「{shown}」)대로 돌렸습니다 · 확인 모두 ✓" if ok
+                        else f"\n\n— 보여 주신 절차(「{shown}」)가 {max(done, 1)}번째 걸음에서 멈췄습니다 — 화면이 바뀌었을 수 있습니다.")
+            shown = site[: -len(LEARNED_SUFFIX)]
+            if lang == "en":
+                return (f"\n\n— Opened with your saved recipe ({shown} search) · 1/1 ✓" if ok
+                        else f"\n\n— Your saved recipe ({shown} search) stopped at step 1 — I searched the usual way instead.")
+            return (f"\n\n— 저장한 레시피(「{shown} 검색」)로 바로 열었습니다 · 1/1 ✓" if ok
+                    else f"\n\n— 저장한 레시피(「{shown} 검색」)가 1번째 걸음에서 멈춰 원래 방식으로 찾았습니다.")
+        return ""
+
+    def _self_status_line(self) -> str:
+        """시스템 글에 싣는 손자리 자신의 한 줄 — 판 · 대화 모델 · 그림 읽기 · 창. 못 읽은 칸은 뺀다."""
+        from . import msix
+
+        try:
+            bits = []
+            version = msix.package_version()
+            if version:
+                bits.append(f"판 {version}")
+            model = str(self.config.model_for("chat") or "")
+            if model:
+                bits.append(f"대화 모델 {model}")
+            sees = getattr(self.ollama, "reads_pictures", None)
+            reads = sees() if sees is not None else None
+            if reads is not None:
+                bits.append("그림 읽기 " + ("켜짐" if reads else "꺼짐"))
+            ctx = int(self.config.num_ctx_for("chat") or 0)
+            if ctx:
+                bits.append(f"창 {ctx // 1024}K")
+        except Exception:  # noqa: BLE001 — 못 읽으면 이 줄을 빼고 간다
+            return ""
+        if not bits:
+            return ""
+        return ("손자리 자신의 지금 설정: " + " · ".join(bits) + ". 설정을 물으면 이 값으로 답한다. "
+                "그림 읽기는 사용자가 「그림 읽기 켜 줘 / 꺼 줘」라고 하면 바뀐다. 그 밖의 설정은 설정 화면에서 바꾼다고 안내한다.")
+
+    def _eyes_offer(self, steps: list[dict[str, Any]]) -> str:
+        """그림을 못 읽고 끝난 판의 답 끝 질문. 지금 모델이 그림을 못 읽고 · 켤 수 있을 때만. 아니면 빈 문자열."""
+        pages = unread_picture_pages(steps)
+        if not pages or not self._model_cannot_read_pictures():
+            return ""
+        service = getattr(self, "setup_service", None)
+        if service is None:
+            return ""
+        try:
+            eyes = service.current_eyes() or {}
+        except Exception:  # noqa: BLE001 — 못 읽으면 묻지 않는다
+            return ""
+        if eyes.get("reads_pictures") or not eyes.get("can_switch"):
+            return ""
+        from . import ui_i18n
+
+        return eyes_offer_text(pages, float(eyes.get("saves_gb") or 0.0), self.config.num_ctx_for("chat"), ui_i18n.lang())
+
     def _chat_job(self, job: dict[str, Any]) -> dict[str, Any]:
         """Code 탭에서 들어온 잡은 처음부터 끝까지 코더 한 모델로만 돈다.
 
@@ -4453,10 +4935,16 @@ class JarvisRuntime:
         순간 3090에서 코더가 쫓겨나고 다음 걸음이 17GB 재적재를 기다렸다
         (실측 적재 30.3·29.9·53.0초). 여기서 잡 전체를 묶는다.
         """
-        mode = str((job.get("payload") or {}).get("workspace_mode") or "cowork")
-        if mode != "code":
-            return self._chat_job_inner(job)
-        with self.ollama.pin_role("code"):
+        payload = job.get("payload") or {}
+        mode = str(payload.get("workspace_mode") or "cowork")
+        # ★ 판 하나만 다른 모델(2026-10-18 · 디스코드 「@빠른」 · `/모델`). `/v1/chat` 이 별명 표로 푼 태그만 온다.
+        #   이 판이 끝나면 풀린다 — 다음 판 · 설정에 새지 않는다(사고 Q).
+        override = str(payload.get("model_override") or "").strip()
+        with ExitStack() as stack:
+            if override:
+                stack.enter_context(self.ollama.pin_model(override))
+            if mode == "code":
+                stack.enter_context(self.ollama.pin_role("code"))
             return self._chat_job_inner(job)
 
     def _chat_job_inner(self, job: dict[str, Any]) -> dict[str, Any]:
@@ -4490,6 +4978,24 @@ class JarvisRuntime:
             # 하는 정책은 아래 `required_local_root` 강제 걸음이 담당한다.
             model_prompt = f"코드 작업공간: {code_workspace}\n\n사용자 요청:\n{model_prompt}"
         session_id = self._session_id(payload)
+        # ★ 손자리 자신에 대한 말(「뭐가 바뀌었어?」 · 「그림 읽기 켜 줘」 · 제안에 대한 「응」 · 「되돌려」) — 모델에게 묻지 않는다
+        #   (2026-10-20 대표 · `self_talk`). 사람이 화면 · 디스코드로 친 말만 본다 — 바깥 AI 가 맡긴 판 · 코드 탭 · 첨부는 지나간다.
+        self_reply = None
+        if (not code_mode and not attachment_metadata and not payload.get("delegated")
+                and str(payload.get("origin") or "") != "mcp" and not payload.get("handoff_direction")):
+            try:
+                self_reply = self.self_talk.intercept(prompt, session_id, self._self_context())
+            except Exception as exc:  # noqa: BLE001 — 여기가 틀어져도 평소 대화는 간다
+                self.events.publish("self_talk_error", {"error": f"{type(exc).__name__}: {exc}"[:200]})
+                self_reply = None
+            if self_reply:
+                self.events.publish("self_talk_answered", {"job_id": str(job["id"]), "kind": self_reply.get("kind")})
+                self.store.add_audit("self_talk_answered", str(job["id"]), {k: v for k, v in self_reply.items() if k != "answer"})
+        # ★ 측정 판은 「막히면 내 클로드에게 넘기기」를 켜 둬도 넘기지 않는다(2026-10-19). 2026-08-27 측정에서 24판 중
+        #   6판이 클로드에게 빠져 로컬 실력이 부풀어 보였다. 클로드 코드가 맡긴 판도 되넘기지 않는다(`hold_reason`).
+        #   갈래 · 강제 호출 · 도구 손이 모두 이 표시를 본다.
+        if getattr(self, "claude_code", None) is not None:
+            self.claude_code.hold_for_job(str(job["id"]), hold_reason(payload, session_id))
         required_local_path = self._followup_output_path(session_id, prompt)
         # ★ 이어오기 인계 잡 (W0, 2026-09-15). 모델은 긴 인계문을 맥락으로 읽지만,
         #   **요구·갈래 판정은 사람이 본 문장 + 고른 방향**에서만 한다. 인계문 속 카드
@@ -4501,20 +5007,20 @@ class JarvisRuntime:
             prompt,
         )
         # ★ 끝난 판에 덧붙인 말로 시작한 판이면 **앞 판 요청 + 덧붙인 말**이 이 판의 요구다(`_remember_late_steer`).
-        late_steer_base = "" if handoff else self._late_steer_base(session_id, prompt)
+        late_steer_base = "" if (handoff or self_reply) else self._late_steer_base(session_id, prompt)
         # ★ 「이어서 해줘」가 덜 끝난 앞 판을 가리키면 그 판의 요청을 물려받는다(`_unfinished_turn_base`) — 덧붙인 말과 같은 길.
-        unfinished_base = "" if (handoff or late_steer_base) else self._unfinished_turn_base(session_id, prompt)
+        unfinished_base = "" if (handoff or late_steer_base or self_reply) else self._unfinished_turn_base(session_id, prompt)
         steer_base = late_steer_base or unfinished_base
         steer_plan = f"{steer_base} {' '.join(prompt.split())}" if steer_base else ""
         # ★ 켠 스킬팩의 「시키는 말」(`_pack_ask`). 여기서부터 아래는 전부 붙인 글을 본다 — 갈래 · 요구 · 스킬 붙이기.
         #   사람에게 보이는 말(`display_prompt`)과 「이어서 해줘」인지의 판단은 위에서 **친 그대로**의 말로 끝냈다.
         #   이어받은 인계 판은 건드리지 않는다 — 그 요구는 사람이 본 문장과 고른 방향에서만 온다.
-        pack_work = "" if handoff else self._pack_work(steer_plan or prompt, asked=str(payload.get("skill") or ""))
+        pack_work = "" if (handoff or self_reply) else self._pack_work(steer_plan or prompt, asked=str(payload.get("skill") or ""))
         if pack_work:
             declared = {"job_id": str(job["id"]), "work": pack_work}
             self.events.publish("skill_pack_work_declared", declared)
             self.store.add_audit("skill_pack_work_declared", str(job["id"]), declared)
-        pack_ask = "" if handoff else self._pack_ask(steer_plan or prompt, asked=str(payload.get("skill") or ""))
+        pack_ask = "" if (handoff or self_reply) else self._pack_ask(steer_plan or prompt, asked=str(payload.get("skill") or ""))
         if pack_ask:
             prompt = f"{prompt}\n{pack_ask}"
             model_prompt = f"{model_prompt}\n{pack_ask}"
@@ -4537,7 +5043,12 @@ class JarvisRuntime:
         # ★ 바깥 AI 가 저장소와 확인 명령을 **칸으로** 준 판 (2026-10-09). 코드 일인지 · 저장소를 봐야 하는지를 과제 글의
         #   낱말로 짐작하지 않는다 — 그렇게 맡긴 판이다.
         delegated = payload.get("delegated") if isinstance(payload.get("delegated"), dict) else None
-        coding_requested = bool(delegated) or (not handoff_read_only and self._requires_coding(
+        # ★ 2026-10-22 코딩 분업 실험: `repo` 만 주고 「고치지 마 · 읽고 요약만」이라고 한 **찾기** 일이 「코드 고치는 일」로 잡혀
+        #   고치고 검증하라고 되받혔고, 모델의 실랑이 말이 최종 답이 돼 찾은 요약이 클로드에게 못 갔다(판 db81850b · partial).
+        #   칸으로 나눈다: `check` 를 준 판은 고치는 일(그 명령이 끝을 가른다). `check` 없이 `repo` 만 준 판은 글을 보되,
+        #   읽기만 하라고 했으면 읽기 일이다.
+        find_only = delegated_read_only(delegated, asked_text)
+        coding_requested = (bool(delegated) and not find_only) or (not handoff_read_only and self._requires_coding(
             asked_text, code_workspace_selected=code_mode
         ))
         workspace_inspection_requested = code_mode and (
@@ -4557,7 +5068,7 @@ class JarvisRuntime:
         use_agent = (
             checkpoint_exists or agent_mode == "browser" or code_mode or handoff is not None or observe_requested
             or bool(steer_plan)
-        )
+        ) and not self_reply
         routed_answer = ""
         routed_observation: dict[str, Any] | None = None
         # 이어받기가 「애매하다」고 본 말에만 붙는 한 줄. 답을 바꾸지 않고 끝에 제안만 붙인다.
@@ -4577,7 +5088,11 @@ class JarvisRuntime:
             observe_reasons.add("workspace")
         if observe_requested:
             observe_reasons.add("button")
-        if not use_agent and agent_mode == "auto" and self.config.agent_routing_enabled:
+        if self_reply:
+            route = "answer"
+            routed_answer = str(self_reply.get("answer") or "")
+            routed_observation = {"route_reason": "self_talk", "self_talk": {k: v for k, v in self_reply.items() if k != "answer"}}
+        elif not use_agent and agent_mode == "auto" and self.config.agent_routing_enabled:
             # ★ 이어받기는 **갈래를 정하기 전에** 본다 (전략안 §44). 최근 한도로 멈춘 대화가 기록에
             #   없으면 모델을 한 번도 안 부르고 None — 평소 대화는 그대로다. 고장 나도 대화는 간다.
             takeover: dict[str, Any] | None = None
@@ -4715,6 +5230,7 @@ class JarvisRuntime:
                 ),
                 model_role="code" if code_mode or coding_requested else "chat",
                 reasoning=str(payload.get("reasoning") or ""),
+                plan_push=payload.get("plan_push") if isinstance(payload.get("plan_push"), bool) else None,
                 require_sandbox=coding_requested,
                 # Code 모드의 저장소 읽기→계획→패치→검증은 시간/스텝 카드로
                 # 끊지 않는다. Cowork와 실제 위험 작업 승인은 기존 정책 그대로다.
@@ -4813,7 +5329,12 @@ class JarvisRuntime:
                         for step in claude_steps
                         if isinstance(step.get("evidence"), dict)
                     ),
+                    # 사람에게 보이는 영수증 한 줄 — 화면 · 바깥 AI 결과가 이 칸을 그대로 쓴다.
+                    "receipt": handoff_receipt(claude_steps),
                 }
+                # ★ 넘겼으면 답이 그렇게 말한다(2026-10-19 · 「막히면 내 클로드에게 넘기기」). 끝까지 맡긴 판은
+                #   `completion_answer` 가 이미 적었고, 넘겼다가 못 끝낸 판 · 이어 간 판은 여기서 붙인다.
+                answer = with_handoff_receipt(answer, claude_steps)
         else:
             if routed_answer:
                 answer, observation = routed_answer, routed_observation
@@ -4830,6 +5351,37 @@ class JarvisRuntime:
             answer = unseen_pictures_note(unseen_pictures) + "\n\n" + answer.lstrip()
         if takeover_hint:
             answer = answer.rstrip() + takeover_hint
+        # ★ 그림을 못 읽고 끝난 판이면 「그림 읽기를 켜 드릴까요?」를 **도구가** 붙이고 다음 말 한 번을 기다린다(`self_talk`).
+        #   지금 모델이 그림을 못 읽고 · 켤 수 있을 때만 — 그림 읽기가 켜진 PC 의 「못 읽음」은 다른 까닭이라 묻지 않는다.
+        if agent_trace and not code_mode and str(payload.get("origin") or "") != "mcp" and not payload.get("delegated"):
+            offer = self._eyes_offer(agent_trace.get("steps") or [])
+            if offer:
+                answer = answer.rstrip() + offer
+                self.self_talk.offer_eyes(session_id)
+                self.events.publish("self_talk_offered", {"job_id": str(job["id"]), "kind": "eyes_on"})
+            # 저장한 레시피로 연 판이면 조용한 한 줄. 잘 끝난 판이 검색 주소로 옮겨지면 「레시피로 저장해 둘까요?」(한 답에 제안 하나).
+            try:
+                from . import ui_i18n
+
+                # 값 칸: 판이 끝날 때 검증 · 배우고 한 줄(`_learn_value_cells`). 배우는 근거는 영수증 줄을 붙이기 **전**의 답이다.
+                value_cell_line = self._learn_value_cells(str(job["id"]), answer, agent_trace, ui_i18n.lang())
+                answer = answer.rstrip() + self._learned_recipe_receipt(agent_trace.get("steps") or [], ui_i18n.lang())
+                answer = answer.rstrip() + value_cell_line
+                if not offer:
+                    recipe_offer, recipe = self._recipe_offer(display_prompt, answer, agent_trace)
+                    if recipe_offer:
+                        answer = answer.rstrip() + recipe_offer
+                        self.self_talk.offer_recipe(session_id, recipe)
+                        self._count_recipe_offer(str(recipe.get("name") or ""))
+                        self.events.publish("self_talk_offered", {"job_id": str(job["id"]), "kind": "save_recipe", "name": recipe.get("name")})
+                    else:
+                        show_offer, host = self._show_me_offer(answer, agent_trace, ui_i18n.lang())
+                        if show_offer:
+                            answer = answer.rstrip() + show_offer
+                            self.self_talk.offer_demo(session_id, host)
+                            self.events.publish("self_talk_offered", {"job_id": str(job["id"]), "kind": "show_me", "host": host})
+            except Exception as exc:  # noqa: BLE001 — 권유가 틀어져도 답은 나간다
+                self.events.publish("self_talk_error", {"error": f"recipe_offer {type(exc).__name__}: {exc}"[:200]})
         grounding = answer_grounding(agent_trace, observation, attached=bool(attachment_metadata))
         # ★ 작업 도중 덧붙인 말도 이 턴의 요청이다(2026-09-27 밤). 기록에 안 남기면 다음 턴이 그 말을 모른다 —
         #   「찾은 거 정리해줘」가 앞 판의 방향 전환을 모른 채 엉뚱한 것을 찾았다.
@@ -4894,6 +5446,8 @@ class JarvisRuntime:
             "camera_observation": observation,
             "agent_trace": agent_trace,
             "claude_code": (agent_trace or {}).get("claude_code", {}),
+            # 답이 기댄 페이지의 사진(대표사진 · 2026-10-18 · `showcase.pick_showcase_shots`) — 디스코드 다리 · 출처 카드가 쓴다.
+            "showcase": list(getattr(agent_result, "showcase", None) or []) if agent_trace else [],
             "grounding": grounding,
             "completion_state": (
                 str((agent_trace or {}).get("verification", {}).get("completion_state") or "")
@@ -5161,6 +5715,7 @@ class JarvisRuntime:
             "worktree": str(delegated.get("worktree") or ""), "base": str(delegated.get("base") or ""),
             "head": str(done.get("head") or ""), "changed": done.get("changed") or [],
             "changed_count": int(done.get("changed_count") or 0), "stat": str(done.get("stat") or ""),
+            "wording_only": list(done.get("wording_only") or []),
             "check": check if isinstance(check, dict) else None,
             "take_home": delegated_branch.take_home(
                 str(delegated.get("repo") or ""), str(delegated.get("branch") or ""),

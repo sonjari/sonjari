@@ -125,7 +125,8 @@ def main() -> None:
 
     started = time.time()
     job = call("POST", "/v1/chat", {"prompt": args.task, "session_id": "measure-chrome",
-                                    "delivery": "screen", "origin": "workspace", "open_results": False})
+                                    "delivery": "screen", "origin": "workspace", "open_results": False,
+                                    "measurement": True})
     final: dict = {}
     idles: list[float] = []
     while time.time() - started < args.budget:

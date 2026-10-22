@@ -41,6 +41,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import sys
 import uuid
 from typing import Any, Iterable
@@ -50,10 +51,12 @@ import httpx
 from .brand import MCP_SERVER_NAME, NAME, NAME_KO
 from .outbound import clean_needs
 from .delegation import (
-    CLAUDE_CODE_MAX_WAIT_SEC, DELEGATION_TOOLS, GUIDE_TOOL, MAX_WAIT_SEC, STATUS_TOOL, TASK_TOOL, is_claude_code, summarize_job,
+    CLAUDE_CODE_MAX_WAIT_SEC, DELEGATION_TOOLS, GUIDE_TOOL, MAX_WAIT_SEC, STATUS_TOOL, STORY_TOOL, TASK_TOOL, is_claude_code,
+    localized_tool,
+    summarize_job,
 )
 
-__all__ = ["ToolFilter", "JarvisMcpBridge", "build_server", "main", "INSTRUCTIONS"]
+__all__ = ["ToolFilter", "JarvisMcpBridge", "build_server", "main", "INSTRUCTIONS", "INSTRUCTIONS_EN"]
 
 # ★ 맡기기 문은 **처음부터 보이게** 한다 (2026-09-23 오후 비용 재측정).
 #   클로드 코드는 MCP 도구를 기본으로 지연 적재한다 — 이름만 싣고 설명은 도구 찾기로 찾아야 보인다. 그 조건에서
@@ -115,6 +118,70 @@ INSTRUCTIONS = f"""{NAME}({NAME_KO})는 이 PC 에서 도는 로컬 AI 작업 �
 - 결과의 sources(읽은 주소·원문)·files·「없었다」에 붙은 본 범위로 당신이 직접 확인할 수 있습니다.
 - {NAME_KO}는 한 번에 한 일을 합니다. 과제가 여러 개면 하나가 끝난 뒤 다음을 맡기세요.
 - 만든 파일은 결과의 files 경로에 있습니다.
+- 과제는 사용자가 당신과 쓰는 언어로 적으세요.
+"""
+
+# ★ 영어 연결의 안내문 (2026-10-19). 위 한국어판과 **같은 사실 · 같은 순서**다 — 한쪽만 고치지 말 것.
+#   영어로 시킨 클로드 코드가 한국어 안내문을 따라 과제를 한국어로 넘긴 판(`029fae29`)이 이것을 만들게 했다.
+#: 과제 글 상한(글자). 넘으면 자르지 않고 돌려보낸다(`_delegate` · 2026-10-22).
+TASK_MAX_CHARS = 4000
+
+_NARROW_REPO_LINE ="- 저장소의 좁은 코드 일: sonjari_task 에 repo(저장소 폴더)·check(통과하면 끝인 명령)를 주면 새 가지에서 고치고, 바뀐 것과 가져가는 명령을 돌려줍니다(원래 폴더는 안 건드립니다)"
+_BROAD_REPO_LINE = (
+    "- 저장소의 코드 일 — 버그 하나 · 기능 하나 단위로: sonjari_task 에 repo(저장소 폴더)를 주면 관련 코드를 이 PC 에서 읽어 파일 · 함수 · 줄로 "
+    "요약해 주고, check(통과하면 끝인 명령)까지 주면 재현 시험을 넣고 새 가지에서 고쳐 바뀐 것과 가져가는 명령을 돌려줍니다(원래 폴더는 안 건드립니다). "
+    "저장소를 뒤져 읽고 시험을 돌리는 무거운 일은 맡기고, 당신은 방향을 정하고 돌아온 변경분을 검토하세요. "
+    "고치기를 맡길 때 과제 글에 고친 코드를 붙이지 마세요 — 증상 · 볼 함수 · 지킬 것만 적고, 코드는 손자리가 씁니다"
+)
+_NARROW_DONT_LINE_HEAD = "- 큰 설계·처음 보는 API"
+_BROAD_DONT_LINE = (
+    f"- 처음 보는 API(예: 3ds Max `pymxs`) 코드를 통째로 맡기기 — 로컬 모델이라 웹에서 공부하느라 오래 걸립니다. 그런 코드는 당신이 짜서 "
+    f"{NAME_KO}에게 그 경로에 쓰게 하세요"
+)
+
+
+def instructions_ko() -> str:
+    """한국어 안내문 — 코드 일 나눔 스위치(`guide_skill.code_delegation_broad`)를 따른다. 스킬 지침과 같은 말을 해야 한다."""
+    from .guide_skill import code_delegation_broad
+
+    if not code_delegation_broad():
+        return INSTRUCTIONS
+    lines = []
+    for line in INSTRUCTIONS.split("\n"):
+        if line == _NARROW_REPO_LINE:
+            line = _BROAD_REPO_LINE
+        elif line.startswith(_NARROW_DONT_LINE_HEAD):
+            line = _BROAD_DONT_LINE
+        lines.append(line)
+    return "\n".join(lines)
+
+
+INSTRUCTIONS_EN = f"""{NAME} is a local AI assistant that runs on this PC. It works directly in the user's real Chrome (including logged-in sites), the files on this PC, and Word/Excel/Hangul documents.
+
+When to call it
+- Finding and reading things on the web, then turning them into a table, document or spreadsheet (e.g. research job posts, products or prices and save them to a file)
+- Work that needs the browser the user is actually logged into
+- Reading files on the user's PC or creating new documents
+- While coding, too: research that means reading many pages (library docs, error messages, version comparisons) — the page text is read on this PC and only the result comes back, which saves this conversation's context. Checking screens that only show up when the user is logged in also belongs here (your automation browser is an empty browser without their logins)
+- Reading code files on this PC, and writing a fix you made into that file
+- Narrow code jobs in a repository: give sonjari_task a repo (repository folder) and a check (a command that means done when it passes); it fixes the code on a new branch and returns what changed and the commands to take it (the original folder is untouched)
+
+When not to call it
+- Summarizing or translating text that is already in the conversation
+- Checking an app you just started (localhost) — your own test tools are faster and you see the result directly
+- Handing over a whole large design or code against an API it has never seen (e.g. 3ds Max `pymxs`) — it is a local model and will spend a long time studying on the web. Write the code yourself and have {NAME} write it to that path, or split it into one- or two-file pieces with repo and check
+
+How
+- Call sonjari_guide once to read how to use it before handing off the first task.
+- Hand one task as a whole with sonjari_task and get the result with sonjari_task_status. That is faster and uses fewer tokens than calling low-level tools such as browser_* many times.
+- unsupported_numbers in the result are numbers no tool ever returned. Do not pass them on as fact; say they need checking.
+- If the result has model_hint, Sonjari's model is small for that job. Pass it to the user as is. For which jobs to hand off, see the "Sonjari model on this PC" table at the end of sonjari_guide.
+- Irreversible actions (sending mail, publishing, paying, deleting) cannot be done over this connection. Tell the user to do them in the {NAME} window. Approval cards also appear in that window.
+- Login, captcha and payment screens are handed to a person. Exception: for a test app on a development address on this PC (localhost and so on), write the test account in the task and {NAME} will enter those values.
+- You can check the work yourself with sources (addresses read and original text), files, and the range it looked at when it says something was not there.
+- {NAME} does one job at a time. If there are several tasks, hand off the next one after the previous one finishes.
+- Files it made are at the paths in files.
+- Write the task in the language the user is using with you.
 """
 
 
@@ -227,6 +294,48 @@ def describe(tool: dict[str, Any]) -> str:
     return text
 
 
+#: 영어 연결에서도 **바꾸지 않는** 칸 — 명령 · 경로 · 저장소(한국어 폴더 이름을 바꾸면 명령이 깨진다) · 모델의 답 원문.
+_KEEP_FOR_HOST = frozenset({"repo", "worktree", "review", "take", "discard", "name", "base", "stat", "changed", "wording_only",
+                            "answer", "unverified_claim", "error", "job_id"})
+_HANGUL_RE = re.compile("[가-힣]")
+#: 문장 끝 — 안내문은 여러 문장을 띄어쓰기 하나로 이어 붙여 나간다(`delegation._failure_report` 의 `" ".join(notes)`).
+_SENTENCE_END = re.compile(r"(?<=[.)])\s+")
+
+
+def _english(text: str) -> str:
+    """한 글을 화면 사전으로 영어로. 통째로 → 줄마다 → 「 · 」 조각마다 → 이어 붙은 문장을 가장 긴 덩어리부터.
+
+    사전은 한 문장 · 한 조각 단위로 들어 있는데, 나가는 글은 여러 개를 이어 붙인 것이 많다(10-19 운영 맡기기 판 1,481개를
+    영어로 요약해 보니 남은 한국어 1,610줄 중 1,393줄이 「○○ 에게 보냄 · 정제 N」 같은 이어 붙인 한 줄이었다).
+    찾지 못한 조각은 그대로 둔다 — 빠진 번역이 글을 깨지 않는다.
+    """
+    from . import ui_i18n
+
+    if not text or not _HANGUL_RE.search(text):
+        return text
+    whole = ui_i18n.translate_text(text)
+    if whole != text:
+        # 사전이 통째로 알아봤다 — 빈칸에 남은 한국어(「메일 주소 1」 같은 항목 이름)는 사용자의 말일 수 있어 그대로 둔다.
+        return whole
+    if "\n" in text:
+        return "\n".join(_english(line) for line in text.split("\n"))
+    # 「 · 」 조각은 사전(`ui_i18n.translate_text`)이 나눠 찾는다 — 틀의 빈칸 안에서도 같은 길을 타게 한 자리에 둔다.
+    sentences = [part for part in _SENTENCE_END.split(text) if part]
+    if len(sentences) < 2:
+        return whole
+    out: list[str] = []
+    start = 0
+    while start < len(sentences):
+        for end in range(len(sentences), start, -1):
+            chunk = " ".join(sentences[start:end])
+            moved = ui_i18n.translate_text(chunk)
+            if not _HANGUL_RE.search(moved) or end == start + 1:
+                out.append(moved)
+                start = end
+                break
+    return " ".join(out)
+
+
 class JarvisMcpBridge:
     """돌고 있는 자비스에 HTTP 로 붙는다. 상태는 저쪽에만 있다."""
 
@@ -238,12 +347,18 @@ class JarvisMcpBridge:
         tool_filter: ToolFilter | None = None,
         timeout: float = 300.0,
         client: Any = None,
+        lang: str = "ko",
+        via: str = "",
     ) -> None:
         self.base_url = base_url.rstrip("/")
+        # 어느 문으로 들어왔나 — "" 는 이 PC 의 stdio, "remote" 는 원격 입구(`remote_gateway`). 판에 실어 영수증 · 화면이 가른다.
+        self.via = via
         self.token = token
         self.filter = tool_filter or ToolFilter()
         self.timeout = timeout
         self._client = client
+        # 이 연결의 언어(`mcp_language.pick_language`). 영어면 도구 설명 · 결과 안내 · 오류 문구를 영어로 낸다.
+        self.lang = lang if lang in ("ko", "en") else "ko"
         # 내보내기로 한 도구 이름. 호출을 막는 데 쓴다.
         #
         # ★ 감추는 것만으로는 못 막는다(2026-08-06 실측). 목록에서 뺀
@@ -252,6 +367,29 @@ class JarvisMcpBridge:
         # 승인 게이트가 있어서 실행되지는 않았지만, "안 내보낸다"는 약속이 목록에서만
         # 지켜지고 호출에서는 안 지켜지고 있었다.
         self._allowed: set[str] | None = None
+
+    def say(self, value: Any) -> Any:
+        """나가는 글을 이 연결의 언어로. 영어면 화면과 **같은 사전**(`ui_i18n`)으로 바꾼다 — 따로 번역을 두면 갈린다.
+
+        사용자의 글 · 주소 · 파일 경로(`ui_i18n._KEEP_KEYS`)는 바꾸지 않는다. 사전에 없는 문장은 그대로 나간다.
+        """
+        if self.lang != "en":
+            return value
+        from . import ui_i18n
+
+        def walk(item: Any, key: str = "") -> Any:
+            if isinstance(item, str):
+                return item if key in ui_i18n._KEEP_KEYS or key in _KEEP_FOR_HOST else _english(item)
+            if isinstance(item, list):
+                return [walk(part, key) for part in item]
+            if isinstance(item, dict):
+                return {name: walk(part, str(name)) for name, part in item.items()}
+            return item
+
+        return walk(value)
+
+    def _dumps(self, value: Any, **kwargs: Any) -> str:
+        return json.dumps(self.say(value), ensure_ascii=False, **kwargs)
 
     async def _http(self) -> Any:
         if self._client is None:
@@ -267,7 +405,9 @@ class JarvisMcpBridge:
         client = await self._http()
         # 위임 문 두 개는 목록 맨 앞에 — 거르는 대상이 아니다(런타임 도구가 아니라 이 껍데기가 만든 것).
         # `JARVIS_MCP_DELEGATION=0` 은 실측용: 「낮은 도구를 직접 부리기」와 「맡기기」를 같은 과제로 비교할 때 끈다.
-        delegation = [] if os.environ.get("JARVIS_MCP_DELEGATION", "1") == "0" else [dict(tool) for tool in DELEGATION_TOOLS]
+        delegation = [] if os.environ.get("JARVIS_MCP_DELEGATION", "1") == "0" else [
+            localized_tool(tool, self.lang) for tool in DELEGATION_TOOLS]
+        guide = localized_tool(GUIDE_TOOL, self.lang)
         # ★ 2026-09-28 실측: 본체가 재시작 중일 때 클로드 세션이 붙으면 여기서 예외가 나 **도구 0개**로 기록됐고,
         #   클로드는 목록을 다시 묻지 않아 그 세션은 끝날 때까지 온텔릭을 못 썼다(연결됨 · tool_count 0).
         #   위임·가이드 문은 본체 없이도 있는 문이다 — 본체가 막 뜨는 중이면 잠깐 기다려 보고, 그래도 안 되면 그 셋만 낸다.
@@ -284,21 +424,61 @@ class JarvisMcpBridge:
                     await asyncio.sleep(1.5)
         if runtime_payload is None:
             self._allowed = None  # 다음 호출 때 다시 본다 — 못 본 것을 「금지」로 굳히지 않는다
-            return delegation + [dict(GUIDE_TOOL)]
+            return delegation + [guide]
         # 가이드는 위임을 꺼도 준다 — 읽기만 하는 문서다.
         runtime_tools = self.filter.apply(runtime_payload)
+        if self.lang == "en":
+            # 본체가 주는 낮은 도구 · 팩 도구의 설명도 화면과 같은 사전으로(사전에 없는 문장은 그대로).
+            runtime_tools = [{**tool, "description": self.say(str(tool.get("description") or ""))} for tool in runtime_tools]
         # ★ 켜진 분야 팩의 문은 맡기기 전용 목록에도 넣는다(2026-09-27 게임 팩). 유니티는 「통째로 맡기기」보다
         #   클로드·코덱스가 레시피를 **직접 고르고, 새 스크립트를 짜서 온텔릭에게 돌려 보게** 하는 편이 맞다 —
         #   설계는 그쪽이, 사용자 PC 의 실제 프로젝트에서 돌리는 것은 온텔릭이.
         pack_tools = await self._enabled_pack_tools(client)
-        allowed = delegation + [dict(GUIDE_TOOL)] + ([
+        # 서기 문은 **서기를 켠 PC 에서만** 낸다(2026-10-21). 설정이 없으면 문 셋 — 09-23 에 비용을 재서 정한 기본값을 건드리지 않는다.
+        story = [localized_tool(STORY_TOOL, self.lang)] if await self._scribe_on(client) else []
+        allowed = delegation + [guide] + story + ([
             tool for tool in runtime_tools if str(tool.get("name")) in pack_tools
         ] if lean_toolset() else [
             tool for tool in runtime_tools
-            if str(tool.get("name")) not in {TASK_TOOL["name"], STATUS_TOOL["name"], GUIDE_TOOL["name"]}
+            if str(tool.get("name")) not in {TASK_TOOL["name"], STATUS_TOOL["name"], GUIDE_TOOL["name"], STORY_TOOL["name"]}
         ])
         self._allowed = {str(tool["name"]) for tool in allowed}
         return allowed
+
+    async def _scribe_on(self, client: Any) -> bool:
+        """이 PC 의 서기가 켜져 있나. 못 물어보면 False — 모르는 것을 「켜져 있다」로 치지 않는다."""
+        try:
+            response = await client.get(f"{self.base_url}/v1/scribe/story", params={"limit": 1},
+                                        headers={"X-JARVIS-TOKEN": self.token})
+            return response.status_code == 200 and bool(response.json().get("enabled"))
+        except Exception:  # noqa: BLE001
+            return False
+
+    async def _story(self, arguments: dict[str, Any]) -> tuple[str, bool]:
+        """서기 카드(`/v1/scribe/story`). 꺼져 있거나 아직 쌓인 게 없으면 그 까닭을 말한다 — 빈 결과를 「없었다」로 읽지 않게."""
+        client = await self._http()
+        try:
+            limit = max(1, min(int(arguments.get("limit") or 30), 120))
+        except (TypeError, ValueError):
+            limit = 30
+        try:
+            response = await client.get(f"{self.base_url}/v1/scribe/story",
+                                        params={"session": str(arguments.get("session") or ""), "limit": limit},
+                                        headers={"X-JARVIS-TOKEN": self.token})
+        except httpx.RequestError as exc:
+            return f"손자리에 연결하지 못했습니다({self.base_url}). 손자리가 실행 중인지 확인해 주세요. 원인: {exc}", True
+        if response.status_code >= 400:
+            return f"손자리가 오류를 돌려줬습니다({response.status_code}): {response.text[:300]}", True
+        payload = response.json()
+        if not payload.get("enabled") and not payload.get("count"):
+            return self.say("손자리 서기가 꺼져 있습니다. 대화 기록은 사람이 고른 폴더만 읽으므로, 켜려면 사용자가 손자리 설정 › 실험실에서 "
+                            "「서기」를 켜고 읽을 폴더(클로드 코드 기록 폴더)를 골라야 합니다. 대신 켜지 마세요."), False
+        if not payload.get("count"):
+            return self.say("서기가 켜져 있지만 아직 쌓인 카드가 없습니다(손자리가 노는 시간에 한 덩어리씩 씁니다). "
+                            "이것은 「정한 것이 없었다」는 뜻이 아닙니다."), False
+        # 카드 본문은 사용자의 대화에서 나온 것이라 번역하지 않는다 — 머리말만 이 연결의 언어로.
+        head = self.say(f"서기 카드 {payload['count']}줄 — 초안입니다. 중요한 줄은 (줄 번호)의 원문을 직접 확인하세요.")
+        return head + "\n\n" + str(payload.get("card") or ""), False
 
     async def _enabled_pack_tools(self, client: Any) -> set[str]:
         """켜진 팩의 도구 이름. 못 물어보면 빈 집합 — 모르는 것을 「켜져 있다」로 치지 않는다."""
@@ -348,6 +528,18 @@ class JarvisMcpBridge:
         chat, code, budget, upgrade = await self._model_fit()
         return "\n" + model_fit_note(chat, code, budget, upgrade) if chat else ""
 
+    async def _receipt_note(self) -> str:
+        """이번 주 영수증 한 줄(`receipt.one_line`) — 사용법 끝에 붙는다. 못 물어보거나 맡긴 일이 없으면 빈 글(지어내지 않는다)."""
+        from .receipt import one_line
+
+        try:
+            client = await self._http()
+            response = await client.get(f"{self.base_url}/v1/receipt", headers={"X-JARVIS-TOKEN": self.token})
+            line = one_line(response.json(), self.lang) if response.status_code == 200 else ""
+        except Exception:  # noqa: BLE001
+            return ""
+        return "\n" + line if line else ""
+
     async def _delegate(self, name: str, arguments: dict[str, Any], *, caller: str = "") -> tuple[str, bool]:
         """위임 문. 잡을 넣거나(`sonjari_task`) 잡을 요약한다(`sonjari_task_status`)."""
         client = await self._http()
@@ -357,8 +549,19 @@ class JarvisMcpBridge:
                 task = str(arguments.get("task") or "").strip()
                 if not task:
                     return "task 가 비어 있습니다 — 맡길 과제를 한 문장으로 주세요.", True
+                # ★ 2026-10-22 코딩 분업 실험: 4,000자를 넘는 과제 글을 **말없이 잘랐다**(`task[:4000]`). 클로드가 고친 코드를
+                #   통째로 붙인 click 과제 글이 정확히 4,000자에서 끊겨, 손자리는 잘린 지시로 일했고 클로드는 몰랐다.
+                #   자르지 않고 돌려보낸다 — 길어지는 까닭은 거의 늘 코드를 붙여서다. 코드는 손자리가 쓴다.
+                if len(task) > TASK_MAX_CHARS:
+                    if self.lang == "en":
+                        return (f"The task is {len(task):,} characters — the limit is {TASK_MAX_CHARS:,}, and nothing was sent. "
+                                "Don't paste code into the task: give the symptom, the function or file to look at, what must "
+                                "stay the same, and put the pass/fail command in `check`. Sonjari writes the code."), True
+                    return (f"과제 글이 {len(task):,}자라 보내지 않았습니다(상한 {TASK_MAX_CHARS:,}자). 과제 글에 코드를 붙이지 마세요 — "
+                            "증상 · 볼 함수나 파일 · 그대로 둬야 할 것만 적고, 통과 기준은 `check` 칸에 명령으로 주세요. "
+                            "코드는 손자리가 씁니다."), True
                 body: dict[str, Any] = {
-                    "prompt": task[:4000],
+                    "prompt": task,
                     # 화면이 「바깥 AI 가 맡긴 일」로 알아보고 생각·진행을 띄운다(2026-09-16 사용자 목격: 안 보였다).
                     "origin": "mcp",
                     "display_prompt": f"바깥 AI 가 맡긴 일 · {task.strip()[:60]}",
@@ -373,6 +576,14 @@ class JarvisMcpBridge:
                 }
                 if arguments.get("skill"):
                     body["skill"] = str(arguments["skill"])[:80]
+                if self.via == "remote":
+                    # 원격 첫 판의 선(설계_원격연결_첫판 §2-3): 집 PC 저장소를 밖에서 고치는 코드 일은 받지 않는다.
+                    if str(arguments.get("repo") or "").strip() or str(arguments.get("check") or "").strip():
+                        return (("Code tasks (repo/check) are not accepted over the remote connection yet. "
+                                 "Run them on the home PC, or send a research/document task instead.") if self.lang == "en" else
+                                ("원격 연결로는 아직 코드 일(repo · check)을 받지 않습니다. 집 PC 에서 맡기거나, "
+                                 "조사 · 문서 일로 바꿔 맡겨 주세요.")), True
+                    body["via"] = "remote"
                 # 코드 일의 칸 둘 — 저장소와 확인 명령. 서버가 가지를 만들고 그 명령으로 끝을 가른다(`delegated_branch`).
                 if str(arguments.get("repo") or "").strip() or str(arguments.get("check") or "").strip():
                     body["delegated_repo"] = str(arguments.get("repo") or "").strip()[:1000]
@@ -381,6 +592,16 @@ class JarvisMcpBridge:
                 needs = clean_needs(arguments.get("needs"))
                 if needs:
                     body["needs"] = needs
+                    # ★ 2026-10-22 잡 7832a9a6: 「필요한 것」 다섯 중 넷이 「확인 못 함」이었다. 이름은 **채점에만** 쓰이고 일하는 모델에게는
+                    #   간 적이 없었다 — 모델은 제 말로 표 머리(「① 미리 만드는지」)를 짓고, 채점은 「미리 색인 여부」를 찾다 못 찾았다.
+                    #   이름 겹침으로 뜻을 맞추는 것은 원리상 깨진다(`outbound.check_needs` 의 10-19 설명) — 그래서 이름을 **일하는 쪽에 준다.**
+                    #   표를 만들라는 말은 아니다 — 어디에 쓰든 그 이름을 그대로 붙이라는 것만.
+                    body["prompt"] = task + "\n\n" + (
+                        "(Items to return — label them with these exact names, as a table header, a heading or a \"name: value\" "
+                        "line: " + " · ".join(needs) + ")"
+                        if self.lang == "en" else
+                        "(돌려받을 항목 — 표 머리 · 소제목 · 「이름: 값」 어디에 쓰든 이 이름을 그대로 붙여 주세요: " + " · ".join(needs) + ")"
+                    )
                 # ★ 누가 맡겼나 (2026-09-30 대표: 「클로드·코덱스를 동시에 쓰면 누가 손자리를 불렀는지 모른다」).
                 #   화면이 그 호스트의 출처 색 이음선과 이름을 두른다 — 이어온 대화와 같은 규칙(tokens.css `--origin-*`).
                 if caller:
@@ -391,11 +612,11 @@ class JarvisMcpBridge:
                 if response.status_code >= 400:
                     return f"손자리가 과제를 받지 못했습니다({response.status_code}): {response.text[:400]}", True
                 job = response.json()
-                return json.dumps({
+                return self._dumps({
                     "job_id": str(job.get("id") or ""),
                     "status": "queued",
                     "message": "맡겼습니다. sonjari_task_status 로 결과를 받으세요(한 판에 보통 1~5분).",
-                }, ensure_ascii=False), False
+                }), False
 
             job_id = str(arguments.get("job_id") or "").strip()
             if not job_id:
@@ -461,13 +682,22 @@ class JarvisMcpBridge:
                         if hint:
                             summary["model_hint"] = hint
                 if summary["status"] not in ("running", "needs_approval") or asyncio.get_running_loop().time() >= deadline:
-                    return json.dumps(summary, ensure_ascii=False, indent=2), summary["status"] in ("failed", "cancelled")
+                    return self._dumps(summary, indent=2), summary["status"] in ("failed", "cancelled")
                 await asyncio.sleep(2.0)
         except httpx.RequestError as exc:
             return f"손자리에 연결하지 못했습니다({self.base_url}). 손자리가 실행 중인지 확인해 주세요. 원인: {exc}", True
 
     async def call(self, name: str, arguments: dict[str, Any], *, caller: str = "") -> tuple[str, bool]:
-        """도구를 부르고 (사람이 읽을 글, 오류인가) 를 돌려준다. `caller` 는 이 연결을 연 호스트의 이름(clientInfo)."""
+        """도구를 부르고 (사람이 읽을 글, 오류인가) 를 돌려준다. `caller` 는 이 연결을 연 호스트의 이름(clientInfo).
+
+        영어 연결이면 **우리가 만든 오류 문장**만 영어로 바꾼다. 성공한 도구 결과는 사용자의 자료라 그대로 둔다.
+        """
+        text, failed = await self._call(name, arguments, caller=caller)
+        if failed and not text.lstrip().startswith(("{", "[")):
+            text = self.say(text)
+        return text, failed
+
+    async def _call(self, name: str, arguments: dict[str, Any], *, caller: str = "") -> tuple[str, bool]:
         # 옛 이름(ontelic_task 등)으로 불러도 받는다 — 옛 지침을 들고 있는 호스트가 한동안 그 이름을 부른다(이름 2단계).
         name = LEGACY_TOOL_NAMES.get(name, name)
         if name == GUIDE_TOOL["name"]:
@@ -476,9 +706,11 @@ class JarvisMcpBridge:
             try:
                 tools = await self.list_tools()
             except Exception:  # noqa: BLE001 — 도구 목록을 못 받아도 사용법 본문은 준다
-                tools = [dict(tool) for tool in DELEGATION_TOOLS]
+                tools = [localized_tool(tool, self.lang) for tool in DELEGATION_TOOLS]
             # 이 PC 의 모델에 맞춘 「맡길 일 / 직접 할 일」(2026-10-01 밤 대표) — 모든 PC 에 같은 문장을 박지 않는다.
-            return render_skill(tools) + await self._model_fit_note(), False
+            return render_skill(tools, lang=self.lang) + self.say(await self._model_fit_note()) + await self._receipt_note(), False
+        if name == STORY_TOOL["name"]:
+            return await self._story(arguments or {})
         if name in (TASK_TOOL["name"], STATUS_TOOL["name"]) and os.environ.get("JARVIS_MCP_DELEGATION", "1") != "0":
             return await self._delegate(name, arguments or {}, caller=caller)
         if not await self._is_allowed(name):
@@ -516,7 +748,7 @@ class JarvisMcpBridge:
         payload = response.json()
         status = str(payload.get("status") or "")
         if status == "approval_required":
-            return _APPROVAL_HELP, False
+            return self.say(_APPROVAL_HELP), False
         if not payload.get("ok"):
             return f"실패({status or 'error'}): {payload.get('error') or ''}", True
 
@@ -564,7 +796,7 @@ def build_server(bridge: JarvisMcpBridge) -> Any:
 
     return Server(
         MCP_SERVER_NAME,
-        instructions=INSTRUCTIONS,
+        instructions=INSTRUCTIONS_EN if bridge.lang == "en" else instructions_ko(),
         on_list_tools=on_list_tools,
         on_call_tool=on_call_tool,
     )
@@ -573,10 +805,16 @@ def build_server(bridge: JarvisMcpBridge) -> Any:
 async def _run() -> None:
     from mcp.server.stdio import stdio_server
 
+    from .mcp_language import pick_language
+
+    base_url = os.environ.get("JARVIS_BASE_URL", DEFAULT_BASE_URL)
+    token = resolve_token()
     bridge = JarvisMcpBridge(
-        base_url=os.environ.get("JARVIS_BASE_URL", DEFAULT_BASE_URL),
-        token=resolve_token(),
+        base_url=base_url,
+        token=token,
         tool_filter=ToolFilter.from_env(),
+        # 연결을 켤 때 한 번 정한다 — 앱에서 고른 화면 언어, 손자리가 아직 안 떴으면 윈도우 언어(`mcp_language`).
+        lang=pick_language(base_url, token),
     )
     if not bridge.token:
         # stderr 로 낸다. stdout 은 JSON-RPC 전용이라 한 글자라도 섞이면 프로토콜이 깨진다.

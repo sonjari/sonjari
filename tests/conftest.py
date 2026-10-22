@@ -319,3 +319,116 @@ def _guarded_connect_ex(self: _socket.socket, address: object, *args: object, **
 
 _socket.socket.connect = _guarded_connect  # type: ignore[method-assign]
 _socket.socket.connect_ex = _guarded_connect_ex  # type: ignore[method-assign]
+
+
+# ── 검사는 **진짜 디스코드 봇 토큰 · 클립보드에 닿지 않는다** (2026-10-18) ─────────────────────────────
+#
+# 본체가 뜰 때 디스코드 다리를 같이 켠다(`messaging/service.py`). 다리는 윈도우 자격 증명 관리자에서 봇 토큰을 읽는데,
+# 대표 PC 에는 **진짜 토큰이 저장돼 있다.** 그대로 두면 앱을 띄우는 시험마다 진짜 봇으로 디스코드에 붙고, 잠금 파일은
+# 시험의 임시 데이터 폴더에 생기니 따로 띄운 진짜 다리와도 안 부딪혀 **같은 메시지에 두 번 답한다.**
+# 자격 증명 관리자 자리를 프로세스 안의 빈 보관소로, 클립보드를 빈 가짜로 바꾼다. 진짜 저장소를 재는 시험은 없다.
+def _tests_never_touch_the_real_bot_token() -> None:
+    try:
+        from alture_jarvis.messaging import credentials as _credentials
+        from alture_jarvis.messaging import service as _service
+    except Exception:  # noqa: BLE001 - 가져오지 못하는 환경이면 건드릴 것도 없다
+        return
+    _store = _credentials.MemoryCredentialStore()
+
+    class _EmptyClipboard:
+        def read(self) -> str:
+            return ""
+
+        def clear(self) -> None:
+            return None
+
+    _credentials.default_store = lambda: _store  # type: ignore[assignment]
+    _service.system_clipboard = lambda: _EmptyClipboard()  # type: ignore[assignment]
+
+
+_tests_never_touch_the_real_bot_token()
+
+
+# ── 끝나지 않는 시험은 크게 드러낸다 (2026-10-18) ───────────────────────────────────────────
+#
+# 열두 갈래 전체 회귀가 이날 세 번 멈췄다(한 번은 한 시간). 매번 헤드리스 크롬을 띄우는 시험 하나가 돌아오지 않았고,
+# 멈춘 시험은 그때마다 달랐다. 크롬 시험을 한 작업자에 모아 봤더니 이번엔 결과 목록 시험 21개가 조용히 「건너뜀」이
+# 됐다(초록불 · 되돌림). 그래서 막지 않고 드러낸다: 한 시험이 이 시간을 넘으면 그 작업자는 걸린 자리의 스택을 찍고
+# 끝난다 — xdist 는 그 시험을 실패로 적고 작업자를 새로 띄운다. 영원히 기다리지도, 조용히 건너뛰지도 않는다.
+_TEST_HANG_SEC = 300
+
+
+@pytest.fixture(autouse=True)
+def _a_hung_test_fails_loudly():
+    import faulthandler
+
+    faulthandler.dump_traceback_later(_TEST_HANG_SEC, exit=True)
+    yield
+    faulthandler.cancel_dump_traceback_later()
+
+
+# ★ **시험은 사람이 저장한 레시피를 읽지 않는다** (2026-10-20 · 확장 설계 T5).
+#   배운 레시피는 실제 `문서\Sonjari\recipes` 에 산다. 그날 실사용 시험으로 거기 `yes24_learned.json` 이 생기자,
+#   기본 설정으로 레시피 도구를 만드는 시험 둘이 그 파일까지 읽어 떨어졌다 — 시험 결과가 사람 PC 의 상태에 따라 달라진 것이다.
+#   실제 문서 폴더를 가리키면 시험마다 빈 임시 폴더로 바꾼다. 시험이 `documents_dir` 를 따로 주면 그대로 쓴다.
+#
+# ★ 2026-10-22: 그래도 한 번 샜다 — 전체 회귀(12갈래)에서 test_site_recipes 가 진짜 `yes24_learned` 를 읽어 떨어졌다(따로 돌리면 통과,
+#   의심 시험 14개를 앞에 붙여도 재현 안 됨). 새는 길을 못 짚었으니 **길과 상관없이** 막는다:
+#   ① 「진짜 문서 폴더」는 시험이 하나도 돌기 전, 이 파일을 불러올 때 한 번 정한다(시험마다 그때의 `Path.home()` 으로 정하면 흔들린다).
+#   ② 레시피를 읽는 함수 자체가 진짜 문서 폴더 아래를 받으면 빈 것으로 돌려준다 — 경로가 어떤 길로 계산됐든 진짜 파일은 못 읽는다.
+#   ③ 막힌 일은 시험 이름 · 경로와 함께 남겨 회귀 끝에 경고로 보인다 — 다음에 새는 길이 드러나게.
+from pathlib import Path as _Path
+
+_REAL_DOCUMENTS = (_Path.home() / "Documents").resolve()
+_REAL_DOCUMENTS_READS = _Path(_tempfile.gettempdir()) / "sonjari_tests_real_documents_reads.txt"
+
+
+def _under_real_documents(path) -> bool:  # type: ignore[no-untyped-def]
+    try:
+        _Path(path).resolve().relative_to(_REAL_DOCUMENTS)
+    except (ValueError, OSError, TypeError):
+        return False
+    return True
+
+
+def pytest_sessionstart(session):  # type: ignore[no-untyped-def]
+    if not hasattr(session.config, "workerinput"):  # 병렬이면 주인 프로세스에서만 지난 기록을 비운다
+        _REAL_DOCUMENTS_READS.unlink(missing_ok=True)
+
+
+def pytest_terminal_summary(terminalreporter):  # type: ignore[no-untyped-def]
+    if _REAL_DOCUMENTS_READS.exists():
+        lines = _REAL_DOCUMENTS_READS.read_text(encoding="utf-8").splitlines()
+        terminalreporter.write_sep("!", f"시험이 진짜 문서 폴더를 읽으려다 막힘 {len(lines)}번 — 새는 길을 찾을 것")
+        for line in lines[:20]:
+            terminalreporter.write_line(line)
+
+
+@pytest.fixture(autouse=True)
+def _learned_recipes_stay_out_of_the_real_documents(monkeypatch, tmp_path_factory, request):
+    from alture_jarvis import site_recipes
+    from alture_jarvis.config import JarvisConfig
+
+    original = JarvisConfig.user_recipes_dir
+    empty: list[_Path] = []
+
+    def isolated(self):  # type: ignore[no-untyped-def]
+        path = original.fget(self)
+        if not _under_real_documents(path):
+            return path
+        if not empty:
+            empty.append(tmp_path_factory.mktemp("learned_recipes"))
+        return empty[0]
+
+    monkeypatch.setattr(JarvisConfig, "user_recipes_dir", property(isolated))
+
+    real_load = site_recipes.load_recipes
+
+    def guarded_load(directory):  # type: ignore[no-untyped-def]
+        if _under_real_documents(directory):
+            with _REAL_DOCUMENTS_READS.open("a", encoding="utf-8") as log:
+                log.write(f"{request.node.nodeid} → {directory}\n")
+            return {}
+        return real_load(directory)
+
+    monkeypatch.setattr(site_recipes, "load_recipes", guarded_load)

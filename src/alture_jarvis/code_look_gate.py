@@ -27,6 +27,9 @@ _READ_ONLY_FORBIDDEN_TOOLS = _CODE_WRITE_TOOLS | frozenset(
         "local_run_project_command",
         "hwp_preview_edit",
         "hwp_apply_edit",
+        "hwp_preview_format",
+        "hwp_apply_format",
+        "hwp_export_pdf",
         "clipboard_write",
         "windows_execute_preview",
         "browser_click_confirmed",
@@ -80,7 +83,7 @@ _RELOOKS_LIMIT = 5
 #: 새 것만 보더라도 이만큼 보기만 했으면 한 번은 되받는다 — 안전망.
 _LOOKS_BACKSTOP = 30
 #: 보기 한 번의 **대상**. 같은 손으로 같은 곳을 같은 범위로 보면 같은 보기다.
-_LOOK_TARGET_KEYS = ("path", "pattern", "query", "glob", "line_start", "line_end")
+_LOOK_TARGET_KEYS = ("path", "paths", "pattern", "query", "glob", "line_start", "line_end")
 
 
 def _look_mark(step: dict[str, Any]) -> str:

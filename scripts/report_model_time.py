@@ -65,6 +65,15 @@ def _split(trace: dict[str, Any], seconds: float) -> dict[str, float]:
     observations = trace["verification"].get("inference_observations") or []
     prefill = sum(float((o.get("telemetry") or {}).get("prompt_eval_duration") or 0) for o in observations) / 1e9
     generate = sum(float((o.get("telemetry") or {}).get("eval_duration") or 0) for o in observations) / 1e9
+    cut = sum(float(o.get("cut_first_pass_sec") or 0) for o in observations)
+    # ★ 판 기록의 관측은 **마지막 12개만** 남는다(`agent.py` 의 `inference_observations[-12:]`) — 23턴 판(1b6df02d)에서
+    #   이 도구는 프리필을 113초로 셌는데 전체는 171초였다 (2026-10-19). 판이 전체 관측으로 미리 더해 둔 `model_time` 이
+    #   있으면 그것을 쓴다(분모 구멍 · 사고 S). 없으면 예전처럼 남은 관측으로 센다.
+    summary = trace["verification"].get("model_time") or {}
+    if isinstance(summary, dict) and summary.get("turns"):
+        prefill = float(summary.get("prefill_sec") or 0)
+        generate = float(summary.get("generate_sec") or 0)
+        cut = float(summary.get("cut_first_pass_sec") or cut)
     tools = sum(float(s.get("took_ms") or 0) for s in trace["steps"] if isinstance(s, dict)) / 1000
     capped = sum(1 for o in observations if int((o.get("telemetry") or {}).get("eval_count") or 0) >= 8000)
     capped_sec = sum(
@@ -72,8 +81,9 @@ def _split(trace: dict[str, Any], seconds: float) -> dict[str, float]:
         for o in observations
         if int((o.get("telemetry") or {}).get("eval_count") or 0) >= 8000
     )
-    return {"total": seconds, "prefill": prefill, "generate": generate, "tools": tools,
-            "capped": capped, "capped_sec": capped_sec, "turns": len(observations)}
+    return {"total": seconds, "prefill": prefill, "generate": generate, "tools": tools, "cut": cut,
+            "capped": capped, "capped_sec": capped_sec,
+            "turns": int(summary.get("turns") or 0) if isinstance(summary, dict) and summary.get("turns") else len(observations)}
 
 
 def _one_job(db: Path, job_id: str) -> None:
@@ -100,8 +110,9 @@ def _one_job(db: Path, job_id: str) -> None:
               f" {int(item.get('thinking_chars_received') or 0):7,}자{flag}")
     split = _split({"verification": verification, "steps": trace.get("steps") or []},
                    float(finished) - float(started))
+    rest = split['total'] - split['prefill'] - split['generate'] - split['tools'] - split['cut']
     print(f"\n프리필 {split['prefill']:.0f}초 · 생성 {split['generate']:.0f}초 · 도구 {split['tools']:.0f}초"
-          f" · 나머지(큐·대기 등) {max(0.0, split['total'] - split['prefill'] - split['generate'] - split['tools']):.0f}초")
+          f" · 끊고 버린 호출 {split['cut']:.0f}초 · 나머지(큐·대기 등) {max(0.0, rest):.0f}초")
     hits = verification.get("thinking_budget_hits") or []
     if hits:
         print(f"사고 예산에 걸려 다시 부른 턴: {len(hits)}개")
@@ -131,7 +142,8 @@ def main() -> int:
     prefill = sum(s["prefill"] for s in splits)
     generate = sum(s["generate"] for s in splits)
     tools = sum(s["tools"] for s in splits)
-    rest = max(0.0, total - prefill - generate - tools)
+    cut = sum(s["cut"] for s in splits)
+    rest = max(0.0, total - prefill - generate - tools - cut)
     turns = sum(s["turns"] for s in splits)
     capped = sum(s["capped"] for s in splits)
     capped_sec = sum(s["capped_sec"] for s in splits)
@@ -141,6 +153,7 @@ def main() -> int:
     print(f"  맥락 읽기(프리필) {prefill / 60:6.1f}분 ({share(prefill)})")
     print(f"  생성(사고·답)     {generate / 60:6.1f}분 ({share(generate)})")
     print(f"  도구              {tools / 60:6.1f}분 ({share(tools)})")
+    print(f"  끊고 버린 호출    {cut / 60:6.1f}분 ({share(cut)})  ← 10-19 이후 판만 적힘")
     print(f"  나머지(큐·대기)   {rest / 60:6.1f}분 ({share(rest)})")
     if turns:
         print(f"\n생성 상한(8,192토큰)까지 쓴 턴 {capped}개 ({capped / turns * 100:.1f}%)"

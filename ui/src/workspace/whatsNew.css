@@ -1,0 +1,120 @@
+/* 업데이트 뒤 「바뀐 것」 슬라이드 (2026-10-21).
+   막(.settings-veil)과 닫기 단추(.settings-close)는 설정 · 「문제 보내기」와 같은 것을 쓴다 — 새 모양을 만들지 않는다.
+   한 장 = 위쪽 칸(그림 · 막대 · 「이렇게 말해 보세요」) + 큰 제목 + 한두 문장. 색은 뜻이 있을 때만:
+   brand = 손자리 자신(머리 표식 · 말풍선), ok = 잰 값이 좋아졌다(막대), signal = 사람이 눌러야 넘어간다(다음 · 다 봤어요). */
+
+.wn-veil { z-index: 46; }
+.wn-deck {
+  /* 높이를 고정한다 — 장마다 글 길이가 달라 창이 늘었다 줄면 「다음」 단추가 손 밑에서 움직인다(첫 화면 확인 10-21). */
+  width: min(680px, 100%); height: min(580px, 100%);
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid rgb(var(--line)); border-radius: var(--r-3);
+  background: rgb(var(--surface-2)); box-shadow: var(--lift-3);
+}
+
+.wn-head { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 20px; }
+.wn-eyebrow { min-width: 0; margin-right: auto; display: inline-flex; align-items: center; gap: 6px; overflow: hidden; color: rgb(var(--text-4)); font-size: var(--fs-1); font-weight: var(--fw-mid); letter-spacing: .02em; white-space: nowrap; text-overflow: ellipsis; }
+.wn-eyebrow svg { flex: none; color: rgb(var(--brand)); }
+
+/* 위쪽 칸 — 한 장의 그림 자리. 높이를 창에 맞춰 줄여도 글 칸이 밀려나지 않게 상한 · 하한을 둔다. */
+.wn-stage {
+  flex: none; height: clamp(170px, 34vh, 270px); margin: 0 16px; padding: 22px 28px;
+  display: grid; place-items: center; overflow: hidden;
+  border: 1px solid rgb(var(--line) / .8); border-radius: var(--r-2);
+  background: rgb(var(--surface-1));
+}
+/* 그림 장 — 그림의 비율 그대로 폭을 다 쓴다(가로로 긴 화면 조각이 가운데 작게 떠 있지 않게). 너무 길면 위 칸 상한에서 맞춘다. */
+/* 그림 바탕은 찍은 화면의 바닥(surface-2)과 같은 색 — 낮은 창에서 그림이 줄어도 양옆이 검은 띠로 안 보이게. */
+.wn-stage-image { height: auto; max-height: clamp(170px, 34vh, 270px); padding: 0; background: rgb(var(--surface-2)); }
+.wn-stage-image img { width: 100%; height: auto; max-height: inherit; object-fit: contain; display: block; }
+
+.wn-say { max-width: 30em; margin: 0; display: flex; align-items: flex-start; gap: 12px; color: rgb(var(--text-3)); font-size: var(--fs-4); font-weight: var(--fw-mid); line-height: 1.55; text-wrap: balance; word-break: keep-all; }
+.wn-say svg { flex: none; margin-top: 5px; color: rgb(var(--brand)); }
+/* 따라 말할 문장 — 말풍선 칩. 사람의 말이라 기계 글꼴(고정폭)이 아니다. */
+.wn-q { quotes: none; display: inline-block; margin: 2px 2px; padding: 1px 10px; border: 1px solid rgb(var(--brand) / .35); border-radius: var(--r-1); color: rgb(var(--text-1)); background: rgb(var(--brand-dim) / .35); }
+.wn-q::before, .wn-q::after { content: none; }
+.wn-try .wn-q { padding: 0 6px; margin: 0 1px; }
+
+.wn-stat { width: min(440px, 100%); margin: 0; display: grid; gap: 10px; }
+.wn-stat figcaption { color: rgb(var(--text-3)); font-size: var(--fs-2); }
+.wn-stat-head { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.wn-stat-head .wn-stat-before { color: rgb(var(--text-4)); font-size: var(--fs-5); }
+.wn-stat-head svg { color: rgb(var(--text-5)); }
+.wn-stat-head strong { color: rgb(var(--ok-bright)); font-size: calc(var(--fs-5) * 1.75); font-weight: var(--fw-bold); line-height: 1.1; }
+.wn-stat-head em { padding: 2px 8px; border-radius: var(--r-pill); color: rgb(var(--ok-bright)); background: rgb(var(--ok-dim) / .7); font-size: var(--fs-2); font-style: normal; font-weight: var(--fw-mid); }
+.wn-bars { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 7px 10px; }
+.wn-bars > span { color: rgb(var(--text-5)); font-size: var(--fs-1); }
+.wn-bar { height: 10px; overflow: hidden; border-radius: var(--r-0); background: rgb(var(--text-1) / .04); }
+.wn-bar b { display: block; height: 100%; border-radius: var(--r-0); background: rgb(var(--text-5) / .55); }
+.wn-bar-after b { background: rgb(var(--ok)); }
+.wn-basis { color: rgb(var(--text-4)); font-size: var(--fs-1); line-height: 1.5; }
+
+/* 말풍선 — 사람이 대화창에 칠 말. 대화의 사람 말풍선처럼 오른쪽 아래 모서리만 덜 둥글다. */
+.wn-bubbles { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.wn-bubbles-head { margin: 0 0 4px; display: inline-flex; align-items: center; gap: 7px; color: rgb(var(--text-4)); font-size: var(--fs-2); }
+.wn-bubbles-head svg { color: rgb(var(--brand)); }
+.wn-bubble { quotes: none; max-width: 100%; padding: 9px 16px; border: 1px solid rgb(var(--brand) / .35); border-radius: var(--r-2) var(--r-2) var(--r-0) var(--r-2); color: rgb(var(--text-1)); background: rgb(var(--brand-dim) / .45); font-size: var(--fs-4); font-weight: var(--fw-mid); line-height: 1.4; word-break: keep-all; }
+.wn-bubble::before, .wn-bubble::after { content: none; }
+.wn-bubble-join { color: rgb(var(--text-4)); font-size: var(--fs-2); }
+.wn-unit { margin-left: 2px; font-family: var(--font-ui); font-size: .6em; font-weight: var(--fw-mid); }
+.wn-steps { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+
+/* 글 칸 — 길어지면(전체 목록을 펼치면) 이 칸만 넘긴다. 머리와 아래 단추는 늘 보인다. */
+.wn-copy { min-height: 0; flex: 1; overflow-y: auto; padding: 20px 28px 6px; }
+/* 슬라이드 제목은 화면의 「제목」(fs-5)보다 한 단계 크다 — 한 장에 하나뿐인 말이라 멀리서도 읽혀야 한다. */
+.wn-copy h2 { margin: 0; color: rgb(var(--text-1)); font-size: calc(var(--fs-5) * 1.15); font-weight: var(--fw-bold); line-height: 1.35; letter-spacing: -.005em; text-wrap: balance; word-break: keep-all; }
+.wn-body { margin: 10px 0 0; color: rgb(var(--text-2)); font-size: var(--fs-3); line-height: 1.65; word-break: keep-all; }
+.wn-try { margin: 14px 0 0; padding: 10px 12px; display: flex; align-items: flex-start; gap: 9px; border-radius: var(--r-1); color: rgb(var(--text-2)); background: rgb(var(--surface-3)); font-size: var(--fs-2); line-height: 1.55; word-break: keep-all; }
+.wn-try svg { flex: none; margin-top: 2px; color: rgb(var(--brand)); }
+.wn-all-toggle { margin: 16px 0 4px; padding: 0; display: inline-flex; align-items: center; gap: 4px; border: 0; color: rgb(var(--text-3)); background: transparent; font-size: var(--fs-2); cursor: pointer; }
+.wn-all-toggle:hover { color: rgb(var(--text-1)); }
+.wn-all-toggle svg { transition: transform var(--t-move) var(--ease); }
+.wn-all-toggle .wn-turned { transform: rotate(90deg); }
+.wn-all { margin-top: 6px; padding-top: 12px; border-top: 1px solid rgb(var(--line)); color: rgb(var(--text-2)); font-size: var(--fs-2); }
+.wn-all .whats-new-tour { margin-top: .6rem; }
+.wn-all .whats-new-hint { margin: .7rem 0 4px; color: rgb(var(--text-4)); font-size: var(--fs-1); }
+
+.wn-foot { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 14px 16px 16px 14px; border-top: 1px solid rgb(var(--line) / .6); }
+.wn-later { justify-self: start; }
+.wn-dots { display: flex; align-items: center; gap: 2px; }
+/* 점은 작게 보이되 누르는 자리는 24px — 점 자체를 키우면 장식이 단추보다 커 보인다. */
+.wn-dots button { width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border: 0; background: transparent; cursor: pointer; }
+.wn-dots button::before { content: ""; width: 7px; height: 7px; border-radius: var(--r-pill); background: rgb(var(--text-5) / .45); transition: width var(--t-move) var(--ease), background var(--t-move) var(--ease); }
+.wn-dots button:hover::before { background: rgb(var(--text-3)); }
+.wn-dots button.on::before { width: 18px; background: rgb(var(--text-1)); }
+.wn-ghost { min-height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: var(--r-1); color: rgb(var(--text-3)); background: transparent; font-size: var(--fs-2); cursor: pointer; }
+.wn-ghost:hover { color: rgb(var(--text-1)); background: rgb(var(--text-1) / .06); }
+.wn-primary { min-height: 34px; min-width: 88px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; border: 0; border-radius: var(--r-1); color: rgb(var(--ground)); background: rgb(var(--signal)); font-size: var(--fs-2); font-weight: var(--fw-mid); cursor: pointer; }
+.wn-primary:hover { background: rgb(var(--signal-bright)); }
+.wn-deck button:focus-visible { outline: 2px solid rgb(var(--brand-bright)); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .wn-deck { animation: wn-rise var(--t-enter) var(--ease) both; }
+  .wn-stage, .wn-copy { animation: wn-fade var(--t-enter) var(--ease) both; }
+  .wn-bar b { animation: wn-grow var(--t-stage) var(--ease) both; transform-origin: left center; }
+}
+@keyframes wn-rise { from { opacity: 0; transform: translateY(8px) scale(.985); } }
+@keyframes wn-fade { from { opacity: 0; } }
+@keyframes wn-grow { from { transform: scaleX(0); } }
+
+/* 좁은 창 — 설정 화면처럼 막을 다 쓰고, 점은 단추 위 한 줄로 올린다. */
+@media (max-width: 760px) {
+  .wn-deck { width: 100%; height: 100%; max-height: none; border-radius: 0; border: 0; }
+}
+@media (max-width: 520px) {
+  .wn-stage { margin: 0 12px; padding: 18px; height: clamp(150px, 32vh, 240px); }
+  .wn-stage-image { height: auto; max-height: clamp(150px, 32vh, 240px); padding: 0; }
+  .wn-copy { padding: 16px 18px 6px; }
+  .wn-foot { grid-template-columns: auto 1fr; padding: 10px 12px 14px; }
+  .wn-dots { grid-column: 1 / -1; grid-row: 1; justify-content: center; margin: 0 0 2px; }
+  .wn-bubble { font-size: var(--fs-3); }
+  .wn-say { font-size: var(--fs-3); }
+  .wn-stat-head strong { font-size: calc(var(--fs-5) * 1.45); }
+}
+/* 낮은 창 — 위쪽 칸을 줄여 글이 먼저 보이게. */
+@media (max-height: 560px) {
+  .wn-stage { height: clamp(120px, 30vh, 180px); padding: 14px 20px; }
+  .wn-stage-image { height: auto; max-height: clamp(120px, 30vh, 180px); padding: 0; }
+  .wn-bubbles { gap: 4px; }
+  .wn-bubble { padding: 5px 12px; font-size: var(--fs-3); }
+}

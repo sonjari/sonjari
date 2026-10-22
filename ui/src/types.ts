@@ -365,7 +365,24 @@ export interface JobDetail extends Omit<JobSummary, "session_id" | "origin" | "s
       steps?: JobStep[];
       verification?: Record<string, unknown>;
     } | null;
+    /** 답이 기댄 페이지의 사진 — 많아야 두 장(`showcase.pick_showcase_shots` · 2026-10-18). 사진 바이트는 `fetchShowcaseShot`. */
+    showcase?: ShowcaseShot[];
   } | null;
+}
+
+/**
+ * 답이 기댄 페이지 한 장 (2026-10-18 대표 결정). 꾸밈이 아니라 「이 답이 이 화면에서 나왔다」는 증거다.
+ * `matched` 는 답의 숫자 · 이름 중 그 페이지 본문에 있던 개수 — 0 인 페이지는 백엔드가 아예 안 고른다.
+ */
+export interface ShowcaseShot {
+  path: string;
+  url: string;
+  title: string;
+  /** 읽은 시각(epoch 초). */
+  read_at: number;
+  matched: number;
+  step: number;
+  contains?: string[];
 }
 
 /** 예약된 한 건. `GET /v1/schedules` 의 `schedules[]` 원소다. */
@@ -629,6 +646,41 @@ export interface SelfHealResult {
   error?: string;
 }
 
+/** 업데이트 뒤 「바뀐 것 · 이미 되는 것」 (2026-10-20 · 백엔드 `whats_new.status`). */
+export interface WhatsNewStatus {
+  show: boolean;
+  version: string;
+  changes?: string;
+  tour?: string;
+  /** 슬라이드(2026-10-21). 옛 판 · 옛 백엔드는 비어 있거나 없다 — 그러면 화면은 지금처럼 목록을 펼친다. */
+  slides?: WhatsNewSlide[];
+}
+
+/** 「바뀐 것」 한 장 — 큰 제목 · 한두 문장 · 「이렇게 말해 보세요」 · 위쪽 그림이나 막대(백엔드 `whats_new._slides`). */
+export interface WhatsNewSlide {
+  title: string;
+  body: string;
+  try?: string;
+  visual?: WhatsNewStat | WhatsNewImage;
+}
+
+/** 전 · 후 막대. `basis`(잰 조건)는 백엔드가 없으면 장에서 뺀다 — 화면에 오는 숫자에는 늘 있다. */
+export interface WhatsNewStat {
+  kind: "stat";
+  label: string;
+  before: number;
+  after: number;
+  unit: string;
+  basis: string;
+}
+
+/** 실제 손자리 화면을 찍은 그림. `src` 는 `ui/public` 아래 `whats_new/<판>/…`. */
+export interface WhatsNewImage {
+  kind: "image";
+  src: string;
+  alt: string;
+}
+
 export interface UpdateStatus {
   ok: boolean;
   /** "store" = 스토어 설치(윈도우가 갱신·우리는 알리기만) · 없으면 위성(우리가 받아 갈아치움). */
@@ -691,6 +743,8 @@ export interface SettingRow {
   restart_required: boolean;
   /** 이 판에서 못 쓰는 기능이면 그 이유(사람 말). 빈 값이면 쓸 수 있다. */
   unavailable?: string;
+  /** 그 이유의 짧은 상태 말(「관리자가 꺼 둠」 · 「로그인 필요」). 없으면 「이 판에서는 못 씁니다」. */
+  unavailable_short?: string;
 }
 
 export interface SettingsView {
@@ -714,6 +768,33 @@ export interface SkillDomainRow {
   /** triggers = 이 스킬이 붙는 한국어 낱말(배급 규칙 그대로). 비면 이름으로 지목해야 쓴다. */
   skills: { name: string; what: string; triggers?: string[] }[];
   missing: string[];
+}
+
+/** 설정 › 서기 — `GET /v1/scribe/status` (2026-10-22). */
+export interface ScribeProject {
+  folder: string;
+  name: string;
+  /** 그 대화를 연 작업 폴더(기록 안의 cwd). 못 찾으면 빈 문자열. */
+  workdir: string;
+  sessions: number;
+  last_at: number;
+  chosen: boolean;
+  /** 임시 폴더에서 연 대화(측정 · 시험) — 화면에서 접어 둔다. */
+  temp?: boolean;
+  /** 고른 폴더인데 지금은 없음. */
+  missing?: boolean;
+}
+
+export interface ScribeStatus {
+  enabled: boolean;
+  projects: ScribeProject[];
+  hooks: { installed: boolean; events: string[] };
+  cards: number;
+  closed: number;
+  topics: number;
+  last_read_at: number;
+  /** 지금 읽는 대상(최근 이틀 안에 바뀐 기록 수). */
+  reading: number;
 }
 
 export interface SkillDomainsView {
@@ -885,4 +966,127 @@ export interface UnityDraft {
   verified: boolean;
   failure: string;
   ran_at: number | null;
+}
+
+// ── 디스코드로 일 시키기 (2026-10-18) — 백엔드 `messaging/service.py` 의 status 모양 그대로 ─────────────
+export type DiscordStage =
+  | "not_installed" | "no_token" | "other_process" | "need_intent" | "need_invite"
+  | "connecting" | "connected" | "ready_to_finish";
+
+export interface DiscordAliasItem {
+  alias: string;
+  tag: string;
+  note: string;
+}
+
+export interface DiscordStatus {
+  enabled: boolean;
+  installed: boolean;
+  token_saved: boolean;
+  running: boolean;
+  connected: boolean;
+  owner_process: "self" | "other" | "";
+  stage: DiscordStage;
+  bot_name: string;
+  app_id: string;
+  message_content: boolean | null;
+  /** 봇이 들어 있는 서버 수. 앱을 다시 켠 뒤 아직 디스코드에 안 물어봤으면 null. */
+  servers: number | null;
+  checked_at: number | null;
+  home_channel_id: string;
+  home_channel_name: string;
+  /** 허용된 사람 **수**(ID 목록이 아니다). */
+  allowed_user_ids: number;
+  invite_url: string;
+  portal_url: string;
+  portal_bot_url: string;
+  last_error: string;
+  default_model_alias: string;
+  aliases: DiscordAliasItem[];
+  user_install_url: string;
+  user_install_enabled: boolean;
+  servers_note: string;
+  pending_requests: number;
+}
+
+/** 단계 문(from-clipboard · recheck · finish · disconnect · settings)의 답 — 실패도 200 으로 온다. */
+export interface DiscordStepResult extends DiscordStatus {
+  ok: boolean;
+  error: string;
+  message: string;
+  clipboard_cleared?: boolean;
+  owners_added?: number;
+  home_channel_auto?: boolean;
+  welcome_sent?: boolean;
+  welcome_error?: string;
+}
+
+/** 허용 목록 밖 사람이 봇에게 말을 건 것 — 「가족 · 동료 추가」 카드 한 장. */
+export interface DiscordAccessRequest {
+  user_id: string;
+  display_name: string;
+  username: string;
+  first_seen: number;
+  first_text: string;
+  count: number;
+  last_seen: number;
+}
+
+export interface DiscordRequestsView {
+  requests: DiscordAccessRequest[];
+  ignored_count: number;
+}
+
+export interface ModelAliasRow extends DiscordAliasItem {
+  loaded: boolean;
+}
+
+export interface ModelAliasesView {
+  pc_model: string;
+  aliases: ModelAliasRow[];
+}
+
+/** 첫 화면 「이번 주 영수증」 (2026-10-21 · `GET /v1/receipt` · 백엔드 `receipt.weekly`).
+ *  delegated = 바깥 AI(클로드 코드 · 코덱스 · 커서)가 MCP 로 맡긴 일, direct = 사람이 직접 시킨 일(화면 · 음성 · 디스코드).
+ *  토큰은 **하한**뿐 — 화면은 「최소」를 붙이고 약 · 배 · 금액으로 바꾸지 않는다. */
+export interface WeeklyReceipt {
+  days: number;
+  since?: number;
+  until?: number;
+  delegated: { jobs: number; pages: number; tokens_at_least: number; chars: number; flagged_numbers_jobs: number };
+  direct: { jobs: number; pages: number };
+  /** 맡긴 쪽 이름별 판 수 — 전부 클로드면 「클로드」, 섞이면 「바깥 AI」라고 쓴다. */
+  callers: Record<string, number>;
+  measurement_jobs_skipped: number;
+  basis: string;
+}
+
+/** 영수증 그림 저장 결과(`POST /v1/receipt/image`). short 는 `Sonjari
+eceipts\파일.png` 처럼 집 경로를 뺀 표시용. */
+export interface ReceiptImageSaved {
+  ok: boolean;
+  path?: string;
+  name?: string;
+  short?: string;
+  error?: string;
+}
+
+/** 「이번 주 손자리가 클로드 대신 읽은 양」 영수증 (2026-10-19 · `GET /v1/savings` · 백엔드 `savings_receipt`).
+ *  숫자는 **하한**뿐이다 — 화면은 「최소 N 토큰」과 근거(basis)만 말하고 약 · 배 · % · 금액으로 바꾸지 않는다. */
+export interface SavingsReceipt {
+  kind: "floor";
+  days: number;
+  since: number;
+  until: number;
+  tokens_at_least: number;
+  text_chars: number;
+  reads: number;
+  jobs: { total: number; done: number; stopped: number; with_reads: number };
+  in_progress: number;
+  by_host: { host: string; tokens_at_least: number; jobs: number; names: string[] }[];
+  top: { job_id: string; prompt: string; tokens_at_least: number; host: string; status: "done" | "stopped"; finished_at: number }[];
+  excluded: Record<string, number>;
+  /** 맡긴 쪽이 전부 클로드면 "claude", 코덱스 등이 섞이면 "outside_ai". */
+  host_word: "claude" | "outside_ai";
+  basis: string;
 }

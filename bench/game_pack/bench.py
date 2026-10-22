@@ -22,7 +22,8 @@ def call(path, body=None, timeout=60):
 def run(model, task, n):
     prompt, recipe, must = TASKS[task]
     job = call("/v1/chat", {"prompt": prompt, "session_id": f"ub-{model}-{task}-{n}-{int(time.time())}",
-                            "workspace_mode": "code", "code_workspace": PROJECT, "open_results": False})
+                            "workspace_mode": "code", "code_workspace": PROJECT, "open_results": False,
+                            "measurement": True})
     jid = job["id"]; started = None; detail = {}
     deadline = time.time() + 900
     while time.time() < deadline:

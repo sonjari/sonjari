@@ -49,14 +49,37 @@ def test_read_and_extract_show_the_visible_prices(tmp_path: Path) -> None:
             browser = p.chromium.launch(headless=True)
         except Exception as exc:  # noqa: BLE001
             pytest.skip(f"chromium not installed: {exc}")
+        # ★ 2026-10-22: 전체 회귀 아홉 번 중 세 번(모두 평소의 두 배인 6분짜리 판) 이 시험이 떨어졌는데, 결과 끝 몇 줄만 봐서 까닭을
+        #   잃었다. CPU · 그래픽카드를 꽉 채워도 · 회귀 두 벌을 동시에 돌려도 재현이 안 됐다. 다음에 떨어지면 까닭이 남게 진단을 붙인다 —
+        #   화면 프로세스가 죽었나 · 숫자 칸을 몇 개 · 무엇으로 읽었나.
+        crashed: list[str] = []
         try:
             page = browser.new_page()
+            page.on("crash", lambda *_: crashed.append("renderer_crashed"))
             page.set_content(PAGE)
             read = " ".join(worker._read(page, {"max_chars": 4000})["text"].split())
             extracted = " ".join(worker._extract(page, {"max_chars": 4000})["text"].split())
+            try:
+                from alture_jarvis.browser import _ROLLER_DIGITS_JS
+
+                digits = page.evaluate(_ROLLER_DIGITS_JS)
+            except Exception as exc:  # noqa: BLE001 — 진단용
+                digits = f"evaluate 실패: {type(exc).__name__}: {exc}"[:200]
         finally:
             browser.close()
-    for text in (read, extracted):
+    for label, text in (("read", read), ("extract", extracted)):
         tight = text.replace(" ", "")
-        assert "$20/월" in tight and "$40/월" in tight and "$200/월" in tight, text
-        assert "0123" not in tight
+        why = f"{label}={text[:300]!r} · digits={digits!r} · crashed={crashed}"
+        assert "$20/월" in tight and "$40/월" in tight and "$200/월" in tight, why
+        assert "0123" not in tight, why
+
+
+def test_a_failed_roller_read_shows_unknown_not_ten_digits() -> None:
+    """칸 읽기가 예외로 실패해도 「0 1 2 … 9」 를 값처럼 넘기지 않는다 — 「?」로(2026-10-22)."""
+    class _Broken:
+        def evaluate(self, *_args, **_kwargs):
+            raise RuntimeError("Target crashed")
+
+    worker = BrowserWorker.__new__(BrowserWorker)
+    text = "$ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 / 월"
+    assert worker._visible_rollers(_Broken(), text) == "$ ?? / 월"

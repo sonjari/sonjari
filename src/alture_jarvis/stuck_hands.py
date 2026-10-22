@@ -278,6 +278,27 @@ def _into_asked_folder(name: str, arguments: dict[str, Any], prompt: str) -> dic
 
 def _stuck_report(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
     """같은 자리에서 헛돌고 있으면 사람에게 넘길 보고, 아니면 None. 모델을 부르지 않는다(이미 센 것만 쓴다)."""
+    # ★ 사람이 같은 탭을 쓰고 있다(2026-10-19 잡 51f35b07 · `BrowserWorker._hold_if_human_on_tab`). 헛돈 것이 아니라 **사람의 차례**다 —
+    #   몇 번 실패를 기다리지 않고 첫 번에 넘긴다. 모델에게 「물어라」로 돌려보내면 그 자리에서 다른 손을 또 써 본다(사고 R).
+    last_step = steps[-1] if steps else {}
+    if not last_step.get("ok") and "human_on_tab —" in str(last_step.get("error") or ""):
+        from .url_privacy import safe_url
+
+        hold_url = ""
+        match = re.search(r"지금 화면\((\S+?)\)", str(last_step.get("error") or ""))
+        if match:
+            hold_url = safe_url(match.group(1))
+        good = [step for step in steps if step.get("ok") and str(step.get("tool") or "") not in _NEUTRAL_LOOK_TOOLS]
+        done = f"{len(good)}걸음 성공"
+        blocked = "사람이 이 브라우저 탭을 쓰고 있는 것 같아 손을 멈췄습니다(이 작업이 연 적 없는 화면입니다)"
+        ask = ("그 탭을 다 쓰셨으면 「이어서」를 눌러 주세요 — 그때 떠 있는 화면에서 이어 갑니다. "
+               "이 작업이 그 화면에서 누르면 안 되면 「이어서」 대신 멈춰 주세요.")
+        message = (
+            f"여기까지 했습니다: {done}.\n여기서 멈췄습니다: {blocked}."
+            + (f"\n그 화면: {hold_url[:200]}" if hold_url else "")
+            + f"\n이것만 해 주세요: {ask}"
+        )
+        return {"kind": "human_on_tab", "done": done, "blocked": blocked, "ask": ask, "url": hold_url, "message": message}
     locate = _trailing_locate_misses(steps)
     failures = _trailing_failures(steps)
     if locate < STUCK_LOCATE_AFTER and failures < STUCK_FAILURES_AFTER:

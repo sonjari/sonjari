@@ -1,0 +1,42 @@
+/* 설정 › 서기 (2026-10-22).
+   설정 화면의 면 · 선 · 단추를 그대로 쓴다. 이 칸만의 것은 하나 — 공책 여백처럼 숫자를 한 줄로 세운 장부(ledger).
+   프로젝트 이름은 사람이 클로드 코드에서 본 작업 폴더 그대로라 고정폭 글꼴로 둔다. */
+
+.scribe-lede { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.scribe-lede-icon { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid rgb(var(--line)); border-radius: var(--r-1); color: rgb(var(--text-2)); }
+.scribe-lede-title { margin: 4px 0 2px; font-size: var(--fs-3); color: rgb(var(--text-1)); }
+.scribe-lede .settings-note { margin: 0; }
+
+/* 켜면 이렇게 됩니다 — 순서가 아니라 약속 셋이라 번호를 달지 않는다 */
+.scribe-promises { list-style: none; margin: 0 0 6px; padding: 10px 12px; display: grid; gap: 7px; border: 1px solid rgb(var(--line)); border-radius: var(--r-2); background: rgb(var(--surface-2)); }
+.scribe-promises li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: start; font-size: var(--fs-2); line-height: 1.5; color: rgb(var(--text-2)); }
+.scribe-promises svg { margin-top: 3px; color: rgb(var(--text-4)); }
+
+/* 장부 — 칸 이름은 작게, 숫자는 같은 폭으로 */
+.scribe-ledger { position: relative; margin: 10px 0 4px; padding: 10px 40px 10px 0; display: flex; flex-wrap: wrap; gap: 8px 22px; border-top: 1px solid rgb(var(--line)); border-bottom: 1px solid rgb(var(--line)); }
+.scribe-ledger div { display: grid; gap: 1px; min-width: 0; }
+.scribe-ledger dt { font-size: var(--fs-1); color: rgb(var(--text-4)); }
+.scribe-ledger dd { margin: 0; font-size: var(--fs-3); font-weight: var(--fw-mid); color: rgb(var(--text-1)); font-variant-numeric: tabular-nums; }
+.scribe-ledger dd.is-ok { color: rgb(var(--ok-bright)); }
+.scribe-ledger dd.is-warn { color: rgb(var(--signal-bright)); }
+.scribe-refresh { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 1px solid rgb(var(--line)); border-radius: var(--r-1); background: transparent; color: rgb(var(--text-3)); cursor: pointer; }
+.scribe-refresh:hover { color: rgb(var(--text-1)); border-color: rgb(var(--line-strong)); }
+.scribe-refresh:focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 1px; }
+
+.scribe-warn { display: flex; align-items: flex-start; gap: 6px; margin: 8px 0; padding: 8px 12px; border: 1px solid rgb(var(--signal-dim)); border-radius: var(--r-1); font-size: var(--fs-2); line-height: 1.5; color: rgb(var(--signal-bright)); }
+.scribe-warn svg { flex: none; margin-top: 3px; }
+
+/* 프로젝트 고르기 */
+.scribe-projects { margin-top: 20px; }
+.scribe-projects h3 { margin: 0 0 4px; }
+.scribe-project-list { list-style: none; margin: 8px 0; padding: 0; border: 1px solid rgb(var(--line)); border-radius: var(--r-2); overflow: hidden; }
+.scribe-project { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 12px; border-top: 1px solid rgb(var(--line)); }
+.scribe-project:first-child { border-top: 0; }
+.scribe-project.is-chosen { background: rgb(var(--ok) / .07); }
+.scribe-project input { width: 16px; height: 16px; margin: 0; accent-color: rgb(var(--ok-bright)); cursor: pointer; }
+.scribe-project input:focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 2px; }
+.scribe-project label { display: grid; gap: 2px; min-width: 0; cursor: pointer; }
+.scribe-project-where { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: var(--fs-2); color: rgb(var(--text-1)); overflow-wrap: anywhere; }
+.scribe-project-meta { font-size: var(--fs-1); color: rgb(var(--text-4)); font-variant-numeric: tabular-nums; }
+.scribe-temp { margin: 6px 0; font-size: var(--fs-2); color: rgb(var(--text-3)); }
+.scribe-temp summary { cursor: pointer; }

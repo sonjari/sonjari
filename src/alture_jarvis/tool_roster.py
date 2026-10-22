@@ -13,6 +13,7 @@ from typing import Any
 
 from .answer_hygiene import _ARTIFACT_PROGRESS_TOOLS, _ARTIFACT_STAGE_SUPPORT, _COMMIT_CHAINS
 from .code_look_gate import _READ_ONLY_FORBIDDEN_TOOLS
+from .plan import names_a_desktop_source
 from .stuck_hands import _ROUTE_REFUSAL, _ROUTE_WHOLE_LIST_MAX_SHARE, _STAGE_REFUSALS_BEFORE_NARROWING
 from .transcript_policy import _TOOL_SCHEMA_CHARS_PER_TOKEN
 
@@ -85,7 +86,9 @@ def _offered_and_allowed(
     return available, None
 
 
-def _artifact_turn_is_due(*, stage_says: bool, deliver_turn: bool, web_research: bool, read_sources: int) -> bool:
+def _artifact_turn_is_due(
+    *, stage_says: bool, deliver_turn: bool, web_research: bool, read_sources: int, items_left: bool = False
+) -> bool:
     """「파일을 만들 차례」(파일 쓰는 손만 받는다)를 지금 걸어도 되는가.
 
     ★ 2026-10-12 창 32K 의 9B · 가격 조사 세 판이 모두 이 문에서 끝났다. 한 판(eb13a02d)은 검색 한 번 뒤 모델이 도구 없이
@@ -93,10 +96,12 @@ def _artifact_turn_is_due(*, stage_says: bool, deliver_turn: bool, web_research:
       산출물 없음. **읽은 것이 하나도 없는데 쓸 차례**였다. 차례를 둔 까닭(10-02 · 9d6942f2)은 「글 6개를 읽고도 더 열기만
       하다 엑셀을 못 썼다」였다 — 읽은 것이 있는 판의 일이다. 조사 판은 본문을 하나라도 받아 온 뒤에 건다.
     ★ 걸음이 바닥나기 전에 주는 차례(`deliver_turn`)는 그대로 둔다 — 그 자리에서는 못 했다고 적어 내는 것이 맞다.
+    ★ 2026-10-20 (잡 eec113c2): 번호로 적어 준 항목이 아직 남았으면(`items_left`) 되받기가 건 차례도 미룬다 — 「질문 5개를 하나씩」에서
+      다섯째 질문을 넣고 보내는 엔터가 `not_this_stage` 로 막혔다. 접기 전 차례(`deliver_turn`)는 그대로 건다(걸음이 바닥났다).
     """
     if deliver_turn:
         return True
-    if not stage_says:
+    if not stage_says or items_left:
         return False
     return not (web_research and read_sources <= 0)
 
@@ -162,8 +167,18 @@ def _is_web_research_job(plan: list[Any], prompt: str, declared: bool = False) -
     #   「C:\…\welcome.hwp 를 한글 프로그램으로 열어 PDF 로 저장해 줘」에 「내 PC 를 봐야 한다」 이유로 읽기 요구가 붙었고, 그것만으로
     #   판 전체가 웹 갈래가 되어 창 도구 · 한글 도구가 `not_this_route` 로 막혔다 — 모델은 「창 조작 도구가 없다」며 첫 걸음에 되물었다.
     #   사이트 · 개수 · 거르개 요구가 있거나 웹 주소를 댔으면 그대로 웹 갈래다.
+    # ★ **한글 파일(.hwp · .hwpx)을 댄 판도 내 PC 일이다** (2026-10-17 한글→PDF 3판 0/3). 「…hwp 한글 파일을 같은 폴더에 PDF 로
+    #   저장해 줘」가 이 갈래로 들어와 한글 도구 일곱 개가 **목록에서 통째로 빠졌다** — 모델이 「hwp_export_pdf 는 제가 부를 수 있는
+    #   함수 목록에 없습니다」라고 답했다. 이 갈래의 손(웹 · 문서 셋)으로는 옛 한글을 열 수도 바꿀 수도 없어, 샌드박스로 파일을
+    #   뜯다 끝났다. 그 전에는 화면 조작으로 돌아가 통과해서 안 보였다.
+    # ★ **시스템 정보 · 윈도우 설정 · 장치 관리자 화면을 열라는 판도 내 PC 일이다** (2026-10-18 「모르는 앱」 다시 잼). 이 화면들은
+    #   `plan._DESKTOP_SOURCE` 에만 있고 여기 표(`_LOCAL_TARGET`)에는 없어 웹 갈래로 갔다 — 모델이 「설정 화면을 여는
+    #   windows_open_path 도구가 지금 제 목록에 없다」며 셸 명령으로만 읽었고, 설정 화면에만 있는 값을 3판 중 2판 빠뜨렸다.
+    #   「봐야 하는 일」을 정한 그 표를 여기서도 본다(운영 요청 4,822개 중 바뀐 것은 측정 요청 16개).
     if (not declared and kinds & {"site", "count", "observe", "filter"} == {"observe"}
-            and _LOCAL_TARGET.search(" ".join((prompt or "").split())) and not _WEB_ADDRESS.search(prompt or "")):
+            and (_LOCAL_TARGET.search(" ".join((prompt or "").split())) or _HANGUL_FILE.search(prompt or "")
+                 or names_a_desktop_source(prompt or ""))
+            and not _WEB_ADDRESS.search(prompt or "")):
         return False
     return bool(declared) or bool(kinds & {"site", "count", "observe", "filter"})
 
@@ -179,6 +194,8 @@ _LOCAL_TARGET = re.compile(
     re.I,
 )
 _WEB_ADDRESS = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(?:com|net|org|co\.kr|kr|io)\b", re.I)
+#: 한글 파일 이름 — 이 파일을 다루는 손(hwp_*)은 웹 갈래에 없다.
+_HANGUL_FILE = re.compile(r"\.hwpx?(?![A-Za-z0-9])", re.I)
 
 
 def _route_refusals(steps: list[dict[str, Any]]) -> int:

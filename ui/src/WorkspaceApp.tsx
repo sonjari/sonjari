@@ -6,7 +6,8 @@ import {
   Brain, Code2, FileText, FolderOpen, HandHelping, Image, Loader2, Mic, Monitor, Paperclip, Send, ShieldCheck, Square, X,
 } from "lucide-react";
 import { ChangeEvent, ClipboardEvent, DragEvent, FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createBackendClient, focusWorkspaceWindow, isTauri, JarvisClient, loadBootstrap, pickNativeCodeWorkspace } from "./backend";
+import { createBackendClient, focusWorkspaceWindow, isTauri, JarvisClient, loadBootstrap, openExternalUrl, pickNativeCodeWorkspace } from "./backend";
+import { createShowcaseSource } from "./workspace/ShowcaseStrip";
 import { invoke } from "@tauri-apps/api/core";
 import { StageMiniWatcher } from "./stageMini";
 import { filesFromTransfer, roomFor } from "./clipboardFiles";
@@ -21,6 +22,7 @@ import { applyLooking } from "./workspace/looking";
 import { LookingAt } from "./workspace/LookingAt";
 import { CapabilityDrawer } from "./workspace/CapabilityDrawer";
 import { SettingsScreen } from "./workspace/SettingsScreen";
+import { DISCORD_REQUESTS_EVENT, DiscordRequestBanner } from "./workspace/DiscordSection";
 import { ComputerPane, ThinkingTrace } from "./workspace/ComputerPane";
 import { ApprovalCard, ContinuationCard, QuestionCard } from "./workspace/DecisionCards";
 import { OVERLAY_MAX_WIDTH, useNarrow } from "./workspace/useNarrow";
@@ -31,7 +33,9 @@ import { VoiceMeter } from "./workspace/VoiceMeter";
 import { Sidebar } from "./workspace/Sidebar";
 import { TakeoverRelay, type HandoffOrigin, type TakeoverDirection, type TakeoverRelayStage } from "./workspace/TakeoverRelay";
 import { Welcome } from "./workspace/Welcome";
+import { ReceiptCard } from "./workspace/ReceiptCard";
 import { UpdateBar } from "./workspace/UpdateBar";
+import { WhatsNewBar } from "./workspace/WhatsNewBar";
 import { HealthBar } from "./workspace/HealthBar";
 import { ReadinessBanner } from "./workspace/ReadinessBanner";
 import { modelCaution, type AgentGrade } from "./workspace/readiness";
@@ -688,6 +692,11 @@ export function WorkspaceApp() {
         // 30분 컨텍스트 감시가 「카드 사정이 바뀌었다」고 알리면 모델 칩이 다시 읽는다(작은 점). 재기·적용 뒤에도 같다.
         if (event.event === "context_watch" || event.event === "setup_context_measured") {
           window.dispatchEvent(new Event("ontelic:context-watch"));
+        }
+        // 허용 목록 밖 사람이 디스코드로 말을 걸었다 — 알림 자리와 설정 칸이 목록을 다시 읽는다(카드는 GET 으로 그린다).
+        if (event.event === "discord_access_requested") {
+          window.dispatchEvent(new CustomEvent(DISCORD_REQUESTS_EVENT, { detail: payload }));
+          return;
         }
         if (event.event === "google_oauth_connected") {
           void clientRef.current?.getGoogleStatus(true).then(setGoogleStatus);
@@ -1874,6 +1883,8 @@ export function WorkspaceApp() {
   //   입력 한 글자·답 한 토큰·1초 시계마다 통째로 다시 그려졌다(메시지 80개에서 글자 하나에 135ms). 부르면 늘 최신 것을 부른다.
   const observeAgainStable = useStableCallback(observeAgain);
   const continueUnfinishedStable = useStableCallback(continueUnfinished);
+  // 답이 기댄 페이지의 사진(2026-10-18). 한 번만 만든다 — 판 결과 · 사진을 안에서 잡아 두고, 말 칸(memo)이 다시 그려지지 않게.
+  const showcaseSource = useMemo(() => createShowcaseSource(() => clientRef.current, (url) => void openExternalUrl(url)), []);
 
   return (
     <main className={`jarvis-workspace mode-${workspaceMode}${stage ? " stage-browser" : ""}`}>
@@ -1904,6 +1915,7 @@ export function WorkspaceApp() {
       <section className={`workspace-main${takeoverStage === "transfer" && takeoverOffer ? " relay-transition" : ""}`}>
         <HealthBar client={clientRef.current} />
         <UpdateBar client={clientRef.current} />
+        <WhatsNewBar client={clientRef.current} />
         <PilotAuthBar enabled={pilotMode} />
         <header className="workspace-header">
           <div className="workspace-heading">
@@ -1995,12 +2007,14 @@ export function WorkspaceApp() {
               quests={workspaceMode === "cowork" && tutorial.showBoard ? (
                 <QuestBoard state={tutorial.quests} tierGb={tierGb} english={lang() === "en"} claudeConnected={claudeConnected}
                   onStart={tutorial.start} onDismiss={tutorial.dismiss} onCardSeen={tutorial.cardSeen} />
-              ) : null} />
+              ) : null}
+              receipt={workspaceMode === "cowork" && !pilotMode ? <ReceiptCard client={clientRef.current} connected={connected} /> : null} />
           ) : (
             <div className="message-column has-spine" ref={columnRef}>
               {timeline.map((entry) => (entry.kind === "message"
                 ? <MessageView key={`m${entry.message.id}`} message={entry.message} onObserveAgain={observeAgainStable}
-                    onContinue={entry.message.id === lastMessageId && pending.length === 0 ? continueUnfinishedStable : undefined} />
+                    onContinue={entry.message.id === lastMessageId && pending.length === 0 ? continueUnfinishedStable : undefined}
+                    showcase={showcaseSource} />
                 : (
                   <TrajectoryNode
                     key={`t${entry.trajectory.jobId}`}
@@ -2122,6 +2136,8 @@ export function WorkspaceApp() {
               <button type="button" onClick={() => setAttention(null)} aria-label={t("확인했습니다")}><X size={14} /></button>
             </div>
           )}
+          {/* 디스코드로 말을 건 새 사람(가족 · 동료 추가) — 받을지 여기서 바로 고른다. 접으면 설정 › 디스코드에 남는다. */}
+          {!pilotMode && <DiscordRequestBanner client={clientRef.current} connected={connected} />}
           {/* 자동 승인 — 무엇이 지나갔는지 한 줄. 되돌리기는 작업 기록(오른쪽 칸)의 그 걸음에 붙어 있다. */}
           {autoApproved && (
             <div className="auto-approved-banner" role="status">

@@ -13,6 +13,7 @@ from typing import Any
 
 from . import english as _english
 from .plan import all_met as plan_all_met
+from .plan import own_words as _own_words
 
 # ── 어디에 물었는가 ──────────────────────────────────────────────────────────
 #
@@ -118,7 +119,11 @@ def named_sources(prompt: str) -> list[str]:
     라우터(갈지 말지)와 정직성 검사(갔다고 말해도 되는지)가 이 함수 하나를
     공유한다. 둘이 서로 다른 기준을 쓰면 한쪽이 보낸 것을 다른 쪽이 못 알아본다 —
     예고 판정(`PROMISED_ACTION`)을 공유하는 것과 같은 이유다.
+
+    ★ 붙여넣은 글 속 「○○에서」는 사람이 댄 출처가 아니다(2026-10-20 판 6c8de096 · `plan.own_words`). 설계 문서를 붙여넣고
+      생각을 물었는데 문서 속 「노션에서 …」가 출처가 되어 브라우저를 노션으로 돌리려 했다. 계획과 같은 기준으로 사람 말만 본다.
     """
+    prompt = _own_words(prompt) or prompt
     compact = " ".join(prompt.split())
     if _english.english_dominant(compact):
         # 영어는 조사 대신 전치사로 댄다(「on Saramin」·「go to naver.com」) — `english.named_sources`.
@@ -457,8 +462,11 @@ def table_cells(line: str) -> list[str]:
     return [cell.replace("\\|", "|") for cell in cells]
 #: 답이 스스로 **하지 못했다**고 말하는 꼴 — 「찾을 수 없습니다」·「열지 못했습니다」·「확인하지 못했습니다」.
 #: 「찾을 수 없으면 …」 같은 조건은 안 걸린다(과거·현재 단정형만).
+#: ★ 2026-10-21: 「파일은 **만들지** 못했습니다」·「**저장하지** 못했습니다」가 목록 밖이라 complete 로 나갔다(HN 세기 판 c5580fc0 ·
+#:   가격 판 cbb6f5bb — 접을 때 대신 저장한 파일이 산출물 요구를 채웠다). 만들 · 생성 · 저장 · 작성 · 실행 · 내려받 · 다운로드를 더했다.
+#:   운영 complete 2,128판에 대 봄: 새로 「일부」가 되는 판 6 — 하나씩 읽어 모두 실제로 덜 끝난 판(권한 오류 · 허용 폴더 밖 · 입력란 못 찾음 등).
 _ADMITS_NOT_DONE = re.compile(
-    r"(?:찾|확인|입력|열|읽|누르|클릭|채우|넣|접속|진행)[가-힣]{0,3}\s*"
+    r"(?:찾|확인|입력|열|읽|누르|클릭|채우|넣|접속|진행|만들|생성|저장|작성|실행|내려받|다운로드)[가-힣]{0,3}\s*"
     r"(?:수\s*(?:가\s*)?없었|수\s*없습니다|지\s*못했|지\s*못\s*했|못\s*했|못했)"
 )
 #: 영어로 **하지 못했다**고 말하는 꼴 (2026-10-03 Online-Mind2Web B 판). 「I was unable to complete the task」·「I have to stop

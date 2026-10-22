@@ -34,6 +34,7 @@ CHANGES = {
     'takeover_branch_enabled': True, 'skills_route_enabled': True,
     'skills_domains': ['dev'], 'claude_code_enabled': True,
     'sandbox_enabled': True, 'code_scout_enabled': True,
+    'scribe_enabled': True, 'scribe_folders': ['C:/scribe-probe'],
 }
 
 
@@ -203,6 +204,9 @@ def consumer(runtime, key, monkeypatch, tmp_path):
         return runtime._skill_instruction('과정을 정리해주세요', asked='document-craft')
     if key == 'code_scout_enabled':
         return runtime.code_scout.enabled
+    if key in {'scribe_enabled', 'scribe_folders'}:
+        # 서기 한 차례가 실제로 어디서 멈추는가 — 꺼짐 / 고른 폴더 없음 / 그다음(2026-10-21).
+        return runtime._scribe_tick().get('skipped')
     raise AssertionError(f'소비자 눈금 없음: {key}')
 
 
@@ -214,6 +218,9 @@ def test_all_settings_have_a_consumer_probe():
 def test_saved_setting_reaches_its_consumer(tmp_path, monkeypatch, key):
     monkeypatch.setattr(httpx, 'Client', OfflineClient)
     monkeypatch.setattr('alture_jarvis.config._default_backup_root', lambda: tmp_path/'backups')
+    # 「막히면 내 클로드에게 넘기기」는 클로드 명령 · 로그인이 없으면 켜지지 않는다 — 이 PC 의 설치 여부와 무관하게 잰다.
+    monkeypatch.setattr('alture_jarvis.claude_code.cli_status',
+                        lambda _config: {'ok': True, 'code': '', 'reason': '', 'short': ''})
     defaults = dict(runtime_root=tmp_path, data_dir=tmp_path/'data', output_dir=tmp_path/'out',
                     documents_dir=tmp_path/'documents',
                     user_label='기본호칭', attention_notices_enabled=False, scheduler_enabled=False,
@@ -228,7 +235,9 @@ def test_saved_setting_reaches_its_consumer(tmp_path, monkeypatch, key):
                     google_write_enabled=False, windows_control_enabled=False, approval_ttl_sec=600,
                     approval_auto_reversible=False, approval_bypass_enabled=False, takeover_enabled=False, takeover_branch_enabled=False,
                     skills_route_enabled=False, skills_domains=(), claude_code_enabled=False,
-                    sandbox_enabled=False, code_scout_enabled=False)
+                    sandbox_enabled=False, code_scout_enabled=False,
+                    scribe_enabled=False, scribe_folders='')
+    if key == 'scribe_folders': defaults['scribe_enabled'] = True
     if key == 'hotkey': defaults['hotkey_enabled'] = True
     if key == 'skills_domains': defaults['skills_route_enabled'] = True
     runtime = JarvisRuntime(JarvisConfig(**defaults))

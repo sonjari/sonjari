@@ -32,6 +32,25 @@ from .proof import ProofSpec, same_fingerprint
 from .tool_gateway import InverseSpec, ToolGateway, ToolSpec
 
 
+_QUOTED_WHOLE = re.compile(r"""^(["'])(.*)\1$""", re.DOTALL)
+
+
+def split_command_line(raw: str) -> list[str]:
+    """명령 한 줄 → 조각. **윈도우 경로의 역슬래시를 지우지 않는다.**
+
+    ★ 2026-10-19: 맡기기 `check` 에 `C:\\RoboMetaFit\\tools\\…\\python.exe -m pytest …` 를 주자 `shlex.split(posix=True)` 가
+      역슬래시를 「다음 글자 그대로」 표시로 읽어 통째로 지웠다 — 프로그램 이름이 `robometafittoolsalture-jarvis.venvscriptspython`
+      이 되어 `project_command_not_allowed` 로 거절됐다. 같은 것을 자르는 자리가 둘(`_split_command` · 검증 명령 입구)이라 여기 하나로 모았다.
+      윈도우에서는 역슬래시가 경로 글자다: `posix=False` 로 쪼갠 뒤 조각을 감싼 따옴표만 벗긴다. 닫히지 않은 따옴표는 그대로 ValueError.
+    """
+    import shlex
+
+    if os.name != "nt":
+        return shlex.split(raw, posix=True)
+    parts = shlex.split(raw, posix=False)
+    return [match.group(2) if (match := _QUOTED_WHOLE.match(part)) else part for part in parts]
+
+
 # 코드·텍스트를 훑을 때 한 파일에서 가져오는 기본 분량.
 #
 # 컨텍스트가 24,576 토큰이라는 사실에서 나온 숫자다. 여기가 40,000자였을 때는
@@ -79,6 +98,26 @@ SENSITIVE_PARTS = {
     "browser-profile",
     "user data",
 }
+#: 토큰 **수를 재는** 이름 — 비밀 토큰 파일이 아니다(`LocalComputerTools._is_sensitive`).
+_TOKEN_METRIC_EXTS = (".py", ".ts", ".tsx", ".js", ".mjs", ".md", ".json", ".jsonl", ".csv")
+_TOKEN_METRIC_WORD = re.compile(
+    r"tokens(?![a-z])|token_(?:showdown|count|counts|usage|budget|stats|optimi[sz]ation|bench|efficiency)"
+)
+_TOKEN_SECRET_WORD = re.compile(
+    r"(?:api|access|auth|bearer|refresh|id|bot|secret|session|oauth|github|gh|hf|slack|discord|npm|pypi|service|"
+    r"worker|personal|private|client|login|cf)[_-]?tokens?"
+)
+
+
+def _token_metric_name(lowered_name: str) -> bool:
+    """이름의 token 이 토큰 **수**를 뜻하는 코드 · 기록 파일인가 — 「token_showdown.py」 · 「count_tool_tokens.py」."""
+    return (
+        lowered_name.endswith(_TOKEN_METRIC_EXTS)
+        and bool(_TOKEN_METRIC_WORD.search(lowered_name))
+        and not _TOKEN_SECRET_WORD.search(lowered_name)
+    )
+
+
 SENSITIVE_NAME_FRAGMENTS = (
     "client_secret",
     "login data",
@@ -1095,7 +1134,25 @@ _SYSTEM_APPS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("mspaint", "paint", "그림판"), "mspaint.exe"),
     (("taskmgr", "task manager", "작업 관리자", "작업관리자"), "Taskmgr.exe"),
     (("explorer", "file explorer", "windows explorer", "파일 탐색기", "탐색기"), "explorer.exe"),
+    # ★ 2026-10-18 「모르는 앱」 측정: 「시스템 정보(msinfo32)를 열어서」가 System32 라 허용 폴더 밖으로 막혀 3판 모두 창을 못 열고
+    #   셸 명령(systeminfo)으로 돌아갔다. 읽기만 하는 정보 창이라 이름으로 연다.
+    (("msinfo32", "system information", "시스템 정보"), "msinfo32.exe"),
 )
+#: 윈도우 설정 화면 — 실행 파일이 아니라 `ms-settings:` 주소로 연다. 이름 → 주소(정해 둔 것만, 모델 글의 주소는 받지 않는다).
+_SETTINGS_PAGES: dict[str, str] = {
+    "설정": "ms-settings:", "윈도우 설정": "ms-settings:", "windows settings": "ms-settings:", "settings": "ms-settings:",
+    "설정 정보": "ms-settings:about", "시스템 정보 설정": "ms-settings:about", "about": "ms-settings:about",
+    "설정 > 시스템 > 정보": "ms-settings:about", "시스템 → 정보": "ms-settings:about", "시스템 > 정보": "ms-settings:about",
+    "디스플레이 설정": "ms-settings:display", "소리 설정": "ms-settings:sound", "저장소 설정": "ms-settings:storagesense",
+}
+
+
+def settings_page(requested: str) -> str | None:
+    """「설정」 · 「시스템 → 정보」처럼 정해 둔 설정 화면 이름이면 그 `ms-settings:` 주소, 아니면 None(2026-10-18)."""
+    text = " ".join(str(requested or "").strip().strip('"').split()).casefold()
+    if text.startswith("ms-settings:"):
+        return text if text in {value.casefold() for value in _SETTINGS_PAGES.values()} else None
+    return _SETTINGS_PAGES.get(text) or next((v for k, v in _SETTINGS_PAGES.items() if k.casefold() == text), None)
 #: 따로 깔리는 프로그램 — 윈도우가 「App Paths」에 적어 둔 자리에서만 찾는다(경로를 모델 글에서 받지 않는다).
 # ★ 2026-10-17 앱 묶음 측정 준비: 엑셀 · 워드 · 파워포인트 · VS Code 를 이름으로 못 열었다(목록에 없음). 넷 다 이 PC 의
 #   「App Paths」에 자리가 적혀 있다. 윈11 그림판은 스토어 앱이라 System32 에 없고 App Paths 에 있다(아래 `launchable_app`).
@@ -1440,9 +1497,29 @@ class LocalComputerTools:
             self._function(
                 "local_read_text_file",
                 "허용된 경로의 텍스트·코드 파일을 읽는다. 큰 파일은 잘리고 outline(함수와 줄 범위)이 함께 온다 — "
-                "그 다음엔 line_start/line_end 로 필요한 구간만 다시 읽어라. 비밀 파일은 차단한다.",
+                "그 다음엔 line_start/line_end 로 필요한 구간만 다시 읽어라. 비밀 파일은 차단한다. "
+                "여러 파일을 볼 때는 `paths` 로 **한 번에** 읽어라(12개까지 · 파일마다 줄 범위) — 하나씩 부르면 대화 기록이 길어진다.",
                 {
                     "path": {"type": "string"},
+                    "paths": {
+                        "type": "array",
+                        "maxItems": 12,
+                        "description": "여러 파일을 한 번에. 항목은 경로 글자이거나 {path, line_start, line_end}. local_grep 결과의 read_all 을 그대로 넣으면 된다.",
+                        "items": {
+                            "anyOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "path": {"type": "string"},
+                                        "line_start": {"type": "integer", "minimum": 1},
+                                        "line_end": {"type": "integer", "minimum": 1},
+                                    },
+                                    "required": ["path"],
+                                },
+                            ]
+                        },
+                    },
                     "max_chars": {"type": "integer", "minimum": 500, "maximum": 40000},
                     "line_start": {
                         "type": "integer",
@@ -1455,7 +1532,7 @@ class LocalComputerTools:
                         "description": "이 줄까지 읽는다(포함).",
                     },
                 },
-                ["path"],
+                [],  # `path` 하나 또는 `paths` 여럿 — 둘 다 없으면 도구가 갈 곳을 대며 거절한다
             ),
             self._function(
                 "local_read_document",
@@ -1557,7 +1634,7 @@ class LocalComputerTools:
             ),
             self._function(
                 "windows_open_path",
-                "허용된 로컬 폴더 또는 파일을 Windows 기본 앱으로 연다. 메모장 · 계산기 · 그림판 · 작업 관리자 · 파일 탐색기 · 한글(HWP) · 엑셀 · 워드 · 파워포인트 · VS Code 는 path 에 이름만 적으면 새로 켠다(예: \"엑셀\", \"taskmgr\"). 파일을 기본 앱이 아닌 그 앱들 가운데 하나로 열려면 app 에 앱 이름을 같이 적는다(예: path 에 그림 파일, app 에 \"그림판\"). 실제 프로그램 실행이므로 화면 승인이 필요하다.",
+                "허용된 로컬 폴더 또는 파일을 Windows 기본 앱으로 연다. 메모장 · 계산기 · 그림판 · 작업 관리자 · 파일 탐색기 · 시스템 정보 · 한글(HWP) · 엑셀 · 워드 · 파워포인트 · VS Code 는 path 에 이름만 적으면 새로 켠다(예: \"엑셀\", \"taskmgr\"). 윈도우 설정 화면은 path 에 \"설정\" 또는 \"시스템 → 정보\"처럼 적으면 연다. 파일을 기본 앱이 아닌 그 앱들 가운데 하나로 열려면 app 에 앱 이름을 같이 적는다(예: path 에 그림 파일, app 에 \"그림판\"). 실제 프로그램 실행이므로 화면 승인이 필요하다.",
                 {"path": {"type": "string"}, "app": {"type": "string"}},
                 ["path"],
             ),
@@ -1757,7 +1834,15 @@ class LocalComputerTools:
             return True
         if lowered_name == ".env" or lowered_name.startswith(".env."):
             return True
-        return any(fragment in lowered_name for fragment in SENSITIVE_NAME_FRAGMENTS)
+        hits = [fragment for fragment in SENSITIVE_NAME_FRAGMENTS if fragment in lowered_name]
+        # ★ **토큰 수를 재는 코드 · 기록은 비밀이 아니다** (2026-10-20 · 운영 dd6c008c · 75aaa296). 클로드가 맡긴 코드 일에서
+        #   `bench/browser_agents/token_showdown.py`(토큰 사용량 측정)를 읽지도 고치지도 못해 판이 덜 끝났다 — `token_` 조각이
+        #   이름만 보고 막았다. 코드 · 문서 확장자이고 이름의 token 이 **재는 뜻**(showdown · count · usage · budget · 복수 tokens …)일 때만
+        #   연다. 비밀 쪽 낱말(api · access · refresh · bot · service · worker …)이 붙으면, 또는 설정 스크립트(.sh · .ps1 · .txt …)면
+        #   그대로 막는다 — 저장소의 `add_worker_token_to_nas.sh` · `setup_github_cf_service_token.ps1` 같은 것은 실제 토큰을 품을 수 있다.
+        if hits and set(hits) <= {"_token", "token_"} and _token_metric_name(lowered_name):
+            return False
+        return bool(hits)
 
     def _sensitive_path(self, path: Path) -> bool:
         # 데이터 폴더의 DB·승인 원장 등은 파일명에 `token` 이 없어도 사적이다.
@@ -2393,9 +2478,7 @@ class LocalComputerTools:
     def _split_command(raw: Any) -> list[str]:
         """글자 한 줄이든 목록이든 **같은 조각**으로. 판정과 실행이 다른 모양을 보면 안 된다."""
         if isinstance(raw, str):
-            import shlex
-
-            return shlex.split(raw, posix=True)
+            return split_command_line(raw)
         if isinstance(raw, list):
             return [str(part) for part in raw]
         return []
@@ -2790,10 +2873,8 @@ class LocalComputerTools:
         ):
             raw = raw[0].strip()
         if isinstance(raw, str):
-            import shlex
-
             try:
-                raw = shlex.split(raw, posix=True)
+                raw = split_command_line(raw)
             except ValueError as exc:                      # 닫히지 않은 따옴표
                 raise ValueError(f"command_quotes_unbalanced: {exc}") from exc
         if not isinstance(raw, list) or not 1 <= len(raw) <= 30:
@@ -3796,6 +3877,7 @@ class LocalComputerTools:
             "truncated": truncated,
             "items": hits,
         }
+        self._attach_read_all(payload, hits)
         if not hits:
             # 0건은 「없다」와 「덜 봤다」가 다르다. 그 둘을 구별해서 말해 준다.
             payload["hint"] = (
@@ -3841,7 +3923,52 @@ class LocalComputerTools:
             "searched_roots": searched,
             "note": "path 를 안 줘서 허용된 자리 전부를 찾았다: " + " · ".join(searched)
                     + ". 다음엔 path 에 그중 한 곳(절대 경로)을 주면 더 빠르다.",
+            **({} if action != "local_grep" else self._attach_read_all({}, merged)),
         }
+
+    #: grep 이 찾은 줄을 둘러 읽을 범위 — 위로 몇 줄 · 아래로 몇 줄 · 한 파일에서 최대 몇 줄.
+    _READ_ALL_ABOVE = 3
+    _READ_ALL_BELOW = 15
+    _READ_ALL_SPAN = 80
+
+    @classmethod
+    def _attach_read_all(cls, payload: dict[str, Any], hits: list[dict[str, Any]]) -> dict[str, Any]:
+        """찾은 줄이 **여러 파일**에 걸치면, 그 자리들을 한 걸음에 읽는 `local_read_text_file` 인자를 결과에 붙인다 (2026-10-19 75aaa296).
+
+        ★ 같은 판에서 모델은 grep 으로 23개 파일을 찾고, 그 줄 둘레를 파일마다 따로 23번 읽었다(한 번 부를 때 여러 개씩).
+          안내문만 두면 안 먹는다(사고 R) — 그대로 넣으면 되는 인자를 만들어 준다. 파일마다 찾은 줄의 위 3줄 ~ 아래 15줄,
+          한 파일에 여러 줄이면 그 범위를 하나로 합친다(80줄까지).
+        """
+        ranges: dict[str, list[int]] = {}
+        for hit in hits:
+            path = str(hit.get("path") or "")
+            try:
+                line = int(hit.get("line") or 0)
+            except (TypeError, ValueError):
+                continue
+            if not path or line < 1:
+                continue
+            low, high = max(1, line - cls._READ_ALL_ABOVE), line + cls._READ_ALL_BELOW
+            if path in ranges:
+                low, high = min(low, ranges[path][0]), max(high, ranges[path][1])
+                high = min(high, low + cls._READ_ALL_SPAN - 1)
+            ranges[path] = [low, high]
+        if len(ranges) < 2:
+            return payload
+        size = cls._READ_MANY_MAX_FILES
+        batches = [
+            [{"path": path, "line_start": low, "line_end": high} for path, (low, high) in list(ranges.items())[start:start + size]]
+            for start in range(0, len(ranges), size)
+        ]
+        payload["read_all"] = {"paths": batches[0]}
+        payload["read_all_hint"] = (
+            f"찾은 줄이 {len(ranges)}개 파일에 있다. 둘레를 읽으려면 파일마다 따로 부르지 말고 "
+            "local_read_text_file 에 read_all 을 그대로 넣어 한 번에 읽어라"
+            + (f" — {size}개씩 {len(batches)}번: 나머지는 read_all_more." if len(batches) > 1 else ".")
+        )
+        if len(batches) > 1:
+            payload["read_all_more"] = [{"paths": batch} for batch in batches[1:]]
+        return payload
 
     def glob_files(self, arguments: dict[str, Any]) -> dict[str, Any]:
         """`**/*.py` 처럼 **트리 전체**에서 이름 패턴으로 찾는다.
@@ -4123,6 +4250,8 @@ class LocalComputerTools:
         사용자가 "이 PDF 읽어줘"라고 지목한 경우라 잘라 내면 안 된다.
         """
         arguments = dict(arguments)
+        if isinstance(arguments.get("paths"), list) and arguments.get("paths"):
+            return self._read_many_text_files(arguments)
         arguments.setdefault("max_chars", SURVEY_READ_CHARS)
         # 줄 범위를 지목했으면 **그 구간만** 준다. outline 을 보고 콕 집어 오는
         # 경로다 — 4,689줄짜리 파일에서 함수 하나만 읽으면 전사가 수십 배 싸다.
@@ -4136,6 +4265,65 @@ class LocalComputerTools:
         result["line_start"] = 1
         result["line_end"] = content.count("\n") + (1 if content else 0)
         return self._attach_outline(result)
+
+    #: 한 번에 묶어 읽는 파일 수와 합친 본문의 끝.
+    _READ_MANY_MAX_FILES = 12
+    _READ_MANY_MAX_CHARS = 24_000
+
+    def _read_many_text_files(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """여러 파일(파일마다 줄 범위)을 **한 걸음에** 읽는다 (2026-10-19 맡기기 75aaa296).
+
+        ★ 벤치 스크립트 23개에 같은 한 줄을 넣는 판이 99걸음 · 18분이었다(도구 시간은 합쳐 6초). 파일마다 따로 읽은 23걸음을 묶으려고 넣었다.
+        ★★ 바로잡음(2026-10-20 같은 과제 다시 · dd6c008c): **걸음 수는 시간이 아니었다.** 앞 판은 99걸음을 모델 호출 31번에 했다 — 한 번에
+          도구를 여러 개 부른다. 묶어 읽기로 읽기 걸음은 40 → 14 로 줄었지만 판은 28.6분으로 오히려 길었고, 그 차이는 생각 예산에 걸려 끊고
+          다시 부른 시간(2번 158초 → 7번 580초)이었다(n=1). 묶어 읽기는 대화 기록을 덜 쌓는 쪽으로만 남긴다 — 시간을 줄인다고 말하지 않는다.
+        파일마다 보통 읽기와 같은 문(허용 범위 · 비밀 파일 차단)을 그대로 지난다. 하나가 안 되면 그 파일만 `error` 로 적고 나머지는 읽는다.
+        """
+        items: list[dict[str, Any]] = []
+        for raw in list(arguments.get("paths") or []):
+            if isinstance(raw, str) and raw.strip():
+                items.append({"path": raw.strip()})
+            elif isinstance(raw, dict) and str(raw.get("path") or "").strip():
+                items.append({key: raw[key] for key in ("path", "line_start", "line_end") if raw.get(key) not in (None, "")})
+        if str(arguments.get("path") or "").strip() and not any(item["path"] == arguments["path"] for item in items):
+            items.insert(0, {"path": str(arguments["path"]).strip()})
+        if not items:
+            raise ValueError('paths_required — `paths` 에 읽을 파일을 넣어라. 예: {"paths": [{"path": "a.py", "line_start": 10, "line_end": 40}, "b.py"]}')
+        skipped = max(0, len(items) - self._READ_MANY_MAX_FILES)
+        items = items[: self._READ_MANY_MAX_FILES]
+        per_file = max(1_500, self._READ_MANY_MAX_CHARS // len(items))
+        files: list[dict[str, Any]] = []
+        blocks: list[str] = []
+        budget = self._READ_MANY_MAX_CHARS
+        for item in items:
+            # 하네스가 붙인 칸(`__job_id` 등)은 파일마다 그대로 넘긴다 — 작업 자리 · 허용 범위가 그걸로 갈린다.
+            one = {**{key: value for key, value in arguments.items() if key.startswith("__")}, **item, "max_chars": per_file}
+            try:
+                got = self.read_text_file(one)
+            except Exception as exc:  # noqa: BLE001 — 한 파일이 안 되어도 나머지는 읽는다
+                files.append({"path": item["path"], "ok": False, "error": str(exc)[:200]})
+                blocks.append(f"=== {item['path']} — 못 읽음: {str(exc)[:200]}")
+                continue
+            content = str(got.get("content") or "")[: max(0, budget)]
+            budget -= len(content)
+            files.append({
+                "path": str(got.get("path") or item["path"]), "ok": True,
+                "line_start": got.get("line_start"), "line_end": got.get("line_end"),
+                "total_lines": got.get("total_lines"), "truncated": bool(got.get("truncated")) or len(content) < len(str(got.get("content") or "")),
+            })
+            blocks.append(f"=== {files[-1]['path']} (줄 {got.get('line_start')}–{got.get('line_end')})\n{content}")
+        read_ok = [entry for entry in files if entry.get("ok")]
+        result: dict[str, Any] = {
+            "ok": bool(read_ok),
+            "path": read_ok[0]["path"] if read_ok else items[0]["path"],
+            "files": files,
+            "file_count": len(read_ok),
+            "content": "\n\n".join(blocks),
+            "char_count": sum(len(block) for block in blocks),
+        }
+        if skipped:
+            result["instruction"] = f"한 번에 {self._READ_MANY_MAX_FILES}개까지 읽는다 — 남은 {skipped}개는 다음 걸음에 paths 로 읽어라."
+        return result
 
     #: 문서 읽기의 결과를 그대로 두는 글자 형식 — 바꿔서 보여 주는 것(RTF · JSON 은 펴서)과
     #: 조사 쪽에서도 읽는 문서성 글(txt·md·csv·log). 여기 없는 글자 형식(코드·설정·HTML)만 원본 배치를 지킨다.
@@ -4546,6 +4734,15 @@ class LocalComputerTools:
         if path.stat().st_size > self.config.local_file_max_bytes:
             raise ValueError("file_too_large")
         maximum = max(1_000, min(int(arguments.get("max_chars") or 40_000), 80_000))
+        if path.suffix.lower() == ".hwp":
+            # ★ 옛 한글(.hwp)은 이 도구가 못 읽는다 — 거절할 때 **갈 길을 같이 준다** (2026-10-17 한글→PDF 3판).
+            #   「한글 파일을 PDF 로 저장해 줘」 판이 이 도구로 원본을 열다 거절당하자 샌드박스에서 pyhwp · olefile 로 파일을
+            #   뜯어 읽으려고 8~11번 돌았고, 3판 중 2판이 PDF 를 엉뚱한 폴더에 두거나 못 만들었다. `hwp_export_pdf` 는 등록돼
+            #   있었는데 한 번도 안 불렸다. 글자 판정(`_read_plain_text`)으로 넘기면 NUL 때문에 같은 거절이 이름 없이 나간다.
+            raise ValueError(
+                "unsupported_document_format:.hwp — 옛 한글(.hwp)은 이 도구로 못 읽는다. "
+                "PDF 로 바꾸려면 hwp_export_pdf(path) 한 번이면 된다. 한글에 열린 문서를 읽으려면 hwp_list_open → hwp_read."
+            )
         if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
             # ★ 확장자가 없거나 모르는 이름이어도 **글자면 읽는다** (2026-09-20 실전에서 드러남).
             #
@@ -4616,6 +4813,23 @@ class LocalComputerTools:
 
         callback = callback_type(collect)
         user32.EnumWindows(callback, 0)
+        # 화면 밖 창에만 표시를 단다(대부분의 창은 칸이 늘지 않는다). 모델이 좌표 하나로 「화면 밖」을 짐작하지 않게 —
+        # 어느 모니터에도 반 넘게 걸치지 않은 창만 밖이다. 앞으로 가져오기 · 미리보기가 그런 창을 주 모니터로 데려온다.
+        from . import window_view
+
+        desk = window_view.desktop()
+        if desk is not None:
+            try:
+                monitors = desk.monitors()
+                for row in windows:
+                    if row["minimized"]:
+                        continue
+                    rect = desk.rect(row["window_id"])
+                    if window_view.plan_into_view(rect, monitors) is not None:
+                        row["off_screen"] = True
+                        row["where"] = window_view.where(rect, monitors)
+            except Exception:
+                pass
         return {"action": "windows_list_open_windows", "count": len(windows), "windows": windows}
 
     def focus_window(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -4636,11 +4850,47 @@ class LocalComputerTools:
                 "user_active_try_later: 사용자가 키보드·마우스를 쓰는 중이라 창을 앞으로 가져오지 않았습니다. "
                 "잠시 뒤 다시 시도하세요."
             )
-        if user32.IsIconic(window_id):
+        # ★ **화면 밖이면 주 모니터로 데려온다 · 최소화면 펼친다** (2026-10-19 판 ae395490 뒤, `window_view.py` 머리말).
+        #   펼치기는 원래 여기서 하던 일이고, 옮기기도 같은 등급(L1)의 눈에 보이는 변화다 — 이미 잘 보이는 창은 손대지 않는다.
+        from . import window_view
+
+        desk = window_view.desktop()
+        view = window_view.bring_into_view(window_id, desk) if desk is not None else {}
+        if desk is None and user32.IsIconic(window_id):
             user32.ShowWindow(window_id, 9)  # SW_RESTORE
-        if not user32.SetForegroundWindow(window_id):
-            raise RuntimeError("window_focus_failed")
-        return {"action": "windows_focus_window", "window_id": window_id, "title": buffer.value[:500]}
+        if view.get("still_off_screen"):
+            raise RuntimeError(
+                f"window_off_screen: {view.get('note')} 창을 사람이 화면 안으로 끌어와야 합니다 — Alt+Space 같은 키로 옮기려 하지 마세요."
+            )
+        if user32.SetForegroundWindow(window_id):
+            return {"action": "windows_focus_window", "window_id": window_id, "title": buffer.value[:500], **view}
+        # ★ SetForegroundWindow 가 0 을 주면 UIA 로 한 번만 더 시도한다. 미리보기 → 실행 단계가 이미 쓰는 길
+        #   (`Desktop(backend="uia").window(handle=…).set_focus()`)이니, 여기서도 같은 길을 걸어 통하면 성공이다.
+        #   pywinauto 로 못 가거나(불러오기 실패 · 예외) 뒤에도 앞이 아니면 아래 같은 window_focus_failed 를 낸다.
+        try:
+            from pywinauto import Desktop
+
+            Desktop(backend="uia").window(handle=window_id).set_focus()
+        except Exception:
+            pass
+        if user32.GetForegroundWindow() == window_id:
+            return {
+                "action": "windows_focus_window",
+                "window_id": window_id,
+                "title": buffer.value[:500],
+                "focused_by": "uia",
+                **view,
+            }
+        # ★ 실패 까닭을 위치와 같이 말한다. 「window_focus_failed」 한 낱말만 받은 모델은 창 좌표(-1928)를 보고 「화면 밖」이라
+        #   짐작해 Alt+Space 이동 · 최대화로 다섯 걸음을 버렸다(ae395490 — 실제로는 왼쪽 보조 모니터에 떠 있었다). 창이 화면 안이면
+        #   위치 문제가 아니라 윈도우가 다른 프로그램의 「앞으로 가져오기」를 막은 것이다. 미리보기 → 실행 단계는 UIA 로 따로
+        #   포커스를 맞추므로 그 길을 알려 준다. 문장은 같은 창이면 늘 같다(같은 실패 되풀이를 세는 열쇠가 문장 전체다).
+        place = window_view.describe(window_id, desk).get("where") or "위치 확인 못 함"
+        raise RuntimeError(
+            f"window_focus_failed: 창은 {place}에 있습니다 — 위치 문제가 아니라 윈도우가 다른 프로그램이 창을 앞으로 가져오는 것을 "
+            "막은 것입니다. 창을 옮기거나 Alt+Space 로 최대화하지 말고, windows_uia_snapshot → windows_uia_preview → "
+            "windows_execute_preview 로 바로 조작하세요(실행 단계가 따로 그 창에 포커스를 맞춥니다)."
+        )
 
     def open_path(self, arguments: dict[str, Any]) -> dict[str, Any]:
         if os.name != "nt" or not self.config.windows_control_enabled:
@@ -4656,7 +4906,7 @@ class LocalComputerTools:
         if requested_app:
             exe = launchable_app(requested_app)
             if exe is None:
-                raise PermissionError("app_not_allowed: 이름으로 여는 앱(메모장 · 계산기 · 그림판 · 작업 관리자 · 파일 탐색기 · 한글 · "
+                raise PermissionError("app_not_allowed: 이름으로 여는 앱(메모장 · 계산기 · 그림판 · 작업 관리자 · 파일 탐색기 · 시스템 정보 · 한글 · "
                                       "엑셀 · 워드 · 파워포인트 · VS Code)만 고를 수 있습니다.")
             target = self._resolve(str(arguments.get("path") or ""), write=True)
             from .msix import external_path
@@ -4665,6 +4915,13 @@ class LocalComputerTools:
             subprocess.Popen([exe, str(external_path(target))], close_fds=True)  # noqa: S603 — 목록의 실행 파일 + 허용 자리의 파일 하나
             return {"action": "windows_open_path", "path": str(target), "type": "directory" if target.is_dir() else "file",
                     "opened_with": Path(exe).name, **_wait_for_new_window(before)}
+        page = settings_page(str(arguments.get("path") or ""))
+        if page is not None:
+            # 윈도우 설정은 실행 파일이 아니라 주소로 연다 — 정해 둔 화면 이름만(`_SETTINGS_PAGES`). 여는 것뿐, 바꾸는 것은 없다.
+            before = _visible_windows()
+            os.startfile(page)  # noqa: S606 — 정해 둔 ms-settings: 주소만
+            return {"action": "windows_open_path", "path": page, "type": "settings", "opened_with": "SystemSettings",
+                    **_wait_for_new_window(before)}
         app = launchable_app(str(arguments.get("path") or ""))
         if app is not None:
             before = _visible_windows()

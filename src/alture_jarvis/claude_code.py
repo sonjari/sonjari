@@ -7,6 +7,18 @@
 
 CLI는 구독 로그인을 그대로 쓰며 ``--bare``를 넣지 않는다. 첫 호출에서 받은
 ``session_id``는 걸음 증거에 남고 후속 호출은 반드시 ``--resume``으로 이어진다.
+
+## 켜고 끄는 자리 (2026-10-19 — 사용자 설정 「막히면 내 클로드에게 넘기기」)
+
+    관리자 잠금(JARVIS_CLAUDE_CODE_LOCKED)  >  측정 판  >  화면 값(settings.json)  >  .env·코드 기본값(꺼짐)
+
+- **기본 꺼짐.** 켜는 것은 사람이 설정 › 연결에서 한다. 운영 .env 의 ``JARVIS_CLAUDE_CODE_ENABLED=0`` 은 기본값일 뿐이라
+  화면 값이 이긴다(다른 설정과 같은 층 — `settings.py` 머리말).
+- **측정 판은 무조건 끈다**(`measurement_reason`). 2026-08-27 측정에서 24판 중 6판이 다중 파일 조건으로 클로드에게
+  빠져 로컬 실력이 부풀어 보였다. 판 단위로 잡아 두고(`hold_for_job`) 갈래 · 강제 호출 · 도구 손 세 자리가 모두 본다.
+- **클로드 명령이 없거나 로그인 흔적이 없으면 켤 수 없다**(`cli_status`). 명령을 실행해 보지 않는다 — 실행 파일과
+  로그인 파일만 본다.
+- 넘겼으면 **답에 그 사실을 적는다**(`handoff_line`). 진행 줄에도 「클로드(내 구독)에게 넘깁니다」가 먼저 뜬다.
 """
 
 from __future__ import annotations
@@ -62,6 +74,165 @@ class ClaudeCodeError(RuntimeError):
     pass
 
 
+#: 우리 측정 스크립트가 스스로 붙인 이름의 낱말. 세션 이름(`code-repo-bench-*` · `measure-chain-*` · `bench-polyglot-*` ·
+#:   `q4-golden-*` · `route-probe-*` · `ladder-*`)과 맡긴 쪽 이름(`bench-om2w` · `honesty-bench`)에서 본다.
+#:   ★ 2026-08-27 의 6/24 는 `scripts/bench_code_repo_agent.py`(세션 `code-repo-bench-*`)에서 나왔다.
+#:   이름으로 못 잡는 스크립트는 요청에 ``"measurement": true`` 를 싣는다(측정 꾸러미 `measure_kit` 은 싣는다).
+_MEASUREMENT_MARK = re.compile(r"bench|measure|rerun|probe|golden|ladder", re.IGNORECASE)
+
+
+def measurement_reason(payload: Any, session_id: str = "") -> str:
+    """이 판이 측정 판이면 그 까닭 코드, 아니면 빈 문자열. 측정 판은 사용자 설정과 무관하게 클로드에게 넘기지 않는다."""
+    if not isinstance(payload, dict):
+        return ""
+    if payload.get("measurement") is True:
+        return "measurement_flag"
+    if _MEASUREMENT_MARK.search(str(payload.get("caller") or "")):
+        return "measurement_caller"
+    if _MEASUREMENT_MARK.search(str(session_id or payload.get("session_id") or "")):
+        return "measurement_session"
+    return ""
+
+
+def hold_reason(payload: Any, session_id: str = "") -> str:
+    """이 판에서 클로드에게 넘기지 않을 까닭. 빈 문자열이면 사용자 설정을 따른다.
+
+    - 측정 판(`measurement_reason`).
+    - **클로드 코드가 맡긴 판**(MCP · caller 가 Claude Code). 클로드가 손자리에 맡긴 일을 손자리가 막혔다고 새 클로드 코드
+      세션에 되넘기면 같은 구독을 두 번 쓰고 맡긴 쪽은 그 사실을 모른다 — 막힌 자리는 맡긴 클로드에게 답으로 돌려준다.
+    """
+    measured = measurement_reason(payload, session_id)
+    if measured:
+        return measured
+    if isinstance(payload, dict) and str(payload.get("origin") or "") == "mcp":
+        from .delegation import is_claude_code  # 늦게 — 맡기기 모듈은 정제 · 근거 모듈을 끌고 온다
+
+        if is_claude_code(str(payload.get("caller") or "")):
+            return "delegated_by_claude_code"
+    return ""
+
+
+#: 넘긴 까닭 — 사람에게 보이는 말. 코드에 없는 까닭은 원래 코드 그대로 낸다(숨기지 않는다).
+HANDOFF_REASONS: dict[str, str] = {
+    "multi_file_request": "여러 파일을 함께 고치는 일이라서",
+    "git_repository_request": "저장소 전체를 다루는 일이라서",
+    "sandbox_same_file_failed_twice": "같은 파일에서 두 번 막혀서",
+    "tests_still_failing": "고친 뒤에도 테스트가 계속 실패해서",
+    "local_agent_about_to_give_up": "손자리가 방법을 찾지 못해서",
+    "resume_after_budget": "앞서 넘긴 일을 같은 세션에서 이어서",
+    "big_code_user_chose": "직접 클로드에게 맡기기를 골라서",
+}
+#: 답 · 진행 줄에 들어가는 고정 말머리. 이 낱말이 이미 답에 있으면 한 번 더 붙이지 않는다.
+HANDOFF_MARK = "클로드(내 구독)에게 넘겨"
+
+
+def handoff_reason_text(reason: str) -> str:
+    code = str(reason or "").strip()
+    return HANDOFF_REASONS.get(code, code or "막혀서")
+
+
+def handoff_line(reason: str, *, completed: bool = True) -> str:
+    """넘긴 판의 답에 붙는 한 줄. 끝내지 못했으면 그렇다고 적는다 — 그 판의 답은 손자리가 낸 것이다."""
+    why = handoff_reason_text(reason)
+    if completed:
+        return f"이 일은 클로드(내 구독)에게 넘겨 처리했습니다 · 이유: {why}"
+    return f"이 일을 클로드(내 구독)에게 넘겨 봤지만 끝내지 못했습니다 · 이유: {why}"
+
+
+def handoff_receipt(steps: list[dict[str, Any]]) -> str:
+    """판의 걸음에 클로드에게 넘긴 걸음이 있으면 영수증 한 줄, 없으면 빈 문자열."""
+    rows = [step for step in steps or [] if str(step.get("tool") or "") == CLAUDE_CODE_TOOL]
+    if not rows:
+        return ""
+    first_args = rows[0].get("arguments") if isinstance(rows[0].get("arguments"), dict) else {}
+    last = rows[-1].get("evidence") if isinstance(rows[-1].get("evidence"), dict) else {}
+    completed = bool(rows[-1].get("ok")) and str(last.get("status") or "") == "completed"
+    reason = str(first_args.get("reason") or last.get("reason") or "")
+    return handoff_line(reason, completed=completed)
+
+
+def with_handoff_receipt(answer: str, steps: list[dict[str, Any]]) -> str:
+    """넘긴 판이면 답 끝에 영수증 한 줄을 붙인다. 이미 적혀 있으면(`completion_answer`) 그대로 둔다."""
+    line = handoff_receipt(steps)
+    if not line or HANDOFF_MARK in str(answer or ""):
+        return answer
+    return str(answer or "").rstrip() + "\n\n" + line
+
+
+def _claude_config_dir() -> Path:
+    configured = os.environ.get("CLAUDE_CONFIG_DIR", "").strip()
+    return Path(configured) if configured else Path.home() / ".claude"
+
+
+def signed_in() -> bool:
+    """로그인 흔적이 있는가 — 명령을 실행하지 않고 파일만 본다(값은 읽어 내보내지 않는다).
+
+    Windows 의 Claude Code 는 구독 로그인을 ``~/.claude/.credentials.json`` 에 둔다. 예전 판은 ``~/.claude.json`` 의
+    ``oauthAccount`` 칸에 계정을 적었다. 둘 다 없으면 로그인 전이다.
+    """
+    if (_claude_config_dir() / ".credentials.json").is_file():
+        return True
+    try:
+        text = (Path.home() / ".claude.json").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return '"oauthAccount"' in text
+
+
+def command_prefix(config: Any) -> list[str]:
+    configured = str(getattr(config, "claude_code_command", "claude") or "claude")
+    found = shutil.which(configured) if not Path(configured).is_file() else configured
+    if not found:
+        raise ClaudeCodeError("claude_code_cli_not_found")
+    path = Path(found)
+    if path.suffix.lower() in {".cmd", ".bat"}:
+        # 최신 Claude Code npm 패키지는 예전 ``cli.js`` 대신 네이티브
+        # ``bin/claude.exe``를 래퍼에서 직접 실행한다. 셸을 켜서 .cmd를 부르면
+        # 프롬프트 인자 인젝션 면적이 생기므로 실행 파일을 shell=False로 부른다.
+        native = (
+            path.parent
+            / "node_modules"
+            / "@anthropic-ai"
+            / "claude-code"
+            / "bin"
+            / "claude.exe"
+        )
+        if native.is_file():
+            return [str(native)]
+        node = shutil.which("node")
+        cli = path.parent / "node_modules" / "@anthropic-ai" / "claude-code" / "cli.js"
+        if not node or not cli.is_file():
+            raise ClaudeCodeError("claude_code_node_entry_not_found")
+        return [node, str(cli)]
+    return [str(path)]
+
+
+#: 켤 수 없는 까닭 → 화면 말(긴 설명 · 짧은 상태). 짧은 말은 「이 판에서는 못 씁니다」 자리에 들어간다.
+CLI_BLOCKS: dict[str, tuple[str, str]] = {
+    "locked": ("관리자가 이 PC 에서 꺼 두었습니다.", "관리자가 꺼 둠"),
+    "not_installed": ("이 PC 에 Claude Code(claude 명령)가 없습니다. 설치하고 로그인하면 켤 수 있습니다.", "Claude Code 없음"),
+    "not_signed_in": ("Claude Code 에 로그인하지 않았습니다. 명령 창에서 claude 를 한 번 실행해 로그인하면 켤 수 있습니다.",
+                      "로그인 필요"),
+}
+
+
+def cli_status(config: Any) -> dict[str, Any]:
+    """「막히면 내 클로드에게 넘기기」를 **켤 수 있는가.** 켜져 있는가와는 다른 질문이다.
+
+    빈 ``code`` 면 켤 수 있다. 명령을 실행해 보지 않는다(구독 사용량을 쓰지 않고, 창도 안 뜬다).
+    """
+    if bool(getattr(config, "claude_code_locked", False)):
+        code = "locked"
+    else:
+        try:
+            command_prefix(config)
+            code = "" if signed_in() else "not_signed_in"
+        except ClaudeCodeError:
+            code = "not_installed"
+    reason, short = CLI_BLOCKS.get(code, ("", ""))
+    return {"ok": not code, "code": code, "reason": reason, "short": short}
+
+
 @dataclass(frozen=True, slots=True)
 class DelegationDecision:
     reason: str
@@ -82,12 +253,14 @@ def completion_answer(evidence: dict[str, Any]) -> str:
     """성공 결과를 두 번째 LLM 호출 없이 사용자 답으로 만든다.
 
     세션 ID는 재개용 내부 상태이고 화면 답에는 필요 없다. 비용은 숨기지 않는다.
+    ★ 2026-10-19: 맨 끝에 「클로드(내 구독)에게 넘겨 처리했다 · 이유」 한 줄 — 넘긴 일은 넘겼다고 말한다.
     """
     result = str(evidence.get("result") or "").strip()
     if not result:
         result = "Claude Code가 지목한 폴더의 코딩 작업과 검증을 완료했습니다."
     cost = float(evidence.get("total_cost_usd") or 0.0)
-    return f"{result}\n\nClaude Code 완료 · 예상비용 ${cost:.4f}"
+    line = handoff_line(str(evidence.get("reason") or ""))
+    return f"{result}\n\nClaude Code 완료 · 예상비용 ${cost:.4f}\n{line}"
 
 
 def _sandbox_failed(step: dict[str, Any]) -> bool:
@@ -251,40 +424,37 @@ class ClaudeCodeTools:
         }
 
     def _command_prefix(self) -> list[str]:
-        configured = str(getattr(self.config, "claude_code_command", "claude") or "claude")
-        found = shutil.which(configured) if not Path(configured).is_file() else configured
-        if not found:
-            raise ClaudeCodeError("claude_code_cli_not_found")
-        path = Path(found)
-        if path.suffix.lower() in {".cmd", ".bat"}:
-            # 최신 Claude Code npm 패키지는 예전 ``cli.js`` 대신 네이티브
-            # ``bin/claude.exe``를 래퍼에서 직접 실행한다. 셸을 켜서 .cmd를 부르면
-            # 프롬프트 인자 인젝션 면적이 생기므로 실행 파일을 shell=False로 부른다.
-            native = (
-                path.parent
-                / "node_modules"
-                / "@anthropic-ai"
-                / "claude-code"
-                / "bin"
-                / "claude.exe"
-            )
-            if native.is_file():
-                return [str(native)]
-            node = shutil.which("node")
-            cli = path.parent / "node_modules" / "@anthropic-ai" / "claude-code" / "cli.js"
-            if not node or not cli.is_file():
-                raise ClaudeCodeError("claude_code_node_entry_not_found")
-            return [node, str(cli)]
-        return [str(path)]
+        return command_prefix(self.config)
 
-    def available(self) -> bool:
-        if not bool(getattr(self.config, "claude_code_enabled", True)):
+    def switched_on(self) -> bool:
+        """사람이 켰는가(관리자 잠금이 없을 때). 화면 값은 `settings` 가 설정 객체에 얹어 두었다."""
+        return bool(getattr(self.config, "claude_code_enabled", False)) and not bool(
+            getattr(self.config, "claude_code_locked", False)
+        )
+
+    def hold_for_job(self, job_id: str, reason: str) -> None:
+        """이 판에서는 넘기지 않는다(측정 판). 빈 까닭이면 아무것도 안 한다 — 판 번호는 판마다 새것이다."""
+        if not job_id or not reason:
+            return
+        held = self.__dict__.setdefault("_held", {})
+        held[str(job_id)] = str(reason)
+        while len(held) > 500:  # 오래 켜 둔 앱에서 끝없이 쌓이지 않게. 오래된 판부터 잊는다.
+            held.pop(next(iter(held)))
+        self.events.publish("claude_code_held", {"job_id": str(job_id), "reason": str(reason)})
+
+    def held_reason(self, job_id: str) -> str:
+        return str(self.__dict__.get("_held", {}).get(str(job_id or ""), ""))
+
+    def available(self, job_id: str = "") -> bool:
+        """이 판에서 지금 넘길 수 있는가 — 켰고 · 측정 판이 아니고 · 클로드 명령과 로그인 흔적이 있다.
+
+        켜 둔 뒤에 로그아웃했으면 여기서 걸러진다 — 넘겼다가 「로그인 필요」로 실패한 판을 만들지 않는다.
+        """
+        if not self.switched_on():
             return False
-        try:
-            self._command_prefix()
-        except ClaudeCodeError:
+        if job_id and self.held_reason(job_id):
             return False
-        return True
+        return bool(cli_status(self.config).get("ok"))
 
     def folder_for(self, prompt: str, *, required_path: str = "", job_id: str = "") -> Path:
         if required_path:
@@ -433,13 +603,18 @@ class ClaudeCodeTools:
         return " ".join(rows).strip()
 
     def delegate(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        job_id = str(arguments.get("__job_id") or "")
+        # ★ 손 자체에서도 한 번 더 본다 — 갈래 · 강제 호출이 놓쳐도 여기서 멈춘다(측정 판이 부풀던 자리, 2026-08-27).
+        if not self.switched_on():
+            raise ClaudeCodeError("claude_code_switched_off")
+        if self.held_reason(job_id):
+            raise ClaudeCodeError(f"claude_code_off_for_measurement:{self.held_reason(job_id)}")
         folder = self._resolve_folder(arguments)
         prompt = str(arguments.get("prompt") or "").strip()
         if not prompt:
             raise ValueError("claude_code_prompt_required")
         reason = str(arguments.get("reason") or "deterministic_delegation")[:120]
         resume_session_id = str(arguments.get("resume_session_id") or "").strip()
-        job_id = str(arguments.get("__job_id") or "")
         step = int(arguments.get("_step") or 1)
         before = self._git_state(folder)
         prefix = self._command_prefix()
@@ -493,7 +668,13 @@ class ClaudeCodeTools:
         stderr_rows: list[str] = []
         streams_done: set[str] = set()
         timed_out = False
-        self._publish_progress(job_id, step, "Claude Code 세션을 시작했습니다")
+        # 진행 줄의 첫 말 — 사람이 「지금 내 구독을 쓰는 중」인 줄 알아야 한다(2026-10-19).
+        self._publish_progress(
+            job_id, step,
+            "막혀서 클로드(내 구독)에게 넘깁니다 · 이유: " + handoff_reason_text(reason)
+            if not resume_session_id
+            else "클로드(내 구독)에게 넘긴 일을 이어 갑니다 · 이유: " + handoff_reason_text(reason),
+        )
         while len(streams_done) < 2 or process.poll() is None:
             if time.monotonic() - started >= lease and process.poll() is None:
                 timed_out = True
@@ -645,7 +826,8 @@ class ClaudeCodeTools:
                 risk_level=RiskLevel.L1,
                 dynamic_risk=self._risk,
                 handler=self.delegate,
-                enabled=bool(getattr(self.config, "claude_code_enabled", True)),
+                # 화면에서 켜고 끄면 런타임이 다시 등록한다(`runtime._settings_changed`).
+                enabled=self.switched_on(),
                 inverse=InverseSpec(
                     label="Claude Code가 만든 git 변경을 임시 보관하고 원상복구",
                     handle_from=self._undo_handle,
