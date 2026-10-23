@@ -204,12 +204,16 @@ def test_a_job_that_ignores_both_pushbacks_is_folded_with_a_diagnosis_and_narrow
         require_sandbox=True, required_local_root=str(tmp_path), auto_continue_budget=True,
     )
 
-    # 첫 답(되받기 전)까지는 전부 보였고, 되받기를 받은 뒤의 턴에서는 좁혀졌다.
+    # 첫 답(되받기 전)까지는 전부 보였다.
     assert {"local_read_text_file", "local_run_project_command"} <= model.offered[0]
     assert model.calls == 5, model.offered  # 쓰기 · 열기 · 답 · 되받은 뒤 답 · 또 되받은 뒤 답
+    # ★ 2026-10-22: 첫 되받기 뒤 한 걸음은 목록을 **그대로** 보인다 — 목록이 바뀌면 앞부분 전체를 다시 읽는다(대표 판 93초 + 85초).
+    #   받는 손은 디스패치가 가른다. 말로만 또 답해 두 번째 되받기가 온 뒤에만 좁힌다.
+    #   (페이지를 만든 뒤에는 화면 확인 손이 더해진다 — 그 목록과 견준다.)
+    assert model.offered[3] == model.offered[2], model.offered[3] ^ model.offered[2]
     # ★ 2026-10-04: 이 판은 **페이지(index.html)를 만든 판**이라 화면으로 확인하는 손도 남는다 — 「눌러 본 뒤 읽기」가
     #   검증인데(2026-09-30) 브라우저를 빼면 그 길을 따를 수가 없다(사다리 L1·L2). 읽기·검색은 여전히 빠진다.
-    for offered in model.offered[3:]:
+    for offered in model.offered[4:]:
         assert {
             "local_run_project_command", "local_write_file", "local_apply_edit", "local_delete_file",
         } <= offered, offered
@@ -396,7 +400,45 @@ def test_a_refused_read_after_narrowing_is_told_to_verify_not_to_read_elsewhere(
     assert result.verification["code_unverified"]["verified"] is False
 
     assert "code_tool_not_in_active_profile" in model.refusal_seen, model.refusal_seen
-    advice = model.refusal_seen.split("지금 쓸 수 있는 것:")[1]
+    # ★ 2026-10-22: 첫 되받기 뒤 한 걸음은 목록을 그대로 보이므로(앞부분 캐시) 단계 거절문(「이 걸음에 받는 것:」)으로 온다 — 갈 곳을 대는 것은 같다.
+    marker = "지금 쓸 수 있는 것:" if "지금 쓸 수 있는 것:" in model.refusal_seen else "이 걸음에 받는 것:"
+    advice = model.refusal_seen.split(marker)[1]
     assert "local_run_project_command" in advice
     for taken in ("local_grep", "local_search_files", "local_run_shell"):
         assert taken not in advice, model.refusal_seen
+
+
+class _ObeysTheFirstPushback:
+    """첫 되받기에 바로 검증을 돌리는 모델 — 대부분의 판. 이때는 목록이 한 번도 안 바뀌어야 한다(앞부분 캐시가 산다)."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.offered: list[set[str]] = []
+
+    def chat_messages(self, messages, **kwargs):
+        self.calls += 1
+        self.offered.append(_offered(kwargs))
+        if self.calls == 1:
+            return _call("local_write_file", path="index.html", content="<h1>x</h1>")
+        if self.calls == 2:
+            return {"role": "assistant", "content": "만들었습니다."}
+        if self.calls == 3:
+            return _call("local_run_project_command", command="python verify.py")
+        return {"role": "assistant", "content": "검증을 돌렸습니다."}
+
+
+def test_a_job_that_verifies_after_the_first_pushback_never_sees_its_tool_list_change(tmp_path) -> None:
+    """★ 2026-10-22 대표 판(d03070df): 검증 관문이 첫 되받기 바로 뒤에 목록을 좁혔다가 되돌려 7만 토큰을 두 번 다시 읽었다."""
+    model = _ObeysTheFirstPushback()
+    agent, store, _events = _agent(tmp_path, model)
+    job = store.create_job("chat", "만들어줘", {"prompt": "index.html 만들고 검증해"})
+    store.claim_next()
+    result = agent.run(
+        "index.html 만들고 검증해", job_id=job["id"], origin="chat", model_role="code",
+        require_sandbox=True, required_local_root=str(tmp_path), auto_continue_budget=True,
+    )
+    assert "local_run_project_command" in [step["tool"] for step in result.steps]
+    # 페이지를 만든 직후 화면 확인 손이 더해지는 것(`made_a_page`)은 따로 — 그 뒤로는 목록이 한 번도 안 바뀐다.
+    after_page = model.offered[1:]
+    assert len(after_page) >= 3 and all(offered == after_page[0] for offered in after_page), [
+        sorted(offered ^ after_page[0]) for offered in after_page]

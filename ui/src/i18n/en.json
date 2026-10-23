@@ -2225,5 +2225,9 @@
  "코덱스 멈췄어, 하던 거 이어서 해 줘": "Codex stopped, pick up where it left off",
  "클로드 코드가 사용량 한도로 멈추면": "When Claude Code stops at its usage limit",
  "손자리 창에 이렇게 말하세요. 이 PC 에 남은 대화 기록에서 멈춘 자리를 찾아, 이어서 할지 먼저 묻습니다.": "Say this in the Sonjari window. Sonjari finds where the conversation stopped in the logs on this PC and asks before continuing.",
- "이 PC 의 Claude Code(데스크톱 앱 Code 탭 포함) · Codex 대화만 이어받습니다. 웹이나 휴대폰 채팅은 기록이 이 PC 에 없어 이어받지 못합니다. 원래 대화와 작업 폴더는 건드리지 않습니다.": "Works with Claude Code (including the desktop app's Code tab) and Codex on this PC. Web and phone chats can't be picked up because their logs aren't on this PC. Your original conversation and project folder stay untouched."
+ "이 PC 의 Claude Code(데스크톱 앱 Code 탭 포함) · Codex 대화만 이어받습니다. 웹이나 휴대폰 채팅은 기록이 이 PC 에 없어 이어받지 못합니다. 원래 대화와 작업 폴더는 건드리지 않습니다.": "Works with Claude Code (including the desktop app's Code tab) and Codex on this PC. Web and phone chats can't be picked up because their logs aren't on this PC. Your original conversation and project folder stay untouched.",
+ "대화가 길어져 앞 기록을 접었습니다": "The conversation got long, so earlier steps were folded",
+ " · {0} → {1}": " · {0} → {1}",
+ " · 이어 갈 정리 한 장을 남겼습니다": " · a summary to carry on was kept",
+ "접음": "Folded"
 }

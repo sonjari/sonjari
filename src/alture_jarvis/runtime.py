@@ -17,7 +17,7 @@ import urllib.request
 from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from . import english as _english
 from .site_atlas import SEED as _SITE_SEED, SiteAtlas
@@ -4483,6 +4483,39 @@ class JarvisRuntime:
             return ""
         return rewritten if rewritten and _english.english_dominant(" ".join(rewritten.split())) else ""
 
+    #: 사실 뽑기를 뒤로 미룰 때 — 마지막 모델 요청 뒤 이만큼 조용해야 부른다 · 이만큼 지나도 못 하면 그 판은 건너뛴다.
+    FACTS_QUIET_SEC = 8.0
+    FACTS_GIVE_UP_SEC = 1800.0
+
+    def _learn_facts_soon(self, *args: Any, **kwargs: Any) -> None:
+        """판을 끝낸 뒤 **조용할 때** 사실을 뽑는다. 사람 일이 오면 그 부르기는 끊기고(`ollama.background_chat`) 나중에 다시 한다.
+
+        앱이 실제로 시작되지 않은 런타임(시험)은 예전처럼 그 자리에서 한다 — 시험이 결과를 바로 본다.
+        """
+        if not self.__dict__.get("_started_for_real"):
+            self._learn_facts(*args, **kwargs)
+            return
+
+        def later() -> None:
+            give_up = time.monotonic() + self.FACTS_GIVE_UP_SEC
+            while time.monotonic() < give_up and not self._warmup_stop.wait(2.0):
+                if self.state.snapshot().state != JarvisState.IDLE:
+                    continue
+                last_send = float(self.ollama.__dict__.get("_last_send_at", 0.0) or 0.0)
+                if last_send and time.monotonic() - last_send < self.FACTS_QUIET_SEC:
+                    continue
+                model = self.ollama._selected_model(None, role="chat")
+                options = self.ollama._options(0.0, model=model, role="chat")
+                result = self._learn_facts(
+                    *args, **kwargs,
+                    ask=lambda system, user: self.ollama.background_chat(system, user, model=model, options=options, rewarm=False),
+                )
+                if result != "cancelled":
+                    return
+            self.events.publish("fact_learning_skipped", {"session_id": str(args[0] if args else ""), "reason": "busy"})
+
+        threading.Thread(target=later, name="jarvis-learn-facts", daemon=True).start()
+
     def _learn_facts(
         self,
         session_id: str,
@@ -4491,7 +4524,8 @@ class JarvisRuntime:
         user_message_id: int,
         assistant_message_id: int,
         code_workspace: str = "",
-    ) -> None:
+        ask: Callable[[str, str], str | None] | None = None,
+    ) -> str | None:
         """이 대화에서 **오래 남을 사실**을 뽑아 서랍에 넣는다 (2026-08-24, P2).
 
         ## 순서가 곧 비용이다
@@ -4525,14 +4559,21 @@ class JarvisRuntime:
         try:
             if not fact_extract.worth_extracting(user_text, assistant_text):
                 return
-            raw = self.ollama.chat(
-                fact_extract.build_prompt(user_text, assistant_text),
-                system="너는 대화에서 오래 남을 사실만 뽑는 도구다. JSON 만 답한다.",
-                temperature=0.0,
-                # ★ 젬마는 thinking 모델이다. 이걸 안 넣으면 예산이 내부 추론에
-                #   다 쓰이고 content 가 빈 문자열로 온다.
-                think=False,
-            )
+            system_text = "너는 대화에서 오래 남을 사실만 뽑는 도구다. JSON 만 답한다."
+            if ask is not None:
+                # 뒤로 미룬 부름 — 사람 일이 오면 끊긴다(None). 끊긴 것은 실패가 아니다: 부르는 쪽이 나중에 다시 한다.
+                raw = ask(system_text, fact_extract.build_prompt(user_text, assistant_text))
+                if raw is None:
+                    return "cancelled"
+            else:
+                raw = self.ollama.chat(
+                    fact_extract.build_prompt(user_text, assistant_text),
+                    system=system_text,
+                    temperature=0.0,
+                    # ★ 젬마는 thinking 모델이다. 이걸 안 넣으면 예산이 내부 추론에
+                    #   다 쓰이고 content 가 빈 문자열로 온다.
+                    think=False,
+                )
             rows = fact_extract.parse(raw)
             keep, dropped = fact_extract.usable(
                 rows, (user_text, assistant_text), self.memory.FACT_KINDS, speaker_text=user_text
@@ -5422,7 +5463,10 @@ class JarvisRuntime:
             },
         )
         # 사실 뽑기 (P2). 실패해도 대화는 끝난 것이다 — 안에서 다 삼킨다.
-        self._learn_facts(
+        # ★ 2026-10-23: 판을 끝내기 **전에** 그 자리에서 기다리며 돌았다 — 손자리가 「쉼」으로 바뀌는 것이 그만큼 늦고, 그사이 보낸 다음
+        #   질문이 줄을 섰다(기록 10-21~23: 같은 모드로 이어진 첫 부르기 앞부분 읽기 중앙 1.3초 · 사실 뽑기가 낀 7건은 6.9초).
+        #   이제 판을 먼저 끝내고 뒤에서 조용할 때 한다 — 사람 일이 오면 끊고 나중에 다시(`_learn_facts_soon`).
+        self._learn_facts_soon(
             session_id,
             display_prompt,
             answer,

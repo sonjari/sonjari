@@ -2017,6 +2017,9 @@ button.code-think-raw:disabled { cursor: default; opacity: .6; }
 .workspace-narration { margin: 0 0 7px; padding-left: 26px; position: relative; color: rgb(var(--text-3)); font-size: var(--fs-1); line-height: 1.6; }
 .workspace-narration + .workspace-markdown { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgb(var(--line) / .6); }
 .workspace-narration-step { position: absolute; left: 0; top: 1px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: var(--r-pill); color: rgb(var(--text-4)); background: rgb(var(--text-1) / .06); font-size: var(--fs-1); font-variant-numeric: tabular-nums; }
+/* 대화를 접은 줄(2026-10-22) — 번호 대신 접음 표시, 글은 한 단 조용하게. 일이 아니라 창을 비운 일이라 말 줄과 구별한다. */
+.workspace-narration.is-fold { color: rgb(var(--text-4)); }
+.workspace-narration-step.is-fold { color: rgb(var(--text-3)); background: rgb(var(--text-1) / .1); }
 
 /* ── 「앞으로 묻지 마」 (2026-09-21) ───────────────────────────────────────
    승인·거절보다 **조용하게** 그린다. 이건 지금 판단이 아니라 앞으로의 설정이라,
