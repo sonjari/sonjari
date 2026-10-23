@@ -183,6 +183,22 @@ PowerPoint, 5–10 for Excel, where a person needs under a minute. In normal use
 files directly and only drives a window when nothing else reaches. What broke and what changed:
 [measurements/2026-10-17-desktop-apps](measurements/2026-10-17-desktop-apps/README.md).
 
+### Coding on outside exercises
+
+12 of the 34 Python exercises in the [Aider polyglot benchmark](https://github.com/Aider-AI/polyglot-benchmark), done by
+Sonjari in code mode. One run per exercise, 64K window, 600-second cap, RTX 3090. The model never sees the reference
+solution, and the tests are put back to the original before grading.
+
+| Model | Passed | Median time per run |
+|---|---|---|
+| Swift 1.5 (Qwen3.8 27B), IQ3_S + MTP — recommended for 24 GB | 12 of 12 | 119 s |
+| Qwen3.8 27B, same compression without the Swift finetune | 11 of 12 | 251 s |
+| Ornith 1.5 35B-A3B, IQ4_XS | 9 of 12 | 136 s |
+| Qwen3.5 9B, Q4_K_M (12 GB class), two rounds | 5 of 12 both times | 135 s / 485 s |
+
+Not comparable with Aider's leaderboard (225 exercises, six languages, two tries). Every exercise, the runs that hit the cap,
+and one 16 GB-class candidate: [measurements/2026-10-08-coding](measurements/2026-10-08-coding/README.md).
+
 Where it falls short:
 
 - **On a small card, long research gets about halfway.** Comparing across several shops tends to lose one or two of them.
