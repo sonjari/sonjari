@@ -1,9 +1,10 @@
 import { lang, t } from "./i18n";
 import { isFailureNotice, jobFailureText } from "./workspace/jobFailure";
+import { foldNarration } from "./workspace/foldNarration";
 import { NO_PAINT, SETTLE_MAX_MS, isSettling, onAnswerPainted, onAnswerReset, onHeadJobDone, type PaintState } from "./workspace/settling";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Brain, Code2, FileText, FolderOpen, HandHelping, Image, Loader2, Mic, Monitor, Paperclip, Send, ShieldCheck, Square, X,
+  Brain, ChevronsDownUp, Code2, FileText, FolderOpen, HandHelping, Image, Loader2, Mic, Monitor, Paperclip, Send, ShieldCheck, Square, X,
 } from "lucide-react";
 import { ChangeEvent, ClipboardEvent, DragEvent, FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createBackendClient, focusWorkspaceWindow, isTauri, JarvisClient, loadBootstrap, openExternalUrl, pickNativeCodeWorkspace } from "./backend";
@@ -81,7 +82,7 @@ const HANDOFF_ORIGINS_KEY = "jarvis.cowork.handoff-origins";
 
 /** 「일하는 중」 블록의 말 줄 — 최근 열두 줄만(길면 답을 가린다). 단 **사람이 덧붙인 말은 지운다 하지 않는다** —
  *  긴 판에서 사람이 끼어든 말이 손자리 말에 밀려 사라지면 무엇을 시켰는지 화면에서 안 보인다(2026-10-01). */
-type NarrationRow = { key: string; jobId: string; step: number; text: string; you?: boolean };
+type NarrationRow = { key: string; jobId: string; step: number; text: string; you?: boolean; fold?: boolean };
 
 function keepNarration(rows: NarrationRow[]): NarrationRow[] {
   const machine = rows.filter((row) => !row.you);
@@ -1038,6 +1039,15 @@ export function WorkspaceApp() {
             text: t("덧붙이신 말을 반영합니다 — 「{0}」", String(payload.text ?? "").slice(0, 80)),
           };
           setNarration((rows) => keepNarration([...rows.filter((r) => r.key !== line.key), line]));
+        } else if (event.event === "agent_transcript_step_folded") {
+          // 대화를 접었다 — 말 줄에 한 줄 남긴다(2026-10-22 대표). 걸음 번호가 알림에 없어 그 판의 마지막 줄 번호를 잇는다.
+          const text = foldNarration(payload);
+          setNarration((rows) => {
+            const last = rows.filter((r) => r.jobId === jobId && !r.you).at(-1);
+            const line = { key: `${jobId}:fold:${payload.before_chars ?? 0}:${payload.after_chars ?? 0}`, jobId,
+              step: last?.step ?? 0, text, fold: true };
+            return keepNarration([...rows.filter((r) => r.key !== line.key), line]);
+          });
         } else if (event.event === "agent_says") {
           // 같은 걸음이 두 번 오면 나중 것만 남긴다. 최근 열두 줄만 — 길면 답을 가린다.
           const line = {
@@ -2056,8 +2066,10 @@ export function WorkspaceApp() {
                           {row.text}
                         </p>
                       ) : (
-                        <p className="workspace-narration" key={row.key}>
-                          <span className="workspace-narration-step">{row.step}</span>
+                        <p className={`workspace-narration${row.fold ? " is-fold" : ""}`} key={row.key}>
+                          {row.fold
+                            ? <span className="workspace-narration-step is-fold" aria-label={t("접음")}><ChevronsDownUp size={11} /></span>
+                            : <span className="workspace-narration-step">{row.step}</span>}
                           {row.text}
                         </p>
                       )))}

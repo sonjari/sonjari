@@ -1199,7 +1199,8 @@ class OllamaClient:
         return front
 
     # ── 노는 시간 일(서기 · 2026-10-21) ──────────────────────────────────────────
-    def background_chat(self, system: str, user: str, *, model: str, options: dict[str, Any]) -> str | None:
+    def background_chat(self, system: str, user: str, *, model: str, options: dict[str, Any],
+                        rewarm: bool = True) -> str | None:
         """손자리가 놀 때만 하는 짧은 부르기(`scribe`). **사람 일이 오면 끊긴다**(`_front_seen` → `cancel_background`). 끊기면 None.
 
         ★ 2026-10-21 새벽 실측: 서기 실험이 같은 모델에 1만 7천 토큰을 밀어 넣는 동안 대표 판의 부르기가 첫 글자까지 15.8초를
@@ -1223,7 +1224,9 @@ class OllamaClient:
             return None
         finally:
             self.__dict__["_background_client"] = None
-            self.__dict__["_front_dirty"] = True
+            # 사실 뽑기처럼 짧은 부르기는 다시 데우지 않는다(`rewarm=False`) — 데우기는 「켠 뒤 한 번만」이 잰 결론이다(위 ★).
+            if rewarm:
+                self.__dict__["_front_dirty"] = True
             try:
                 client.close()
             except Exception:  # noqa: BLE001

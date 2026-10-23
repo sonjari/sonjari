@@ -48,15 +48,25 @@ def test_query_right_after_a_timed_out_catch_up_does_not_catch_up_again(tmp_path
     assert index.last_refresh["stopped"] == "time", "「다 못 따라잡았다」는 사실은 그대로 남아 도구 결과가 말할 수 있어야 한다"
 
 
-def test_finished_refresh_is_redone_so_fresh_edits_show_up(tmp_path: Path) -> None:
+def test_finished_refresh_is_redone_so_fresh_edits_show_up(tmp_path: Path, monkeypatch) -> None:
+    """★ 2026-10-23 바뀜: 끝까지 따라잡은 직후의 질의는 **손자리가 그사이 무언가 바꿨을 때만** 다시 훑는다(`FRESH_REUSE_SEC`).
+    예전엔 매번 다시 훑었다 — 한 질문 안에서 지도 · 첫 색인 도구가 같은 1만 2천 파일을 두 번 훑었다(대표 판 10.1초 + 6.8초)."""
     repo = _repo(tmp_path).resolve()
     index = CodeIndex(tmp_path / "index")
     index.refresh(repo)  # 밀린 것 없이 끝남
     calls = _counting(index)
 
     index.query(repo, "f1")
+    assert calls == [], "방금 끝까지 훑었고 아무것도 안 바꿨다 — 다시 훑지 않는다"
 
-    assert calls == [repo]
+    CodeIndex.note_write()  # 손자리가 파일을 썼다
+    index.query(repo, "f1")
+    assert calls == [repo], "손자리가 바꿨으면 다시 훑는다 — 방금 고친 파일이 들어오게"
+
+    ended = index.last_refresh["ended"]
+    monkeypatch.setattr(code_index_module.time, "monotonic", lambda: ended + index.FRESH_REUSE_SEC + 1.0)
+    index.query(repo, "f1")
+    assert calls == [repo, repo], "1분이 지났으면 다시 훑는다 — 사람이 편집기로 고친 것도 들어오게"
 
 
 def test_old_or_other_repo_timeouts_do_not_block_a_refresh(tmp_path: Path, monkeypatch) -> None:

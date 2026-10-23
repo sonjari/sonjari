@@ -931,15 +931,34 @@ class CodeIndex:
     #:   큰 저장소에서만 중앙 11.6초 · 최대 110초. 다 따라잡은 갱신(밀린 것 없음)은 1초 안팎이라 그대로 다시 한다(방금 고친 파일도 들어오게).
     BACKLOG_REUSE_SEC = 120.0
 
+    #: 방금 **끝까지** 따라잡았고 그 뒤 손자리가 파일을 안 바꿨으면, 이 안에 온 질의는 다시 훑지 않는다.
+    #: ★ 2026-10-23 대표 판(d03070df · 모노레포 · USB 외장 SSD): 첫 걸음 전 지도(`repo_card`) 10.1초 + 첫 걸음 색인 도구 6.8초 —
+    #:   둘 다 같은 1만 2천 파일을 훑었다. 복사본으로 다시 재니 데워진 뒤 훑기는 1초 안팎이었다(밀린 것 0). 한 질문 안의 두 번째 훑기와
+    #:   1분 안에 이어 온 질문의 훑기를 건너뛴다. 사람이 그 1분 사이 편집기로 고친 파일은 다음 훑기에 들어온다(1분 늦을 수 있다).
+    FRESH_REUSE_SEC = 60.0
+    #: 손자리가 파일을 쓰거나 지우거나 명령을 돌린 횟수(`note_write`). 늘었으면 위의 건너뛰기를 하지 않는다.
+    _writes = 0
+
+    @classmethod
+    def note_write(cls) -> None:
+        """손자리가 저장소를 바꿨을 수 있다 — 다음 질의는 다시 훑는다(`local_computer` 의 쓰기 · 지우기 · 명령 도구가 부른다)."""
+        cls._writes += 1
+
     def _reused_backlog(self, root: Path) -> dict[str, Any] | None:
-        """방금 같은 저장소를 시간 상한까지 따라잡고 멈췄으면 그 결과를 그대로 쓴다(None 이면 평소처럼 갱신)."""
+        """방금 같은 저장소를 따라잡았으면 그 결과를 그대로 쓴다(None 이면 평소처럼 갱신).
+
+        - 시간 상한에 멈췄으면 `BACKLOG_REUSE_SEC` 안에는 다시 하지 않는다(이어 읽어 봐야 같은 자리에서 또 멈춘다).
+        - 끝까지 따라잡았으면 `FRESH_REUSE_SEC` 안에, 그 뒤 손자리가 아무것도 안 바꿨을 때만 다시 하지 않는다.
+        """
         last = self.last_refresh or {}
         ended = last.get("ended")
-        if (
-            last.get("root") == str(root) and last.get("stopped") == "time" and isinstance(ended, (int, float))
-            and time.monotonic() - ended < self.BACKLOG_REUSE_SEC
-        ):
+        if last.get("root") != str(root) or not isinstance(ended, (int, float)):
+            return None
+        age = time.monotonic() - ended
+        if last.get("stopped") == "time" and age < self.BACKLOG_REUSE_SEC:
             return {"reused_backlog": True, "stopped": "time", "updated_files": 0, "seconds": 0.0}
+        if not last.get("stopped") and age < self.FRESH_REUSE_SEC and last.get("writes") == CodeIndex._writes:
+            return {"reused_fresh": True, "stopped": "", "updated_files": 0, "seconds": 0.0}
         return None
 
     def refresh(
@@ -957,6 +976,7 @@ class CodeIndex:
         #   `budget_sec` 를 넘기면 그때까지 읽은 것을 저장하고 멈춘다(`stopped: "time"`). 새로 읽은 파일이 하나도 없으면
         #   멈추지 않는다 — 훑기만 하다 끝나면 다음 요청도 같은 자리에서 멈춘다.
         started = time.monotonic()
+        writes_at_start = CodeIndex._writes
         out_of_time = False
         last_report = time.monotonic()
         root = root.resolve(strict=True)
@@ -1081,7 +1101,9 @@ class CodeIndex:
             chunk_total = int(db.execute("SELECT COUNT(*) FROM chunks").fetchone()[0])
         self.last_refresh = {"root": str(root), "stopped": "time" if out_of_time else "scan_limit" if stopped_early else "",
                              "updated_files": indexed, "scanned": scanned,
-                             "seconds": round(time.monotonic() - started, 1), "ended": time.monotonic()}
+                             "seconds": round(time.monotonic() - started, 1), "ended": time.monotonic(),
+                             # 훑기를 **시작할 때**의 쓰기 횟수 — 훑는 도중에 쓴 파일은 놓쳤을 수 있으니 그때는 다시 훑게.
+                             "writes": writes_at_start}
         return {
             "database": str(db_path),
             "total_files": total,

@@ -135,11 +135,33 @@ def _backup(path: Path, clock: Callable[[], float]) -> Path:
     return target
 
 
+#: 이름 바꾸기가 「접근 거부」로 막힐 때 다시 해 보는 간격(초). 합쳐 약 2초.
+_REPLACE_RETRY_SEC = (0.05, 0.1, 0.2, 0.3, 0.5, 0.8)
+
+
 def _atomic_write(path: Path, text: str) -> None:
+    """임시 파일에 쓰고 진짜 이름으로 바꾼다 — **남의 프로그램이 그 파일을 읽는 순간이면 잠깐 기다렸다 다시.**
+
+    ★ 2026-10-23 공개 저장소 main 검사(Windows)에서 `claude_desktop_config.json.jarvis-tmp → claude_desktop_config.json` 이
+      `PermissionError: [WinError 5]` 로 떨어졌다(PR 검사에서는 통과 · 시험 안의 감시 스레드가 같은 파일을 읽던 순간). 윈도우는 다른 쪽이
+      대상 파일을 열고 있으면 이름 바꾸기를 거절한다. 실제 PC 에서도 클로드 데스크톱 · 클로드 코드가 제 설정을 읽는 순간과 겹칠 수 있다
+      (서기 훅도 이 함수로 `~/.claude/settings.json` 을 쓴다). 그래서 짧게 몇 번 다시 하고, 끝내 안 되면 임시 파일을 지우고 그대로 알린다.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_name(path.name + ".jarvis-tmp")
     temp.write_text(text, encoding="utf-8")
-    temp.replace(path)
+    for wait in (*_REPLACE_RETRY_SEC, None):
+        try:
+            temp.replace(path)
+            return
+        except PermissionError:
+            if wait is None:
+                try:
+                    temp.unlink()
+                except OSError:
+                    pass
+                raise
+            time.sleep(wait)
 
 
 def _load_json(path: Path) -> dict[str, Any] | None:

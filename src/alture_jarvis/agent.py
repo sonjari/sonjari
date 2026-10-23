@@ -8655,11 +8655,15 @@ class BrowserAgent:
                 # **읽기 관문**이 손을 좁힌 걸음에는 보내는 목록을 그대로 둔다(`offered_code_tools`) — 받는 손은 디스패치가 가른다.
                 # 검증 관문이 좁힌 걸음은 예전 그대로 좁힌 목록을 보낸다: 그 판은 도구를 안 부르고 **말로만 답하는** 판이라
                 # 되돌려 보낼 호출이 없고, 좁힌 목록이 곧 신호다(2026-09-21 AURORA — `code_tools_after_coding_pushback`).
+                # ★ 2026-10-22 대표 판(d03070df · 7만 3천 토큰): 첫 되받기 바로 다음 걸음에 목록을 좁혔다가(93초) 검증 뒤 되돌리면서(또 85초+)
+                #   앞부분을 두 번 처음부터 읽었다 — 그 판의 앞부분 읽기 합계 321.6초. 그래서 검증 관문도 **첫 되받기 뒤 한 걸음은** 목록을 그대로
+                #   보이고(받는 손은 디스패치가 가른다 · 거절문이 갈 곳을 댄다), 말로만 또 답해 **두 번째 되받기**가 온 뒤에만 좁힌다
+                #   (AURORA 의 「좁힌 목록이 곧 신호」는 그때 산다). 되돌려 보낸 것을 연달아 무시해도 `offered_code_tools` 가 좁힌다.
                 shown_code_tools = (
                     offered_code_tools(
                         code_tool_profile.tool_names if code_tool_profile is not None else None, active_code_tools, steps,
                     )
-                    if active_code_tools == hands_after_look_gate
+                    if active_code_tools == hands_after_look_gate or coding_pushbacks < 2
                     else active_code_tools
                 )
                 # 곁가지 부름(`_text_only_message`)이 같은 목록을 보내도록 남긴다 — 한 번에 한 판만 돈다.

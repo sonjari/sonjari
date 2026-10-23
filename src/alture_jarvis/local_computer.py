@@ -2622,6 +2622,7 @@ class LocalComputerTools:
         raise UnicodeError("text_encoding_not_supported")
 
     def write_file(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        CodeIndex.note_write()  # 저장소가 바뀌었을 수 있다 — 다음 색인 질의는 다시 훑는다(`CodeIndex.FRESH_REUSE_SEC`)
         arguments = _with_aliases(arguments)
         path = self._resolve_mutation_path(arguments, must_exist=False)
         content = str(arguments.get("content") or "")
@@ -2630,6 +2631,7 @@ class LocalComputerTools:
         )
 
     def apply_edit(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        CodeIndex.note_write()  # 저장소가 바뀌었을 수 있다 — 다음 색인 질의는 다시 훑는다(`CodeIndex.FRESH_REUSE_SEC`)
         arguments = _with_aliases(arguments)
         path = self._resolve_mutation_path(arguments, must_exist=True)
         raw = path.read_bytes()
@@ -2691,6 +2693,7 @@ class LocalComputerTools:
         return result
 
     def delete_file(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        CodeIndex.note_write()  # 저장소가 바뀌었을 수 있다 — 다음 색인 질의는 다시 훑는다(`CodeIndex.FRESH_REUSE_SEC`)
         path = self._resolve_mutation_path(arguments, must_exist=True, allow_folder=True)
         if path.is_dir():
             return self._delete_folder(path, arguments)
@@ -3135,6 +3138,7 @@ class LocalComputerTools:
         return list(display)
 
     def run_project_command(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        CodeIndex.note_write()  # 저장소가 바뀌었을 수 있다 — 다음 색인 질의는 다시 훑는다(`CodeIndex.FRESH_REUSE_SEC`)
         # ★ `path` 를 안 줘도 **잡에 묶인 작업 폴더**에서 돈다 (2026-09-20). 안 주면
         #   `path_required` 로 막혔는데, 작업 자리는 이미 잡에 묶여 있어 물어볼 필요가 없다.
         #   같은 날 아침 `local_glob`·`local_grep` 에 넣은 것과 같은 손질이다.
@@ -4148,8 +4152,10 @@ class LocalComputerTools:
         if not resolved.is_dir():
             return ""
         try:
-            self.code_index.refresh(resolved, on_progress=on_progress,
-                                    budget_sec=self.code_index.REFRESH_BUDGET_SEC)
+            # 1분 안에 끝까지 훑었고 그 뒤 손자리가 아무것도 안 바꿨으면 다시 훑지 않는다(이어 묻는 질문 · `CodeIndex._reused_backlog`).
+            if self.code_index._reused_backlog(resolved) is None:
+                self.code_index.refresh(resolved, on_progress=on_progress,
+                                        budget_sec=self.code_index.REFRESH_BUDGET_SEC)
             return self.code_index.repo_card(resolved, query)
         except Exception:
             # 지도가 없어도 판은 돌아야 한다.
@@ -4665,6 +4671,7 @@ class LocalComputerTools:
 
     def run_shell(self, arguments: dict[str, Any]) -> dict[str, Any]:
         """작업 폴더에서 PowerShell 한 줄. **검은 창은 절대 안 뜬다.**"""
+        CodeIndex.note_write()  # 저장소가 바뀌었을 수 있다 — 다음 색인 질의는 다시 훑는다(`CodeIndex.FRESH_REUSE_SEC`)
         command = str(arguments.get("command") or "").strip()
         if not command:
             raise ValueError("command_required")
