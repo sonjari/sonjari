@@ -8,6 +8,8 @@ pypdfium2>=4.30.0
 python-docx>=1.2.0
 openpyxl>=3.1.5
 python-pptx>=1.0.2
+fonttools>=4.50           # 장표 글꼴 — 쓴 글자만 담아 PPTX 에 심음(2026-10-26) · pyproject.toml 과 같이
+brotli>=1.1.0             # 장표 글꼴 — woff2 를 풀어 PPTX 에 심음(2026-10-26) · pyproject.toml 과 같이 적는다
 charset-normalizer>=3.4.0
 pywinauto>=0.6.9; platform_system == 'Windows'
 tzdata>=2024.1; platform_system == 'Windows'

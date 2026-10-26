@@ -129,6 +129,7 @@ _NOT_AN_AXIS = {
     "api.py",             # HTTP 껍데기
     "models.py",
     "memory.py",          # 대화 기억
+    "conversation_title.py",  # 2026-10-26 대화 목록 제목 짓기(판이 끝난 뒤 · 쉴 때). 판이 하는 일을 바꾸지 않는다
     "state_machine.py",
     "transcript.py",
     "presentation.py",    # 표현 방식(음성/화면)

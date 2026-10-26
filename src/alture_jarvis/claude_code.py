@@ -106,9 +106,16 @@ def hold_reason(payload: Any, session_id: str = "") -> str:
         return measured
     if isinstance(payload, dict) and str(payload.get("origin") or "") == "mcp":
         from .delegation import is_claude_code  # 늦게 — 맡기기 모듈은 정제 · 근거 모듈을 끌고 온다
+        from .messaging.bridge import CALLER as PERSON_BRIDGE  # 디스코드 다리 — 폰으로 사람이 시킨 일
 
-        if is_claude_code(str(payload.get("caller") or "")):
+        caller = str(payload.get("caller") or "")
+        if is_claude_code(caller):
             return "delegated_by_claude_code"
+        # ★ 2026-10-26 대표: 「클로드 앱이 MCP 로 시킨 일은 무조건 로컬 모델로만 — 클로드 API 로 가면 안 된다」.
+        #   클로드 코드만 막던 때 최근 14일 MCP 판 722 중 426판이 부른 쪽 이름이 비어(클로드 앱 등) 막히지 않았다.
+        #   바깥 AI 가 맡긴 판은 이름이 무엇이든(비어도) 막는다 — 사람이 시킨 디스코드 다리만 사용자 설정을 따른다.
+        if caller != PERSON_BRIDGE:
+            return "delegated_by_outside_ai"
     return ""
 
 

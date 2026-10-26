@@ -2393,5 +2393,6 @@
  "클로드 코드 대화 기록 폴더(예: 사용자 폴더\\.claude\\projects\\<프로젝트>). 여기 고른 곳만 읽는다.": "Claude Code conversation log folders (e.g. your user folder\\.claude\\projects\\<project>). Only the folders chosen here are read.",
  "손자리 서기가 꺼져 있습니다. 대화 기록은 사람이 고른 폴더만 읽으므로, 켜려면 사용자가 손자리 설정 › 실험실에서 「서기」를 켜고 읽을 폴더(클로드 코드 기록 폴더)를 골라야 합니다. 대신 켜지 마세요.": "Sonjari's scribe is off. It only reads conversation logs in folders a person chose, so to turn it on the user must enable \"Scribe\" in Sonjari Settings › Labs and choose the folders to read (Claude Code log folders). Do not turn it on for them.",
  "서기가 켜져 있지만 아직 쌓인 카드가 없습니다(손자리가 노는 시간에 한 덩어리씩 씁니다). 이것은 「정한 것이 없었다」는 뜻이 아닙니다.": "The scribe is on but no cards have been written yet (Sonjari writes one chunk at a time while idle). This does not mean \"nothing was decided\".",
- "서기 카드 {0}줄 — 초안입니다. 중요한 줄은 (줄 번호)의 원문을 직접 확인하세요.": "{0} scribe card lines — these are drafts. For anything important, check the original at the (line number) yourself."
+ "서기 카드 {0}줄 — 초안입니다. 중요한 줄은 (줄 번호)의 원문을 직접 확인하세요.": "{0} scribe card lines — these are drafts. For anything important, check the original at the (line number) yourself.",
+ "장표를 그리는 중": "Drawing the slides"
 }

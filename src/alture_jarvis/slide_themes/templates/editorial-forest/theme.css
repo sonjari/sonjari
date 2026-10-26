@@ -1,0 +1,592 @@
+/* sonjari-template */
+
+  :root {
+    --green: #2e4a2a;
+    --green-deep: #243a21;
+    --green-lite: #3a5a36;
+    --pink: #e89cb1;
+    --pink-deep: #d27e96;
+    --cream: #efe7d4;
+    --cream-2: #e6dcc4;
+    --ink: #1a1a17;
+    --serif: Georgia, 'Batang', serif;
+    --mono: Consolas, 'Malgun Gothic', monospace;
+  }
+  html, body { margin: 0; padding: 0; background: #111; }
+  
+
+  section {
+    box-sizing: border-box;
+    width: 1280px;
+    height: 720px;
+    padding: 64px 80px;
+    background: var(--cream);
+    color: var(--ink);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .label {
+    font-family: var(--mono);
+    font-size: 17.33px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* ============ 01 — Cover ============ */
+  .cover {
+    background: var(--green);
+    color: var(--pink);
+    padding: 66.67px 93.33px;
+  }
+  .cover .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--pink);
+  }
+  .cover .topbar .label { color: var(--pink); }
+  .cover .mark {
+    width: 86.67px;
+    height: 86.67px;
+    border-radius: 50%;
+    border: 1.33px solid var(--pink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 18.67px;
+    letter-spacing: 0.1em;
+    font-weight: 500;
+  }
+  .cover h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 146.67px;
+    line-height: 0.92;
+    letter-spacing: -0.02em;
+    margin: 26.67px 0 0 0;
+  }
+  .cover .footline {
+    position: absolute;
+    bottom: 53.33px;
+    left: 93.33px;
+    right: 93.33px;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 18.67px;
+    color: var(--pink);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* ============ 02 — Agenda (tiles) ============ */
+  .agenda {
+    background: var(--cream);
+    padding: 60px 80px;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 24px;
+  }
+  .agenda .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 26.67px;
+  }
+  .agenda h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 64px;
+    line-height: 0.96;
+    letter-spacing: -0.02em;
+    color: var(--green);
+    margin: 0;
+    white-space: nowrap;
+  }
+  .agenda .head .label { color: var(--green); white-space: nowrap; }
+  .agenda-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 16px;
+  }
+  .topic {
+    border-radius: 4px;
+    position: relative;
+    padding: 26.67px 26.67px 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 0;
+  }
+  .topic.t-green { background: var(--green); color: var(--pink); grid-row: span 2; }
+  .topic.t-pink { background: var(--pink); color: var(--green-deep); }
+  .topic.t-greenLite { background: var(--green-lite); color: var(--pink); }
+  .topic.t-cream { background: var(--cream-2); color: var(--green); border: 1.33px solid var(--green); }
+  .topic .num {
+    font-family: var(--mono);
+    font-size: 17.33px;
+    letter-spacing: 0.14em;
+    font-weight: 500;
+  }
+  .topic h3 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 37.33px;
+    line-height: 0.98;
+    letter-spacing: -0.01em;
+    margin: 18.67px 0 0 0;
+  }
+  .topic.t-green h3 { font-size: 56px; }
+  .topic p {
+    font-family: var(--serif);
+    font-size: 17.33px;
+    line-height: 1.32;
+    margin: 10.67px 0 0 0;
+    max-width: 100%;
+    font-weight: 400;
+  }
+  .topic .foot {
+    font-family: var(--mono);
+    font-size: 16px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-top: 13.33px;
+  }
+
+  /* ============ 03 — Statement (big idea) ============ */
+  .statement {
+    background: var(--pink);
+    color: var(--green-deep);
+    padding: 86.67px 106.67px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .statement .label { color: var(--green-deep); }
+  .statement blockquote {
+    margin: 32px 0 0 0;
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 93.33px;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    max-width: 1040px;
+  }
+  .statement .attrib {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-top: 40px;
+    font-family: var(--mono);
+    font-size: 17.33px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-weight: 500;
+    gap: 40px;
+  }
+  .statement .attrib > div { display: flex; flex-direction: column; gap: 9.33px; white-space: nowrap; }
+  .statement .attrib .name {
+    font-family: var(--serif);
+    font-size: 29.33px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  /* ============ 04 — Two-column with image ============ */
+  .two-col {
+    background: var(--cream);
+    display: grid;
+    grid-template-columns: 586.67px 1fr;
+    gap: 66.67px;
+    align-items: stretch;
+    padding: 73.33px 80px;
+  }
+  .two-col .col-img {
+    background: var(--green);
+    color: var(--pink);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .two-col .col-img .figure {
+    font-family: var(--serif);
+    font-size: 37.33px;
+    color: var(--pink);
+    font-weight: 500;
+    text-align: center;
+    padding: 0 26.67px;
+    line-height: 1.05;
+  }
+  .two-col .col-img .caption {
+    position: absolute;
+    bottom: 24px;
+    left: 24px;
+    right: 24px;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 17.33px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--pink);
+  }
+  .two-col .col-text { display: flex; flex-direction: column; padding-top: 5.33px; }
+  .two-col .eyebrow {
+    font-family: var(--mono);
+    font-size: 17.33px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--green);
+    font-weight: 500;
+    margin-bottom: 21.33px;
+  }
+  .two-col h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 64px;
+    line-height: 0.96;
+    letter-spacing: -0.02em;
+    color: var(--green);
+    margin: 0 0 26.67px 0;
+  }
+  .two-col p {
+    font-family: var(--serif);
+    font-size: 20px;
+    line-height: 1.38;
+    color: var(--ink);
+    margin: 0 0 16px 0;
+    max-width: 506.67px;
+    font-weight: 400;
+    text-wrap: pretty;
+  }
+  .two-col .meta {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    border-top: 1.33px solid var(--green);
+    padding-top: 21.33px;
+  }
+  .two-col .meta dt {
+    font-family: var(--mono);
+    font-size: 16px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--green);
+    font-weight: 500;
+    margin-bottom: 5.33px;
+  }
+  .two-col .meta dd {
+    font-family: var(--serif);
+    font-size: 21.33px;
+    color: var(--ink);
+    margin: 0;
+    font-weight: 500;
+  }
+
+  /* ============ 05 — Data / chart ============ */
+  .data { background: var(--green); color: var(--cream); padding: 66.67px 80px; }
+  .data .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 40px;
+  }
+  .data .head .label { color: var(--pink); }
+  .data h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 56px;
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    color: var(--cream);
+    margin: 10.67px 0 0 0;
+    max-width: 800px;
+  }
+  .data .legend {
+    display: flex;
+    gap: 24px;
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 17.33px;
+    letter-spacing: 0.1em;
+    color: var(--cream);
+    text-transform: uppercase;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .data .legend .sw {
+    display: inline-block;
+    width: 17.33px;
+    height: 17.33px;
+    margin-right: 8px;
+    vertical-align: -2.67px;
+    border-radius: 1.33px;
+  }
+  .chart {
+    margin-top: 73.33px;
+    height: 346.67px;
+    display: grid;
+    grid-template-columns: 53.33px 1fr;
+    grid-template-rows: 1fr 40px;
+    column-gap: 16px;
+  }
+  .chart .yaxis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 17.33px;
+    color: var(--cream);
+    text-align: right;
+    padding-right: 5.33px;
+    font-weight: 500;
+  }
+  .chart .plot {
+    position: relative;
+    border-left: 1.33px solid var(--cream);
+    border-bottom: 1.33px solid var(--cream);
+    padding: 0 20px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .chart .grid-lines {
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(to top, transparent 0 calc(25% - 1px), rgba(239,231,212,0.18) calc(25% - 1px) 25%);
+    pointer-events: none;
+  }
+  .bar-group { display: flex; flex-direction: column; align-items: center; flex: 1; height: 100%; justify-content: flex-end; gap: 5.33px; }
+  .bar-pair { display: flex; align-items: flex-end; gap: 8px; height: 100%; width: 100%; justify-content: center; }
+  .bar { width: 37.33px; border-radius: 2px 2px 0 0; position: relative; }
+  .bar.a { background: var(--pink); }
+  .bar.b { background: var(--cream); }
+  .bar .val {
+    position: absolute;
+    top: -25.33px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--mono);
+    font-size: 16px;
+    color: var(--cream);
+    font-weight: 500;
+  }
+  .chart .xlabel-row {
+    grid-column: 2;
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 20px 0;
+    font-family: var(--mono);
+    font-size: 17.33px;
+    color: var(--cream);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .chart .xlabel { flex: 1; text-align: center; }
+  .data .footnote {
+    position: absolute;
+    bottom: 40px;
+    left: 80px;
+    right: 80px;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 17.33px;
+    color: var(--pink);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* ============ 06 — Framework / 4 steps ============ */
+  .framework { background: var(--cream); padding: 66.67px 80px; }
+  .framework .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 26.67px;
+  }
+  .framework .head .label { color: var(--green); white-space: nowrap; }
+  .framework h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 64px;
+    line-height: 0.96;
+    letter-spacing: -0.02em;
+    color: var(--green);
+    margin: 16px 0 0 0;
+    max-width: 1000px;
+  }
+  .flow {
+    margin-top: 46.67px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18.67px;
+    align-items: stretch;
+  }
+  .step {
+    border-radius: 5.33px;
+    padding: 26.67px 21.33px 21.33px;
+    display: flex;
+    flex-direction: column;
+    min-height: 313.33px;
+    border: 1.67px solid var(--green);
+    background: var(--cream);
+    color: var(--green);
+  }
+  .step.fill { background: var(--green); color: var(--pink); border-color: var(--green); }
+  .step.pinkfill { background: var(--pink); color: var(--green-deep); border-color: var(--pink-deep); }
+  .step .num {
+    font-family: var(--mono);
+    font-size: 17.33px;
+    letter-spacing: 0.16em;
+    font-weight: 500;
+  }
+  .step h3 {
+    font-family: var(--serif);
+    font-size: 45.33px;
+    line-height: 0.96;
+    letter-spacing: -0.01em;
+    font-weight: 500;
+    margin: 16px 0 16px 0;
+  }
+  .step p {
+    font-family: var(--serif);
+    font-size: 17.33px;
+    line-height: 1.34;
+    margin: 0;
+    font-weight: 400;
+  }
+  .step .marker {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-top: 16px;
+    border-top: 1.33px solid currentColor;
+    font-family: var(--mono);
+    font-size: 16px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* ============ 07 — Big stats / KPI callouts ============ */
+  .stats { background: var(--green); color: var(--cream); padding: 66.67px 80px; }
+  .stats .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 26.67px;
+  }
+  .stats .head .label { color: var(--pink); white-space: nowrap; }
+  .stats h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 53.33px;
+    line-height: 0.98;
+    letter-spacing: -0.02em;
+    color: var(--cream);
+    margin: 12px 0 0 0;
+    max-width: 933.33px;
+  }
+  .kpi-row {
+    margin-top: 53.33px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    border-top: 1.33px solid var(--pink);
+    padding-top: 37.33px;
+  }
+  .kpi { display: flex; flex-direction: column; gap: 10.67px; }
+  .kpi .tag {
+    font-family: var(--mono);
+    font-size: 16px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--pink);
+    font-weight: 500;
+  }
+  .kpi .big {
+    font-family: var(--serif);
+    font-size: 146.67px;
+    line-height: 0.92;
+    letter-spacing: -0.03em;
+    color: var(--pink);
+    font-weight: 500;
+  }
+  .kpi .big .unit {
+    font-size: 73.33px;
+    color: var(--cream);
+    margin-left: 2.67px;
+  }
+  .kpi .desc {
+    font-family: var(--serif);
+    font-size: 20px;
+    line-height: 1.32;
+    color: var(--cream);
+    margin: 5.33px 0 0 0;
+    font-weight: 400;
+  }
+
+  /* ============ 08 — Summary / closing ============ */
+  .summary { background: var(--green); color: var(--cream); padding: 73.33px 93.33px; }
+  .summary .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .summary .topbar .label { color: var(--pink); }
+  .summary h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 146.67px;
+    line-height: 0.94;
+    letter-spacing: -0.02em;
+    color: var(--pink);
+    margin: 33.33px 0 0 0;
+  }
+  .summary .grid-cols {
+    margin-top: 46.67px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    border-top: 1.33px solid var(--pink);
+    padding-top: 24px;
+  }
+  .summary .grid-cols h4 {
+    font-family: var(--mono);
+    font-size: 17.33px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--pink);
+    margin: 0 0 12px 0;
+    font-weight: 500;
+  }
+  .summary .grid-cols p {
+    font-family: var(--serif);
+    font-size: 21.33px;
+    line-height: 1.32;
+    margin: 0;
+    color: var(--cream);
+    font-weight: 400;
+  }
+
+
+html,body{margin:0!important;padding:0!important;width:1280px;height:720px;overflow:hidden}
+section{width:1280px!important;height:720px!important;word-break:keep-all}

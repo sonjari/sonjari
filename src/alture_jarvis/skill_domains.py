@@ -30,7 +30,9 @@ class Domain:
 
 DOMAINS: tuple[Domain, ...] = (
     Domain("office", "사무·문서", "보고서·엑셀·공지문·메일 문장 다듬기", (
-        "document-craft", "internal-comms", "copy-editing", "humanizer", "brand-guidelines",
+        "document-craft", "doc-weekly-report", "doc-proposal", "doc-meeting-minutes", "doc-official-letter",
+        "doc-quotation", "doc-research-report", "doc-standard-contract", "doc-press-release",
+        "internal-comms", "copy-editing", "humanizer", "brand-guidelines",
         "thinking-pre-mortem", "thinking-kepner-tregoe",
     )),
     Domain("research", "조사·리서치", "시장·경쟁사·고객 조사, 근거 있는 비교 정리", (
@@ -59,15 +61,15 @@ DOMAINS: tuple[Domain, ...] = (
         "sales-enablement", "community-marketing", "humanizer", "brand-guidelines",
     )),
     Domain("education", "교육·학원", "학부모 안내·수강료·모집·상담·커뮤니티 홍보", (
-        "internal-comms", "document-craft", "customer-research", "pricing", "offers", "onboarding",
+        "internal-comms", "document-craft", "doc-syllabus", "doc-event-plan", "customer-research", "pricing", "offers", "onboarding",
         "lead-magnets", "community-marketing", "referrals", "copywriting", "marketing-plan",
         "sales-enablement", "thinking-jobs-to-be-done",
     )),
     Domain("startup", "창업·지원사업", "정부·지자체 지원사업 찾기와 신청 가능 여부 판단", (
-        "startup-support-search", "document-craft", "thinking-pre-mortem",
+        "startup-support-search", "business-plan", "document-craft", "thinking-pre-mortem",
     )),
     Domain("career", "취업·이직", "공고 찾기·이력서 첨삭·지원서 맞추기", (
-        "career-job-search", "career-resume-review", "career-application-tailoring",
+        "career-job-search", "career-resume-review", "career-application-tailoring", "doc-resume",
         "document-craft", "copy-editing", "humanizer",
     )),
     Domain("thinking", "생각 정리·결정", "막연한 문제 쪼개기·선택지 비교·리스크 점검", (

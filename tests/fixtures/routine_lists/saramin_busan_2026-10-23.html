@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>표본</title></head><body>
+<!-- 2026-10-23 사람인 검색 화면에서 잘라 낸 시험 표본. 추적 값(search_uuid)은 x 로 바꿨다. 개인 정보 없음. -->
+<!-- 자동완성 상자: 모든 검색 화면에 「검색결과가 없습니다」 글자가 숨어 있다 — 글자로 0건을 가르면 안 되는 함정 -->
+<div class="wrap_result no_result" id="autocomplete_no_result">
+        <p class="empty">
+            검색결과가 없습니다.
+        </p>
+        <div class="area_btn">
+            <button type="button" class="btn_close">닫기</button>
+        </div>
+    </div>
+<script>var t = "<div class=\"info_no_result\"></div><div class=\"item_recruit\" value=\"1\"></div>";</script>
+<section class="section_search" id="recruit_info">
+        <div class="header">
+            <h2 class="tit_section">채용정보</h2>
+            <span class="cnt_result">총 10건</span>
+            <div class="wrap_result_filter">
+                                    <div class="item">
+                        <div class="inpChk small">
+                            <input type="checkbox" id="default" name="company_cd[]" class="company_cd checkbox" position="recruit" value="0,1,2,3,4,5,6,7" checked="checked">
+                            <label class="lbl" for="default">일반 채용정보</label>
+                        </div>
+                    </div>
+                                    <div class="item">
+                        <div class="inpChk small">
+                            <input type="checkbox" id="dispatch" name="company_cd[]" class="company_cd checkbox" position="recruit" value="9" checked="checked">
+                            <label class="lbl" for="dispatch">파견/대행</label>
+                        </div>
+                    </div>
+                                    <div class="item">
+                        <div class="inpChk small">
+                            <input type="checkbox" id="headhunting" name="company_cd[]" class="company_cd checkbox" position="recruit" value="10" checked="checked">
+                            <label class="lbl" for="headhunting">헤드헌팅</label>
+                        </div>
+                    </div>
+                            </div>
+        </div>
+
+        <div class="wrap_sorting">
+            <button type="button" class="btn_smaller_type01 btn_ai_head_hunting ">
+                <span class="icon_check"></span>
+                취업축하금만 보기
+                <svg>
+                    <use xlink:href="#rec_title_tag_emoji_reward"></use>
+                </svg>
+            </button>
+                        <button type="button" class="btn_smaller_type01 btn_quick_apply">
+                <span class="icon_check"></span><span class="badge_apply">입사지원</span> 만 보기
+            </button>
+            <button type="button" class="btn_smaller_type01 btn_except_read">
+                <span class="icon_check"></span>조회한 공고 제외
+            </button>
+            <div class="wrap_result_filter">
+                <div class="item">
+                    <button type="button" class="btn_filter">기업형태 전체</button>
+                    <div class="layer_filter company_type">
+                        <ul>
+                                                            <li  class="selected">
+                                    <button type="button" target="company_type" value="" position="recruit" class="track_event" data-track_event="total_search|search_recruit|companytype_filter|1">
+                                        기업형태 전체                                    </button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="company_type" value="scale001" position="recruit" class="track_event" data-track_event="total_search|search_recruit|companytype_filter|2">
+                                        대기업                                    </button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="company_type" value="foreign" position="recruit" class="track_event" data-track_event="total_search|search_recruit|companytype_filter|3">
+                                        외국계                                    </button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="company_type" value="scale003" position="recruit" class="track_event" data-track_event="total_search|search_recruit|companytype_filter|4">
+                                        중견·중소                                    </button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="company_type" value="public" position="recruit" class="track_event" data-track_event="total_search|search_recruit|companytype_filter|5">
+                                        공사·공기업                                    </button>
+                                </li>
+                                                        </ul>
+                    </div>
+                </div>
+                <div class="item">
+                    <button type="button" class="btn_filter">관련도순</button>
+                    <div class="layer_filter sort">
+                        <ul>
+                                                            <li  class="selected">
+                                    <button type="button" target="sort" value="relation" position="recruit">관련도순</button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="sort" value="accuracy" position="recruit">정확도순</button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="sort" value="reg_dt" position="recruit">등록일순</button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="sort" value="edit_dt" position="recruit">수정일순</button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="sort" value="closing_dt" position="recruit">마감일순</button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="sort" value="apply_cnt" position="recruit">지원자순</button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="sort" value="employ_cnt" position="recruit">사원수순</button>
+                                </li>
+                                                        </ul>
+                    </div>
+                </div>
+                <div class="item">
+                    <button type="button" class="btn_filter">40개씩</button>
+                    <div class="layer_filter count">
+                        <ul>
+                                                            <li>
+                                    <button type="button" target="count" value="10" position="recruit">10개씩</button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="count" value="20" position="recruit">20개씩</button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="count" value="30" position="recruit">30개씩</button>
+                                </li>
+                                                                <li  class="selected">
+                                    <button type="button" target="count" value="40" position="recruit">40개씩</button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="count" value="50" position="recruit">50개씩</button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="count" value="80" position="recruit">80개씩</button>
+                                </li>
+                                                                <li>
+                                    <button type="button" target="count" value="100" position="recruit">100개씩</button>
+                                </li>
+                                                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="recruit_info_list" main-search="n" other-count="2">
+                <div class="content">
+            <div class="item_recruit" value="55178596"
+         data-data_layer="keyword_free|paid_n_quick">
+                    <div class="area_badge">
+            <span class="badge " >
+                <svg>
+                    <use xlink:href="#rec_title_tag_emoji_mActive"></use>
+                </svg>
+                디자인 지원 TOP100            </span>
+            </div>
+        
+        <div class="area_job">
+                                    <h2 class="job_tit">
+                <a target="_blank" title="[INEEJI] 하반기 분야별 인재 채용" onclick="try{s_trackApply(this, &#39;search&#39;, &#39;generic&#39;)}catch(e){};" rel="" class="data_layer" data-data_layer="keyword_free|paid_n" href="/zf_user/jobs/relay/view?view_type=search&amp;rec_idx=55178596&amp;location=ts&amp;searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&amp;searchType=search&amp;paid_fl=n&amp;search_uuid=x"><span>[INEEJI] 하반기 분야별 인재 채용</span></a>             </h2>
+                            <div class="toolTipWrap wrap_scrap">
+                                        <a style="cursor:pointer" class="icon_scrap_star" onclick="Saramin.btnJob('scrap',this,'','list');" scraped="n" rec_idx="55178596"
+                       data-pattern='{"t_category":"search","t_content":"generic","t_scnid":"","search_uuid":"x","t_ref":"search"}' title="스크랩"
+                       onmouseover="Saramin.favorTooltip(this, 'on');" onmouseout="Saramin.favorTooltip(this, 'off');">
+                        <img src="//www.saraminimage.co.kr/common/bul_sri_star.png" alt="스크랩">
+                    </a>
+                    <div class="toolTip sri_tooltip_scrap">
+                        <span class="tail tail_bottom_center"></span>
+                        <div class="toolTipCont txtCenter">스크랩</div>
+                    </div>
+                </div>
+                        <div class="job_date">
+                <span class="date">~ 10/29(목)</span>
+                <button  class="sri_btn_xs" title="클릭하면 입사지원할 수 있는 창이 뜹니다." onclick="try{quickApplyForm(&#39;55178596&#39;,&#39;&#39;,&#39;t_category=search&t_content=generic&t_scnid=&search_uuid=x&t_ref=search&#39;, &#39;searchType=search&searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&#39;); return false;} catch (e) {}; return false;" onmousedown="try{n_trackEvent(&#39;apply&#39;,&#39;list&#39;,&#39;quick_apply&#39;);}catch(e){}"><span class="sri_btn_immediately" >입사지원</span></button>            </div>
+            <div class="job_condition">
+                <span> <a target="_blank" href="/zf_user/area-recruit/area-list/area/101000" >서울전체</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/101010" >강남구</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/101150" >서초구</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/102000/areamode/mcode" >경기</a>  <a target="_blank" href="/zf_user/area-recruit/area-list/area/102000" >경기전체</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/102180" >성남시</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/102190" >성남시 분당구</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/106000/areamode/mcode" >부산</a>  <a target="_blank" href="/zf_user/area-recruit/area-list/area/106000" >부산전체</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/106070" >부산진구</a>, <a target="_blank" href="/zf_user/area-recruit/area-foreign-list/area/211200/areamode/mcode" >일본</a></span> <span>신입·경력</span> <span>학력무관</span> <span>정규직·계약직</span>             </div>
+                            <div class="job_sector">
+                    <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=791">해외영업관리</a></b>, <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=446">인력관리</a></b>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=699">영업관리</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1660">사업관리</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=769">매출관리</a> 외                    <span class="job_day">수정일 26/10/06</span>                                    </div>
+                    </div>
+                            <div class="area_corp">
+                <strong class="corp_name">
+                                            <a href="/zf_user/company-info/view?csn=RWdMdjF1ZVNrZHgyVVlwbU5uQk1kZz09" target="_blank" class="track_event data_layer"
+                           data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_name">
+                            (주)인이지                        </a>
+                        
+                </strong>
+                <div class="toolTipWrap wrap_interested_corp"><button  type="button" csn="RWdMdjF1ZVNrZHgyVVlwbU5uQk1kZz09" title="관심기업 등록" del_fl="n" aria-pressed="false" class="interested_corp" onclick="try{Saramin.btnJob(&#39;favor&#39;, this, &#39;&#39;, &#39;list&#39;);}catch(e){}" onmouseover="Saramin.favorTooltip(this, &#39;on&#39;);" onmouseout="Saramin.favorTooltip(this, &#39;off&#39;);" first_nudge="off"><span>관심기업 등록</span></button><div class="toolTip"><span class="tail tail_bottom_center"></span><div class="toolTipCont txtCenter">관심기업 등록</div></div></div>                    <div class="area_btn" value="RWdMdjF1ZVNrZHgyVVlwbU5uQk1kZz09">
+                                                    <div class="area_corp_info">
+                                <a href="/zf_user/company-info/view?csn=RWdMdjF1ZVNrZHgyVVlwbU5uQk1kZz09" target="_blank" class="btn_info track_event data_layer company_popup"
+                                   data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_info">
+                                    기업정보
+                                </a>
+                                <div class="lpop_corp_info area_preview">
+                                </div>
+                            </div>
+                                                                                                    <button type="button" class="btn_recruit track_event"
+                                    data-csn_encrypt="RWdMdjF1ZVNrZHgyVVlwbU5uQk1kZz09"
+                                    data-track_event="total_search|search_recruit|com_recruit_collect_btn">
+                                공고 모아보기 +
+                            </button>
+                                            </div>
+                            </div>
+                <div class="similar_recruit"></div>
+    </div>
+        <div class="item_recruit" value="55364189"
+         data-data_layer="keyword_free|paid_n_quick">
+                    <div class="area_badge">
+            <span class="badge " >
+                <svg>
+                    <use xlink:href="#rec_title_tag_emoji_hot"></use>
+                </svg>
+                인기있는            </span>
+            </div>
+        
+        <div class="area_job">
+                                    <h2 class="job_tit">
+                <a target="_blank" title="[삼우이머션] 정부R&amp;D연구과제사업비,행정관리 (육아휴직대체)" onclick="try{s_trackApply(this, &#39;search&#39;, &#39;generic&#39;)}catch(e){};" rel="" class="data_layer" data-data_layer="keyword_free|paid_n" href="/zf_user/jobs/relay/view?view_type=search&amp;rec_idx=55364189&amp;location=ts&amp;searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&amp;searchType=search&amp;paid_fl=n&amp;search_uuid=x"><span>[삼우이머션] 정부R&D연구과제사업비,행정관리 (육아휴직대체)</span></a>             </h2>
+                            <div class="toolTipWrap wrap_scrap">
+                                        <a style="cursor:pointer" class="icon_scrap_star" onclick="Saramin.btnJob('scrap',this,'','list');" scraped="n" rec_idx="55364189"
+                       data-pattern='{"t_category":"search","t_content":"generic","t_scnid":"","search_uuid":"x","t_ref":"search"}' title="스크랩"
+                       onmouseover="Saramin.favorTooltip(this, 'on');" onmouseout="Saramin.favorTooltip(this, 'off');">
+                        <img src="//www.saraminimage.co.kr/common/bul_sri_star.png" alt="스크랩">
+                    </a>
+                    <div class="toolTip sri_tooltip_scrap">
+                        <span class="tail tail_bottom_center"></span>
+                        <div class="toolTipCont txtCenter">스크랩</div>
+                    </div>
+                </div>
+                        <div class="job_date">
+                <span class="date">~ 12/21(월)</span>
+                <button  class="sri_btn_xs" title="클릭하면 입사지원할 수 있는 창이 뜹니다." onclick="try{quickApplyForm(&#39;55364189&#39;,&#39;&#39;,&#39;t_category=search&t_content=generic&t_scnid=&search_uuid=x&t_ref=search&#39;, &#39;searchType=search&searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&#39;); return false;} catch (e) {}; return false;" onmousedown="try{n_trackEvent(&#39;apply&#39;,&#39;list&#39;,&#39;quick_apply&#39;);}catch(e){}"><span class="sri_btn_immediately" >입사지원</span></button>            </div>
+            <div class="job_condition">
+                <span><a target="_blank" href="/zf_user/area-recruit/area-list/area/106000/areamode/mcode" >부산</a>  <a target="_blank" href="/zf_user/area-recruit/area-list/area/106050" >동구</a></span> <span>경력1년↑</span> <span>초대졸↑</span> <span>기간제·계약직</span>             </div>
+                            <div class="job_sector">
+                    <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=409">서류관리</a></b>, <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=403">비품관리</a></b>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1660">사업관리</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1633">사업기획</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=402">문서작성</a> 외                    <span class="job_day">수정일 26/10/22</span>                                    </div>
+                    </div>
+                            <div class="area_corp">
+                <strong class="corp_name">
+                                            <a href="/zf_user/company-info/view?csn=MWxYU3NvQWhQcjlCYTRadU5pVlppZz09" target="_blank" class="track_event data_layer"
+                           data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_name">
+                            (주)삼우이머션                        </a>
+                        
+                </strong>
+                <div class="toolTipWrap wrap_interested_corp"><button  type="button" csn="MWxYU3NvQWhQcjlCYTRadU5pVlppZz09" title="관심기업 등록" del_fl="n" aria-pressed="false" class="interested_corp" onclick="try{Saramin.btnJob(&#39;favor&#39;, this, &#39;&#39;, &#39;list&#39;);}catch(e){}" onmouseover="Saramin.favorTooltip(this, &#39;on&#39;);" onmouseout="Saramin.favorTooltip(this, &#39;off&#39;);" first_nudge="off"><span>관심기업 등록</span></button><div class="toolTip"><span class="tail tail_bottom_center"></span><div class="toolTipCont txtCenter">관심기업 등록</div></div></div>                    <div class="area_btn" value="MWxYU3NvQWhQcjlCYTRadU5pVlppZz09">
+                                                    <div class="area_corp_info">
+                                <a href="/zf_user/company-info/view?csn=MWxYU3NvQWhQcjlCYTRadU5pVlppZz09" target="_blank" class="btn_info track_event data_layer company_popup"
+                                   data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_info">
+                                    기업정보
+                                </a>
+                                <div class="lpop_corp_info area_preview">
+                                </div>
+                            </div>
+                                                                                                    <button type="button" class="btn_recruit track_event"
+                                    data-csn_encrypt="MWxYU3NvQWhQcjlCYTRadU5pVlppZz09"
+                                    data-track_event="total_search|search_recruit|com_recruit_collect_btn">
+                                공고 모아보기 +
+                            </button>
+                                            </div>
+                            </div>
+                <div class="similar_recruit"></div>
+    </div>
+        <div class="item_recruit" value="55332021"
+         data-data_layer="keyword_free|paid_n_quick">
+                    <div class="area_badge">
+            <span class="badge " >
+                <svg>
+                    <use xlink:href="#rec_title_tag_emoji_hot"></use>
+                </svg>
+                인기있는            </span>
+            </div>
+        
+        <div class="area_job">
+                                    <h2 class="job_tit">
+                <a target="_blank" title="[경영지원] 경영지원 및 자금 담당자 채용 (신입/경력)" onclick="try{s_trackApply(this, &#39;search&#39;, &#39;generic&#39;)}catch(e){};" rel="" class="data_layer" data-data_layer="keyword_free|paid_n" href="/zf_user/jobs/relay/view?view_type=search&amp;rec_idx=55332021&amp;location=ts&amp;searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&amp;searchType=search&amp;paid_fl=n&amp;search_uuid=x"><span>[경영지원] 경영지원 및 자금 담당자 채용 (신입/경력)</span></a>             </h2>
+                            <div class="toolTipWrap wrap_scrap">
+                                        <a style="cursor:pointer" class="icon_scrap_star" onclick="Saramin.btnJob('scrap',this,'','list');" scraped="n" rec_idx="55332021"
+                       data-pattern='{"t_category":"search","t_content":"generic","t_scnid":"","search_uuid":"x","t_ref":"search"}' title="스크랩"
+                       onmouseover="Saramin.favorTooltip(this, 'on');" onmouseout="Saramin.favorTooltip(this, 'off');">
+                        <img src="//www.saraminimage.co.kr/common/bul_sri_star.png" alt="스크랩">
+                    </a>
+                    <div class="toolTip sri_tooltip_scrap">
+                        <span class="tail tail_bottom_center"></span>
+                        <div class="toolTipCont txtCenter">스크랩</div>
+                    </div>
+                </div>
+                        <div class="job_date">
+                <span class="date">~ 10/31(토)</span>
+                <button  class="sri_btn_xs" title="클릭하면 입사지원할 수 있는 창이 뜹니다." onclick="try{quickApplyForm(&#39;55332021&#39;,&#39;&#39;,&#39;t_category=search&t_content=generic&t_scnid=&search_uuid=x&t_ref=search&#39;, &#39;searchType=search&searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&#39;); return false;} catch (e) {}; return false;" onmousedown="try{n_trackEvent(&#39;apply&#39;,&#39;list&#39;,&#39;quick_apply&#39;);}catch(e){}"><span class="sri_btn_immediately" >입사지원</span></button>            </div>
+            <div class="job_condition">
+                <span> <a target="_blank" href="/zf_user/area-recruit/area-list/area/106000" >부산전체</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/110000/areamode/mcode" >경남</a>  <a target="_blank" href="/zf_user/area-recruit/area-list/area/110000" >경남전체</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/110100" >양산시</a></span> <span>경력무관</span> <span>대졸↑</span> <span>정규직</span>             </div>
+                            <div class="job_sector">
+                    <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=409">서류관리</a></b>, <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=414">자산관리</a></b>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=403">비품관리</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=360">자금관리</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=429">경영지원</a> 외                    <span class="job_day">등록일 26/10/19</span>                                    </div>
+                    </div>
+                            <div class="area_corp">
+                <strong class="corp_name">
+                                            <a href="/zf_user/company-info/view?csn=QjdpVXY2bzFubStkMllsZzRmYXJrUT09" target="_blank" class="track_event data_layer"
+                           data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_name">
+                            아덴스라이프사이언스                        </a>
+                        
+                </strong>
+                <div class="toolTipWrap wrap_interested_corp"><button  type="button" csn="QjdpVXY2bzFubStkMllsZzRmYXJrUT09" title="관심기업 등록" del_fl="n" aria-pressed="false" class="interested_corp" onclick="try{Saramin.btnJob(&#39;favor&#39;, this, &#39;&#39;, &#39;list&#39;);}catch(e){}" onmouseover="Saramin.favorTooltip(this, &#39;on&#39;);" onmouseout="Saramin.favorTooltip(this, &#39;off&#39;);" first_nudge="off"><span>관심기업 등록</span></button><div class="toolTip"><span class="tail tail_bottom_center"></span><div class="toolTipCont txtCenter">관심기업 등록</div></div></div>                    <div class="area_btn" value="QjdpVXY2bzFubStkMllsZzRmYXJrUT09">
+                                                    <div class="area_corp_info">
+                                <a href="/zf_user/company-info/view?csn=QjdpVXY2bzFubStkMllsZzRmYXJrUT09" target="_blank" class="btn_info track_event data_layer company_popup"
+                                   data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_info">
+                                    기업정보
+                                </a>
+                                <div class="lpop_corp_info area_preview">
+                                </div>
+                            </div>
+                                                                                                    <button type="button" class="btn_recruit track_event"
+                                    data-csn_encrypt="QjdpVXY2bzFubStkMllsZzRmYXJrUT09"
+                                    data-track_event="total_search|search_recruit|com_recruit_collect_btn">
+                                공고 모아보기 +
+                            </button>
+                                            </div>
+                            </div>
+                <div class="similar_recruit"></div>
+    </div>
+        <div class="item_recruit" value="55179036"
+         data-data_layer="keyword_free|paid_n_quick">
+                    <div class="area_badge">
+            <span class="badge " >
+                <svg>
+                    <use xlink:href="#rec_title_tag_emoji_hot"></use>
+                </svg>
+                인기있는            </span>
+            </div>
+        
+        <div class="area_job">
+                                    <h2 class="job_tit">
+                <a target="_blank" title="2026년 “효원HM” R&amp;D 및 지원사업 직원 모집" onclick="try{s_trackApply(this, &#39;search&#39;, &#39;generic&#39;)}catch(e){};" rel="" class="data_layer" data-data_layer="keyword_free|paid_n" href="/zf_user/jobs/relay/view?view_type=search&amp;rec_idx=55179036&amp;location=ts&amp;searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&amp;searchType=search&amp;paid_fl=n&amp;search_uuid=x"><span>2026년 “효원HM” R&D 및 지원사업 직원 모집</span></a>             </h2>
+                            <div class="toolTipWrap wrap_scrap">
+                                        <a style="cursor:pointer" class="icon_scrap_star" onclick="Saramin.btnJob('scrap',this,'','list');" scraped="n" rec_idx="55179036"
+                       data-pattern='{"t_category":"search","t_content":"generic","t_scnid":"","search_uuid":"x","t_ref":"search"}' title="스크랩"
+                       onmouseover="Saramin.favorTooltip(this, 'on');" onmouseout="Saramin.favorTooltip(this, 'off');">
+                        <img src="//www.saraminimage.co.kr/common/bul_sri_star.png" alt="스크랩">
+                    </a>
+                    <div class="toolTip sri_tooltip_scrap">
+                        <span class="tail tail_bottom_center"></span>
+                        <div class="toolTipCont txtCenter">스크랩</div>
+                    </div>
+                </div>
+                        <div class="job_date">
+                <span class="date">~ 10/30(금)</span>
+                <button  class="sri_btn_xs" title="클릭하면 입사지원할 수 있는 창이 뜹니다." onclick="try{quickApplyForm(&#39;55179036&#39;,&#39;&#39;,&#39;t_category=search&t_content=generic&t_scnid=&search_uuid=x&t_ref=search&#39;, &#39;searchType=search&searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&#39;); return false;} catch (e) {}; return false;" onmousedown="try{n_trackEvent(&#39;apply&#39;,&#39;list&#39;,&#39;quick_apply&#39;);}catch(e){}"><span class="sri_btn_immediately" >입사지원</span></button>            </div>
+            <div class="job_condition">
+                <span> <a target="_blank" href="/zf_user/area-recruit/area-list/area/106000" >부산전체</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/106010" >강서구</a></span> <span>경력무관</span> <span>대졸↑</span> <span>정규직</span>             </div>
+                            <div class="job_sector">
+                    <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=2225">경영관리</a></b>, <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1660">사업관리</a></b>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1633">사업기획</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1625">경영기획</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1652">경영분석</a> 외                    <span class="job_day">수정일 26/10/02</span>                                    </div>
+                    </div>
+                            <div class="area_corp">
+                <strong class="corp_name">
+                                            <a href="/zf_user/company-info/view?csn=N1E1YlU2emlLY3paZytrTWZuaWEwQT09" target="_blank" class="track_event data_layer"
+                           data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_name">
+                            효원HM                        </a>
+                        
+                </strong>
+                <div class="toolTipWrap wrap_interested_corp"><button  type="button" csn="N1E1YlU2emlLY3paZytrTWZuaWEwQT09" title="관심기업 등록" del_fl="n" aria-pressed="false" class="interested_corp" onclick="try{Saramin.btnJob(&#39;favor&#39;, this, &#39;&#39;, &#39;list&#39;);}catch(e){}" onmouseover="Saramin.favorTooltip(this, &#39;on&#39;);" onmouseout="Saramin.favorTooltip(this, &#39;off&#39;);" first_nudge="off"><span>관심기업 등록</span></button><div class="toolTip"><span class="tail tail_bottom_center"></span><div class="toolTipCont txtCenter">관심기업 등록</div></div></div>                    <div class="area_btn" value="N1E1YlU2emlLY3paZytrTWZuaWEwQT09">
+                                                    <div class="area_corp_info">
+                                <a href="/zf_user/company-info/view?csn=N1E1YlU2emlLY3paZytrTWZuaWEwQT09" target="_blank" class="btn_info track_event data_layer company_popup"
+                                   data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_info">
+                                    기업정보
+                                </a>
+                                <div class="lpop_corp_info area_preview">
+                                </div>
+                            </div>
+                                                                                                    <button type="button" class="btn_recruit track_event"
+                                    data-csn_encrypt="N1E1YlU2emlLY3paZytrTWZuaWEwQT09"
+                                    data-track_event="total_search|search_recruit|com_recruit_collect_btn">
+                                공고 모아보기 +
+                            </button>
+                                            </div>
+                            </div>
+                <div class="similar_recruit"></div>
+    </div>
+        <div class="item_recruit" value="55286087"
+         data-data_layer="keyword_free|paid_n_quick">
+                    <div class="area_badge">
+            <span class="badge " >
+                <svg>
+                    <use xlink:href="#rec_title_tag_emoji_mActive"></use>
+                </svg>
+                기획·전략 지원 급상승            </span>
+            </div>
+        
+        <div class="area_job">
+                                    <h2 class="job_tit">
+                <a target="_blank" title="(주)시울프마린 [기획개발팀] 경력직 채용" onclick="try{s_trackApply(this, &#39;search&#39;, &#39;generic&#39;)}catch(e){};" rel="" class="data_layer" data-data_layer="keyword_free|paid_n" href="/zf_user/jobs/relay/view?view_type=search&amp;rec_idx=55286087&amp;location=ts&amp;searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&amp;searchType=search&amp;paid_fl=n&amp;search_uuid=x"><span>(주)시울프마린 [기획개발팀] 경력직 채용</span></a>             </h2>
+                            <div class="toolTipWrap wrap_scrap">
+                                        <a style="cursor:pointer" class="icon_scrap_star" onclick="Saramin.btnJob('scrap',this,'','list');" scraped="n" rec_idx="55286087"
+                       data-pattern='{"t_category":"search","t_content":"generic","t_scnid":"","search_uuid":"x","t_ref":"search"}' title="스크랩"
+                       onmouseover="Saramin.favorTooltip(this, 'on');" onmouseout="Saramin.favorTooltip(this, 'off');">
+                        <img src="//www.saraminimage.co.kr/common/bul_sri_star.png" alt="스크랩">
+                    </a>
+                    <div class="toolTip sri_tooltip_scrap">
+                        <span class="tail tail_bottom_center"></span>
+                        <div class="toolTipCont txtCenter">스크랩</div>
+                    </div>
+                </div>
+                        <div class="job_date">
+                <span class="date">~ 10/31(토)</span>
+                <button  class="sri_btn_xs" title="클릭하면 입사지원할 수 있는 창이 뜹니다." onclick="try{quickApplyForm(&#39;55286087&#39;,&#39;&#39;,&#39;t_category=search&t_content=generic&t_scnid=&search_uuid=x&t_ref=search&#39;, &#39;searchType=search&searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&#39;); return false;} catch (e) {}; return false;" onmousedown="try{n_trackEvent(&#39;apply&#39;,&#39;list&#39;,&#39;quick_apply&#39;);}catch(e){}"><span class="sri_btn_immediately" >입사지원</span></button>            </div>
+            <div class="job_condition">
+                <span> <a target="_blank" href="/zf_user/area-recruit/area-list/area/106000" >부산전체</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/106010" >강서구</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/106080" >북구</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/106090" >사상구</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/106100" >사하구</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/110000/areamode/mcode" >경남</a>  <a target="_blank" href="/zf_user/area-recruit/area-list/area/110000" >경남전체</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/110040" >김해시</a>, <a target="_blank" href="/zf_user/area-recruit/area-list/area/110100" >양산시</a></span> <span>경력3년↑</span> <span>초대졸↑</span> <span>정규직</span>             </div>
+                            <div class="job_sector">
+                    <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=2205">기획</a></b>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=810">R&D</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=811">R&D기획</a>, <a  target="_blank" href="/zf_user/search?searchword=국책과제">국책과제</a>, <a  target="_blank" href="/zf_user/search?searchword=정부과제">정부과제</a> 외                    <span class="job_day">수정일 26/10/19</span>                                    </div>
+                    </div>
+                            <div class="area_corp">
+                <strong class="corp_name">
+                                            <a href="/zf_user/company-info/view?csn=aytKL25PZnN1N2JtNnVoVWgxOG1KQT09" target="_blank" class="track_event data_layer"
+                           data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_name">
+                            (주)시울프마린                        </a>
+                        
+                </strong>
+                <div class="toolTipWrap wrap_interested_corp"><button  type="button" csn="aytKL25PZnN1N2JtNnVoVWgxOG1KQT09" title="관심기업 등록" del_fl="n" aria-pressed="false" class="interested_corp" onclick="try{Saramin.btnJob(&#39;favor&#39;, this, &#39;&#39;, &#39;list&#39;);}catch(e){}" onmouseover="Saramin.favorTooltip(this, &#39;on&#39;);" onmouseout="Saramin.favorTooltip(this, &#39;off&#39;);" first_nudge="off"><span>관심기업 등록</span></button><div class="toolTip"><span class="tail tail_bottom_center"></span><div class="toolTipCont txtCenter">관심기업 등록</div></div></div>                    <div class="area_btn" value="aytKL25PZnN1N2JtNnVoVWgxOG1KQT09">
+                                                    <div class="area_corp_info">
+                                <a href="/zf_user/company-info/view?csn=aytKL25PZnN1N2JtNnVoVWgxOG1KQT09" target="_blank" class="btn_info track_event data_layer company_popup"
+                                   data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_info">
+                                    기업정보
+                                </a>
+                                <div class="lpop_corp_info area_preview">
+                                </div>
+                            </div>
+                                                                                                    <button type="button" class="btn_recruit track_event"
+                                    data-csn_encrypt="aytKL25PZnN1N2JtNnVoVWgxOG1KQT09"
+                                    data-track_event="total_search|search_recruit|com_recruit_collect_btn">
+                                공고 모아보기 +
+                            </button>
+                                            </div>
+                            </div>
+                <div class="similar_recruit"></div>
+    </div>
+        <div class="item_recruit" value="54911619"
+         data-data_layer="keyword_free|paid_n_quick">
+                    <div class="area_badge">
+            <span class="badge " >
+                <svg>
+                    <use xlink:href="#rec_title_tag_emoji_welfare"></use>
+                </svg>
+                성과급/상여금            </span>
+            </div>
+        
+        <div class="area_job">
+                                    <h2 class="job_tit">
+                <a target="_blank" title="엠티에이치콘트롤밸브(주) 부설연구소 연구원 채용 (경력/신입)" onclick="try{s_trackApply(this, &#39;search&#39;, &#39;generic&#39;)}catch(e){};" rel="" class="data_layer" data-data_layer="keyword_free|paid_n" href="/zf_user/jobs/relay/view?view_type=search&amp;rec_idx=54911619&amp;location=ts&amp;searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&amp;searchType=search&amp;paid_fl=n&amp;search_uuid=x"><span>엠티에이치콘트롤밸브(주) 부설연구소 연구원 채용 (경력/신입)</span></a>             </h2>
+                            <div class="toolTipWrap wrap_scrap">
+                                        <a style="cursor:pointer" class="icon_scrap_star" onclick="Saramin.btnJob('scrap',this,'','list');" scraped="n" rec_idx="54911619"
+                       data-pattern='{"t_category":"search","t_content":"generic","t_scnid":"","search_uuid":"x","t_ref":"search"}' title="스크랩"
+                       onmouseover="Saramin.favorTooltip(this, 'on');" onmouseout="Saramin.favorTooltip(this, 'off');">
+                        <img src="//www.saraminimage.co.kr/common/bul_sri_star.png" alt="스크랩">
+                    </a>
+                    <div class="toolTip sri_tooltip_scrap">
+                        <span class="tail tail_bottom_center"></span>
+                        <div class="toolTipCont txtCenter">스크랩</div>
+                    </div>
+                </div>
+                        <div class="job_date">
+                <span class="date">채용시</span>
+                <button  class="sri_btn_xs" title="클릭하면 입사지원할 수 있는 창이 뜹니다." onclick="try{quickApplyForm(&#39;54911619&#39;,&#39;&#39;,&#39;t_category=search&t_content=generic&t_scnid=&search_uuid=x&t_ref=search&#39;, &#39;searchType=search&searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&#39;); return false;} catch (e) {}; return false;" onmousedown="try{n_trackEvent(&#39;apply&#39;,&#39;list&#39;,&#39;quick_apply&#39;);}catch(e){}"><span class="sri_btn_immediately" >입사지원</span></button>            </div>
+            <div class="job_condition">
+                <span><a target="_blank" href="/zf_user/area-recruit/area-list/area/106000/areamode/mcode" >부산</a>  <a target="_blank" href="/zf_user/area-recruit/area-list/area/106010" >강서구</a></span> <span>경력무관</span> <span>대졸↑</span> <span>정규직</span>             </div>
+                            <div class="job_sector">
+                    <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1010">제품설계</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1011">구조해석/설계</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1012">금형설계</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1015">기술설계</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1016">부품설계</a> 외                    <span class="job_day">등록일 26/09/01</span>                                    </div>
+                    </div>
+                            <div class="area_corp">
+                <strong class="corp_name">
+                                            <a href="/zf_user/company-info/view?csn=WSs1d0o1TEx6Q2hwUTJNd3VvVE14Zz09" target="_blank" class="track_event data_layer"
+                           data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_name">
+                            엠티에이치콘트롤밸브(주)                        </a>
+                        
+                </strong>
+                <div class="toolTipWrap wrap_interested_corp"><button  type="button" csn="WSs1d0o1TEx6Q2hwUTJNd3VvVE14Zz09" title="관심기업 등록" del_fl="n" aria-pressed="false" class="interested_corp" onclick="try{Saramin.btnJob(&#39;favor&#39;, this, &#39;&#39;, &#39;list&#39;);}catch(e){}" onmouseover="Saramin.favorTooltip(this, &#39;on&#39;);" onmouseout="Saramin.favorTooltip(this, &#39;off&#39;);" first_nudge="off"><span>관심기업 등록</span></button><div class="toolTip"><span class="tail tail_bottom_center"></span><div class="toolTipCont txtCenter">관심기업 등록</div></div></div>                    <div class="area_btn" value="WSs1d0o1TEx6Q2hwUTJNd3VvVE14Zz09">
+                                                    <div class="area_corp_info">
+                                <a href="/zf_user/company-info/view?csn=WSs1d0o1TEx6Q2hwUTJNd3VvVE14Zz09" target="_blank" class="btn_info track_event data_layer company_popup"
+                                   data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_info">
+                                    기업정보
+                                </a>
+                                <div class="lpop_corp_info area_preview">
+                                </div>
+                            </div>
+                                                                                                    <button type="button" class="btn_recruit track_event"
+                                    data-csn_encrypt="WSs1d0o1TEx6Q2hwUTJNd3VvVE14Zz09"
+                                    data-track_event="total_search|search_recruit|com_recruit_collect_btn">
+                                공고 모아보기 +
+                            </button>
+                                            </div>
+                            </div>
+                <div class="similar_recruit"></div>
+    </div>
+        <div class="item_recruit" value="55271301"
+         data-data_layer="keyword_free|paid_n_quick">
+                    <div class="area_badge">
+            <span class="badge " >
+                <svg>
+                    <use xlink:href="#rec_title_tag_emoji_invest"></use>
+                </svg>
+                급성장중            </span>
+            </div>
+        
+        <div class="area_job">
+                                    <h2 class="job_tit">
+                <a target="_blank" title="(주)슈올즈 연구행정관리직 경력 채용 공고" onclick="try{s_trackApply(this, &#39;search&#39;, &#39;generic&#39;)}catch(e){};" rel="" class="data_layer" data-data_layer="keyword_free|paid_n" href="/zf_user/jobs/relay/view?view_type=search&amp;rec_idx=55271301&amp;location=ts&amp;searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&amp;searchType=search&amp;paid_fl=n&amp;search_uuid=x"><span>(주)슈올즈 연구행정관리직 경력 채용 공고</span></a>             </h2>
+                            <div class="toolTipWrap wrap_scrap">
+                                        <a style="cursor:pointer" class="icon_scrap_star" onclick="Saramin.btnJob('scrap',this,'','list');" scraped="n" rec_idx="55271301"
+                       data-pattern='{"t_category":"search","t_content":"generic","t_scnid":"","search_uuid":"x","t_ref":"search"}' title="스크랩"
+                       onmouseover="Saramin.favorTooltip(this, 'on');" onmouseout="Saramin.favorTooltip(this, 'off');">
+                        <img src="//www.saraminimage.co.kr/common/bul_sri_star.png" alt="스크랩">
+                    </a>
+                    <div class="toolTip sri_tooltip_scrap">
+                        <span class="tail tail_bottom_center"></span>
+                        <div class="toolTipCont txtCenter">스크랩</div>
+                    </div>
+                </div>
+                        <div class="job_date">
+                <span class="date">~ 11/14(토)</span>
+                <button  class="sri_btn_xs" title="클릭하면 입사지원할 수 있는 창이 뜹니다." onclick="try{quickApplyForm(&#39;55271301&#39;,&#39;&#39;,&#39;t_category=search&t_content=generic&t_scnid=&search_uuid=x&t_ref=search&#39;, &#39;searchType=search&searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&#39;); return false;} catch (e) {}; return false;" onmousedown="try{n_trackEvent(&#39;apply&#39;,&#39;list&#39;,&#39;quick_apply&#39;);}catch(e){}"><span class="sri_btn_immediately" >입사지원</span></button>            </div>
+            <div class="job_condition">
+                <span><a target="_blank" href="/zf_user/area-recruit/area-list/area/106000/areamode/mcode" >부산</a>  <a target="_blank" href="/zf_user/area-recruit/area-list/area/106090" >사상구</a></span> <span>경력3년↑</span> <span>학력무관</span> <span>정규직</span>             </div>
+                            <div class="job_sector">
+                    <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=360">자금관리</a></b>, <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=2220">재무</a></b>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=328">전산회계</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=810">R&D</a>, <a  target="_blank" href="/zf_user/jobs/list/industry?ind_key=20105">전기</a> 외                    <span class="job_day">수정일 26/10/15</span>                                    </div>
+                    </div>
+                            <div class="area_corp">
+                <strong class="corp_name">
+                                            <a href="/zf_user/company-info/view?csn=aDlPUG5PUHhwUFQzOXYxMG95QkYzZz09" target="_blank" class="track_event data_layer"
+                           data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_name">
+                            (주)슈올즈                        </a>
+                        
+                </strong>
+                <div class="toolTipWrap wrap_interested_corp"><button  type="button" csn="aDlPUG5PUHhwUFQzOXYxMG95QkYzZz09" title="관심기업 등록" del_fl="n" aria-pressed="false" class="interested_corp" onclick="try{Saramin.btnJob(&#39;favor&#39;, this, &#39;&#39;, &#39;list&#39;);}catch(e){}" onmouseover="Saramin.favorTooltip(this, &#39;on&#39;);" onmouseout="Saramin.favorTooltip(this, &#39;off&#39;);" first_nudge="off"><span>관심기업 등록</span></button><div class="toolTip"><span class="tail tail_bottom_center"></span><div class="toolTipCont txtCenter">관심기업 등록</div></div></div>                    <div class="area_btn" value="aDlPUG5PUHhwUFQzOXYxMG95QkYzZz09">
+                                                    <div class="area_corp_info">
+                                <a href="/zf_user/company-info/view?csn=aDlPUG5PUHhwUFQzOXYxMG95QkYzZz09" target="_blank" class="btn_info track_event data_layer company_popup"
+                                   data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_info">
+                                    기업정보
+                                </a>
+                                <div class="lpop_corp_info area_preview">
+                                </div>
+                            </div>
+                                                                                                    <button type="button" class="btn_recruit track_event"
+                                    data-csn_encrypt="aDlPUG5PUHhwUFQzOXYxMG95QkYzZz09"
+                                    data-track_event="total_search|search_recruit|com_recruit_collect_btn">
+                                공고 모아보기 +
+                            </button>
+                                            </div>
+                            </div>
+                <div class="similar_recruit"></div>
+    </div>
+        <div class="item_recruit" value="55252892"
+         data-data_layer="keyword_free|paid_n_quick">
+                    <div class="area_badge">
+            <span class="badge " >
+                <svg>
+                    <use xlink:href="#rec_title_tag_emoji_comInfo"></use>
+                </svg>
+                연봉상승률 15% 이상            </span>
+            </div>
+        
+        <div class="area_job">
+                                    <h2 class="job_tit">
+                <a target="_blank" title="국가 R&amp;D 과제관리 · 연구행정 연구원 모집" onclick="try{s_trackApply(this, &#39;search&#39;, &#39;generic&#39;)}catch(e){};" rel="" class="data_layer" data-data_layer="keyword_free|paid_n" href="/zf_user/jobs/relay/view?view_type=search&amp;rec_idx=55252892&amp;location=ts&amp;searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&amp;searchType=search&amp;paid_fl=n&amp;search_uuid=x"><span>국가 R&D 과제관리 · 연구행정 연구원 모집</span></a>             </h2>
+                            <div class="toolTipWrap wrap_scrap">
+                                        <a style="cursor:pointer" class="icon_scrap_star" onclick="Saramin.btnJob('scrap',this,'','list');" scraped="n" rec_idx="55252892"
+                       data-pattern='{"t_category":"search","t_content":"generic","t_scnid":"","search_uuid":"x","t_ref":"search"}' title="스크랩"
+                       onmouseover="Saramin.favorTooltip(this, 'on');" onmouseout="Saramin.favorTooltip(this, 'off');">
+                        <img src="//www.saraminimage.co.kr/common/bul_sri_star.png" alt="스크랩">
+                    </a>
+                    <div class="toolTip sri_tooltip_scrap">
+                        <span class="tail tail_bottom_center"></span>
+                        <div class="toolTipCont txtCenter">스크랩</div>
+                    </div>
+                </div>
+                        <div class="job_date">
+                <span class="date">~ 11/11(수)</span>
+                <button  class="sri_btn_xs" title="클릭하면 입사지원할 수 있는 창이 뜹니다." onclick="try{quickApplyForm(&#39;55252892&#39;,&#39;&#39;,&#39;t_category=search&t_content=generic&t_scnid=&search_uuid=x&t_ref=search&#39;, &#39;searchType=search&searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&#39;); return false;} catch (e) {}; return false;" onmousedown="try{n_trackEvent(&#39;apply&#39;,&#39;list&#39;,&#39;quick_apply&#39;);}catch(e){}"><span class="sri_btn_immediately" >입사지원</span></button>            </div>
+            <div class="job_condition">
+                <span><a target="_blank" href="/zf_user/area-recruit/area-list/area/106000/areamode/mcode" >부산</a>  <a target="_blank" href="/zf_user/area-recruit/area-list/area/106030" >기장군</a></span> <span>경력2년↑</span> <span>초대졸↑</span> <span>정규직</span>             </div>
+                            <div class="job_sector">
+                    <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=801">연구원</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=810">R&D</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=811">R&D기획</a>, <a  target="_blank" href="/zf_user/jobs/list/industry?ind_key=20107">전기설비</a>                    <span class="job_day">수정일 26/10/12</span>                                    </div>
+                    </div>
+                            <div class="area_corp">
+                <strong class="corp_name">
+                                            <a href="/zf_user/company-info/view?csn=TElLaTMrVk9lUlgyM1FjUm1sbW5kUT09" target="_blank" class="track_event data_layer"
+                           data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_name">
+                            (주)성산브이씨씨                        </a>
+                        
+                </strong>
+                <div class="toolTipWrap wrap_interested_corp"><button  type="button" csn="TElLaTMrVk9lUlgyM1FjUm1sbW5kUT09" title="관심기업 등록" del_fl="n" aria-pressed="false" class="interested_corp" onclick="try{Saramin.btnJob(&#39;favor&#39;, this, &#39;&#39;, &#39;list&#39;);}catch(e){}" onmouseover="Saramin.favorTooltip(this, &#39;on&#39;);" onmouseout="Saramin.favorTooltip(this, &#39;off&#39;);" first_nudge="off"><span>관심기업 등록</span></button><div class="toolTip"><span class="tail tail_bottom_center"></span><div class="toolTipCont txtCenter">관심기업 등록</div></div></div>                    <div class="area_btn" value="TElLaTMrVk9lUlgyM1FjUm1sbW5kUT09">
+                                                    <div class="area_corp_info">
+                                <a href="/zf_user/company-info/view?csn=TElLaTMrVk9lUlgyM1FjUm1sbW5kUT09" target="_blank" class="btn_info track_event data_layer company_popup"
+                                   data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_info">
+                                    기업정보
+                                </a>
+                                <div class="lpop_corp_info area_preview">
+                                </div>
+                            </div>
+                                                                                                    <button type="button" class="btn_recruit track_event"
+                                    data-csn_encrypt="TElLaTMrVk9lUlgyM1FjUm1sbW5kUT09"
+                                    data-track_event="total_search|search_recruit|com_recruit_collect_btn">
+                                공고 모아보기 +
+                            </button>
+                                            </div>
+                            </div>
+                <div class="similar_recruit"></div>
+    </div>
+        <div class="item_recruit" value="55184296"
+         data-data_layer="keyword_free|paid_n_quick">
+        
+        <div class="area_job">
+                                    <h2 class="job_tit">
+                <a target="_blank" title="연구기획 및 사업기획 담당자 채용(경력무관)" onclick="try{s_trackApply(this, &#39;search&#39;, &#39;generic&#39;)}catch(e){};" rel="" class="data_layer" data-data_layer="keyword_free|paid_n" href="/zf_user/jobs/relay/view?view_type=search&amp;rec_idx=55184296&amp;location=ts&amp;searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&amp;searchType=search&amp;paid_fl=n&amp;search_uuid=x"><span>연구기획 및 사업기획 담당자 채용(경력무관)</span></a>             </h2>
+                            <div class="toolTipWrap wrap_scrap">
+                                        <a style="cursor:pointer" class="icon_scrap_star" onclick="Saramin.btnJob('scrap',this,'','list');" scraped="n" rec_idx="55184296"
+                       data-pattern='{"t_category":"search","t_content":"generic","t_scnid":"","search_uuid":"x","t_ref":"search"}' title="스크랩"
+                       onmouseover="Saramin.favorTooltip(this, 'on');" onmouseout="Saramin.favorTooltip(this, 'off');">
+                        <img src="//www.saraminimage.co.kr/common/bul_sri_star.png" alt="스크랩">
+                    </a>
+                    <div class="toolTip sri_tooltip_scrap">
+                        <span class="tail tail_bottom_center"></span>
+                        <div class="toolTipCont txtCenter">스크랩</div>
+                    </div>
+                </div>
+                        <div class="job_date">
+                <span class="date">~ 11/01(일)</span>
+                <button  class="sri_btn_xs" title="클릭하면 입사지원할 수 있는 창이 뜹니다." onclick="try{quickApplyForm(&#39;55184296&#39;,&#39;&#39;,&#39;t_category=search&t_content=generic&t_scnid=&search_uuid=x&t_ref=search&#39;, &#39;searchType=search&searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&#39;); return false;} catch (e) {}; return false;" onmousedown="try{n_trackEvent(&#39;apply&#39;,&#39;list&#39;,&#39;quick_apply&#39;);}catch(e){}"><span class="sri_btn_immediately" >입사지원</span></button>            </div>
+            <div class="job_condition">
+                <span><a target="_blank" href="/zf_user/area-recruit/area-list/area/106000/areamode/mcode" >부산</a>  <a target="_blank" href="/zf_user/area-recruit/area-list/area/106140" >영도구</a></span> <span>경력무관</span> <span>대졸↑</span> <span>정규직</span>             </div>
+                            <div class="job_sector">
+                    <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1668">예산관리</a></b>, <b><a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1660">사업관리</a></b>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1633">사업기획</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=1625">경영기획</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=2205">기획</a> 외                    <span class="job_day">등록일 26/10/02</span>                                    </div>
+                    </div>
+                            <div class="area_corp">
+                <strong class="corp_name">
+                                            <a href="/zf_user/company-info/view?csn=Z3pubTRiVS9KZ2p0L0wyTTRKTWJmZz09" target="_blank" class="track_event data_layer"
+                           data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_name">
+                            (주)데이터플레어                        </a>
+                        
+                </strong>
+                <div class="toolTipWrap wrap_interested_corp"><button  type="button" csn="Z3pubTRiVS9KZ2p0L0wyTTRKTWJmZz09" title="관심기업 등록" del_fl="n" aria-pressed="false" class="interested_corp" onclick="try{Saramin.btnJob(&#39;favor&#39;, this, &#39;&#39;, &#39;list&#39;);}catch(e){}" onmouseover="Saramin.favorTooltip(this, &#39;on&#39;);" onmouseout="Saramin.favorTooltip(this, &#39;off&#39;);" first_nudge="off"><span>관심기업 등록</span></button><div class="toolTip"><span class="tail tail_bottom_center"></span><div class="toolTipCont txtCenter">관심기업 등록</div></div></div>                    <div class="area_btn" value="Z3pubTRiVS9KZ2p0L0wyTTRKTWJmZz09">
+                                                    <div class="area_corp_info">
+                                <a href="/zf_user/company-info/view?csn=Z3pubTRiVS9KZ2p0L0wyTTRKTWJmZz09" target="_blank" class="btn_info track_event data_layer company_popup"
+                                   data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_info">
+                                    기업정보
+                                </a>
+                                <div class="lpop_corp_info area_preview">
+                                </div>
+                            </div>
+                                                                                                    <button type="button" class="btn_recruit track_event"
+                                    data-csn_encrypt="Z3pubTRiVS9KZ2p0L0wyTTRKTWJmZz09"
+                                    data-track_event="total_search|search_recruit|com_recruit_collect_btn">
+                                공고 모아보기 +
+                            </button>
+                                            </div>
+                            </div>
+                <div class="similar_recruit"></div>
+    </div>
+        <div class="item_recruit" value="55204333"
+         data-data_layer="keyword_free|paid_n_quick">
+                    <div class="area_badge">
+            <span class="badge " >
+                <svg>
+                    <use xlink:href="#rec_title_tag_emoji_welfare"></use>
+                </svg>
+                자유로운 연차            </span>
+            </div>
+        
+        <div class="area_job">
+                                    <h2 class="job_tit">
+                <a target="_blank" title="(주)아이키 정형외과 의료기기 R&amp;D 연구소장 경력 채용 공고입니다" onclick="try{s_trackApply(this, &#39;search&#39;, &#39;generic&#39;)}catch(e){};" rel="" class="data_layer" data-data_layer="keyword_free|paid_n" href="/zf_user/jobs/relay/view?view_type=search&amp;rec_idx=55204333&amp;location=ts&amp;searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&amp;searchType=search&amp;paid_fl=n&amp;search_uuid=x"><span>(주)아이키 정형외과 의료기기 R&D 연구소장 경력 채용 공고입니다</span></a>             </h2>
+                            <div class="toolTipWrap wrap_scrap">
+                                        <a style="cursor:pointer" class="icon_scrap_star" onclick="Saramin.btnJob('scrap',this,'','list');" scraped="n" rec_idx="55204333"
+                       data-pattern='{"t_category":"search","t_content":"generic","t_scnid":"","search_uuid":"x","t_ref":"search"}' title="스크랩"
+                       onmouseover="Saramin.favorTooltip(this, 'on');" onmouseout="Saramin.favorTooltip(this, 'off');">
+                        <img src="//www.saraminimage.co.kr/common/bul_sri_star.png" alt="스크랩">
+                    </a>
+                    <div class="toolTip sri_tooltip_scrap">
+                        <span class="tail tail_bottom_center"></span>
+                        <div class="toolTipCont txtCenter">스크랩</div>
+                    </div>
+                </div>
+                        <div class="job_date">
+                <span class="date">채용시</span>
+                <button  class="sri_btn_xs" title="클릭하면 입사지원할 수 있는 창이 뜹니다." onclick="try{quickApplyForm(&#39;55204333&#39;,&#39;&#39;,&#39;t_category=search&t_content=generic&t_scnid=&search_uuid=x&t_ref=search&#39;, &#39;searchType=search&searchword=%EC%97%B0%EA%B5%AC%EB%B9%84+%EA%B4%80%EB%A6%AC&#39;); return false;} catch (e) {}; return false;" onmousedown="try{n_trackEvent(&#39;apply&#39;,&#39;list&#39;,&#39;quick_apply&#39;);}catch(e){}"><span class="sri_btn_immediately" >입사지원</span></button>            </div>
+            <div class="job_condition">
+                <span><a target="_blank" href="/zf_user/area-recruit/area-list/area/106000/areamode/mcode" >부산</a>  <a target="_blank" href="/zf_user/area-recruit/area-list/area/106070" >부산진구</a></span> <span>경력10년↑</span> <span>박사</span> <span>정규직</span> <span>7,000 만원</span>             </div>
+                            <div class="job_sector">
+                    <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=497">CRM(임상연구전문가)</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=840">의료기기연구</a>, <a  target="_blank" href="/zf_user/jobs/list/job-category?cat_kewd=854">학술연구</a>, <a  target="_blank" href="/zf_user/jobs/list/industry?ind_key=70115">의료기기</a>                    <span class="job_day">수정일 26/10/22</span>                                    </div>
+                    </div>
+                            <div class="area_corp">
+                <strong class="corp_name">
+                                            <a href="/zf_user/company-info/view?csn=VENaR2JsTDAzQ1QyVXYxbVV3UGZtUT09" target="_blank" class="track_event data_layer"
+                           data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_name">
+                            (주)아이키                        </a>
+                        
+                </strong>
+                <div class="toolTipWrap wrap_interested_corp"><button  type="button" csn="VENaR2JsTDAzQ1QyVXYxbVV3UGZtUT09" title="관심기업 등록" del_fl="n" aria-pressed="false" class="interested_corp" onclick="try{Saramin.btnJob(&#39;favor&#39;, this, &#39;&#39;, &#39;list&#39;);}catch(e){}" onmouseover="Saramin.favorTooltip(this, &#39;on&#39;);" onmouseout="Saramin.favorTooltip(this, &#39;off&#39;);" first_nudge="off"><span>관심기업 등록</span></button><div class="toolTip"><span class="tail tail_bottom_center"></span><div class="toolTipCont txtCenter">관심기업 등록</div></div></div>                    <div class="area_btn" value="VENaR2JsTDAzQ1QyVXYxbVV3UGZtUT09">
+                                                    <div class="area_corp_info">
+                                <a href="/zf_user/company-info/view?csn=VENaR2JsTDAzQ1QyVXYxbVV3UGZtUT09" target="_blank" class="btn_info track_event data_layer company_popup"
+                                   data-track_event="total_search|search_recruit|com_info_btn" data-data_layer="recruit_com|com_info">
+                                    기업정보
+                                </a>
+                                <div class="lpop_corp_info area_preview">
+                                </div>
+                            </div>
+                                                                                                    <button type="button" class="btn_recruit track_event"
+                                    data-csn_encrypt="VENaR2JsTDAzQ1QyVXYxbVV3UGZtUT09"
+                                    data-track_event="total_search|search_recruit|com_recruit_collect_btn">
+                                공고 모아보기 +
+                            </button>
+                                            </div>
+                            </div>
+                <div class="similar_recruit"></div>
+    </div>
+        </div>
+    <div class="content_bottom">
+            
+</div></section>
+</body></html>

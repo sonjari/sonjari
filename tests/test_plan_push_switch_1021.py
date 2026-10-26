@@ -52,5 +52,6 @@ def test_the_switch_reads_the_setting_when_the_request_does_not_say(tmp_path: Pa
     assert JarvisConfig(data_dir=tmp_path).plan_push_enabled is True
     source = inspect.getsource(agent_module.BrowserAgent.run)
     assert 'getattr(self.config, "plan_push_enabled", True)) if plan_push is None else bool(plan_push)' in source
-    # 코드 판은 늘 켠다(끄면 「최종 답만 써라」가 안 걸린다) · 끝 검사 · 사람 확인 문은 원래 계획을 본다.
-    assert 'loop_plan = plan if (plan_push_on or model_role == "code") else []' in source
+    # 코드 판은 늘 켠다(끄면 「최종 답만 써라」가 안 걸린다). 2026-10-24 부터 미는 것은 **확실한 요구**뿐이다(§55-41) —
+    #   그 행동은 test_requirement_grades_1024 가 판을 통째로 돌려 본다(흐린 요구로는 대신 열기 0번 · 스위치를 끄면 1번).
+    assert 'loop_plan = firm_plan if (plan_push_on or model_role == "code") else []' in source

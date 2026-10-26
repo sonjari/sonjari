@@ -37,3 +37,4 @@
 .context-apply label input { margin-top: 2px; accent-color: rgb(var(--brand-bright)); }
 .context-apply label span { display: flex; flex-direction: column; gap: 2px; }
 .context-apply label small { color: rgb(var(--text-5, var(--text-4))); line-height: 1.45; }
+.context-squeeze { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

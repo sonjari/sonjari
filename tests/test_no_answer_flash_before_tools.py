@@ -151,3 +151,26 @@ def test_paint_answer_stays_quiet_when_there_is_nothing_to_say() -> None:
 
     assert paint_answer(events, "job-4", "") is False
     assert [e.event for e in events.get_since(0)] == []
+
+
+def _live(events: EventBus) -> list[tuple[str, int]]:
+    return [(e.payload["phase"], e.payload["content_chars"]) for e in events.get_since(0) if e.event == "agent_live"]
+
+
+def test_the_purple_line_says_what_the_model_is_doing_without_the_text(tmp_path) -> None:
+    """10-25 대표: 답을 쓰는 동안 화면이 「도구를 고르는 중」에 멈춰 「멈췄나?」로 보였다.
+
+    글은 여전히 안 보낸다(위 두 시험). 무엇을 하는지 · 몇 자째인지만 보내고, 도구 없이 다 쓰면 「검사하는 중」으로 끝난다.
+    """
+    agent, events = _agent(tmp_path, with_tool_call=False)
+    agent._model_message([], job_id="job-3", tools=None, think=False)
+    live = _live(events)
+    assert live[0][0] == "writing" and live[-1] == ("checking", len("이제 다나와에서 검색하겠습니다."))
+    assert _answer_events(events) == []
+    assert all("다나와" not in str(e.payload) for e in events.get_since(0) if e.event == "agent_live")
+
+
+def test_a_tool_step_clears_the_purple_line(tmp_path) -> None:
+    agent, events = _agent(tmp_path, with_tool_call=True)
+    agent._model_message([], job_id="job-4", tools=[{"x": 1}], think=False)
+    assert _live(events)[-1][0] == ""

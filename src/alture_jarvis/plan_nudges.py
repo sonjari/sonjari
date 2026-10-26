@@ -58,7 +58,7 @@ _LIST_IS_THE_ANSWER_HINT = (
 #: 접기 전에 주는 **산출물 차례**의 말. 루프 맨 위 경계와, 한 번에 상한을 넘긴 직후의 경계가 같은 글을 쓴다.
 _DELIVER_TURN_NOTE = (
     "[시스템] 더 찾아도 진전이 없다. 새로 검색·열기를 하지 말고, "
-    "지금까지 실제로 읽은 근거로 시킨 파일을 local_write_document 로 "
+    "지금까지 실제로 읽은 근거로 시킨 파일을 local_write_document 로(발표 장표는 local_make_slide 로) "
     "지금 만들어라. 못 채운 칸은 비우지 말고 그 행을 빼거나 "
     "문서 끝에 못 찾은 이유를 한 번 적어라."
 )
@@ -349,6 +349,53 @@ def _stage_guess_failed(trailing_refusals: int, *, deliver_turn: bool) -> bool:
     걸음이 바닥나기 전의 마지막 차례(`deliver_turn`)는 거두지 않는다 — 거기서는 못 했다고 적어 내는 것이 맞다.
     """
     return not deliver_turn and int(trailing_refusals) >= STAGE_REFUSALS_BEFORE_WITHDRAWING
+
+
+def _slides_saved(steps: list[dict]) -> int:
+    """장표 판에서 지금까지 저장된 **서로 다른 장**의 수 — 되받기의 진전으로 센다 (2026-10-25 밤 grove 판 6cda73c3).
+
+    장표는 마지막 장을 넣어 구울 때까지 「열 수 있는 산출물 없음」이 그대로다. 장을 새로 넣어도 남은 것이 같아 보여 「진전 없음」이
+    됐고, 두 번째 되받기가 안 나가 판이 1장에서 접혔다. 같은 장을 다시 넣은 것은 세지 않는다(같은 파일 거듭 쓰기는 진전이 아니다).
+    """
+    seen = set()
+    for step in steps:
+        evidence = step.get("evidence") if isinstance(step.get("evidence"), dict) else {}
+        if step.get("ok") and str(step.get("tool") or "") == "local_make_slide" and evidence.get("saved") and evidence.get("index"):
+            seen.add((str(evidence.get("title") or ""), evidence.get("index")))
+    return len(seen)
+
+
+def _deck_steps_owed(steps: list[dict]) -> int:
+    """장표 판에서 아직 넣을 장 수 + 여유 2 — 걸음 한도가 이만큼은 남게 한다 (2026-10-25 밤 grove 판 de242e91).
+
+    걸음 예산은 개수 요구(「4곳 읽기」)로만 커져서 장표는 기본 12~15걸음이었다. 7장 판은 결 · 이야기판 · 장 7개에
+    장마다 한 번씩만 돌려받아도 넘는다 — 실제로 15걸음 중 8걸음이 돌려받기였고 5장에서 끝났다. 다 구웠으면 0.
+    """
+    total = 0
+    saved: set = set()
+    title = ""
+    for step in steps:
+        evidence = step.get("evidence") if isinstance(step.get("evidence"), dict) else {}
+        if not step.get("ok") or str(step.get("tool") or "") != "local_make_slide":
+            continue
+        if evidence.get("total"):
+            total = int(evidence.get("total") or 0)
+            title = str(evidence.get("title") or title)
+        if evidence.get("saved") and evidence.get("index") and str(evidence.get("title") or "") == title:
+            saved.add(evidence.get("index"))
+        if evidence.get("output_path"):  # 마지막 장을 넣어 구웠다
+            return 0
+    return (max(0, total - len(saved)) + 2) if total else 0
+
+
+def _deck_in_progress(steps: list[dict]) -> bool:
+    """장표를 만드는 중인가 — 장표 손을 한 번이라도 성공했고 아직 굽지 않았다(결만 고른 판도 포함).
+
+    daisy-days 둘째 판(7d298ae0)은 결 안내를 두 번 읽는 데 321초를 쓰고 장을 하나도 넣기 전에 시간이 끝났다 —
+    「저장된 장」으로만 장표 판을 알아보면 이 판이 안 걸린다.
+    """
+    made = [step for step in steps if step.get("ok") and str(step.get("tool") or "") == "local_make_slide"]
+    return bool(made) and not any((step.get("evidence") or {}).get("output_path") for step in made)
 
 
 def _read_more_since(reads_now: int, reads_before: int | None) -> bool:

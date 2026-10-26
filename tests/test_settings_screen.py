@@ -30,7 +30,9 @@ def test_the_table_stays_small_and_has_no_secret_door() -> None:
     # 36 = 권한 모드 「권한 무시」의 손잡이(`approval_bypass_enabled`, 2026-09-23). 모드가 설정값을 정하는
     #   구조라(`permissions.MODES`) 표에 있어야 저장·적용된다 — 셸 자동 실행·되돌릴 수 있는 일 자동 승인과 같은 자리.
     # 38 = 서기(2026-10-21) 켜기 · 읽을 폴더. 대화 기록은 사람 것이라 사람이 화면에서 직접 켜야 한다 — MCP 로 켜는 문은 두지 않는다.
-    assert 20 <= len(SETTINGS) <= 38
+    # 41 = 막히면 내 API 키로 묻기(2026-10-26) 켜기 · 모델 · 달 상한. 돈이 나가는 기능이라 모델과 상한을 사람이 화면에서 정한다.
+    #   **키는 이 표에 없다**(아래 낱말 검사) — 클립보드 문으로만 받아 DPAPI 에 둔다(`api_escalation.key_from_clipboard`).
+    assert 20 <= len(SETTINGS) <= 41
     for item in SETTINGS:
         assert not any(mark in item.key for mark in ("token", "secret", "password", "api_key"))
     with pytest.raises(SettingsError):

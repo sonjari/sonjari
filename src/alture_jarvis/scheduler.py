@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import threading
 import time
@@ -15,6 +16,8 @@ from .tool_gateway import ToolGateway, ToolSpec
 
 
 EnqueueCallback = Callable[[str, str, dict[str, Any], RiskLevel], dict[str, Any]]
+#: 루틴 한 회차를 돌리는 손 — (설명서, 결과 파일) → `routine.run_routine` 결과. 시험은 네트워크 없는 것으로 바꿔 끼운다.
+RoutineRunner = Callable[[dict[str, Any], Path], dict[str, Any]]
 
 
 class TaskScheduler:
@@ -29,8 +32,13 @@ class TaskScheduler:
         config: Any = None,
         job_lookup: Callable[[str], dict[str, Any] | None] | None = None,
         send_mail: Callable[[list[str], str, str], dict[str, Any]] | None = None,
+        routine_runner: RoutineRunner | None = None,
+        send_discord: Callable[[str], None] | None = None,
     ) -> None:
+        # 정해진 문구를 디스코드 홈 채널로 보내는 손(2026-10-26 「매일 아침 정해진 시각 알림」 요청). 없으면 이 PC 디스코드 봇으로.
+        self.send_discord = send_discord
         self.database_path = database_path
+        self.routine_runner = routine_runner or self._run_routine_without_model
         self.events = events
         self.enqueue = enqueue
         self.config = config
@@ -75,6 +83,11 @@ class TaskScheduler:
             #   (2026-10-06, `sqlite_schema.py`).
             add_column_if_missing(connection, "schedules", "repeat_every", "TEXT NOT NULL DEFAULT 'none'")
             add_column_if_missing(connection, "schedules", "deliver_to", "TEXT NOT NULL DEFAULT ''")
+            # ★ 「루틴」 종류(2026-10-23 · 전략안 §55-39). prompt 대신 루틴 설명서(JSON)를 저장해 **모델 없이** 돈다.
+            #   last_result 는 마지막 회차의 작은 줄(건수 · 깨짐 · 파일) — 앱 화면 예약 목록이 그대로 보여 준다.
+            add_column_if_missing(connection, "schedules", "kind", "TEXT NOT NULL DEFAULT 'prompt'")
+            add_column_if_missing(connection, "schedules", "routine", "TEXT NOT NULL DEFAULT ''")
+            add_column_if_missing(connection, "schedules", "last_result", "TEXT NOT NULL DEFAULT ''")
             # A crash can occur after claiming but before enqueueing. Re-queue
             # those rows so the next JARVIS start resumes them exactly once.
             connection.execute(
@@ -166,6 +179,83 @@ class TaskScheduler:
             )
         return deliver_to
 
+    # ── 루틴 (모델 없이 도는 예약 · 2026-10-23 · 전략안 §55-39 · §55-40 첫 칸) ──────────
+    #
+    # prompt 예약은 돌 때마다 모델이 판을 새로 짠다(채용 봇 판 하나 17분 · 43걸음 — 하루 3번이면 PC 가 50분 붙잡힌다).
+    # 루틴은 레시피 주소로 받아 정해진 칸만 읽는다 — 매번 똑같이 돌고, 몇 번 돌았는지 · 몇 번 깨졌는지를 셀 수 있다.
+
+    def _recipe_dir(self) -> Path | None:
+        value = getattr(self.config, "site_recipe_dir", None)
+        return Path(value) if value else None
+
+    def _routine_dir(self, schedule_id: str) -> Path:
+        base = getattr(self.config, "data_dir", None)
+        return (Path(base) if base else self.database_path.parent) / "routines" / schedule_id
+
+    def _routine_spec(self, raw: Any) -> dict[str, str] | None:
+        if raw in (None, "", {}):
+            return None
+        from .routine import RoutineRefused, build_url, load_recipe, normalize_spec
+
+        try:
+            spec = json.loads(raw) if isinstance(raw, str) else raw
+            clean = normalize_spec(spec)
+            build_url(load_recipe(clean["recipe"], self._recipe_dir()), clean)  # 주소만 만들어 본다 — 받지는 않는다
+        except (RoutineRefused, ValueError) as exc:
+            raise ValueError(f"routine_refused — {exc}") from exc
+        return {key: value for key, value in clean.items() if value}
+
+    def _run_routine_without_model(self, spec: dict[str, Any], out: Path) -> dict[str, Any]:
+        from .routine import run_routine
+
+        return run_routine(spec, out, recipe_dir=self._recipe_dir())
+
+    def _dispatch_routine(self, row: dict[str, Any]) -> str:
+        """루틴 한 회차. 결과의 작은 줄을 `last_result` 에, 회차 기록을 `runs.jsonl` 에 남긴다. 늘 "ran" 을 돌려준다."""
+        from .routine import command_line, summary
+
+        out = self._routine_dir(str(row["id"])) / "latest.json"
+        try:
+            spec = json.loads(str(row.get("routine") or "{}"))
+        except ValueError:
+            spec = {}
+        try:
+            result = self.routine_runner(spec, out)
+        except Exception as exc:  # noqa: BLE001 — 실행기가 넘어져도 예약 줄은 남는다(조용히 사라지지 않는다)
+            result = {"status": "failed", "problems": [f"루틴 실행기가 넘어졌다: {type(exc).__name__}: {str(exc)[:200]}"]}
+        small = summary(result)
+        small["at"] = time.time()
+        try:
+            small["command"] = command_line(spec, out)
+        except Exception:  # noqa: BLE001
+            small["command"] = ""
+        # 회차 기록 — 「모델 없이 성공 / 손자리가 고침 / 틀린 값」을 셀 재료(§55-39 ④ 사흘 9회).
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            with (out.parent / "runs.jsonl").open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"schedule_id": row["id"], **small}, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE schedules SET last_result=?, updated_at=? WHERE id=?",
+                (json.dumps(small, ensure_ascii=False), time.time(), row["id"]),
+            )
+        self.events.publish("routine_ran", {"schedule_id": row["id"], "title": row.get("title", ""), **small})
+        if small["status"] == "broken":
+            self._repair_with_model(row, small)
+        return "ran"
+
+    def _repair_with_model(self, row: dict[str, Any], small: dict[str, Any]) -> dict[str, Any]:
+        """깨진 회차만 손자리(모델)에게 넘기는 **자리**. 아직 연결하지 않았다 — 다음 일(§55-39 고리 4).
+
+        연결할 때 지킬 것: 그 회차만 · 고친 레시피는 사람이 「응」 한 뒤에만 저장(`save_learned` 와 같은 규칙) ·
+        고친 뒤 같은 표본으로 다시 읽혀 건수가 맞는지 본다(고친 레시피가 틀린 값을 굳히지 않게).
+        """
+        note = {"schedule_id": row["id"], "problems": small.get("problems", []), "repair": "not_connected"}
+        self.events.publish("routine_broken", note)
+        return note
+
     def create(self, arguments: dict[str, Any]) -> dict[str, Any]:
         # 꺼져 있으면 **만드는 것부터 거절한다.** 만들어만 두면 「예약했습니다」라고
         # 답해 놓고 그 시각에 아무 일도 안 일어난다 — 초소와 같은 이유다.
@@ -175,8 +265,16 @@ class TaskScheduler:
                 "(JARVIS_SCHEDULER_ENABLED=false). 만들어도 그 시각에 안 돈다."
                 " 사용자에게 '예약은 지금 꺼져 있다'고 말하고, 필요하면 켜 달라고 해라."
             )
+        if str(arguments.get("kind") or "").strip().lower() == "message":
+            return self._create_message(arguments)
+        # 루틴 설명서는 **만드는 지금** 검사한다 — 모르는 지역 · 레시피 밖 주소는 새벽 7시가 아니라 사람이 있는 지금 거절된다.
+        routine_spec = self._routine_spec(arguments.get("routine"))
         title = str(arguments.get("title") or "예약 작업").strip()[:200]
         prompt = str(arguments.get("prompt") or "").strip()[:12000]
+        if routine_spec and not prompt:
+            # 화면 · 목록이 읽는 한 줄. 돌 때는 이 글을 쓰지 않는다(모델에게 안 간다).
+            prompt = "루틴(모델 없이): " + " · ".join(
+                part for part in (routine_spec["recipe"], routine_spec["query"], routine_spec.get("region", "")) if part)
         if not prompt:
             raise ValueError("prompt_required")
         run_at = self._parse_run_at(arguments.get("run_at"), arguments.get("delay_minutes"))
@@ -191,6 +289,9 @@ class TaskScheduler:
         if isinstance(raw_to, str):
             raw_to = [part.strip() for part in raw_to.replace(";", ",").split(",") if part.strip()]
         deliver_to = self._check_delivery([str(item).strip() for item in raw_to if str(item).strip()])
+        if routine_spec and deliver_to:
+            # 메일 배달은 모델 답(잡의 answer)을 보낸다. 루틴 결과를 메일로 보내는 길은 아직 없다 — 받아 놓고 안 보내지 않는다.
+            raise ValueError("routine_delivery_not_supported — 루틴 결과는 아직 메일로 못 보낸다. 결과는 예약 목록과 파일에 남는다.")
 
         schedule_id = uuid.uuid4().hex
         now = time.time()
@@ -198,15 +299,80 @@ class TaskScheduler:
         with self._connect() as connection:
             connection.execute(
                 "INSERT INTO schedules(id,title,prompt,session_id,run_at,status,created_at,updated_at,"
-                "repeat_every,deliver_to) VALUES(?,?,?,?,?,'pending',?,?,?,?)",
+                "repeat_every,deliver_to,kind,routine) VALUES(?,?,?,?,?,'pending',?,?,?,?,?,?)",
                 (
                     schedule_id, title, prompt, session_id, run_at, now, now,
                     repeat_every, ",".join(deliver_to),
+                    "routine" if routine_spec else "prompt",
+                    json.dumps(routine_spec, ensure_ascii=False) if routine_spec else "",
                 ),
             )
         result = self.get(schedule_id)
         self.events.publish("schedule_created", result)
         return result
+
+    def _create_message(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """정해진 문구 알림 — 모델 없이, 그 시각에 글 그대로 디스코드 홈 채널로 보낸다(2026-10-26).
+
+        모델에게 가지 않으니 매번 같은 글이 간다. 받는 곳은 지금 「디스코드 홈 채널」 하나 — 이 PC 디스코드 봇이 든 서버의 그 채널.
+        """
+        message = str(arguments.get("message") or arguments.get("prompt") or "").strip()[:2000]
+        if not message:
+            raise ValueError("message_required — 보낼 문구가 비어 있다.")
+        channel = str(arguments.get("channel") or "discord").strip().lower()
+        if channel not in {"discord", "discord:home"}:
+            raise ValueError(f"unknown_channel:{channel} — 지금은 디스코드 홈 채널(discord)만 받는다.")
+        title = str(arguments.get("title") or "정해진 알림").strip()[:200]
+        run_at = self._parse_run_at(arguments.get("run_at"), arguments.get("delay_minutes"))
+        if run_at < time.time() - 5:
+            raise ValueError("run_at_is_in_the_past")
+        repeat_every = str(arguments.get("repeat_every") or "none").strip().lower()
+        if repeat_every not in {"none", "daily", "weekday", "weekly"}:
+            raise ValueError(f"unknown_repeat:{repeat_every}")
+        schedule_id = uuid.uuid4().hex
+        now = time.time()
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT INTO schedules(id,title,prompt,session_id,run_at,status,created_at,updated_at,"
+                "repeat_every,deliver_to,kind,routine) VALUES(?,?,?,?,?,'pending',?,?,?,?,?,?)",
+                (schedule_id, title, message, "", run_at, now, now, repeat_every, "discord:home", "message", ""),
+            )
+        result = self.get(schedule_id)
+        self.events.publish("schedule_created", result)
+        return result
+
+    def _default_discord_sender(self) -> Callable[[str], None]:
+        def send(text: str) -> None:
+            from .messaging import credentials
+            from .messaging.discord_config import SETTINGS_FILE, DiscordSettings
+            from .messaging.service import DiscordRest
+
+            data_dir = Path(getattr(self.config, "data_dir", "") or self.database_path.parent)
+            settings = DiscordSettings.load(data_dir / SETTINGS_FILE)
+            if not settings.home_channel_id:
+                raise RuntimeError("discord_home_channel_missing — 디스코드 홈 채널이 정해져 있지 않다.")
+            token = credentials.load_bot_token(credentials.default_store())
+            if not token:
+                raise RuntimeError("discord_token_missing — 이 PC 에 디스코드 봇이 연결돼 있지 않다.")
+            # 우리가 쓴 글이라도 아무도 부르지 않는다(@everyone 등 막음) — `send_dm` 과 같은 원칙.
+            DiscordRest(token).call("POST", f"/channels/{settings.home_channel_id}/messages",
+                                    {"content": text[:2000], "allowed_mentions": {"parse": []}})
+        return send
+
+    def _dispatch_message(self, row: dict[str, Any]) -> str:
+        """정해진 문구 한 번 보내기. 실패해도 「돈 것」(ran) — 다음 회차는 그대로, 깨짐은 last_result 에(루틴과 같은 규칙)."""
+        sender = self.send_discord or self._default_discord_sender()
+        try:
+            sender(str(row.get("prompt") or ""))
+            note = {"ok": True, "sent_at": time.time()}
+            self.events.publish("schedule_message_sent", {"schedule_id": row["id"]})
+        except Exception as exc:  # noqa: BLE001 — 알림 하나 못 보냈다고 예약기를 멈추지 않는다
+            note = {"ok": False, "error": str(exc)[:300]}
+            self.events.publish("schedule_message_failed", {"schedule_id": row["id"], "error": str(exc)[:300]})
+        with self._connect() as connection:
+            connection.execute("UPDATE schedules SET last_result=?, updated_at=? WHERE id=?",
+                               (json.dumps(note, ensure_ascii=False), time.time(), row["id"]))
+        return "ran"
 
     def get(self, schedule_id: str) -> dict[str, Any]:
         with self._connect() as connection:
@@ -264,6 +430,16 @@ class TaskScheduler:
         return dict(row) if cursor.rowcount == 1 else None
 
     def _dispatch(self, row: dict[str, Any]) -> None:
+        if str(row.get("kind") or "prompt") == "routine":
+            # 모델 없이 — 잡을 만들지 않는다(job_id 없음). 결과는 last_result 에.
+            status, job_id = self._dispatch_routine(row), ""
+        elif str(row.get("kind") or "") == "message":
+            status, job_id = self._dispatch_message(row), ""
+        else:
+            status, job_id = self._dispatch_prompt(row)
+        self._after_dispatch(row, status, job_id)
+
+    def _dispatch_prompt(self, row: dict[str, Any]) -> tuple[str, str]:
         try:
             job = self.enqueue(
                 "chat",
@@ -288,11 +464,14 @@ class TaskScheduler:
         except Exception as exc:
             status, job_id = "pending", ""
             self.events.publish("schedule_dispatch_failed", {"schedule_id": row["id"], "error": str(exc)[:300]})
+        return status, job_id
 
+    def _after_dispatch(self, row: dict[str, Any], status: str, job_id: str) -> None:
         # 반복이면 **다음 시각을 잡아 다시 pending 으로.** 지난 것은 안 몰아 돈다.
+        # 루틴은 깨진 회차도 「돈 것」이다(ran) — 다음 회차는 그대로 잡고, 깨짐은 last_result 에 남는다.
         repeat_every = str(row.get("repeat_every") or "none")
         next_at = float(row["run_at"])
-        if status == "dispatched" and repeat_every != "none":
+        if status in {"dispatched", "ran"} and repeat_every != "none":
             try:
                 next_at = self._next_run(float(row["run_at"]), repeat_every)
                 status = "pending"
@@ -397,7 +576,9 @@ class TaskScheduler:
                 "schedule_create",
                 "사용자가 요청한 작업을 지정 시각(또는 몇 분 뒤)에 실행하도록 영구 저장한다. "
                 "repeat_every 로 매일·평일·매주 반복할 수 있고, deliver_to 를 주면 끝난 뒤 "
-                "결과를 메일로 보낸다. 생성에는 승인이 필요하다.",
+                "결과를 메일로 보낸다. 생성에는 승인이 필요하다. "
+                "레시피가 있는 사이트의 목록 모으기(예: 사람인 채용 공고)는 routine 을 주면 돌 때 모델 없이 "
+                "레시피 주소로 받아 칸만 읽는다 — 이때 prompt 는 화면에 보일 한 줄 설명이다.",
                 {
                     "title": {"type": "string"},
                     "prompt": {"type": "string"},
@@ -415,6 +596,17 @@ class TaskScheduler:
                                        "다른 주소를 주면 예약 자체가 거절된다",
                     },
                     "session_id": {"type": "string"},
+                    "routine": {
+                        "type": "object",
+                        "description": "모델 없이 도는 루틴의 조건 칸. recipe(지금은 saramin) · query(검색어) · "
+                                       "region(지역 **이름** — 서울·부산·경기…, 번호를 짐작해 넣지 않는다). "
+                                       "주소는 넣지 않는다 — 레시피에서만 나온다",
+                        "properties": {
+                            "recipe": {"type": "string"},
+                            "query": {"type": "string"},
+                            "region": {"type": "string"},
+                        },
+                    },
                 },
                 ["prompt"],
             ),

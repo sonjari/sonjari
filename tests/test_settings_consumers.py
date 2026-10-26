@@ -35,6 +35,7 @@ CHANGES = {
     'skills_domains': ['dev'], 'claude_code_enabled': True,
     'sandbox_enabled': True, 'code_scout_enabled': True,
     'scribe_enabled': True, 'scribe_folders': ['C:/scribe-probe'],
+    'api_escalation_enabled': True, 'api_escalation_model': 'claude-haiku-5-5', 'api_escalation_monthly_usd': 50,
 }
 
 
@@ -207,6 +208,13 @@ def consumer(runtime, key, monkeypatch, tmp_path):
     if key in {'scribe_enabled', 'scribe_folders'}:
         # 서기 한 차례가 실제로 어디서 멈추는가 — 꺼짐 / 고른 폴더 없음 / 그다음(2026-10-21).
         return runtime._scribe_tick().get('skipped')
+    if key == 'api_escalation_enabled':
+        # 막힌 자리에서 실제로 어디서 멈추는가 — 꺼짐 / 그다음(키 · 부품)(2026-10-26).
+        return runtime.api_escalation.skip_reason('probe-job', 10)
+    if key == 'api_escalation_model':
+        return runtime.api_escalation.model()
+    if key == 'api_escalation_monthly_usd':
+        return runtime.api_escalation.monthly_cap()
     raise AssertionError(f'소비자 눈금 없음: {key}')
 
 
@@ -221,6 +229,8 @@ def test_saved_setting_reaches_its_consumer(tmp_path, monkeypatch, key):
     # 「막히면 내 클로드에게 넘기기」는 클로드 명령 · 로그인이 없으면 켜지지 않는다 — 이 PC 의 설치 여부와 무관하게 잰다.
     monkeypatch.setattr('alture_jarvis.claude_code.cli_status',
                         lambda _config: {'ok': True, 'code': '', 'reason': '', 'short': ''})
+    # 「막히면 내 API 키로 묻기」도 키 · 부품이 없으면 켜지지 않는다 — 이 PC 의 설치 여부와 무관하게 잰다.
+    monkeypatch.setattr('alture_jarvis.api_escalation.unavailable', lambda _config: ('', ''))
     defaults = dict(runtime_root=tmp_path, data_dir=tmp_path/'data', output_dir=tmp_path/'out',
                     documents_dir=tmp_path/'documents',
                     user_label='기본호칭', attention_notices_enabled=False, scheduler_enabled=False,

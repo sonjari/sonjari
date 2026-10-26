@@ -64,7 +64,8 @@ def test_the_checklist_leaves_the_backend() -> None:
     # 사람이 읽을 말과, 지금까지 어땠는지가 같이 나간다. 라벨만 보내면 화면은
     # "안 됨"이라고만 말할 수 있고 **얼마나 왔는지**는 못 말한다.
     first = payload["items"][0]
-    assert set(first) == {"kind", "label", "met", "saw"}
+    # 2026-10-24: 확실성 등급과 그 요구가 선 자리도 같이 실린다(§55-41 · 측정이 읽는다).
+    assert set(first) == {"kind", "label", "met", "saw", "grade", "origin"}
     assert first["label"]
     assert first["saw"]
 

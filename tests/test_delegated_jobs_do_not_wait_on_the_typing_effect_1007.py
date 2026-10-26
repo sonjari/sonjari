@@ -55,4 +55,4 @@ def test_an_answer_asked_on_screen_keeps_its_pace(monkeypatch) -> None:
 
 def test_the_agent_drops_the_pace_only_for_jobs_another_ai_handed_over() -> None:
     source = inspect.getsource(agent.BrowserAgent.run)
-    assert 'paint_answer(self.events, job_id, answer, pace=origin != "mcp")' in source
+    assert 'paint_answer(self.events, job_id, painted, pace=origin != "mcp")' in source

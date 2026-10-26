@@ -80,7 +80,7 @@ describe("delegated message", () => {
   });
 
   it.each([
-    ["claude-code", "Claude Code가 맡긴 일", "origin-claude"],
+    ["claude-code", "Claude가 맡긴 일", "origin-claude"],
     ["codex-mcp-client", "Codex가 맡긴 일", "origin-codex"],
     ["cursor-vscode", "Cursor가 맡긴 일", "origin-cursor"],
   ])("names %s and wears its origin seam", (caller, label, tone) => {
@@ -110,7 +110,7 @@ describe("outbound receipt (§55-32)", () => {
 
   it("shows one quiet line with what was needed and refined", () => {
     const out = html(answer({ outbound }));
-    expect(out).toContain("Claude Code에게 보냄 · 필요한 것 1/2 · 정제 1");
+    expect(out).toContain("Claude에게 보냄 · 필요한 것 1/2 · 정제 1");
     expect(out).toContain("리뷰 수");
     expect(out).toContain("전화번호 1개");
     expect(out).not.toContain("원문 ");
@@ -128,7 +128,7 @@ describe("outbound receipt (§55-32)", () => {
       refined: [], needs_total: 3, needs_met: 1, needs_missing: 0, needs_unknown: 2, refined_count: 0,
     };
     const out = html(answer({ outbound: unchecked }));
-    expect(out).toContain("Claude Code에게 보냄 · 필요한 것 3개 · 채움 1 · 확인 못 함 2 · 정제 0");
+    expect(out).toContain("Claude에게 보냄 · 필요한 것 3개 · 채움 1 · 확인 못 함 2 · 정제 0");
     expect(out).not.toContain("1/3");
     expect(out).toContain("확인 못 함");
     expect(out).not.toContain("비어 있음");

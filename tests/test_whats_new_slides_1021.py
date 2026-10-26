@@ -65,8 +65,11 @@ def test_every_number_has_a_basis_and_every_picture_is_a_real_file(path: Path) -
             visual = slide.get("visual")
             if visual is None:
                 continue
-            assert visual["kind"] in {"stat", "image"}, visual
-            if visual["kind"] == "stat":
+            assert visual["kind"] in {"stat", "image", "show"}, visual
+            if visual["kind"] == "show":
+                # 쇼(2026-10-26) — 화면이 그릴 줄 아는 장면 이름만(`WhatsNewShow.tsx` · `whats_new.SHOW_SCENES`).
+                assert visual["scene"] in whats_new.SHOW_SCENES, visual
+            elif visual["kind"] == "stat":
                 assert str(visual.get("basis") or "").strip(), f"잰 조건 없는 숫자: {visual}"
                 assert str(visual.get("label") or "").strip()
                 assert isinstance(visual["before"], (int, float)) and isinstance(visual["after"], (int, float))
@@ -142,3 +145,27 @@ def test_ui_fixture_matches_the_backend() -> None:
     for version, by_lang in fixture.items():
         for lang, shown in by_lang.items():
             assert shown == {"show": True, "version": version, **whats_new.notes_for(version, lang)}, (version, lang)
+
+
+def test_show_scenes_are_known_to_the_screen_and_an_unknown_one_is_dropped() -> None:
+    """쇼 장면 이름은 백엔드 목록과 화면 코드가 같아야 한다 — 모르는 이름은 화면에 안 나간다."""
+    screen = (Path(__file__).resolve().parents[1] / "ui" / "src" / "workspace" / "WhatsNewShow.tsx").read_text(encoding="utf-8")
+    for scene in whats_new.SHOW_SCENES:
+        assert f'visual.scene === "{scene}"' in screen, scene
+    assert whats_new._visual({"kind": "show", "scene": "claude-hands"}) == {"kind": "show", "scene": "claude-hands"}
+    assert whats_new._visual({"kind": "show", "scene": "made-up"}) is None
+    assert whats_new._visual({"kind": "show"}) is None
+
+
+def test_the_show_sample_deck_is_made_by_the_product_path_and_names_nobody() -> None:
+    """쇼의 예시 장표(`whatsNewShow.fixture.json`) — 제품과 같은 길로 만든 것(scripts/build_whats_new_show.py). 사람 · 회사 이름 없음."""
+    path = Path(__file__).resolve().parents[1] / "ui" / "src" / "workspace" / "whatsNewShow.fixture.json"
+    text = path.read_text(encoding="utf-8")
+    data = json.loads(text)
+    assert data["picks"] and data["slides"] and data["outline"] and data["font_before"]
+    assert len(data["outline"]) == len(data["slides"])
+    assert all("<script" not in slide["html"].lower() for slide in data["slides"])
+    assert "fonts.sonjari.invalid" in data["slides"][0]["html"]          # 지금: 앱 글꼴
+    assert "fonts.sonjari.invalid" not in data["font_before"]            # 0.4.33: 윈도우 글꼴
+    for name in ("가람", "나래", "박가람", "알튜어", "로보메타핏", "RoboMetaFit"):
+        assert name not in text, name

@@ -62,8 +62,26 @@ def estimate_tokens(sent_chars: int, measured: tuple[int, int] | None) -> int:
     return int(sent_chars * tokens / chars)
 
 
-def wait_message(tokens: int, elapsed: float, english: bool = False) -> str:
+#: 앞부분을 처음부터 읽는 **까닭** — 직전 부르기와 견준 것(`ollama.reread_reason`). 빈 값이면 까닭을 모른다(같은 모양).
+#: ★ 2026-10-25 대표: 일하던 판 뒤에 질문 하나를 하니 「도구가 바뀐 건지 또 느리다」 — 모델을 다시 올릴 때처럼 화면에 알려 달라.
+#:   일하는 길(도구 133개 · 긴 지침)과 대화 길(도구 7개 · 짧은 지침)을 오가면 앞부분 기억을 못 쓴다. 그때는 그렇다고 말한다.
+_REASONS = {
+    "both": ("도구 목록과 지침이 지난번과 달라", "the tool list and instructions changed since the last call, so"),
+    "tools": ("도구 목록이 지난번과 달라", "the tool list changed since the last call, so"),
+    "system": ("지침이 지난번과 달라", "the instructions changed since the last call, so"),
+    "model": ("다른 모델로 바뀌어", "a different model is answering, so"),
+    "first": ("이번이 첫 부르기라", "this is the first call, so"),
+}
+
+
+def wait_message(tokens: int, elapsed: float, english: bool = False, reason: str = "") -> str:
     seconds = int(elapsed)
+    why = _REASONS.get(reason)
+    if why:
+        size = f"({tokens_label(tokens, english)})" if tokens else ""
+        if english:
+            return f"{why[1]} the model is reading the prompt{(' ' + size) if size else ''} from the start · {seconds}s before the first word"
+        return f"{why[0]} 모델이 앞부분{size}을 처음부터 읽는 중 · 첫 글자 전 {seconds}초째"
     if tokens >= LONG_TOKENS:
         if english:
             return f"The model is reading the earlier record ({tokens_label(tokens, True)}) · {seconds}s before the first word"
@@ -82,10 +100,11 @@ class FirstTokenWatch:
 
     def __init__(self, *, last: dict[str, Any] | None, tokens: int, english: bool,
                  publish: Callable[[dict[str, Any]], None],
-                 delay: float | None = None, every: float | None = None) -> None:
+                 delay: float | None = None, every: float | None = None, reason: str = "") -> None:
         self._last = dict(last) if last else None
         self._tokens = tokens
         self._english = english
+        self._reason = reason
         self._publish = publish
         self._delay = DELAY_SEC if delay is None else delay
         self._every = EVERY_SEC if every is None else every
@@ -115,8 +134,8 @@ class FirstTokenWatch:
                 if self._stop.is_set() or self._last is None:
                     return
                 elapsed = time.monotonic() - self._started
-                self._send({**self._last, "message": wait_message(self._tokens, elapsed, self._english),
-                            "waiting_first_token": True})
+                self._send({**self._last, "message": wait_message(self._tokens, elapsed, self._english, self._reason),
+                            "waiting_first_token": True, "reread_reason": self._reason})
                 self._shown = True
             wait = self._every
 

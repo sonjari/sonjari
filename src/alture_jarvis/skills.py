@@ -645,6 +645,31 @@ SKILL_TRIGGERS_KO: dict[str, tuple[str, ...]] = {
         "사업화 자금", "사업화자금",
     ),
 
+    # ── 사업계획서 · IR (vendor/alture, 우리가 씀 · 2026-10-25) ─────────────────
+    #   대표가 준 선정 · 투자 문서 셋(지원사업 사업계획서 1 · IR 2)의 짜임을 증류한 틀. 「IR」 두 글자만으로는 걸지 않는다
+    #   (영어 낱말 속에 들어간다) — 뒤에 자료 · 장표 같은 말이 붙은 꼴만.
+    "business-plan": (
+        "사업계획서", "사업 계획서", "사업계획 서", "psst",
+        "ir 자료", "ir자료", "ir 장표", "ir 덱", "ir덱", "ir 피치", "피치덱", "피치 덱", "피칭 자료", "피칭자료",
+        "투자 제안서", "투자제안서", "투자 유치 자료", "투자유치 자료", "투자유치자료", "투자 설명 자료",
+    ),
+
+    # ── 문서 꼴 카드 11개 (vendor/docforms · 2026-10-25) ────────────────────────────
+    #   공식 · 공공 출처를 읽고 규칙만 증류한 카드(근거 모음 docs/문서꼴_근거). 「그 문서를 쓴다」는 말에만 걸게 문서 이름으로.
+    #   이력서 · 자소서는 첨삭(career-resume-review)과 겹쳐 「써 · 작성」이 붙은 꼴만 둔다.
+    "doc-weekly-report": ("주간 보고", "주간보고", "월간 보고", "월간보고", "업무 보고서", "업무보고서", "실적 보고서", "분기 보고서",
+                          "주간 업무 보고", "월간 업무 보고"),
+    "doc-proposal": ("기획안", "기획서", "제안서", "사업 제안", "사내 기획"),
+    "doc-meeting-minutes": ("회의록", "회의 기록", "회의 내용 정리"),
+    "doc-official-letter": ("공문", "기안문", "시행문", "협조 요청 문서", "협조요청 문서", "협조 공문"),
+    "doc-press-release": ("보도자료", "보도 자료", "언론 배포"),
+    "doc-quotation": ("견적서", "거래명세서", "거래 명세서"),
+    "doc-event-plan": ("행사 계획서", "행사계획서", "행사 기획안", "행사 운영 계획", "행사 계획"),
+    "doc-syllabus": ("강의계획서", "강의 계획서", "수업 계획서", "수업계획서", "교안", "교수학습 과정안", "수업 지도안"),
+    "doc-research-report": ("연구 보고서", "연구보고서", "조사 보고서", "조사보고서", "용역 보고서", "결과 보고서"),
+    "doc-resume": ("이력서 써", "이력서 작성", "이력서를 써", "자기소개서 써", "자기소개서 작성", "자소서 써", "자소서 작성"),
+    "doc-standard-contract": ("계약서", "근로계약서", "표준계약서", "용역 계약", "근로 계약"),
+
     # ── 채용·이력서 (vendor/career, 우리가 씀) ──────────────────────────
     #
     # ★ 2026-09-02. 스킬 라우팅이 도구 실행 11,043회 중 **11건**이었다. 어느 문에서
@@ -858,6 +883,20 @@ _WEAK_TRIGGERS_EN: frozenset[str] = frozenset({
 })
 
 SKILL_TRIGGERS_EN: dict[str, tuple[str, ...]] = {
+    "doc-weekly-report": ("weekly report", "monthly report", "status report", "progress report", "quarterly report"),
+    "doc-proposal": ("project proposal", "business proposal", "write a proposal", "proposal for"),
+    "doc-meeting-minutes": ("meeting minutes", "minutes of the meeting", "minutes for"),
+    "doc-official-letter": ("official letter", "official notice", "formal letter"),
+    "doc-press-release": ("press release", "news release"),
+    "doc-quotation": ("quotation", "price quote", "estimate sheet", "invoice statement"),
+    "doc-event-plan": ("event plan", "event proposal", "event schedule"),
+    "doc-syllabus": ("syllabus", "lesson plan", "course outline"),
+    "doc-research-report": ("research report", "survey report", "study report"),
+    "doc-resume": ("write my resume", "write a resume", "write my cover letter", "write a cover letter"),
+    "doc-standard-contract": ("employment contract", "service contract", "contract template", "draft a contract"),
+    "business-plan": (
+        "business plan", "pitch deck", "investor deck", "ir deck", "investor presentation", "fundraising deck",
+    ),
     "game-unity": (
         "unity project", "unity editor", "in unity", "prefab", "prefabs", "texture settings", "texture import",
         "missing script", "missing scripts", "missing reference", "missing references",
@@ -1118,6 +1157,15 @@ def match_skills(
             continue
         if hits:
             scored.append((name, hits))
+    # ★ 사업계획서를 **쓰는** 판(2026-10-25). 「예비창업패키지 사업계획서 써줘」는 「예비창업」·「창업패키지」 두 낱말로
+    #   공고 찾기 스킬이 앞섰고, 「계획서 써」로 개발 계획 스킬까지 붙었다. 찾는 말이 없으면 쓰는 틀이 맨 앞이고,
+    #   개발 계획 스킬은 뺀다. 「공고 찾아서 사업계획서까지」처럼 찾는 말이 있으면 둘 다 둔다.
+    names = {name for name, _ in scored}
+    if "business-plan" in names:
+        scored = [item for item in scored if item[0] != "writing-plans"]
+        if not researching:
+            top = max(hits for _, hits in scored)
+            scored = [(name, top + 1 if name == "business-plan" else hits) for name, hits in scored]
     # 많이 걸린 것부터. 같으면 이름순 — 같은 프롬프트에 항상 같은 순서여야
     # 나중에 「그때는 왜 저게 붙었나」를 재현할 수 있다.
     scored.sort(key=lambda item: (-item[1], item[0]))

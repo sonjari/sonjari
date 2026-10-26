@@ -14,43 +14,62 @@
 import { t } from "../i18n";
 import { AlarmClock, X } from "lucide-react";
 import type { JobSummary, ScheduleRow } from "../types";
-import { durationLabel, elapsedSec, pendingSchedules, scheduleLabel, scheduleWhen } from "./jobs";
+import { durationLabel, elapsedSec, pendingSchedules, routineFailed, routineLine, routineResult, scheduleLabel, scheduleWhen } from "./jobs";
+
+/** 줄에 손을 올리면 보이는 글 — 루틴이면 깨진 까닭 · 결과 파일까지(근거를 숨기지 않는다). */
+function scheduleTip(row: ScheduleRow): string {
+  const result = routineResult(row);
+  if (!result) return row.prompt;
+  return [row.prompt, ...(result.problems ?? []), ...(result.notes ?? []), result.out ? t("파일: {0}", result.out) : ""]
+    .filter(Boolean).join("\n");
+}
 
 export function ScheduleList(props: {
   schedules: ScheduleRow[];
   now: number;
   onCancelSchedule: (scheduleId: string) => void;
 }) {
-  const waiting = pendingSchedules(props.schedules);
+  const waiting = pendingSchedules(props.schedules, props.now);
   if (!waiting.length) return null;
   return (
     <div className="job-list">
       <p className="sidebar-label">{t("예약")}</p>
-      {waiting.map((row) => (
-        <div className="job-row schedule tone-mute" key={row.id}>
-          {/* 예약은 아직 열 것이 없다(잡이 안 생겼다). 그래서 버튼이 아니라
-              그냥 줄이다 — 눌러도 아무 일 없는 버튼을 두지 않는다. */}
-          <span className="job-open" title={row.prompt}>
-            <span className="job-mark"><AlarmClock size={13} /></span>
-            <span className="job-text">
-              <strong>{row.title}</strong>
-              <small>
-                <span className="job-metric">{scheduleLabel(row, props.now)}</span>
-                <span className="job-state">{scheduleWhen(row, props.now)}</span>
-              </small>
+      {waiting.map((row) => {
+        const routine = row.kind === "routine";
+        const pending = row.status === "pending" || row.status === "dispatching";
+        return (
+          <div className={`job-row schedule ${routine && routineFailed(row) ? "tone-fail" : "tone-mute"}`} key={row.id}>
+            {/* 예약은 아직 열 것이 없다(잡이 안 생겼다). 그래서 버튼이 아니라
+                그냥 줄이다 — 눌러도 아무 일 없는 버튼을 두지 않는다. */}
+            <span className="job-open" title={scheduleTip(row)}>
+              <span className="job-mark"><AlarmClock size={13} /></span>
+              <span className="job-text">
+                <strong>{row.title}</strong>
+                <small>
+                  <span className="job-metric">{pending ? scheduleLabel(row, props.now) : t("돎")}</span>
+                  <span className="job-state">{pending ? scheduleWhen(row, props.now) : ""}</span>
+                </small>
+                {routine && (
+                  <small>
+                    <span className="job-state">{routineLine(row, props.now)}</span>
+                  </small>
+                )}
+              </span>
             </span>
-          </span>
-          <button
-            type="button"
-            className="job-cancel"
-            onClick={() => props.onCancelSchedule(row.id)}
-            title={t("이 예약을 지우기")}
-            aria-label={t("이 예약 지우기")}
-          >
-            <X size={12} />
-          </button>
-        </div>
-      ))}
+            {pending && (
+              <button
+                type="button"
+                className="job-cancel"
+                onClick={() => props.onCancelSchedule(row.id)}
+                title={t("이 예약을 지우기")}
+                aria-label={t("이 예약 지우기")}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

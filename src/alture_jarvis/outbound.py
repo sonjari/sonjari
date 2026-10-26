@@ -16,6 +16,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .check_notes import answer_for_receiver
 from .url_privacy import safe_url, scrub_urls, scrub_urls_deep
 
 __all__ = ["clean_needs", "check_needs", "refine", "receipt", "outbound_record", "outbound_job_view", "showcase_for_outside"]
@@ -206,6 +207,15 @@ def _tables(answer: str) -> list[tuple[list[str], list[list[str]]]]:
 
 _HEADING = re.compile(r"^\s*(?:#{1,6}\s+(.+?)\s*#*|\*\*(.+?)\*\*\s*[:：]?)\s*$")
 
+#: 굵은 이름 뒤에 **같은 줄로** 값이 이어지는 꼴 — 「**④ 라이선스** — Apache 2.0」 · 「**③ 한국어 지원** — 확인 못 함」 ·
+#: 「**① 벤치마크 점수** (공식 비교표)」. 줄 전체가 굵은 글씨일 때만 제목으로 보던 탓에 이 꼴의 이름을 못 찾았다(2026-10-24 Flint 조사 판
+#: d0e5fd4c — 답에 다섯 칸이 다 있었는데 영수증이 「확인 못 함 4」). 대시 · 쌍점 뒤나 괄호 풀이 뒤 글은 그 이름의 값이다.
+_BOLD_LEAD = re.compile(r"^\s*(?:[-*•]\s+)?\*\*([^*\n]{1,60}?)\*\*\s*(?:[—–:：\-]\s*)?(\S.*)$")
+#: 그 자리에 「못 찾았다」고 적은 값 — 채움이 아니다.
+_NOT_FOUND_VALUE = re.compile(
+    r"^(?:확인\s*(?:못|안)\s*(?:함|했|됨)|찾지\s*못|알\s*수\s*없|없음|모름|not\s+found|unknown|n/?a\b)", re.I,
+)
+
 
 def _under_heading(want: str, answer: str, label: str = "") -> bool | None:
     """제목(「### 좋게 보는 점」 · 굵은 글씨만 있는 줄)이 그 이름을 담고, 다음 제목 전까지 내용이 있다.
@@ -221,6 +231,28 @@ def _under_heading(want: str, answer: str, label: str = "") -> bool | None:
     for index, line in enumerate(lines):
         found = _HEADING.match(line)
         if not found:
+            lead = _BOLD_LEAD.match(line)
+            if lead:
+                # 같은 줄에 값이 이어지는 굵은 이름(`_BOLD_LEAD`). 그 줄의 나머지가 값이거나(「— Apache 2.0」),
+                # 괄호 풀이만 붙었으면 아래 줄이 값이다(「**① 벤치마크 점수** (공식 비교표)」 다음의 표).
+                name, rest = lead.group(1), lead.group(2).strip()
+                named = want in _norm(name) or (
+                    bool(label) and not re.search(r"[:：]\s*\S", name) and _covers(label, name)
+                )
+                if named:
+                    value = re.sub(r"^[(（][^)）]*[)）]\s*", "", rest).strip()
+                    if value and _NOT_FOUND_VALUE.match(value):
+                        # 「**③ 한국어 지원** — 확인 못 함」: 이름 붙은 자리에 「못 찾았다」고 적었다 — 채운 것이 아니라 빈 자리다.
+                        seen_empty = True
+                        continue
+                    if value and _filled(value):
+                        return True
+                    for after in lines[index + 1:]:
+                        if _HEADING.match(after) or _BOLD_LEAD.match(after):
+                            break
+                        body = after.strip().lstrip("-*•>|").strip().strip("*").strip()
+                        if body and not re.fullmatch(r"[-:|\s]+", body) and body.casefold() not in _BLANK:
+                            return True
             continue
         title = found.group(1) or found.group(2) or ""
         strict = want in _norm(title)
@@ -466,11 +498,14 @@ def outbound_job_view(job: dict[str, Any]) -> dict[str, Any]:
     if str(payload.get("origin") or "") != "mcp" or not result or not isinstance(result.get("answer"), str):
         return job
     needs = clean_needs(payload.get("needs"))
-    answer, refined = refine(result["answer"], needs=needs)
+    # ★ 2026-10-24: 창에 남는 답(`answer`)에서는 대조 덩어리를 걷었다 — 바깥 AI 는 덩어리까지 든 답(`host_answer`)을 받는다.
+    #   디스코드 다리(사람이 폰으로 시킨 판)는 창과 같은 답(한 줄)을 받는다(`check_notes.answer_for_receiver`).
+    #   옛 MCP 연결 프로세스도 이 문으로 읽으니 대조표를 잃지 않는다.
+    answer, refined = refine(answer_for_receiver(result, payload), needs=needs)
     # ★ 2026-10-19 잡 51f35b07: 답 말고도 걸음 기록(`agent_trace`) · 근거(`grounding`) 의 주소 칸에 구글 계정 고르기 화면의
     #   `code_challenge` · `nonce` · `state` 가 그대로 있었다. 이 사본은 바깥으로 나가는 것이니 **글이 든 칸을 전부** 훑어
     #   로그인 화면 · 한 번 쓰는 값이 붙은 주소를 줄인다(`url_privacy`). 원본(이 PC 의 기록)은 건드리지 않는다.
-    rest, _ = scrub_urls_deep({key: value for key, value in result.items() if key != "answer"})
+    rest, _ = scrub_urls_deep({key: value for key, value in result.items() if key not in {"answer", "host_answer"}})
     shaped = {**rest, "answer": answer, "outbound": {"refined": refined, "needs": needs}}
     if isinstance(result.get("showcase"), list):
         shaped["showcase"] = showcase_for_outside(rest.get("showcase"), needs)

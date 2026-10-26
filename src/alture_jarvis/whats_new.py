@@ -20,6 +20,8 @@
 
 - `{"kind": "stat", "label", "before", "after", "unit", "basis"}` — 화면이 막대로 그린다. **숫자에는 잰 조건(`basis`)이 꼭 붙는다.**
 - `{"kind": "image", "src", "alt"}` — `ui/public/<src>` 의 실제 손자리 화면. 그린 가짜 화면은 넣지 않는다.
+- `{"kind": "show", "scene"}` — 영상 대신 **앱의 진짜 화면 조각**을 예시 데이터로 움직이는 장면(2026-10-26 대표 「영상 말고 프론트로 진짜 보여 주면」).
+  장면 이름은 `SHOW_SCENES` 에 있는 것만 — 화면(`WhatsNewShow.tsx`)이 그린다. 「예시 화면」 표시가 늘 붙는다.
 
 `slides` 가 없는 옛 판(0.4.27~29)은 화면이 지금처럼 목록으로 펼친다. 긴 목록(`changes` · `tour`)은 그대로 두고 마지막 장 뒤에 접어서 보인다.
 """
@@ -31,6 +33,8 @@ from pathlib import Path
 from typing import Any
 
 NOTES_DIR = Path(__file__).with_name("whats_new")
+#: 화면이 그릴 줄 아는 쇼 장면(`ui/src/workspace/WhatsNewShow.tsx` 와 같은 이름).
+SHOW_SCENES = frozenset({"claude-hands", "deck-build", "pptx-fonts"})
 SEEN_NAME = "whats_new_seen.json"
 
 
@@ -57,6 +61,9 @@ def _visual(raw: Any) -> dict[str, Any] | None:
         if not src.startswith("whats_new/") or ".." in src or "\\" in src or ":" in src:
             return None
         return {"kind": "image", "src": src, "alt": str(raw.get("alt") or "").strip()}
+    if kind == "show":
+        scene = str(raw.get("scene") or "").strip()
+        return {"kind": "show", "scene": scene} if scene in SHOW_SCENES else None
     return None
 
 

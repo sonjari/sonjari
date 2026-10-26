@@ -206,7 +206,7 @@ const LEAD: Partial<Record<ObservationKind, string>> = {
 function Takeaway({ item }: { item: Observation }) {
   const line = takeaway(item);
   if (!line) return null;
-  const lead = LEAD[item.kind];
+  const lead = typeof item.payload?.command === "string" && item.payload.command ? t("이 명령은") : LEAD[item.kind];
   return (
     <p className="obs-take">
       <Eye size={12} /> {lead ? `${lead} ${line}` : line}

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>blue_white · 苹果企业白 · World-Class Mock</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
+
+  :root {
+    --bg-base: #ffffff;
+    --bg-tint: #f6f8fb;
+    --line-soft: rgba(10,29,58,0.06);
+    --line-mid: rgba(10,29,58,0.10);
+    --text-primary: #0a1d3a;
+    --text-secondary: #64748b;
+    --text-tertiary: #94a3b8;
+    --accent: #2563EB;
+    --accent-deep: #1D4ED8;
+    --accent-soft: rgba(37,99,235,0.08);
+    --display-font: -apple-system, 'SF Pro Display', 'Inter Tight', 'Inter', BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --body-font: -apple-system, 'SF Pro Text', 'Inter', BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --serif-italic-font: 'Instrument Serif', 'Fraunces', Georgia, serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 720px; overflow: hidden; }
+  body {
+    background:
+      linear-gradient(180deg, #ffffff 0%, #f6f8fb 100%);
+    color: var(--text-primary);
+    font-family: var(--body-font);
+    font-feature-settings: 'kern', 'liga', 'calt', 'ss01', 'cv11', 'ccmp';
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    position: relative;
+  }
+
+  .ambient-glow-a {
+    position: absolute;
+    top: -120px; right: -80px;
+    width: 520px; height: 520px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(37,99,235,0.10) 0%, rgba(37,99,235,0) 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .ambient-glow-b {
+    position: absolute;
+    bottom: -160px; left: -120px;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(37,99,235,0.06) 0%, rgba(37,99,235,0) 65%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .grid-dot {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(10,29,58,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(10,29,58,0.025) 1px, transparent 1px);
+    background-size: 80px 80px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .inner-frame {
+    position: absolute;
+    top: 28px; left: 28px; right: 28px; bottom: 28px;
+    border: 1px solid var(--line-soft);
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .corner-tl { position: absolute; top: 22px; left: 22px; width: 16px; height: 16px; border-top: 1px solid rgba(37,99,235,0.45); border-left: 1px solid rgba(37,99,235,0.45); z-index: 2;}
+  .corner-tr { position: absolute; top: 22px; right: 22px; width: 16px; height: 16px; border-top: 1px solid rgba(37,99,235,0.45); border-right: 1px solid rgba(37,99,235,0.45); z-index: 2;}
+  .corner-bl { position: absolute; bottom: 22px; left: 22px; width: 16px; height: 16px; border-bottom: 1px solid rgba(37,99,235,0.45); border-left: 1px solid rgba(37,99,235,0.45); z-index: 2;}
+  .corner-br { position: absolute; bottom: 22px; right: 22px; width: 16px; height: 16px; border-bottom: 1px solid rgba(37,99,235,0.45); border-right: 1px solid rgba(37,99,235,0.45); z-index: 2;}
+
+  .center-line {
+    position: absolute;
+    left: 80px; right: 80px;
+    top: 412px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(37,99,235,0.45) 50%, transparent 100%);
+    z-index: 1;
+  }
+
+  .stage {
+    position: relative;
+    width: 100%; height: 100%;
+    padding: 60px 80px 56px 80px;
+    display: flex; flex-direction: column;
+    z-index: 3;
+  }
+
+  .top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 64px;
+  }
+  .logo {
+    font-family: var(--display-font);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.018em;
+    color: var(--text-primary);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-mark {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+    box-shadow: 0 4px 14px rgba(37,99,235,0.25), inset 0 1px 0 rgba(255,255,255,0.25);
+    position: relative;
+  }
+  .logo-mark::after {
+    content: '';
+    position: absolute;
+    top: 6px; left: 6px;
+    width: 10px; height: 10px;
+    border: 1.5px solid rgba(255,255,255,0.95);
+    border-radius: 2px;
+  }
+  .logo-name {
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .logo-name em {
+    font-family: var(--serif-italic-font);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+  .nav {
+    font-family: var(--body-font);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: -0.005em;
+    display: flex; gap: 28px;
+    align-items: center;
+  }
+  .nav span { cursor: default; }
+  .nav .signin {
+    color: var(--text-primary);
+    padding: 6px 14px;
+    border: 1px solid var(--line-mid);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+
+  .label {
+    font-family: var(--body-font);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    color: var(--accent);
+    font-weight: 600;
+    text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .label .pulse-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.18);
+  }
+
+  .headline {
+    font-family: var(--display-font);
+    font-size: 78px;
+    font-weight: 700;
+    letter-spacing: -0.042em;
+    line-height: 0.96;
+    margin-top: 22px;
+    color: var(--text-primary);
+  }
+  .headline em {
+    font-family: var(--serif-italic-font);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.018em;
+    color: var(--accent);
+  }
+
+  .deck {
+    font-family: var(--body-font);
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    max-width: 600px;
+    margin-top: 24px;
+    letter-spacing: -0.005em;
+    font-weight: 400;
+  }
+  .deck em {
+    font-family: var(--serif-italic-font);
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+    font-size: 17px;
+  }
+
+  .stats {
+    display: flex;
+    gap: 0;
+    margin-top: 56px;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 32px;
+    max-width: 760px;
+  }
+  .stat {
+    display: flex; flex-direction: column; gap: 8px;
+    padding-right: 56px;
+    margin-right: 56px;
+    border-right: 1px solid var(--line-soft);
+  }
+  .stat:last-child { border-right: none; margin-right: 0; padding-right: 0; }
+  .stat-row {
+    display: flex; align-items: baseline; gap: 4px;
+  }
+  .stat .num {
+    font-family: var(--display-font);
+    font-size: 44px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums proportional-nums;
+    letter-spacing: -0.038em;
+    line-height: 1;
+    color: var(--text-primary);
+  }
+  .stat .unit {
+    font-family: var(--serif-italic-font);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+    font-size: 22px;
+    letter-spacing: -0.01em;
+  }
+  .stat .l {
+    font-family: var(--body-font);
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .cta {
+    position: absolute;
+    bottom: 92px;
+    right: 80px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 22px 13px 24px;
+    background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
+    color: #ffffff;
+    border-radius: 999px;
+    font-family: var(--display-font);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    box-shadow: 0 8px 24px rgba(37,99,235,0.28), inset 0 1px 0 rgba(255,255,255,0.18);
+    z-index: 4;
+  }
+  .cta .arrow {
+    font-family: var(--body-font);
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1;
+    transform: translateY(-1px);
+  }
+
+  .cert-stripe {
+    position: absolute;
+    bottom: 92px;
+    left: 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 4;
+  }
+  .cert-label {
+    font-family: var(--body-font);
+    font-size: 10px;
+    color: var(--text-tertiary);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .cert-row {
+    display: flex; align-items: center; gap: 14px;
+  }
+  .cert-pill {
+    font-family: var(--body-font);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+    padding: 5px 11px;
+    border: 1px solid var(--line-mid);
+    border-radius: 4px;
+    background: rgba(255,255,255,0.6);
+  }
+  .cert-pill.accent {
+    color: var(--accent);
+    border-color: rgba(37,99,235,0.30);
+    background: var(--accent-soft);
+  }
+
+  .footer {
+    position: absolute;
+    bottom: 22px;
+    left: 80px; right: 80px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--body-font);
+    font-size: 10px;
+    color: var(--text-tertiary);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 500;
+    z-index: 4;
+  }
+  .footer .right {
+    font-variant-numeric: tabular-nums;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .footer .sep {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--text-tertiary);
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+  <div class="ambient-glow-a"></div>
+  <div class="ambient-glow-b"></div>
+  <div class="grid-dot"></div>
+  <div class="inner-frame"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-tr"></div>
+  <div class="corner-bl"></div>
+  <div class="corner-br"></div>
+  <div class="center-line"></div>
+
+  <div class="stage">
+    <div class="top">
+      <div class="logo">
+        <div class="logo-mark"></div>
+        <div class="logo-name">
+          <span>Veritas</span><em>QMS</em>
+        </div>
+      </div>
+      <div class="nav">
+        <span>Product</span>
+        <span>Pricing</span>
+        <span>Customers</span>
+        <span class="signin">Sign in</span>
+      </div>
+    </div>
+
+    <div class="label"><span class="pulse-dot"></span>PART 01 · QUALITY MANAGEMENT</div>
+    <h1 class="headline">Enterprise-grade<br><em>quality assurance.</em></h1>
+    <p class="deck">为生命科学与医疗器械行业打造的下一代 QMS 系统 — 把分散在 <em>17</em> 个工具中的质量流程，统一到一个可追溯、可审计、符合 FDA 21 CFR Part 11 的工作台。</p>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-row">
+          <span class="num">98.4</span><span class="unit">%</span>
+        </div>
+        <div class="l">DETECTION ACCURACY</div>
+      </div>
+      <div class="stat">
+        <div class="stat-row">
+          <span class="num">12</span><span class="unit">s</span>
+        </div>
+        <div class="l">AVG SCAN TIME</div>
+      </div>
+      <div class="stat">
+        <div class="stat-row">
+          <span class="num">47</span><span class="unit">国</span>
+        </div>
+        <div class="l">REGULATORY COVERAGE</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cert-stripe">
+    <div class="cert-label">Certified · Trusted</div>
+    <div class="cert-row">
+      <div class="cert-pill accent">FDA 21 CFR Part 11</div>
+      <div class="cert-pill">ISO 13485</div>
+      <div class="cert-pill">SOC 2 Type II</div>
+      <div class="cert-pill">HIPAA</div>
+    </div>
+  </div>
+
+  <div class="cta">
+    <span>查看产品</span>
+    <span class="arrow">→</span>
+  </div>
+
+  <div class="footer">
+    <span>PART 01 — QUALITY MANAGEMENT SYSTEM</span>
+    <span class="right">
+      <span>02 / 14</span>
+      <span class="sep"></span>
+      <span>VERITAS QMS</span>
+    </span>
+  </div>
+</body>
+</html>

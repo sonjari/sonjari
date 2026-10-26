@@ -158,6 +158,17 @@ SETTINGS: tuple[Setting, ...] = (
     Setting("claude_code_enabled", "connect", "막히면 내 클로드에게 넘기기", "bool",
             "손자리가 코드 일에서 막혔을 때만 이 PC 의 Claude Code 에 넘깁니다. 내 Claude 구독의 사용 한도를 씁니다.",
             live=True),
+    # ★ 2026-10-26 넘기기와 다른 길 — 사용자 자기 API 키로 막힌 자리만 한 번 묻는다(`api_escalation.py`). 기본 꺼짐 · 바로 적용.
+    #   키가 없거나 부품(anthropic)이 없으면 켤 수 없다. 키는 이 표로 받지 않는다(머리말 「비밀은 이 문으로 받지 않는다」).
+    Setting("api_escalation_enabled", "connect", "막히면 내 API 키로 클로드에게 묻기", "bool",
+            "손자리가 같은 자리에서 더 나아가지 못할 때만, 막힌 자리 요약을 내 Anthropic API 키로 클로드에게 보내 다음 할 일을 "
+            "한 번 묻습니다. 일은 손자리가 계속합니다. 판마다 한 번 · 답 끝에 든 돈을 적습니다.", live=True),
+    Setting("api_escalation_model", "connect", "물어볼 클로드 모델", "choice",
+            "기본은 Opus 5.5. Sonnet 5.5 는 절반 값, Haiku 5.5 는 훨씬 싸지만 조언이 얕을 수 있습니다.",
+            live=True, choices=("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5")),
+    Setting("api_escalation_monthly_usd", "connect", "한 달 상한(달러)", "int",
+            "이번 달에 쓴 돈과 다음 한 번의 최악값을 더해 이 값을 넘으면 묻지 않습니다.",
+            live=True, minimum=0, maximum=200),
     # ── 실험실 ────────────────────────────────────────────────────────────
     Setting("sandbox_enabled", "labs", "격리 상자", "bool", "WSL 격리 상자에서 코드를 돌린다.", lab=True),
     Setting("code_scout_enabled", "labs", "코드 정찰기", "bool", "두 번째 그래픽카드의 작은 모델로 저장소를 먼저 훑는다.", lab=True),
@@ -358,7 +369,7 @@ _GOOGLE_ONLY_SETTINGS = frozenset({"google_write_enabled"})
 
 
 #: 모듈이 아니라 **이 PC 의 바깥 프로그램**이 있어야 되는 설정 — 까닭과 짧은 상태 말을 함께 돌려준다(2026-10-19).
-_EXTERNAL_CAPABILITY = frozenset({"claude_code_enabled"})
+_EXTERNAL_CAPABILITY = frozenset({"claude_code_enabled", "api_escalation_enabled"})
 
 
 def _external_block(key: str, config: Any) -> tuple[str, str]:
@@ -367,6 +378,10 @@ def _external_block(key: str, config: Any) -> tuple[str, str]:
 
         status = cli_status(config)
         return str(status.get("reason") or ""), str(status.get("short") or "")
+    if key == "api_escalation_enabled" and config is not None:
+        from .api_escalation import unavailable
+
+        return unavailable(config)
     return "", ""
 
 

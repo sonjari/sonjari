@@ -33,6 +33,8 @@ export interface StepRow {
   at: number;
   took_ms: number;
   truncated: boolean;
+  /** 누가 한 걸음인가(Claude Agent 대화에서만 · `types.StepActor`). */
+  actor?: "claude" | "local";
 }
 
 export interface Truncation {
@@ -264,6 +266,12 @@ export function takeaway(item: Observation | null): string {
       return title ? `${parts.join(" · ")} — 「${title}」` : parts.join(" · ");
     }
     case "code": {
+      // 명령 걸음(Claude 의 Bash · PowerShell) — 파일이 아니라 돌린 명령과 그 출력이다(2026-10-26).
+      if (typeof payload.command === "string" && payload.command) {
+        const outputLines = Number(payload.output_lines);
+        const shown = Number.isFinite(outputLines) ? outputLines : Math.max(0, lineCount(String(payload.text || "")) - 1);
+        return shown ? t("출력 {0}줄{1}", shown.toLocaleString(), payload.clipped ? t(" · 가운데 생략") : "") : t("출력 없음");
+      }
       const text = String(payload.text || "");
       const lines = Number(payload.line_count) || lineCount(text);
       if (!lines) return "";

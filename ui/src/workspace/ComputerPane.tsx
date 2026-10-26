@@ -28,8 +28,9 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Brain, ChevronDown, Code2, Loader2, Maximize2, Minimize2, Monitor, Square, TriangleAlert, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { JarvisClient } from "../backend";
-import { toolLabel } from "../trajectory";
+import { CLAUDE_EDIT_TOOLS, toolLabel } from "../trajectory";
 import type { AnswerCheck } from "./answerChecks";
+import type { UnopenedRow } from "./unopenedRows";
 import type { AgentProgress, BrowserFrame, BrowserStatus, PlanItem, WorkspaceMode } from "../types";
 import { ObservationView, Empty } from "./ObservationView";
 import { StepScrubber } from "./StepScrubber";
@@ -41,8 +42,12 @@ import { agoLabel, screenProblem, screenWarnings, seamLabel, shortUrl, staleLabe
 import { EditReplay } from "./EditReplay";
 import { CodePreview } from "./CodePreview";
 import { LiveStage } from "./LiveStage";
+import { DeckStage, type DeckState, type DeckAnswer, type DeckPhoto } from "./DeckStage";
 import { paneWidth } from "./jobs";
 import { UnityStageView } from "./UnityEditorSection";
+import { HandoffCard } from "../claudeAgent/HandoffCard";
+import { CLAUDE_JOB_PREFIX } from "../claudeAgent/lane";
+import type { ClaudeHandoff } from "../types";
 
 const FRAME_INTERVAL_MS = 1_500;
 const STATUS_INTERVAL_MS = 10_000;
@@ -65,6 +70,8 @@ export function ComputerPane(props: {
   plan: PlanItem[];
   /** 마지막 답에 붙어 온 「확인할 것」 — 본문에서 떼어 여기 노란 줄로 둔다. */
   checks?: AnswerCheck[];
+  /** 판 끝 검사가 센 「한 번도 안 연 곳인데 값이 채워진 줄」. 「시킨 것」 아래 한 줄로, 펼치면 어느 줄인지. */
+  unopened?: UnopenedRow[];
   elapsedLabel: string;
   /** 모델의 사고 원문. 비어 있으면 칸 자체가 안 뜬다. */
   thinkingText?: string;
@@ -85,9 +92,22 @@ export function ComputerPane(props: {
   onStageToggle?: () => void;
   /** 사람이 무대에서 크롬을 넘겨받았나. 넘겨받은 동안 무대를 접지 않으려고 위로 알린다. */
   onControlChange?: (active: boolean) => void;
+  /** 이 판에서 그리는 장표(2026-10-25 · `DeckStage`). 있으면 무대의 주인공이 브라우저 대신 장표다. */
+  deck?: DeckState;
+  /** 장표 같이 만들기의 답(결 · 이야기판 · 한마디 · 멈춤). 없으면 보기만 한다. */
+  onDeckAnswer?: DeckAnswer;
+  /** 다 구운 PPTX 를 이 PC 의 앱으로 열기 · 탐색기에서 짚기. */
+  onDeckOpen?: (path: string, reveal: boolean) => void;
+  /** 장의 사진 자리에 사람이 넣은 사진. */
+  onDeckPhoto?: DeckPhoto;
+  /** Claude Agent 가 손자리에게 맡긴 판들(2026-10-26). 있으면 「손자리가 받았습니다」 카드가 뜬다. */
+  handoffs?: ClaudeHandoff[];
+  /** 손자리가 쓰는 내 PC 모델 이름 — 카드의 「내 PC 모델(○○)이 이어서 합니다」. */
+  localModel?: string;
 }) {
   const { client, open, live, jobId, progress, plan } = props;
   const checks = props.checks ?? [];
+  const unopened = props.unopened ?? [];
   const codeMode = props.mode === "code";
   const still = useReducedMotion();
   // 어느 쪽으로 되감았는지. 뷰어가 들어오는 방향이 여기서 정해진다.
@@ -225,6 +245,10 @@ export function ComputerPane(props: {
   // 오가야 했고, 도는 동안에는 기본이 「지금」이라 **본문을 아예 못 봤다.**
   const latest = rows.length ? rows[rows.length - 1].step : null;
   const bodyStep = selected ?? latest;
+  // ★ 그 걸음이 「도는 중 → 끝」으로 바뀌면 본문을 다시 연다 (2026-10-26 대표: pytest 걸음을 열면 줄 번호 「1」만).
+  //   본문은 걸음 번호가 바뀔 때만 열었다 — 마지막 걸음을 따라가는 동안 그 걸음은 도는 중(빈 본문)에 한 번 열리고, 결과가 와도
+  //   번호가 같아 다시 안 열렸다. 판이 끝난 뒤에도 같은 번호라 빈 본문이 남았다. 상태가 바뀔 때 한 번 더 연다(도는 동안 2초 목록과 같이).
+  const bodyStatus = rows.find((row) => row.step === bodyStep)?.status ?? "";
 
   useEffect(() => {
     if (!client || bodyStep === null || !jobId) { setItem(null); setMissing(""); return; }
@@ -237,7 +261,7 @@ export function ComputerPane(props: {
       setMissing(next ? "" : t("이 걸음의 내용이 남아 있지 않습니다. 오래된 작업은 원문을 버립니다."));
     });
     return () => { alive = false; };
-  }, [client, jobId, bodyStep]);
+  }, [client, jobId, bodyStep, bodyStatus]);
 
   // ← → 로 걸음 되감기. 이 칸이 열려 있을 때만 듣는다.
   const move = useCallback((delta: number) => {
@@ -371,7 +395,7 @@ export function ComputerPane(props: {
                   item={item}
                   workspace={props.codeWorkspace ?? ""}
                 />
-                <ThinkingTrace text={props.thinkingText ?? ""} ko={props.thinkingKo ?? ""} live={live} client={client} mode="code" />
+                <ThinkingTrace text={props.thinkingText ?? ""} ko={props.thinkingKo ?? ""} live={live} client={client} mode="code" translate={!jobId.startsWith(CLAUDE_JOB_PREFIX)} />
               </>
             ) : (
               <motion.div className="computer-now" variants={{ hidden: { opacity: 0, y: 6 }, shown: { opacity: 1, y: 0 } }}>
@@ -384,6 +408,10 @@ export function ComputerPane(props: {
                       : rows.length ? t("남긴 것을 볼 수 있습니다") : t("도구를 쓰지 않았습니다")}
                 </small>
               </motion.div>
+            )}
+
+            {props.handoffs && props.handoffs.length > 0 && (
+              <HandoffCard handoffs={props.handoffs} localModel={props.localModel ?? ""} />
             )}
 
             {/* ★ 계기를 박스로 세웠다가 뺐다 (2026-08-23).
@@ -469,7 +497,8 @@ export function ComputerPane(props: {
                   `compact` 는 본문이 **있을 자리인가**로 정한다. `loading` 에 걸면
                   걸음을 고를 때마다 그림이 컸다 작았다 튄다 — 읽던 자리가 발밑에서
                   움직이는 것이 이 칸에서 제일 나쁜 일이다. */}
-              {!unityEditorJob && !codeMode && (
+              {!unityEditorJob && !codeMode && props.deck && <DeckStage deck={props.deck} onAnswer={props.onDeckAnswer} onOpen={props.onDeckOpen} onPhoto={props.onDeckPhoto} />}
+              {!unityEditorJob && !codeMode && !props.deck && (
                 <LiveStage
                   client={client}
                   active={open}
@@ -543,7 +572,7 @@ export function ComputerPane(props: {
             ))}
 
             {/* 남은 것 — 몇 분씩 걸릴 때 이게 보이는 것과 안 보이는 것의 차이가 크다. */}
-            {(plan.length > 0 || checks.length > 0) && (
+            {(plan.length > 0 || checks.length > 0 || unopened.length > 0) && (
               <div className="computer-plan">
                 {plan.length > 0 && <p>{t("시킨 것")} <b>{met}/{plan.length}</b></p>}
                 <ul>
@@ -562,6 +591,24 @@ export function ComputerPane(props: {
                     </li>
                   ))}
                 </ul>
+                {/* 한 번도 안 연 곳의 줄 (2026-10-24) — 답 글에서 걷은 경고가 서는 자리. 접힌 한 줄, 펼치면 어느 줄인지.
+                    「목록에서 옮겨 적은 이름」 판정은 위 시킨 것 줄의 글로 이미 보이므로 여기서는 곳(주소)을 안 연 줄만 말한다. */}
+                {unopened.length > 0 && (
+                  <details className="computer-unopened">
+                    <summary role="status">
+                      <TriangleAlert size={12} />
+                      <span>{t("열지 않은 곳 {0}줄 — 값은 다른 글에서 옮긴 것", unopened.length)}</span>
+                    </summary>
+                    <ul>
+                      {unopened.map((row) => (
+                        <li key={`${row.place}:${row.name}`} title={[row.url, ...row.values].filter(Boolean).join(" · ")}>
+                          <span>{row.name}</span>
+                          <em>{row.unknown > 0 ? t("{0} · 「확인 불가」 칸과 함께", row.place) : row.place}</em>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
               </div>
             )}
 
@@ -683,12 +730,15 @@ export function ThinkingTrace({
   live,
   client = null,
   mode = "cowork",
+  translate = true,
 }: {
   text: string;
   ko: string;
   live: boolean;
   client?: JarvisClient | null;
   mode?: WorkspaceMode;
+  /** 거짓이면 옮기기 안내 · 단추를 안 그린다 — Claude Agent 의 생각(2026-10-26 대표: 번역은 필요 없다). */
+  translate?: boolean;
 }) {
   const [open, setOpen] = useState(mode !== "code");
   // ★ 그래픽카드 한 장 PC (인수인계 H3): 실시간 번역이 없다. 원문과 안내를 보여 주고, 판이 끝나면
@@ -699,7 +749,7 @@ export function ThinkingTrace({
   const [translateError, setTranslateError] = useState("");
 
   useEffect(() => {
-    if (!client) return;
+    if (!client || !translate) return;
     let alive = true;
     void thinkingTranslationMode(client).then((value) => {
       if (alive) setAfter(value === "after");
@@ -707,7 +757,7 @@ export function ThinkingTrace({
     return () => {
       alive = false;
     };
-  }, [client]);
+  }, [client, translate]);
 
   // 새 판이 시작되면 앞 판의 번역을 버린다.
   useEffect(() => {
@@ -785,7 +835,7 @@ export function ThinkingTrace({
             followRef.current = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
           }}
         >
-          {after && !translated && (
+          {translate && after && !translated && (
             <p className="code-think-note">
               {t("생각은 영어로 나옵니다.")}
               {!live && client && (
@@ -816,7 +866,7 @@ function CodeOperation(props: {
   const observationMatches = !progressTool || progressTool === props.item?.tool;
   const payload = ((observationMatches ? props.item?.payload : null) ?? {}) as Record<string, unknown>;
   const args = ((observationMatches ? props.item?.arguments : null) ?? {}) as Record<string, unknown>;
-  const path = String(payload.path || args.path || "");
+  const path = String(payload.path || args.path || args.file_path || "");
   const lineStart = Number(payload.line_start || 0);
   const lineEnd = Number(payload.line_end || 0);
   const location = path
@@ -846,7 +896,7 @@ function CodeOperation(props: {
   const preview = payload.edit_preview as
     | { start_line?: number; removed?: string[]; added?: string[]; truncated?: boolean; added_count?: number }
     | undefined;
-  const locationLabel = ["local_write_file", "local_apply_edit"].includes(tool)
+  const locationLabel = ["local_write_file", "local_apply_edit", ...CLAUDE_EDIT_TOOLS].includes(tool)
     ? t("바꾼 곳")
     : tool === "local_index_codebase" ? t("범위") : t("읽은 곳");
   const facts = [
@@ -889,9 +939,9 @@ function CodeOperation(props: {
 function codePhaseLabel(tool: string, verified: unknown): string {
   if (tool === "local_index_codebase") return t("색인");
   if (tool.startsWith("browser_") || tool.startsWith("web_") || tool.includes("site_search")) return t("조사");
-  if (["local_list_directory", "local_search_files", "local_read_text_file"].includes(tool)) return t("읽기");
-  if (["local_write_file", "local_apply_edit"].includes(tool)) return t("패치");
-  if (tool === "local_run_project_command") return verified === false ? t("수리") : t("검증");
+  if (["local_list_directory", "local_search_files", "local_read_text_file", "Read", "Glob", "Grep"].includes(tool)) return t("읽기");
+  if (["local_write_file", "local_apply_edit", ...CLAUDE_EDIT_TOOLS].includes(tool)) return t("패치");
+  if (tool === "local_run_project_command" || tool === "Bash" || tool === "PowerShell") return verified === false ? t("수리") : t("검증");
   if (tool.includes("prepare") || tool.includes("draft")) return t("초안");
   return t("계획");
 }

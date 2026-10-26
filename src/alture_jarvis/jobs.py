@@ -280,6 +280,8 @@ class JobStore:
                started_at, finished_at, attempts, build,
                COALESCE(json_extract(payload_json, '$.session_id'), '') AS session_id,
                COALESCE(json_extract(payload_json, '$.origin'), '')     AS origin,
+               -- 어느 문으로 들어왔나 — 앱 안 Claude 가 맡긴 판(via=app)은 화면이 목록에 제 방을 세우지 않는다(2026-10-26).
+               COALESCE(json_extract(payload_json, '$.via'), '')        AS via,
                -- 그 판이 어느 모드로 · 어느 폴더에서 도는가. 바깥 AI 가 맡긴 판은 사람이 화면에서 고른 것과 다르다(2026-10-09).
                COALESCE(json_extract(payload_json, '$.workspace_mode'), '') AS workspace_mode,
                COALESCE(substr(json_extract(payload_json, '$.code_workspace'), 1, 400), '') AS code_workspace,

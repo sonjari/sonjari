@@ -111,6 +111,7 @@ def _notice(text: str, missing: str, cut: bool) -> str:
     if missing:
         return f"대화가 접혔습니다. 서기 카드는 못 넣었습니다({missing})."
     counts: dict[str, int] = {}
+    folded: dict[str, int] = {}
     current = ""
     for line in text.splitlines():
         if line.startswith("## "):
@@ -118,9 +119,58 @@ def _notice(text: str, missing: str, cut: bool) -> str:
             current = next((short for name, short in _SECTIONS if title.startswith(name)), "")
         elif current and line.startswith("- "):
             counts[current] = counts.get(current, 0) + 1
-    body = " · ".join(f"{short} {counts[short]}" for _, short in _SECTIONS if counts.get(short))
+        elif current and line.startswith("(접음)"):
+            found = re.search(r"(\d+)장", line)
+            folded[current] = folded.get(current, 0) + (int(found.group(1)) if found else 0)
+    body = " · ".join(f"{short} {counts.get(short, 0)}" + (f"(접음 {folded[short]})" if folded.get(short) else "")
+                      for _, short in _SECTIONS if counts.get(short) or folded.get(short))
     tail = " (9,000자 한도로 일부 잘림)" if cut else ""
     return f"대화가 접혔습니다. 서기 카드를 다시 넣었습니다 — {body or '카드 0'}{tail}."
+
+
+_IMPORT_LINE = re.compile(r"^\s*@(\S+)\s*$")
+
+
+def _same_file(a: Path, b: Path) -> bool:
+    try:
+        return a.resolve() == b.resolve() or a.samefile(b)
+    except OSError:
+        return str(a.resolve()).casefold() == str(b.resolve()).casefold()
+
+
+def style_already_loaded(style_file: str, cwd: str = "", home: Path | None = None) -> bool:
+    """CLAUDE.md(사용자 것 · 작업 폴더에서 위로 올라가며 있는 것)에 그 파일을 끼워 넣는 `@경로` 줄이 있으면 True.
+
+    클로드 코드는 CLAUDE.md 와 그 `@` 끼워 넣기를 압축 뒤에도 다시 싣는다 — 훅이 또 넣으면 같은 글이 두 번 들어간다.
+    코드 칸(```) 안의 `@` 는 끼워 넣기가 아니라 건너뛴다. 못 읽으면 False(지금처럼 넣는다 — 빠뜨리는 것보다 두 번이 낫다).
+    """
+    target = Path(style_file).expanduser()
+    home = Path(home) if home else Path.home()
+    places = [home / ".claude" / "CLAUDE.md"]
+    if cwd:
+        here = Path(cwd)
+        for folder in [here, *here.parents]:
+            places += [folder / "CLAUDE.md", folder / "CLAUDE.local.md", folder / ".claude" / "CLAUDE.md"]
+    for place in places:
+        try:
+            text = place.read_text(encoding="utf-8-sig")
+        except (OSError, UnicodeDecodeError):
+            continue
+        fenced = False
+        for line in text.splitlines():
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+                continue
+            found = None if fenced else _IMPORT_LINE.match(line)
+            if not found:
+                continue
+            raw = found.group(1)
+            path = home / raw[2:] if raw.startswith("~/") else Path(raw)
+            if not path.is_absolute():
+                path = place.parent / path
+            if _same_file(path, target):
+                return True
+    return False
 
 
 def after_compact(payload: dict, opts: dict[str, str]) -> dict | None:
@@ -135,7 +185,8 @@ def after_compact(payload: dict, opts: dict[str, str]) -> dict | None:
     parts = ["[압축 직후 다시 넣음] 대화가 방금 접혔다. 요약은 오래된 결정을 잃는다. 아래는 요약이 아니라 파일에서 새로 읽은 것이니 "
              "요약보다 우선한다."]
     style_file = opts.get("style-file", "")
-    if style_file:
+    # CLAUDE.md 가 이미 `@` 로 끼워 넣는 파일이면 또 넣지 않는다 — CLAUDE.md 는 압축 뒤에도 그대로 다시 실린다(10-23 · 두 번 들어갔다).
+    if style_file and not style_already_loaded(style_file, str(payload.get("cwd") or "")):
         try:
             style = Path(style_file).read_text(encoding="utf-8").strip()
             if style:
@@ -150,10 +201,14 @@ def after_compact(payload: dict, opts: dict[str, str]) -> dict | None:
     if block:
         parts.append(block)
     if not missing:
-        card = newest_first_without_quotes(str(data.get("card") or "").strip())[:CARD_MAX]
+        # 손자리가 고른 넘길 글(`handoff` · 4차 10-24 — 열린 카드 전부에서 최근에 나온 것부터, 오래된 것은 접음)이 있으면 그것을,
+        # 옛 손자리(그 칸이 없음)면 예전처럼 최근 카드 글을 쓴다.
+        card = newest_first_without_quotes(str(data.get("handoff") or data.get("card") or "").strip())[:CARD_MAX]
         parts.append("## 이 대화에서 정한 것 · 버린 것 · 남은 일(서기 카드, 근거 줄 포함)\n"
                      "주의: 「남은 일」은 그 줄이 쓰인 시점의 것이라 이미 끝났거나 뒤집혔을 수 있다. 행동하기 전에 기록(git · 파일 · "
-                     "최근 대화)으로 확인한다. 칸마다 최신 카드가 위에 있다. 같은 주제에서 줄 번호가 큰 카드가 나중 결정이다.\n" + card)
+                     "최근 대화)으로 확인한다. 칸마다 최신 카드가 위에 있다. 같은 주제에서 줄 번호가 큰 카드가 나중 결정이다. "
+                     "「[확인: 이 뒤 줄 N에서 같은 이야기]」가 붙은 카드는 서기가 끝났는지 확신하지 못한 것 — 그 줄을 열어 보고 판단한다. "
+                     "「(접음)」 줄은 오래되고 그 뒤 다시 나오지 않아 접어 둔 카드다 — 닫힌 것이 아니니 필요하면 그 줄을 연다.\n" + card)
     text = "\n\n".join(parts)
     cut = len(text) > TEXT_MAX
     if cut:
@@ -168,7 +223,17 @@ def _new_session(payload: dict, base: str, token: str) -> dict | None:
     folder = here.parent if here.name else None
     if folder is None or not folder.is_dir():
         return None
-    others = sorted((p for p in folder.glob("*.jsonl") if p.stem != str(payload.get("session_id") or "")),
+    me = str(payload.get("session_id") or "")
+    folders = [folder]
+    # ★ 2026-10-25 마케팅 방: 클로드 앱이 **별도 작업 공간(worktree)** 으로 연 방은 기록 폴더가 따로라
+    #   (`E----------` → `E------------claude-worktrees-이름`) 「같은 폴더의 앞 대화」가 없어 아무것도 안 넣었다.
+    #   그 폴더 이름의 앞부분이 원래 저장소의 기록 폴더다 — 그쪽 앞 대화도 본다.
+    marker = "--claude-worktrees-"
+    if marker in folder.name:
+        main = folder.parent / folder.name.split(marker, 1)[0]
+        if main.is_dir():
+            folders.append(main)
+    others = sorted((p for where in folders for p in where.glob("*.jsonl") if p.stem != me),
                     key=lambda p: p.stat().st_mtime, reverse=True)
     for previous in others[:3]:
         data = _story(base, token, previous.stem)
@@ -226,11 +291,20 @@ def open_line(path: str, target: int, around: int = 2) -> str:
                 break
             # 줄 머리만 보고 거른다(도구 결과 줄은 수 MB) — 띄어쓰기 있는 꼴도 받는다(`scribe._turn_of` 와 같게).
             if number < target - 400 or not any(mark in raw for mark in (
-                    '"type":"user"', '"type":"assistant"', '"type": "user"', '"type": "assistant"')):
+                    '"type":"user"', '"type":"assistant"', '"type": "user"', '"type": "assistant"', '"queued_command"')):
                 continue
             try:
                 row = json.loads(raw)
             except ValueError:
+                continue
+            attachment = row.get("attachment") if isinstance(row.get("attachment"), dict) else {}
+            if row.get("type") == "attachment" and attachment.get("type") == "queued_command":
+                # 클로드가 일하는 동안 사람이 친 말 — 기록에 이 꼴로만 남는다(서기 카드의 줄 번호가 여기를 가리킬 수 있다 · 10-23).
+                text = _turn_text({"message": {"content": attachment.get("prompt")}}).strip()
+                if text:
+                    turns.append((number, "사람", text))
+                continue
+            if row.get("type") not in ("user", "assistant"):
                 continue
             text = _turn_text(row).strip()
             if text and not row.get("isMeta"):

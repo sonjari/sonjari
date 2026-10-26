@@ -152,13 +152,38 @@ def _rest_error(status: int, body: Any, *, forbidden: str = "forbidden") -> Disc
     return DiscordStepError("discord_error", _msg("discord_error", status))
 
 
-class DiscordRest:
-    """봇 토큰으로 부르는 REST 몇 개. 토큰은 머리에만 싣고, 오류는 `DiscordStepError`(사람 말)로 바꾼다."""
+#: 디스코드가 「이만큼 기다려라」(429 의 retry_after)라고 할 때 사람에게 다시 누르라 하지 않고 손자리가 기다려 주는 상한(초).
+#: ★ 2026-10-23 팀 노트북 실사용: `/users/@me/guilds` 는 봇마다 **1초에 한 번**이다(`x-ratelimit-limit: 1` 실측).
+#:   마무리가 그 목록을 곧바로 두 번 물어 누를 때마다 「1초 뒤에 다시」만 떴다.
+RATE_LIMIT_WAIT_MAX_SEC = 5.0
 
-    def __init__(self, token: str, http: HttpCall | None = None) -> None:
+
+def _retry_after(body: Any) -> float | None:
+    wait = body.get("retry_after") if isinstance(body, dict) else None
+    return float(wait) if isinstance(wait, (int, float)) else None
+
+
+class DiscordRest:
+    """봇 토큰으로 부르는 REST 몇 개. 토큰은 머리에만 싣고, 오류는 `DiscordStepError`(사람 말)로 바꾼다.
+
+    짧은 429(5초 이하)는 그만큼 기다렸다가 **한 번만** 다시 묻는다. 길면 예전처럼 사람 말로 돌려준다.
+    """
+
+    def __init__(self, token: str, http: HttpCall | None = None, *, sleep: Callable[[float], None] | None = None) -> None:
         self._token = token.strip()
         REDACTOR.register(self._token)
-        self._http = http or _http_call
+        raw = http or _http_call
+        pause = sleep or time.sleep
+
+        def http_with_wait(method: str, url: str, headers: dict[str, str], body: dict[str, Any] | None) -> tuple[int, Any]:
+            status, data = raw(method, url, headers, body)
+            wait = _retry_after(data) if status == 429 else None
+            if wait is not None and wait <= RATE_LIMIT_WAIT_MAX_SEC:
+                pause(wait + 0.05)
+                status, data = raw(method, url, headers, body)
+            return status, data
+
+        self._http = http_with_wait
 
     def _headers(self) -> dict[str, str]:
         from ..brand import NAME
@@ -227,13 +252,15 @@ def first_text_channel(channels: list[dict[str, Any]]) -> dict[str, Any] | None:
     return sorted(texts, key=order)[0]
 
 
-def pick_home_channel(rest: DiscordRest, allowed: list[str]) -> tuple[str, str]:
+def pick_home_channel(rest: DiscordRest, allowed: list[str],
+                      guilds: list[dict[str, Any]] | None = None) -> tuple[str, str]:
     """봇이 든 서버 가운데 **주인이 허용 목록 사람인 서버**의 첫 글 채널 (id, 이름). 없으면 ("", "").
 
     남의 서버(친구 서버에 봇을 들인 경우)는 건너뛴다 — 거기 채널을 멘션 없이 받는 자리로 만들면 남의 대화에 낀다.
     """
     allowed_set = {str(uid) for uid in allowed}
-    for guild in rest.guilds():
+    # 부른 쪽이 이미 받은 목록을 넘기면 다시 묻지 않는다 — 이 물음은 1초에 한 번이다.
+    for guild in (rest.guilds() if guilds is None else guilds):
         if rest.guild_owner(str(guild["id"])) not in allowed_set:
             continue
         channel = first_text_channel(rest.channels(str(guild["id"])))
@@ -334,7 +361,8 @@ class DiscordService:
                  installed: Callable[[], bool] = discord_installed,
                  lang: Callable[[], str] | None = None,
                  retry_delays: tuple[float, ...] = RETRY_DELAYS,
-                 aliases: Any = None) -> None:
+                 aliases: Any = None,
+                 sleep: Callable[[float], None] | None = None) -> None:
         self.config = config
         #: 모델 별명 표(`model_aliases.ModelAliasBook`) — status 에 같이 싣고, 기본 모델을 고를 때 검사한다.
         self._aliases = aliases
@@ -346,6 +374,7 @@ class DiscordService:
         self._installed = installed
         self._lang = lang
         self._retry_delays = retry_delays
+        self._sleep = sleep   # 짧은 429 를 기다리는 자리(시험은 가짜 시계)
         self._mutex = threading.RLock()      # 시작 · 멈춤 · 단계 문을 한 줄로
         self._lock_mutex = threading.Lock()  # 잠금 파일 쥐기 · 놓기만(다리 스레드도 쓴다)
         self._instance: Any = None
@@ -371,7 +400,7 @@ class DiscordService:
         return self._clipboard or system_clipboard()
 
     def _rest(self, token: str) -> DiscordRest:
-        return DiscordRest(token, self._http)
+        return DiscordRest(token, self._http, sleep=self._sleep)
 
     def _ui_lang(self) -> str:
         if self._lang is not None:
@@ -886,7 +915,7 @@ class DiscordService:
                 settings.allowed_user_ids.append(uid)
         home_auto = False
         if not settings.home_channel_id:
-            channel_id, channel_name = pick_home_channel(rest, settings.allowed_user_ids)
+            channel_id, channel_name = pick_home_channel(rest, settings.allowed_user_ids, guilds)
             if channel_id:
                 settings.home_channel_id, settings.home_channel_name = channel_id, channel_name
                 home_auto = True

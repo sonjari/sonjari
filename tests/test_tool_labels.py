@@ -94,5 +94,8 @@ def test_no_label_points_at_a_tool_that_no_longer_exists() -> None:
                "career_strategy_lookup", "github_search", "naver_web", "naver_news",
                "google_trend", "hackernews_top", "reddit_hot",
                # 이름 2단계(2026-09-29) 전 맡기기 문 — 지난 작업 기록을 다시 열 때 이름표가 나오게 남긴다.
-               "ontelic_task", "ontelic_task_status", "ontelic_guide"}
+               "ontelic_task", "ontelic_task_status", "ontelic_guide",
+               # 앱 안의 Claude Agent(2026-10-26)가 부르는 이름 — 클로드 쪽에서 본 맡기기 문(MCP 서버 이름 + 도구 이름).
+               #   손자리 도구 목록에는 `sonjari_task` 로 있고, 이 셋은 클로드 걸음을 그리는 화면 이름표다.
+               "mcp__sonjari__sonjari_task", "mcp__sonjari__sonjari_task_status", "mcp__sonjari__sonjari_guide"}
     assert not (set(stale) - allowed), f"없는 도구를 가리키는 라벨: {sorted(set(stale) - allowed)}"

@@ -59,6 +59,45 @@ def split_command_line(raw: str) -> list[str]:
 # 모자라면 `truncated: true` 를 보고 max_chars 를 키워 다시 부르면 된다.
 SURVEY_READ_CHARS = 15_000
 
+#: 잘린 마크다운에 붙이는 목차의 글자 상한. 본문 한 조각(4만 자)보다 훨씬 작게.
+_HEADINGS_BUDGET_CHARS = 12_000
+_DATE_IN_HEADING = re.compile(r"\s*\d{4}-\d{2}-\d{2}\s*")
+
+
+def markdown_headings(lines: list[str], budget: int = _HEADINGS_BUDGET_CHARS) -> list[str]:
+    """큰 마크다운의 목차 — `#` · `##` 제목을 「짧은 제목 (줄 번호)」로. 글자 상한을 넘으면 `#` 는 다 두고 `##` 는 **뒤에서부터**(최근 절) 채운다.
+
+    ★ 2026-10-25 대표 판(0064b1b3 · 「전략안 뒷단 쫙 읽어 줘 · 유입 전략」): 전략안은 `##` 제목이 257개라 80개를 넘었고,
+      예전 규칙은 그때 `#` 제목(56개)만 남겼다. 그런데 최근 절(§55-6 · §55-25 같은 유입 이야기)은 전부 `##` 이라 목차에서 통째로
+      사라졌고, 모델은 갈 곳을 몰라 앞에서부터 4만 자씩 읽어 기록이 11만 토큰이 됐다. 개수가 아니라 **글자**로 자르고,
+      날짜를 떼서 짧게 만든다(257개 · 약 1만 자).
+    """
+    found: list[tuple[int, int, str]] = []
+    for index, line in enumerate(lines, 1):
+        hit = re.match(r"(#{1,2})\s+(\S.*)", line.lstrip())
+        if hit:
+            label = " ".join(_DATE_IN_HEADING.sub(" ", hit.group(2)).split())[:46]
+            found.append((index, len(hit.group(1)), f"{hit.group(1)} {label} ({index})"))
+    if sum(len(entry) + 2 for _, _, entry in found) <= budget:
+        return [entry for _, _, entry in found]
+    keep = {index for index, level, _ in found if level == 1}
+    used = sum(len(entry) + 2 for index, _, entry in found if index in keep)
+    for index, level, entry in reversed(found):
+        if level == 2 and used + len(entry) + 2 <= budget:
+            keep.add(index)
+            used += len(entry) + 2
+    return [entry for index, _, entry in found if index in keep]
+
+
+def _clean_local_find_terms(raw: Any) -> list[str]:
+    """파일 안에서 찾을 낱말 — 겹침을 빼고 8개까지."""
+    terms: list[str] = []
+    for item in raw if isinstance(raw, (list, tuple)) else [raw]:
+        text = " ".join(str(item or "").split())[:60]
+        if text and text.casefold() not in {term.casefold() for term in terms}:
+            terms.append(text)
+    return terms[:8]
+
 # 되짚기에 실어 보내는 줄 수 상한. 한 화면에서 눈으로 좇을 수 있는 만큼이면 된다.
 EDIT_PREVIEW_LINES = 40
 
@@ -1282,6 +1321,14 @@ class LocalComputerTools:
         self.code_index = CodeIndex(config.output_dir / "code_index")
         #: 아는 비밀 값의 모음 — 런타임이 건다. 명령 출력에서 그 값을 가린다(`_run_for_model`).
         self.known_secrets: Any = None
+        #: 화면 알림을 보내는 함수(`events.publish`) — 런타임이 건다. 장표가 한 장씩 그려지는 것을 보이는 데 쓴다.
+        self.publish: Any = None
+        #: 판 번호 → 판 기록(`JobStore.get_job`) — 런타임이 건다. 장표 같이 만들기가 「앱에서 시킨 판인가 · 취소됐나」를 본다.
+        self.job_info: Any = None
+        from .slide_inbox import DeckInbox
+
+        #: 장표 같이 만들기 — 사람이 컴퓨터 칸에서 고른 결 · 고친 이야기판 · 남긴 한마디(`slide_inbox`).
+        self.deck_inbox = DeckInbox()
         self.allowed_roots = self._parse_roots(config.local_file_allowed_roots)
         self.workspace_root = (config.output_dir / "workspace").resolve(strict=False)
         self.backup_root = (config.output_dir / "backups").resolve(strict=False)
@@ -1390,7 +1437,8 @@ class LocalComputerTools:
                 # ★ 대결 T2(2026-09-28): 이 줄이 rows 를 먼저 대서 모델이 워드에도 rows(표 한 장) → sheets → blocks 로 **세 번** 썼다.
                 "**워드·한글·PPT·md 는 blocks 하나로** 제목·문단·표 여러 개를 한 번에 준다(아래 blocks 예). "
                 "rows 는 표 한 장짜리(엑셀·CSV), sheets 는 엑셀 여러 시트다. "
-                "읽은 자료를 표나 문서로 남길 때 쓴다 — 텍스트로만 답하지 마라.",
+                "읽은 자료를 표나 문서로 남길 때 쓴다 — 텍스트로만 답하지 마라. "
+                "**발표 장표(PPT)는 local_make_slide 로** — 여기서 만든 pptx 는 흰 바탕 글줄뿐이다.",
                 {
                     "path": {"type": "string", "description": "예: 정리.xlsx (상대 경로 권장)"},
                     "format": {"type": "string", "description": "xlsx·docx·pptx·**hwpx(한글)**·csv·md·txt (생략하면 확장자)"},
@@ -1427,6 +1475,29 @@ class LocalComputerTools:
                     "open": {"type": "boolean", "description": "만든 뒤 바로 띄운다(기본 참)"},
                 },
                 ["path"],
+            ),
+            # ★ 디자인된 장표 (2026-10-25 · `slides` 머리말). 위의 pptx 는 흰 바탕 글줄뿐이다.
+            self._function(
+                "local_make_slide",
+                "**발표 장표(PPT)를 디자인해서 만든다.** 사용자와 같이 만든다 — 사용자는 화면에서 결을 고르고 이야기판을 고치고 장에 한마디를 남긴다. "
+                "순서: ① html 없이 about · say 로 불러 결(사용자가 고른 것) · 규칙 · 배치 틀을 받는다 ② html 없이 outline(장마다 틀 · 한 줄 주장)으로 불러 "
+                "사용자가 고친 이야기판을 받는다 ③ 1번 장부터 title · index · total · theme · html(<section> 조각) · note 를 넣어 부른다. "
+                "마지막 장을 넣으면 PPTX 가 구워진다. PPT 를 만들라면 local_write_document 대신 이것을 쓴다.",
+                {
+                    "title": {"type": "string", "description": "발표 제목 — 모든 장에 같게(파일 이름이 된다)"},
+                    "index": {"type": "integer", "minimum": 1, "maximum": 40, "description": "이 장의 번호(1부터)"},
+                    "total": {"type": "integer", "minimum": 1, "maximum": 40, "description": "전체 장 수"},
+                    "about": {"type": "string", "description": "html 없이 처음 부를 때: 무슨 발표인지 · 누구에게 · 바라는 분위기 한두 문장(결 추천에 쓴다)"},
+                    "theme": {"type": "string", "description": "결 이름(처음 부르면 추천 셋과 전체 목록이 온다). 모든 장에 같게"},
+                    "html": {"type": "string", "description": "이 장의 <section class=\"배치\">…</section> 조각(배치 틀을 복사해 글만 바꾼다). 비우면 규칙 · 결 · 배치 틀을 돌려준다"},
+                    "say": {"type": "string", "description": "사용자 화면에 보일 한 줄(①에서: 무엇을 어떻게 만들지 · ②에서: 이야기판을 이렇게 짠 까닭). 사용자에게 건네는 말로"},
+                    "outline": {"type": "array", "items": {}, "description": '②에서만: [{"layout":"틀 이름","claim":"그 장의 한 줄 주장"}, …] — 1번은 표지, 마지막은 마무리(부품 결은 cover · parts · closing)'},
+                    "note": {"type": "string", "description": "③에서: 이 장을 만들며 한 생각 한 줄(사용자 화면에 혼잣말로 뜬다). 예: 「숫자 셋을 나란히 — 가장 큰 값을 왼쪽에」"},
+                    "parts": {"type": "object", "description": "부품 결(guide 에 parts 가 오는 결)은 모든 장이 html 대신 조립표 — 본문 {head, sub, lede, layout, cols:[[부품…]…], source, unit} · "
+                              "표지 · 마무리 {frame:\"cover\"|\"closing\", kicker, title, sub, meta:[[이름,값]], note}. 부품 이름 · 칸은 guide 의 parts · frames"},
+                    "deck_type": {"type": "string", "description": "①에서(선택): 장표 유형 — 보고 · IR · 교육 · 제안 · 소개. 비우면 about 으로 고른다(장 흐름 order 가 온다)"},
+                },
+                ["title"],
             ),
             self._function(
                 "local_edit_spreadsheet",
@@ -1496,8 +1567,9 @@ class LocalComputerTools:
             ),
             self._function(
                 "local_read_text_file",
-                "허용된 경로의 텍스트·코드 파일을 읽는다. 큰 파일은 잘리고 outline(함수와 줄 범위)이 함께 온다 — "
-                "그 다음엔 line_start/line_end 로 필요한 구간만 다시 읽어라. 비밀 파일은 차단한다. "
+                "허용된 경로의 텍스트·코드 파일을 읽는다. 큰 파일은 잘리고 outline(함수와 줄 범위)이나 headings(절 제목과 줄)가 함께 온다 — "
+                "그 다음엔 line_start/line_end 로 필요한 구간만 다시 읽어라. 큰 문서에서 특정 이야기를 찾을 때는 find 에 낱말을 넣으면 "
+                "그 낱말이 든 줄을 줄 번호 · 절 제목과 함께 준다(본문은 안 옴). 비밀 파일은 차단한다. "
                 "여러 파일을 볼 때는 `paths` 로 **한 번에** 읽어라(12개까지 · 파일마다 줄 범위) — 하나씩 부르면 대화 기록이 길어진다.",
                 {
                     "path": {"type": "string"},
@@ -1521,6 +1593,12 @@ class LocalComputerTools:
                         },
                     },
                     "max_chars": {"type": "integer", "minimum": 500, "maximum": 40000},
+                    "find": {
+                        "type": "array",
+                        "maxItems": 8,
+                        "items": {"type": "string"},
+                        "description": "이 파일에서 찾을 낱말(8개까지). 그 낱말이 든 줄을 줄 번호와 절 제목과 함께 준다 — 큰 문서에서 필요한 절을 찾을 때.",
+                    },
                     "line_start": {
                         "type": "integer",
                         "minimum": 1,
@@ -1693,6 +1771,7 @@ class LocalComputerTools:
             "local_find_symbol": self.find_symbol,
             "local_grep": self.grep_files,
             "local_write_document": self.write_document_file,
+            "local_make_slide": self.make_slide,
             "local_edit_spreadsheet": self.edit_spreadsheet_file,
             "local_edit_document": self.edit_document_file,
             "local_glob": self.glob_files,
@@ -1716,6 +1795,8 @@ class LocalComputerTools:
             "local_find_symbol": RiskLevel.L1,
             "local_grep": RiskLevel.L1,
             "local_write_document": RiskLevel.L1,
+            # 자기 결과물 폴더(문서\Sonjari)에만 새 파일을 만든다 — 문서 쓰기와 같은 등급.
+            "local_make_slide": RiskLevel.L1,
             "local_edit_spreadsheet": RiskLevel.L1,
             "local_edit_document": RiskLevel.L1,
             "local_glob": RiskLevel.L1,
@@ -1810,6 +1891,8 @@ class LocalComputerTools:
                         "local_grep",
                         "local_glob",
                         "local_write_document",
+                        # 장표(2026-10-25) — 판 번호가 없으면 「nojob」으로 저장 · 알림돼 컴퓨터 창이 장표를 못 찾았다(첫 실사용).
+                        "local_make_slide",
                         "local_edit_spreadsheet",
                         "local_edit_document",
                         "local_preview_page",
@@ -3570,6 +3653,565 @@ class LocalComputerTools:
     #: 한 파일에서 이 크기를 넘으면 건너뛴다(생성물·덤프가 시간을 다 먹는다).
     _GREP_MAX_BYTES = 2_000_000
 
+    def make_slide(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """장표 한 장을 받는다. html 이 없으면 규칙을, 마지막 장이면 PPTX 를 돌려준다(`slides` · `slides_style` 머리말).
+
+        4차(2026-10-25): 모델은 결의 배치 틀(<section> 조각)에 글만 채우고, 결 CSS 는 여기서 끼운다. 장마다 브라우저로 재서
+        넘치면 글자를 줄여 맞추고, 그래도 넘치면 한 번 돌려보낸다. 완성 HTML(<!DOCTYPE html>)을 넣으면 예전처럼 그대로 받는다.
+        """
+        from . import slides, slides_style
+
+        title = slides.safe_title(str(arguments.get("title") or ""))
+        job_id = self._job_id(arguments) or "nojob"
+        deck_dir = (self.config.output_dir / "slides" / job_id / title).resolve(strict=False)
+        # ★ 한 판의 장표는 한 폴더로 모은다 — 사다리 0단(10-26 소개 PPT 판 6ddef60f). 모델이 장마다 title 자리에 **그 장의 제목**을
+        #   넣어 장 8개가 장표 8개로 흩어졌고, 어느 장표도 차지 않아 굽지 못한 채 1번부터 다시 넣기를 되풀이했다(23걸음).
+        #   이 판에 아직 굽지 않은 장표가 하나 있고, 장을 넣는 부름이 처음 보는 제목을 달고 오면 그 장표로 보낸다.
+        deck_fixed: list[str] = []
+        job_root = self.config.output_dir / "slides" / job_id
+        if job_id != "nojob" and not deck_dir.exists() and job_root.is_dir() and any(
+                arguments.get(key) not in (None, "", [], {}) for key in ("index", "html", "parts", "outline")):
+            open_decks = [d for d in job_root.iterdir() if d.is_dir() and not (d / "built.json").exists()
+                          and ((d / "outline.json").exists() or (d / "theme.txt").exists() or any(d.glob("slide_*.html")))]
+            if len(open_decks) == 1:
+                deck_fixed.append(f"장표 제목은 모든 장에 같게 — 「{title}」 대신 이 판의 장표 「{open_decks[0].name}」에 넣었다")
+                title, deck_dir = open_decks[0].name, open_decks[0].resolve(strict=False)
+        theme_arg = str(arguments.get("theme") or arguments.get("style") or "").strip()
+        theme_file = deck_dir / "theme.txt"
+        chosen_by_person = (deck_dir / "person_theme.txt").read_text(encoding="utf-8").strip() \
+            if (deck_dir / "person_theme.txt").exists() else ""
+        if theme_arg in slides_style.THEMES and str(arguments.get("html") or "").strip() and chosen_by_person \
+                and theme_arg != chosen_by_person:
+            # ★ 사람이 고른 결을 모델이 다른 결로 덮지 않는다 — 틀 이름이 결마다 달라 장이 깨진다.
+            raise ValueError(f"theme_person_chose: 사용자가 「{slides_style.THEMES[chosen_by_person][0] if chosen_by_person in slides_style.THEMES else chosen_by_person}」 "
+                             f"결을 골랐다 — theme 에 {chosen_by_person} 를 넣고 그 결의 틀로 같은 index 를 다시 넣어라.")
+        if theme_arg in slides_style.THEMES and not (chosen_by_person and theme_arg != chosen_by_person):
+            deck_dir.mkdir(parents=True, exist_ok=True)
+            theme_file.write_text(theme_arg, encoding="utf-8")
+        # 부품 조립(2026-10-25) — 조립표를 받으면 검사하고 결의 부품으로 그린 조각을 html 자리에 둔다.
+        parts_sig, parts_used, parts_fixed = "", [], []
+        if arguments.get("parts") not in (None, "", {}, []):
+            from . import slide_parts
+
+            theme_for_parts = (theme_arg if theme_arg in slides_style.THEMES
+                               else theme_file.read_text(encoding="utf-8").strip() if theme_file.exists() else slides_style.DEFAULT_THEME)
+            if not slide_parts.supports(theme_for_parts):
+                raise ValueError(f"parts_not_supported: {theme_for_parts} 결은 부품 조립이 없다 — layouts 의 틀을 html 로 넣는다.")
+            try:
+                at, of = int(arguments.get("index") or 0), int(arguments.get("total") or 0)
+            except (TypeError, ValueError):
+                at, of = 0, 0
+            fragment_html, parts_sig, parts_used, parts_fixed = slide_parts.build_with_fixes(
+                arguments.get("parts"), theme_for_parts, at, of)
+            arguments = {**arguments, "html": fragment_html}
+        html = str(arguments.get("html") or "").strip()
+        say = " ".join(str(arguments.get("say") or "").split())[:240]
+        person_file = deck_dir / "person_theme.txt"
+        person_theme = person_file.read_text(encoding="utf-8").strip() if person_file.exists() else ""
+        if not html and arguments.get("outline"):
+            return self._deck_outline(arguments, job_id, title, deck_dir, say)
+        if not html:
+            return self._deck_pick_theme(arguments, job_id, title, deck_dir, theme_arg, person_theme, say)
+        try:
+            index = int(arguments.get("index") or 0)
+            total = int(arguments.get("total") or 0)
+        except (TypeError, ValueError):
+            raise ValueError("index_and_total_must_be_numbers")
+        if not (1 <= index <= total <= slides.MAX_SLIDES):
+            raise ValueError("index_out_of_range: 1 <= index <= total <= 40")
+        if len(html) > slides.MAX_HTML_CHARS:
+            raise ValueError(f"slide_html_too_long: {len(html)} > {slides.MAX_HTML_CHARS}")
+        html = slides_style.unescape_fragment(html)
+        fragment = slides_style.is_fragment(html)
+        layout: str | None = None
+        theme_now = (theme_arg if theme_arg in slides_style.THEMES
+                     else theme_file.read_text(encoding="utf-8").strip() if theme_file.exists() else slides_style.DEFAULT_THEME)
+        pushed = self.__dict__.setdefault("_slide_pushbacks", set())
+        if fragment:
+            if not re.search(r"</section\s*>", html, re.I):
+                raise ValueError("slide_html_truncated: <section> 이 </section> 으로 닫히지 않았다 — 잘렸다. 더 짧게, 같은 index 로 다시 넣어라.")
+            from . import slide_parts
+
+            layout, _ = slides_style.section_layout(html, theme_now)
+            if parts_sig:
+                layout = parts_sig.split(":")[1] if parts_sig.startswith("frame:") else "parts"
+            # ★ 부품 결은 틀째 html 을 받지 않는다 — 표지 · 마무리까지(2026-10-26 대표 「템플릿에 종속되면 큰일난다」).
+            #   예전엔 1번 · 마지막 장을 틀째 받았고, 그 표지에서 긴 꼬리말이 절대 위치의 작은 바닥 글과 겹쳤다(c81a10dd).
+            #   처음엔 한 번 돌려보내고(사다리 2단), 두 번째로 또 오면 받지 않고 글만 뽑아 부품으로 옮긴다(틀째 장은 남기지 않는다).
+            elif slide_parts.supports(theme_now) and "pz-slide" not in html[:400]:
+                from . import slide_frames
+
+                edge = index == 1 or index == total
+                if (job_id, title, index, "parts_required") not in pushed:
+                    pushed.add((job_id, title, index, "parts_required"))
+                    if edge:
+                        kind = "cover" if index == 1 else "closing"
+                        raise ValueError(
+                            f"frame_required: {index}번 장 — 이 결은 {'표지' if kind == 'cover' else '마무리'}도 틀(html)을 쓰지 않고 부품으로 짓는다. "
+                            f'html 대신 parts 에 {{"frame":"{kind}","kicker":…,"title":…,"sub":…,"meta":[[이름,값]]}} 를 넣어 같은 index 로 다시 부른다 '
+                            "(guide 의 frames). 글자 크기 · 간격 · 장식은 손자리가 결에 맞게 그린다.")
+                    raise ValueError(
+                        f"parts_required: {index}번 장 — 이 결은 틀째 복사하지 않고 부품으로 조립한다. html 대신 parts(조립표)를 넣어 "
+                        "같은 index 로 다시 부른다(guide 의 parts 메뉴 · order 레시피).")
+                spec = (slide_frames.frame_from_html(html, "cover" if index == 1 else "closing") if edge
+                        else slide_frames.parts_from_html(html))
+                try:
+                    html, parts_sig, parts_used, moved = slide_parts.build_with_fixes(spec, theme_now, index, total)
+                except slide_parts.PartsError as exc:
+                    raise ValueError(f"parts_required: {index}번 장의 틀째 html 에서 부품을 만들지 못했다({exc}) — parts(조립표)로 다시 넣어라.") from exc
+                parts_fixed = [*parts_fixed, *moved, "틀째 html 을 받지 않고 글만 뽑아 부품으로 옮겼다(맞는지 확인)"]
+                layout = parts_sig.split(":")[1] if parts_sig.startswith("frame:") else "parts"
+            if layout is None:
+                names = (slides_style.template_layout_ids(theme_now) if slides_style.is_template(theme_now)
+                         else list(slides_style.LAYOUTS))
+                raise ValueError("slide_layout_unknown: <section class=\"…\"> 에 이 결의 틀 이름이 없다 — "
+                                 + " · ".join(dict.fromkeys(names)) + " 중 하나를 쓴다(html 없이 theme 만 넣어 부르면 틀을 받는다).")
+            # ★ 옮긴 템플릿의 글을 바꾸지 않고 남긴 장은 한 번 돌려보낸다 (2026-10-25 시험대 T1: 4번 장을 원본 영어 그대로 베꼈다).
+            if slides_style.is_template(theme_now) and not parts_sig and (job_id, title, index, "template_text") not in pushed:
+                shown = slides.visible_text(html)
+                left = sorted((text for text in slides_style.template_texts(theme_now) if text in shown), key=len, reverse=True)
+                if left:
+                    pushed.add((job_id, title, index, "template_text"))
+                    raise ValueError(
+                        f"template_text_left: {index}번 장에 틀의 원본 글이 그대로 남았다 — " + " · ".join(f"「{t[:40]}」" for t in left[:4])
+                        + ". 틀의 글은 전부 이 발표의 한국어 내용으로 바꿔 같은 index 로 다시 넣어라.")
+        else:
+            # ★ 끝이 잘린 HTML 은 빈 장으로 그려진다 (2026-10-25 시험대: 출력이 CSS 중간에서 끊겨 4~7장이 빈 화면).
+            if "<html" in html.lower() and not re.search(r"</(?:body|html)\s*>", html, re.I):
+                raise ValueError("slide_html_truncated: HTML 이 끝(</body></html>)까지 오지 않았다 — 잘렸다. "
+                                 "CSS 를 줄여 더 짧게, 같은 index 로 다시 넣어라.")
+            if "<" not in html or ("<body" not in html.lower() and "<div" not in html.lower()):
+                raise ValueError("slide_html_required: 배치 틀의 <section class=\"배치\">…</section> 조각 하나를 넣는다")
+        # ★ AI 티가 보이면 **한 번** 돌려보낸다 (2026-10-25 · `slides.design_tells`). 같은 장을 두 번째로 넣으면 받는다 — 고리가 되지 않게.
+        # ★ 장에 적힌 식은 직접 계산해 본다 (2026-10-25 실제 판 fde0be39: 맞게 쓴 「4.3만 × 9.9만 × 12 = 511억」을 모델이
+        #   「10배 오타」라며 5,108억으로 고쳤다). 검사가 틀려도 판이 막히지 않게 장마다 한 번만 돌려보낸다.
+        from . import slide_parts as _parts_math
+
+        wrong_math = _parts_math.arithmetic_problems([slides.visible_text(html)])
+        if wrong_math and (job_id, title, index, "math") not in pushed:
+            pushed.add((job_id, title, index, "math"))
+            raise ValueError(f"slide_math: {index}번 장의 계산이 맞지 않다 — " + " / ".join(wrong_math[:3])
+                             + ". 자료의 숫자는 그대로 두고 계산만 다시 해 같은 index 로 다시 넣어라.")
+        tells = slides.design_tells(html)
+        hard = [tell for tell in tells if tell.get("hard")]
+        if hard and (job_id, title, index) not in pushed:
+            pushed.add((job_id, title, index))
+            listed = "; ".join(f"{tell['what']}({', '.join(map(str, tell['seen'][:2]))}) → {tell['fix']}" for tell in hard)
+            raise ValueError(
+                f"design_tells: {index}번 장은 저장하지 않았다 — AI 가 만든 티가 보인다: {listed}. "
+                "내용은 그대로 두고 그 부분만 고쳐 같은 index 로 다시 넣어라."
+            )
+        deck_dir.mkdir(parents=True, exist_ok=True)
+        theme = theme_file.read_text(encoding="utf-8").strip() if theme_file.exists() else slides_style.DEFAULT_THEME
+        layouts_file = deck_dir / "layouts.json"
+        try:
+            layouts = json.loads(layouts_file.read_text(encoding="utf-8")) if layouts_file.exists() else {}
+        except (OSError, ValueError):
+            layouts = {}
+        if fragment:
+            # 리듬: 바로 앞 장들이 흰 장(색 면 없음)으로 몇 장 이어졌나.
+            light_run = 0
+            for back in range(index - 1, 0, -1):
+                tone = (layouts.get(str(back)) or {}) if isinstance(layouts.get(str(back)), dict) else {}
+                if not tone or tone.get("field"):
+                    break
+                light_run += 1
+            wrapped, _ = slides_style.wrap_fragment(html, theme, title=title, index=index, total=total, light_run=light_run)
+            cleaned = slides.clean_slide_html(wrapped)
+        else:
+            cleaned = slides.clean_slide_html(html)
+        # 틀째 장의 「[사진: …]」 칸 → 사람이 끌어다 넣는 사진 자리 (10-25 첫 소개 판은 글자로만 박혔다).
+        from .slide_parts import mark_photo_slots
+
+        cleaned = mark_photo_slots(cleaned)
+        slide_path = deck_dir / f"slide_{index:02d}.html"
+        slide_path.write_text(cleaned, encoding="utf-8")
+        notes: list[str] = []
+        # 넘침 재기 — 결 조각은 글자를 줄여 맞춘다(파일에 박힌다). 재기가 안 되면(브라우저 없음) 그냥 둔다.
+        fit: dict[str, Any] = {}
+        try:
+            fit = slides.fit_in_subprocess(slide_path)
+        except Exception:  # noqa: BLE001 — 재기는 덤이다
+            fit = {}
+        if fragment and fit.get("overflow", 0) > 0 and (job_id, title, index, "overflow") not in pushed:
+            pushed.add((job_id, title, index, "overflow"))
+            slide_path.unlink(missing_ok=True)
+            raise ValueError(
+                f"slide_overflow: {index}번 장의 글이 장 밖으로 {fit['overflow']}px 넘친다({fit.get('where') or '본문'}) — 글자를 줄여도 안 들어간다. "
+                "칸 수나 문장을 줄이거나 두 장으로 나눠 같은 index 로 다시 넣어라."
+            )
+        # 글끼리(또는 글과 장식 자리가) 겹치면 재기가 먼저 긴 글을 줄여 푼다 — 그래도 겹치면 한 번 돌려보낸다(2026-10-26 c81a10dd 표지).
+        if fragment and fit.get("overlap", 0) > 0 and (job_id, title, index, "overlap") not in pushed:
+            pushed.add((job_id, title, index, "overlap"))
+            slide_path.unlink(missing_ok=True)
+            raise ValueError(
+                f"slide_overlap: {index}번 장의 글이 서로 {fit['overlap']}px 겹친다({fit.get('overlap_where') or '본문'}) — 글자를 줄여도 안 풀린다. "
+                "그 칸의 글을 줄이거나 다른 칸 · 장으로 옮겨 같은 index 로 다시 넣어라.")
+        if fit.get("overlap_fixed") and not fit.get("overlap"):
+            deck_fixed.append(f"글이 {fit.get('overlap_before')}px 겹쳐 긴 글의 글자를 줄여 풀었다({fit.get('overlap_where') or '본문'})")
+        # 부품 장이 글자를 키운 뒤에도 40% 넘게 비면 — **표시만** 한다(사다리 3단 · 2026-10-26 대표 결정 14:20).
+        #   10-25 엔 한 번 돌려보냈다(「여백이 너무 많이 남는다」). 10-26 아침 재기에서 다시 낸 뒤 40% 밑으로 고쳐진 것은 18번 중 7번(39%),
+        #   같은 날 실제 판 다섯은 돌려보내기 10번 중 8번이 이것이었다 — 걸음만 먹고 고쳐지는 비율이 사다리 문턱(60%) 밑이다.
+        #   모델에게 다시 시키지 않고, 장 결과와 굽기 결과의 검사 요약에 「비어 보이는 장」으로만 남긴다.
+        sparse = bool(parts_sig) and float(fit.get("empty", 0) or 0) > 0.4
+        if fragment and float(fit.get("base_px", 20)) < 18:
+            notes.append(f"글이 많아 글자를 {fit['base_px']}px 로 줄여 맞췄다 — 다음 장은 글을 더 짧게.")
+        # 배치 기록 — 이웃한 장이 같은 배치면 알린다(돌려보내지는 않는다). 색 면 여부는 리듬 셈에 쓴다.
+        if layout:
+            shape_name = parts_sig or layout
+            layouts[str(index)] = {"layout": layout, "field": slides_style.has_field(cleaned), "sig": shape_name,
+                                   "mode": "parts" if parts_sig else "template", "parts": parts_used,
+                                   "empty": round(float(fit.get("empty", 0) or 0), 2), "sparse": sparse}
+            layouts_file.write_text(json.dumps(layouts, ensure_ascii=False), encoding="utf-8")
+            before = layouts.get(str(index - 1))
+            if isinstance(before, dict) and (before.get("sig") or before.get("layout")) == shape_name:
+                notes.append(f"{index - 1}번 장과 같은 짜임({shape_name})이다 — 다음 장은 다른 짜임으로.")
+        cleaned = slide_path.read_text(encoding="utf-8")
+        # 장 수를 줄여 다시 만들면 뒤에 남은 옛 장을 치운다 — 굽기는 폴더의 장을 다 쓴다.
+        for stale in deck_dir.glob("slide_*.html"):
+            match = re.fullmatch(r"slide_(\d+)", stale.stem)
+            if match and int(match.group(1)) > total:
+                stale.unlink(missing_ok=True)
+        from . import slide_parts
+
+        if callable(self.publish):
+            try:
+                self.publish("deck_slide", {"job_id": job_id, "title": title, "index": index, "total": total, "html": cleaned,
+                                            "theme": theme if fragment else "",
+                                            "note": " ".join(str(arguments.get("note") or "").split())[:160],
+                                            "slots": slide_parts.slots_of(cleaned)})
+            except Exception:  # noqa: BLE001 — 화면 알림은 덤이다
+                pass
+        have = sorted(int(m.group(1)) for m in (re.fullmatch(r"slide_(\d+)", p.stem) for p in deck_dir.glob("slide_*.html")) if m)
+        missing = [number for number in range(1, total + 1) if number not in have]
+        result: dict[str, Any] = {"action": "local_make_slide", "title": title, "index": index, "total": total,
+                                  "saved": True, "slides_ready": len(have)}
+        typo = self._typo_check(re.sub(r"<[^>]+>", " ", re.sub(r"<style\b.*?</style\s*>", " ", cleaned, flags=re.S | re.I)), job_id)
+        if typo:
+            result["typo_check"] = typo
+        if sparse:
+            result["sparse_check"] = f"비어 보이는 장 — 부품 칸의 {round(float(fit['empty']) * 100)}% 가 비었다(표시만)"
+        if parts_fixed or deck_fixed:
+            result["fixed"] = deck_fixed + parts_fixed  # 코드가 고쳐 받은 것(사다리 0~1단) — 모델이 보고, 개입 장부가 센다
+        if layout:
+            result["layout"] = layout
+            result["theme"] = theme
+            result["mode"] = "parts" if parts_sig else "template"
+        soft = [tell for tell in tells if not tell.get("hard")]
+        notes.extend(f"{tell['what']}: {tell['fix']}" for tell in soft)
+        if notes:
+            result["design_note"] = "; ".join(notes)
+        # 같이 만들기 — 이 장을 다시 넣었으면 그 장의 한마디는 처리됐다. 사람이 멈췄으면 기다리고, 새 한마디를 건넨다.
+        inbox = self.deck_inbox
+        fixed = inbox.resolve(job_id, title, index)
+        if self._deck_watched(job_id):
+            paused = inbox.hold_while_paused(job_id, title, stop=self._deck_stop(job_id))
+            if paused >= 1:
+                result["paused_s"] = paused
+        fresh = inbox.take_notes(job_id, title)
+        open_notes = inbox.unresolved(job_id, title)
+        if open_notes:
+            result["person_notes"] = [{"index": number, "text": text} for number, text in open_notes.items()]
+            first = min(open_notes)
+            result["next"] = (f"사용자가 장에 한마디를 남겼다 — {first}번 장 「{open_notes[first]}」. 그 말대로 고쳐 "
+                              f"{first}번 장을 같은 index 로 다시 넣는다(다른 말이 남았으면 이어서). 다 고친 뒤 남은 장을 이어 간다.")
+            if fresh:
+                result["person_notes_new"] = sorted(fresh)
+            return result
+        if missing:
+            nxt = index + 1 if index + 1 in missing else missing[0]
+            result["next"] = f"{nxt}번 장을 넣는다."
+            if index == total:
+                result["missing"] = missing
+                result["next"] = f"빠진 장 {missing} 을 넣으면 PPTX 를 굽는다."
+            return result
+        if index < total and not fixed:
+            result["next"] = f"모든 장이 있다 — 더 고칠 장이 없으면 {total}번 장을 다시 넣으면 PPTX 를 굽는다."
+            return result
+        target = self.documents_root / f"{title}.pptx"
+        counter = 2
+        while target.exists():
+            target = self.documents_root / f"{title} ({counter}).pptx"
+            counter += 1
+        shape = slides.render_in_subprocess(deck_dir, target)
+        self._record_built(deck_dir, target)
+        modes = [str(entry.get("mode") or "template") for number, entry in layouts.items()
+                 if isinstance(entry, dict) and number.isdigit() and int(number) <= total]
+        if modes:
+            shape = {**shape, "assembly": {"parts": modes.count("parts"), "template": modes.count("template")}}
+        # 검사 요약 — 돌려보내지 않은 것 중 사람이 볼 만한 것(사다리 3단 표시). 지금은 「비어 보이는 장」.
+        hollow = sorted(int(number) for number, entry in layouts.items()
+                        if isinstance(entry, dict) and number.isdigit() and int(number) <= total and entry.get("sparse"))
+        if hollow:
+            shape = {**shape, "check_summary": f"비어 보이는 장 {len(hollow)}({' · '.join(map(str, hollow))}번)",
+                     "sparse_slides": hollow}
+        self.remember_to_open(job_id, target)
+        if callable(self.publish):
+            try:
+                self.publish("deck_built", {"job_id": job_id, "title": title, "path": str(target), **shape})
+            except Exception:  # noqa: BLE001
+                pass
+        verified = target.exists() and target.stat().st_size > 0
+        return {**result, "path": str(target), "output_path": str(target), "opened": "deferred", "verified": verified,
+                "preview_dir": str(deck_dir / "render"), **shape}
+
+    # ── 장표 같이 만들기 (2026-10-25 대표 2차 시안 · `slide_inbox`) ─────────────────────────────
+    @staticmethod
+    def _record_built(deck_dir: Path, target: Path) -> None:
+        """구운 PPTX 를 장표 폴더에 적는다 — 결과물 장부(「열기」 · 「만든 것」)와 사진 뒤 다시 굽기가 읽는다."""
+        record = deck_dir / "built.json"
+        try:
+            paths = json.loads(record.read_text(encoding="utf-8")).get("paths", []) if record.exists() else []
+        except (OSError, ValueError):
+            paths = []
+        paths = [p for p in paths if p != str(target)] + [str(target)]
+        record.write_text(json.dumps({"paths": paths}, ensure_ascii=False), encoding="utf-8")
+
+    def deck_put_photo(self, job_id: str, title: str, index: int, slot: str, data_url: str) -> dict[str, Any]:
+        """사람이 컴퓨터 칸에서 장의 사진 자리에 넣은 사진을 박는다(10-25 대표). 이미 구웠으면 사진이 든 판으로 다시 굽는다."""
+        import base64
+        import io
+
+        from PIL import Image
+
+        from . import slide_parts, slides, slides_style
+
+        title = slides.safe_title(title)
+        deck_dir = (self.config.output_dir / "slides" / (job_id or "nojob") / title).resolve(strict=False)
+        slide_path = deck_dir / f"slide_{int(index):02d}.html"
+        if not slide_path.is_file():
+            raise ValueError("slide_missing")
+        match = re.fullmatch(r"data:image/(png|jpe?g|webp|gif|bmp);base64,([A-Za-z0-9+/=\s]+)", str(data_url or "").strip(), re.S)
+        if not match:
+            raise ValueError("photo_not_image: data:image/…;base64 만 받는다")
+        raw = base64.b64decode(match.group(2))
+        if len(raw) > 15 * 1024 * 1024:
+            raise ValueError("photo_too_big: 15MB 까지")
+        try:
+            picture = Image.open(io.BytesIO(raw))
+            picture.load()
+        except Exception as exc:  # noqa: BLE001 — 그림이 아니면 받지 않는다
+            raise ValueError("photo_unreadable") from exc
+        picture = picture.convert("RGB")
+        picture.thumbnail((1600, 1600))
+        buffer = io.BytesIO()
+        picture.save(buffer, "JPEG", quality=86, optimize=True)
+        assets = deck_dir / "assets"
+        assets.mkdir(parents=True, exist_ok=True)
+        (assets / f"slide{int(index):02d}_{slot}.jpg").write_bytes(buffer.getvalue())
+        html = slide_path.read_text(encoding="utf-8")
+        label = next((item["label"] for item in slide_parts.slots_of(html) if item["id"] == slot), "")
+        html = slide_parts.put_photo(html, slot, "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode("ascii"), alt=label)
+        slide_path.write_text(html, encoding="utf-8")
+        have = sorted(int(m.group(1)) for m in (re.fullmatch(r"slide_(\d+)", p.stem) for p in deck_dir.glob("slide_*.html")) if m)
+        total = max(have) if have else int(index)
+        theme_file = deck_dir / "theme.txt"
+        theme = theme_file.read_text(encoding="utf-8").strip() if theme_file.exists() else slides_style.DEFAULT_THEME
+        if callable(self.publish):
+            try:
+                self.publish("deck_slide", {"job_id": job_id, "title": title, "index": int(index), "total": total, "html": html,
+                                            "theme": theme, "photo": True, "slots": slide_parts.slots_of(html)})
+            except Exception:  # noqa: BLE001
+                pass
+        result: dict[str, Any] = {"ok": True, "index": int(index), "slot": slot, "label": label}
+        # 이미 구웠으면 사진이 든 판으로 다시 굽는다 — 앞 파일은 지우지 않는다(사람이 열어 두었을 수 있다).
+        if (deck_dir / "built.json").exists() and all(n in have for n in range(1, total + 1)):
+            target = self.documents_root / f"{title} (사진).pptx"
+            counter = 2
+            while target.exists():
+                target = self.documents_root / f"{title} (사진 {counter}).pptx"
+                counter += 1
+            shape = slides.render_in_subprocess(deck_dir, target)
+            self._record_built(deck_dir, target)
+            result["rebaked"] = str(target)
+            if callable(self.publish):
+                try:
+                    self.publish("deck_built", {"job_id": job_id, "title": title, "path": str(target), **shape})
+                except Exception:  # noqa: BLE001
+                    pass
+        return result
+
+    def _job_prompt(self, job_id: str) -> str:
+        """이 판의 요청 글 — 오타 표시(`near_typos`)가 「자료의 낱말」로 쓴다. 모르면 빈 글."""
+        if not callable(self.job_info) or not job_id or job_id == "nojob":
+            return ""
+        try:
+            job = self.job_info(job_id) or {}
+        except Exception:  # noqa: BLE001
+            return ""
+        payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+        return str(payload.get("prompt") or payload.get("display_prompt") or "")
+
+    def _typo_check(self, text: str, job_id: str) -> list[str]:
+        """자료 낱말을 자모 하나 틀리게 옮긴 곳 — 사다리 3단(표시만 · 바꾸지 않는다 · 10-26 최소 개입 설계).
+
+        좁힌 규칙을 지난 장표 + 문서 쓰기 1,045번에 대 보니 걸린 것 셋 중 진짜는 「크로드 → 클로드」 하나였다
+        (「공공기관/공고기관」 · 「레이지/페이지」는 헛걸림). 정밀도가 낮아 고치지도 돌려보내지도 않고 결과에 한 줄만 싣는다.
+        """
+        from . import near_typos
+
+        prompt = self._job_prompt(job_id)
+        if not prompt or not text:
+            return []
+        try:
+            pairs = near_typos.find(text, prompt)
+        except Exception:  # noqa: BLE001 — 표시는 덤이다
+            return []
+        return [f"확인 필요: 『{bad}』 — 자료엔 『{good}』" for bad, good in pairs[:5]]
+
+    def _deck_watched(self, job_id: str) -> bool:
+        """사람이 컴퓨터 칸을 보고 있을 판인가 — 앱에서 시킨 판(origin=workspace)과 앱 안 Claude 가 맡긴 판(via=app)만 기다린다.
+
+        클로드가 맡긴 판(mcp) · 디스코드 · 예약 판은 보는 사람이 없다 — 기다리면 그만큼 느려질 뿐이다.
+        """
+        if not callable(self.job_info) or not job_id or job_id == "nojob":
+            return False
+        try:
+            job = self.job_info(job_id) or {}
+        except Exception:  # noqa: BLE001
+            return False
+        payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+        # 앱 안 Claude Agent 가 맡긴 판(via=app)도 사람이 같은 창을 보고 있다 — 바깥 클로드 판(mcp)과 다르다(2026-10-26).
+        return str(payload.get("origin") or "") == "workspace" or str(payload.get("via") or "") == "app"
+
+    def _deck_stop(self, job_id: str) -> Any:
+        """기다림을 끊을 때 — 판이 취소되거나 끝났으면."""
+        def stop() -> bool:
+            if not callable(self.job_info):
+                return False
+            try:
+                job = self.job_info(job_id) or {}
+            except Exception:  # noqa: BLE001
+                return False
+            return str(job.get("status") or "") in {"cancelled", "failed", "completed"}
+        return stop
+
+    def _deck_pick_theme(self, arguments: dict[str, Any], job_id: str, title: str, deck_dir: Path,
+                         theme_arg: str, person_theme: str, say: str) -> dict[str, Any]:
+        """① 결 고르기 — 추천 셋을 표지 미리보기로 보이고, 앱 판이면 사람이 고를 때까지 조금 기다린다."""
+        from . import slide_inbox, slides, slides_style
+
+        about = " ".join(str(arguments.get(key) or "") for key in ("about", "title")).strip()
+        asked = (deck_dir / "theme_asked").exists()
+        if person_theme in slides_style.THEMES and not theme_arg:
+            theme_arg = person_theme
+        kind = str(arguments.get("deck_type") or "").strip() or None
+        payload = slides.guide_payload(theme_arg or None, about=about, deck_type=kind)
+        if asked or not callable(self.publish):
+            # 두 번째 부름(다른 결의 틀 보기) — 고르기 화면을 다시 띄우지 않는다.
+            if person_theme:
+                payload["person"] = {"theme": person_theme, "said": "사용자가 고른 결이다 — 이 결로 만든다."}
+            return payload
+        lede = str(arguments.get("about") or "").strip()
+        try:
+            picks = [{**pick, "html": slides.clean_slide_html(slides_style.wrap_fragment(
+                slides_style.cover_preview(title, str(pick["name"]), lede, theme=str(pick["theme"])), str(pick["theme"]),
+                title=title)[0])}
+                for pick in payload["recommended"]]
+        except Exception:  # noqa: BLE001 — 미리보기는 덤이다
+            picks = []
+        watched = self._deck_watched(job_id)
+        wait_s = slide_inbox.THEME_WAIT if watched else 0.0
+        self.deck_inbox.expect(job_id, title, "theme")
+        try:
+            # 큐레이션 화면(10-25 대표): 이 발표의 제목을 넣은 표지 셋 · 모델의 한 줄 · 고를 시간.
+            self.publish("deck_themes", {"job_id": job_id, "title": title, "picks": picks, "say": say,
+                                         "chosen": payload["theme"], "wait_s": wait_s})
+        except Exception:  # noqa: BLE001
+            pass
+        deck_dir.mkdir(parents=True, exist_ok=True)
+        (deck_dir / "theme_asked").write_text("1", encoding="utf-8")
+        answer = self.deck_inbox.wait(job_id, title, "theme", wait_s, stop=self._deck_stop(job_id)) if watched else None
+        if isinstance(answer, str) and answer in slides_style.THEMES:
+            payload = slides.guide_payload(answer, about=about, deck_type=kind)
+            person_theme = answer
+            (deck_dir / "person_theme.txt").write_text(answer, encoding="utf-8")
+            (deck_dir / "theme.txt").write_text(answer, encoding="utf-8")
+            payload["person"] = {"theme": answer, "said": f"사용자가 「{slides_style.THEMES[answer][0]}」 결을 골랐다 — 모든 장에 theme={answer} 를 넣는다."}
+        else:
+            (deck_dir / "theme.txt").write_text(str(payload["theme"]), encoding="utf-8")
+            payload["person"] = {"theme": "", "said": "사용자가 따로 고르지 않았다 — 권한 결(theme)로 간다." if watched
+                                 else "보는 사람이 없는 판이다 — 권한 결(theme)로 간다."}
+        try:
+            self.publish("deck_theme_set", {"job_id": job_id, "title": title, "theme": payload["theme"],
+                                            "by": "person" if person_theme else "default"})
+        except Exception:  # noqa: BLE001
+            pass
+        payload["next"] = ("이야기판을 짠다: html 없이 outline=[{layout, claim}, …](장마다 이 결의 틀 이름 · 한 줄 주장)과 "
+                           "say(이렇게 짠 까닭 한 줄)를 넣어 부른다 — 사용자가 화면에서 순서 · 문장을 고칠 수 있다.")
+        return payload
+
+    def _deck_outline(self, arguments: dict[str, Any], job_id: str, title: str, deck_dir: Path, say: str) -> dict[str, Any]:
+        """② 이야기판 — 장마다 「틀 · 주장」 카드를 보이고, 앱 판이면 사람이 고칠 때까지 조금 기다린다."""
+        from . import slide_inbox, slides_style
+
+        cards = slide_inbox.clean_outline(arguments.get("outline"))
+        if not cards:
+            raise ValueError('outline_required: [{"layout":"틀 이름","claim":"한 줄 주장"}, …]')
+        theme_file = deck_dir / "theme.txt"
+        theme = theme_file.read_text(encoding="utf-8").strip() if theme_file.exists() else slides_style.DEFAULT_THEME
+        from . import slide_parts
+
+        outline_fixed: list[str] = []
+        names = list(dict.fromkeys(slides_style.template_layout_ids(theme) if slides_style.is_template(theme)
+                                   else list(slides_style.LAYOUTS)))
+        if slide_parts.supports(theme):
+            # 부품 결의 장 이름은 셋뿐이다 — 표지(cover) · 본문(parts) · 마무리(closing). 틀 이름은 더 쓰지 않는다(2026-10-26).
+            template_ids = names
+            names = ["cover", "parts", "closing"]
+            # 모르는 이름은 코드가 고쳐 받는다 — 사다리 1단(`fix`, 10-26 최소 개입 설계 ②). 지난 22판에서 4번 돌려보냈다.
+            #   그 결의 첫 틀 이름(s-cover · ir-cover …)이나 1번 카드는 표지, 마지막 틀 이름 · 마무리처럼 생긴 이름이 마지막 카드면 마무리,
+            #   나머지(칸 나눔 「1:2」 · 부품 이름 묶음 · 지어낸 틀)는 본문 부품 장.
+            closing_like = re.compile(r"clos|end|cta|colophon|close|outro|thanks|마무리|끝", re.I)
+            for number, card in enumerate(cards):
+                if card["layout"] in names:
+                    continue
+                was = card["layout"]
+                last = number == len(cards) - 1
+                if (template_ids and was == template_ids[0]) or "cover" in was.lower() or "표지" in was:
+                    card["layout"] = "cover"
+                elif last and ((template_ids and was == template_ids[-1]) or closing_like.search(was)):
+                    card["layout"] = "closing"
+                else:
+                    card["layout"] = "parts"
+                outline_fixed.append(f"{was} → {card['layout']}")
+        unknown =[card["layout"] for card in cards if card["layout"] not in names]
+        if unknown:
+            raise ValueError(f"outline_layout_unknown: {' · '.join(dict.fromkeys(unknown))} 는 이 결({theme})의 틀이 아니다 — "
+                             + " · ".join(names) + " 중에서 고른다.")
+        watched = self._deck_watched(job_id)
+        wait_s = slide_inbox.OUTLINE_WAIT if watched else 0.0
+        self.deck_inbox.expect(job_id, title, "outline")
+        if callable(self.publish):
+            try:
+                self.publish("deck_outline", {"job_id": job_id, "title": title, "theme": theme, "cards": cards,
+                                              "say": say, "layouts": names, "wait_s": wait_s})
+            except Exception:  # noqa: BLE001
+                pass
+        answer = self.deck_inbox.wait(job_id, title, "outline", wait_s, stop=self._deck_stop(job_id)) if watched else None
+        final = cards
+        by = "default" if watched else "unwatched"
+        if isinstance(answer, list) and answer:
+            # 사람은 순서 · 빼기 · 문장만 바꾼다 — 모르는 틀 이름이 오면 모델의 것을 쓴다.
+            kept = [card for card in answer if card.get("layout") in names and card.get("claim")]
+            if kept:
+                final, by = kept, ("person" if kept != cards else "default")
+        deck_dir.mkdir(parents=True, exist_ok=True)
+        (deck_dir / "outline.json").write_text(json.dumps(final, ensure_ascii=False), encoding="utf-8")
+        if callable(self.publish):
+            try:
+                self.publish("deck_outline_set", {"job_id": job_id, "title": title, "cards": final, "by": by})
+            except Exception:  # noqa: BLE001
+                pass
+        said = ("사용자가 이야기판을 고쳤다(순서 · 빼기 · 문장) — 고친 것을 그대로 따른다." if by == "person"
+                else "사용자가 고치지 않았다 — 이 이야기판대로 간다." if watched else "보는 사람이 없는 판이다 — 이 이야기판대로 간다.")
+        out = {"ok": True, "action": "local_make_slide", "theme": theme, "outline": final, "total": len(final),
+               "person": {"changed": by == "person", "said": said},
+               "next": f"1번 장부터 이 순서 · 틀 · 주장으로 만든다: total={len(final)}, theme={theme}, 장마다 note(만들며 한 생각 한 줄)."}
+        if outline_fixed:
+            out["fixed"] = ["이야기판의 모르는 틀 이름을 표지 · 본문 · 마무리 부품 장으로 받았다: " + " · ".join(dict.fromkeys(outline_fixed))]
+        return out
+
     def write_document_file(self, arguments: dict[str, Any]) -> dict[str, Any]:
         """자기가 쓴 내용으로 XLSX·DOCX·PPTX·CSV 를 만든다.
 
@@ -3583,7 +4225,23 @@ class LocalComputerTools:
         arguments = self._document_arguments(arguments)
         path = self._resolve_mutation_path(arguments, must_exist=False)
         fmt = str(arguments.get("format") or path.suffix or "").lower().lstrip(".")
-        return self._write_document_at(arguments, path, fmt)
+        # ★ 숫자 · 날짜가 확실히 틀렸으면 저장 전에 한 번 돌려보낸다 (2026-10-25 · `doc_checks`). 꼴 카드가 「검사는 코드로」라고
+        #   적었으니 코드가 한다. 지난 문서 쓰기 1,116번에 대 보니 걸린 3번이 모두 진짜(없는 요일) — 헛걸림 0.
+        #   결과에 경고를 덧붙이지 않고(10-05: 덧붙인 글이 판을 흔든다) 저장 전에 고치게 한다. 두 번째는 받는다(고리 방지).
+        from . import doc_checks
+
+        wrong = doc_checks.problems(arguments)
+        key = (self._job_id(arguments), str(path).lower())
+        pushed = self.__dict__.setdefault("_doc_pushbacks", set())
+        if wrong and key not in pushed:
+            pushed.add(key)
+            raise ValueError("doc_check: 저장하지 않았다 — 숫자 · 날짜가 맞지 않다: " + " / ".join(wrong[:4])
+                             + ". 자료의 숫자는 그대로 두고 그 자리만 고쳐 같은 path 로 다시 쓴다.")
+        written = self._write_document_at(arguments, path, fmt)
+        typo = self._typo_check(" ".join(doc_checks._strings(arguments)), self._job_id(arguments))
+        if typo and isinstance(written, dict):
+            written = {**written, "typo_check": typo}
+        return written
 
     def _document_arguments(self, arguments: dict[str, Any]) -> dict[str, Any]:
         """문서 쓰기의 경로를 **실제로 쓸 자리**로 푼 인자 사본. 쓰기·위험도·승인 카드가 이 하나를 쓴다 (2026-09-30).
@@ -4263,11 +4921,14 @@ class LocalComputerTools:
         # 경로다 — 4,689줄짜리 파일에서 함수 하나만 읽으면 전사가 수십 배 싸다.
         wanted_start = arguments.pop("line_start", None)
         wanted_end = arguments.pop("line_end", None)
+        find_terms = _clean_local_find_terms(arguments.pop("find", None) or [])
         result = self.read_document(arguments, action="local_read_text_file")
         result = self._keep_source_layout(result, arguments)
         content = str(result.get("content") or "")
         if wanted_start or wanted_end:
             return self._slice_lines(result, wanted_start, wanted_end)
+        if find_terms:
+            return self._find_in_text_file(result, find_terms)
         result["line_start"] = 1
         result["line_end"] = content.count("\n") + (1 if content else 0)
         return self._attach_outline(result)
@@ -4410,6 +5071,63 @@ class LocalComputerTools:
         )
         return result
 
+    #: 파일 안 찾기 — 낱말마다 줄 수 · 한 줄 글자 · 덩어리 전체 상한.
+    _FIND_HITS_PER_TERM = 8
+    _FIND_LINE_CHARS = 180
+    _FIND_BLOCK_CHARS = 6_000
+
+    def _find_in_text_file(self, result: dict[str, Any], terms: list[str]) -> dict[str, Any]:
+        """낱말이 든 줄을 **줄 번호와 그 줄이 속한 절**과 함께 돌려준다 — 본문은 싣지 않는다 (2026-10-25).
+
+        큰 문서에서 필요한 곳만 찾는 문이다(웹 본문 읽기의 「찾을 칸」 · 전략안 §55-45 와 같은 원리). 찾은 줄 번호로
+        line_start/line_end 를 골라 그 절만 읽으면, 문서를 앞에서부터 통째로 읽지 않아도 된다.
+        """
+        path = str(result.get("path") or "")
+        try:
+            lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError as exc:
+            result["error"] = str(exc)[:200]
+            return result
+        heading_at: list[str] = []
+        current = ""
+        for line in lines:
+            stripped = line.lstrip()
+            if re.match(r"#{1,6}\s+\S", stripped) or re.match(r"(?:async\s+)?(?:def|class)\s+\w", stripped):
+                current = " ".join(_DATE_IN_HEADING.sub(" ", stripped.lstrip("#")).split())[:60]
+            heading_at.append(current)
+        blocks: list[str] = []
+        hits: dict[str, int] = {}
+        missed: list[str] = []
+        for term in terms:
+            wanted = term.casefold()
+            rows = [index for index, line in enumerate(lines) if wanted in line.casefold()]
+            hits[term] = len(rows)
+            if not rows:
+                missed.append(term)
+                continue
+            shown = [
+                f"  {index + 1}줄 [{heading_at[index] or '맨 앞'}] {' '.join(lines[index].split())[: self._FIND_LINE_CHARS]}"
+                for index in rows[: self._FIND_HITS_PER_TERM]
+            ]
+            more = f"\n  … 이 낱말이 든 줄 {len(rows) - len(shown)}개 더" if len(rows) > len(shown) else ""
+            blocks.append(f"「{term}」 {len(rows)}줄\n" + "\n".join(shown) + more)
+        block = "\n\n".join(blocks)
+        truncated = len(block) > self._FIND_BLOCK_CHARS
+        if truncated:
+            block = block[: self._FIND_BLOCK_CHARS].rstrip() + "\n…(찾은 줄이 많아 잘랐다 — 낱말을 좁혀라)"
+        if missed:
+            block += ("\n\n" if block else "") + "못 찾음: " + ", ".join(missed)
+        result["content"] = block
+        result["total_lines"] = len(lines)
+        result["find"] = {"terms": terms, "hits": hits, "missed": missed, "truncated": truncated}
+        result["truncated"] = False
+        result.pop("line_start", None)
+        result.pop("line_end", None)
+        result["instruction"] = (
+            "찾은 줄만 보냈다(본문 아님). 필요한 절을 line_start/line_end 로 골라 읽어라 — 줄 번호 앞뒤로 넉넉히."
+        )
+        return result
+
     def _attach_outline(self, result: dict[str, Any]) -> dict[str, Any]:
         """잘린 파일에는 **무엇이 더 있는지** 목차를 같이 준다.
 
@@ -4463,18 +5181,11 @@ class LocalComputerTools:
         result["next_line_start"] = next_start
         note = f"잘렸다 — 앞 {next_start}줄(전체 {total}줄)만 왔다. 뒤를 읽으려면 line_start={next_start} 로 다시 불러라."
         if path.lower().endswith((".md", ".markdown")):
-            # 큰 절(#·##)만 — 전략안 전체 제목은 300개·1만 자라 본문만큼 컸다. 목차가 창을 채우면 거꾸로다.
-            #   80개를 넘으면 가장 큰 절(#)만 — 앞에서 80개로 자르면 **최근 절(뒤쪽)이 통째로 빠진다**(전략안 §24~§55).
-            def _heads(pattern: str) -> list[str]:
-                return [f"{line.strip()[:50]} ({index})" for index, line in enumerate(lines, 1)
-                        if re.match(pattern, line.lstrip())]
-
-            headings = _heads(r"#{1,2}\s+\S")
-            if len(headings) > 80:
-                headings = _heads(r"#\s+\S")
+            headings = markdown_headings(lines)
             if headings:
-                result["headings"] = headings[:80] if len(headings) <= 80 else headings[:40] + headings[-40:]
-                note += " headings 에 큰 절의 줄 번호가 있으니 필요한 절을 line_start/line_end 로 콕 집어 읽어도 된다."
+                result["headings"] = headings
+                note += (" headings 에 큰 절의 줄 번호가 있으니 필요한 절을 line_start/line_end 로 콕 집어 읽어도 된다."
+                         " 낱말로 찾으려면 find 에 낱말을 넣어 다시 불러라(그 낱말이 든 줄과 줄 번호 · 어느 절 아래인지가 온다).")
         # 앞 단계의 「max_chars 를 키워 다시 읽어라」는 여기선 틀린 안내다 — 상한(40,000)을 넘는 파일은 키워도 잘린다.
         result["instruction"] = note + " 지금 본 것만으로 파일 전체를 단정하지 마라."
         return result

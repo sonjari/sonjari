@@ -1,0 +1,93 @@
+.deck-stage { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.deck-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: var(--fs-1); color: rgb(var(--m-text-1)); }
+.deck-head strong { font-weight: var(--fw-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deck-progress, .deck-done { display: inline-flex; align-items: center; gap: 6px; color: rgb(var(--m-text-2)); white-space: nowrap; }
+.deck-done { color: rgb(var(--ok)); }
+.deck-main { border-radius: var(--r-2); overflow: hidden; border: 1px solid rgb(var(--machine-line)); }
+.deck-frame { position: relative; overflow: hidden; background: #fff; }
+.deck-frame iframe { border: 0; display: block; pointer-events: none; background: #fff; }
+.deck-strip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.deck-thumb { flex: none; padding: 0; border: 1px solid rgb(var(--machine-line)); border-radius: var(--r-1); overflow: hidden; background: rgb(var(--machine-1)); cursor: pointer; height: 65px; width: 114px; display: flex; align-items: center; justify-content: center; }
+.deck-thumb.is-current { border-color: rgb(var(--brand-bright)); }
+.deck-thumb.is-empty { cursor: default; color: rgb(var(--m-text-3)); font-size: var(--fs-1); border-style: dashed; }
+/* 큐레이션 화면 — 추천 결 셋(10-25) */
+.deck-picks { display: flex; gap: 8px; width: 100%; }
+.deck-pick { flex: 1 1 0; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.deck-pick .deck-frame { border-radius: var(--r-1); border: 1px solid rgb(var(--machine-line)); }
+.deck-pick figcaption { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-1); color: rgb(var(--m-text-2)); }
+.deck-pick figcaption b { color: rgb(var(--m-text-1)); font-weight: var(--fw-mid); }
+.deck-theme { margin-left: auto; color: rgb(var(--m-text-2)); white-space: nowrap; font-size: var(--fs-1); }
+/* 같이 만들기(10-25 대표 2차 시안) — 손자리의 한 줄 · 남은 시간 · 이야기판 · 한마디 */
+.deck-say { margin: 0; display: flex; gap: 8px; align-items: baseline; font-size: var(--fs-1); line-height: 1.55; color: rgb(var(--m-text-1)); }
+.deck-say b { flex: none; color: rgb(var(--brand-bright)); font-weight: var(--fw-mid); }
+.deck-say-slide { padding: 2px 2px 0; }
+.deck-count { display: flex; align-items: center; gap: 8px; font-size: var(--fs-1); color: rgb(var(--m-text-2)); }
+.deck-count-bar { position: relative; flex: 1; height: 3px; border-radius: 2px; background: rgb(var(--machine-line)); overflow: hidden; min-width: 60px; }
+.deck-count-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: rgb(var(--brand-bright)); transition: width .25s linear; }
+.deck-pick-btn { all: unset; display: flex; flex-direction: column; gap: 6px; cursor: pointer; border-radius: var(--r-1); }
+.deck-pick-btn:hover .deck-frame, .deck-pick.is-on .deck-frame { outline: 2px solid rgb(var(--brand-bright)); outline-offset: 1px; }
+.deck-pick-btn:focus-visible { outline: 2px solid rgb(var(--brand-bright)); outline-offset: 3px; }
+.deck-badge { margin-left: 6px; font-style: normal; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: rgb(var(--brand-bright) / .16); color: rgb(var(--brand-bright)); }
+.deck-outline { display: flex; flex-direction: column; gap: 10px; }
+.deck-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.deck-card { display: grid; grid-template-columns: 22px auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 10px;
+  border: 1px solid rgb(var(--machine-line)); border-radius: var(--r-1); background: rgb(var(--machine-1)); font-size: var(--fs-1); }
+.deck-card-n { color: rgb(var(--m-text-3)); font-variant-numeric: tabular-nums; text-align: right; }
+.deck-card-layout { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: rgb(var(--machine-line)); color: rgb(var(--m-text-2)); white-space: nowrap; }
+.deck-card-claim { min-width: 0; color: rgb(var(--m-text-1)); }
+input.deck-card-claim { width: 100%; border: 0; border-bottom: 1px solid transparent; background: transparent; font: inherit; padding: 2px 0; }
+input.deck-card-claim:focus { outline: none; border-bottom-color: rgb(var(--brand-bright)); }
+.deck-card-tools { display: inline-flex; gap: 2px; }
+.deck-card-tools button, .deck-pause, .deck-notebox button { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0;
+  border: 0; border-radius: 6px; background: transparent; color: rgb(var(--m-text-2)); cursor: pointer; }
+.deck-card-tools button:hover:not(:disabled), .deck-pause:hover, .deck-notebox button:hover:not(:disabled) { background: rgb(var(--machine-line)); color: rgb(var(--m-text-1)); }
+.deck-card-tools button:disabled, .deck-notebox button:disabled { opacity: .35; cursor: default; }
+.deck-actions { display: flex; align-items: center; gap: 12px; }
+.deck-actions > :first-child { flex: 1; }
+.deck-go { padding: 7px 14px; border: 0; border-radius: var(--r-1); background: rgb(var(--brand-bright)); color: #fff; font: inherit; font-size: var(--fs-1); font-weight: var(--fw-mid); cursor: pointer; }
+.deck-state { margin: 0; font-size: var(--fs-1); color: rgb(var(--m-text-2)); }
+.deck-pause { margin-left: 4px; }
+.deck-notebox { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.deck-notebox input { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid rgb(var(--machine-line)); border-radius: var(--r-1); background: rgb(var(--machine-1));
+  color: rgb(var(--m-text-1)); font: inherit; font-size: var(--fs-1); }
+.deck-notebox input:focus { outline: none; border-color: rgb(var(--brand-bright)); }
+.deck-sent { flex-basis: 100%; font-size: var(--fs-1); color: rgb(var(--m-text-2)); }
+.deck-sent.is-fixed { color: rgb(var(--ok)); }
+
+/* 짓는 연출 — 「손자리」 커서가 요소 자리로 가서 하나씩 놓는다(10-25 대표) */
+.deck-build iframe { transition: opacity .2s ease; }
+.deck-cursor { position: absolute; left: 0; top: 0; display: flex; align-items: flex-start; gap: 4px; pointer-events: none;
+  opacity: 0; transition: transform .42s cubic-bezier(.22,1,.36,1), opacity .25s ease; z-index: 2; will-change: transform; }
+.deck-cursor.is-on { opacity: 1; }
+.deck-cursor svg { flex: none; filter: drop-shadow(0 1px 2px rgb(0 0 0 / .35)); }
+.deck-cursor svg path { fill: rgb(var(--brand-bright)); stroke: #fff; stroke-width: 1.2; stroke-linejoin: round; }
+.deck-cursor span { margin-top: 14px; max-width: 260px; padding: 3px 9px; border-radius: 999px; background: rgb(var(--brand-bright));
+  color: #fff; font-size: 11.5px; font-weight: 600; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 2px 8px rgb(0 0 0 / .25); }
+@media (prefers-reduced-motion: reduce) { .deck-cursor { display: none; } }
+
+/* 다 구운 PPTX 열기(10-25 대표 「다운로드 링크도 없고」) */
+.deck-open { display: flex; gap: 8px; flex-wrap: wrap; }
+.deck-open .deck-go, .deck-ghost { display: inline-flex; align-items: center; gap: 6px; }
+.deck-ghost { padding: 7px 14px; border: 1px solid rgb(var(--machine-line)); border-radius: var(--r-1); background: transparent;
+  color: rgb(var(--m-text-1)); font: inherit; font-size: var(--fs-1); cursor: pointer; }
+.deck-ghost:hover { background: rgb(var(--machine-line)); }
+
+/* 사진 넣기 — 장 위 점선 칸 · 끌어다 놓기(10-25 대표) */
+.deck-slots { display: flex; flex-direction: column; gap: 8px; }
+.deck-slots .deck-frame { position: relative; }
+.deck-slot { position: absolute; display: flex; align-items: center; justify-content: center; cursor: pointer;
+  border: 2px dashed rgb(var(--brand-bright) / .75); border-radius: 4px; background: rgb(var(--brand-bright) / .06); transition: background .15s, border-color .15s; }
+.deck-slot span { display: inline-flex; align-items: center; gap: 5px; max-width: 92%; padding: 4px 9px; border-radius: 999px;
+  background: rgb(var(--brand-bright)); color: #fff; font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 2px 8px rgb(0 0 0 / .25); }
+.deck-slot:hover, .deck-slot.is-over { background: rgb(var(--brand-bright) / .18); border-style: solid; }
+.deck-slot.is-filled { border-color: transparent; background: transparent; }
+.deck-slot.is-filled span { opacity: 0; transition: opacity .15s; }
+.deck-slot.is-filled:hover span, .deck-slot.is-filled.is-over span { opacity: 1; }
+.deck-slot.is-filled:hover, .deck-slot.is-filled.is-over { border-color: rgb(var(--brand-bright) / .75); }
+.deck-slot:focus-within { outline: 2px solid rgb(var(--brand-bright)); outline-offset: 2px; }
+.deck-slot-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--fs-1); color: rgb(var(--m-text-2)); }
+.deck-slot-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; border: 1px dashed rgb(var(--machine-line)); }
+.deck-slot-chip.is-filled { border-style: solid; color: rgb(var(--ok)); }
+.deck-slot-error { color: rgb(var(--warn, 220 120 60)); }

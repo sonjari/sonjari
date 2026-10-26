@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -195,6 +196,36 @@ def _answer_names_in_order(answer: str) -> list[str]:
     return names
 
 
+#: 도구 결과에 **손자리가 붙이는 메모** — 페이지 내용이 아니다. 순위 비교에서 뺀다(2026-10-23 · 아래 `_page_part`).
+_HARNESS_NOTE_KEYS = ("site_traits", "instruction")
+
+
+def _page_part(content: Any) -> str:
+    """도구 결과 글에서 손자리 메모(`site_traits` · `instruction`)를 뺀 **페이지 쪽** 글.
+
+    ★ 2026-10-23 헛경고(확인함): `browser_open` 결과 끝에 붙는 사이트 기억 `site_traits` 에 지난 판들이 방문한 주소
+      (`/fastapi/fastapi/releases, /fastapi/fastapi, /graphify-labs/graphify …`)가 들어 있었고, 순위 검사가 그 순서를
+      「읽은 페이지의 순서」로 견줬다. 첫 판에는 그 기억이 없어 경고가 없었다 — 판을 돌수록 쌓여 생긴 헛경고다.
+    결과 글이 잘려 JSON 으로 안 읽히면 `"site_traits"` 가 시작하는 자리부터 버린다(메모는 결과 끝에 붙는다).
+    """
+    text = str(content or "")
+    try:
+        data = json.loads(text)
+    except (ValueError, TypeError):
+        cut = text.find('"site_traits"')
+        return text if cut < 0 else text[:cut]
+    return json.dumps(_without_notes(data), ensure_ascii=False)
+
+
+def _without_notes(value: Any) -> Any:
+    """메모 칸을 **어느 깊이에 있든** 뺀다 — 10-23 처음 고침은 맨 바깥만 봤는데, 실제 결과에서는 한 겹 안쪽에 있어 헛경고가 그대로 났다."""
+    if isinstance(value, dict):
+        return {key: _without_notes(item) for key, item in value.items() if key not in _HARNESS_NOTE_KEYS}
+    if isinstance(value, list):
+        return [_without_notes(item) for item in value]
+    return value
+
+
 def rank_order_warning(asked: str, answer: str, messages: list[dict[str, Any]] | None, *, english: bool = False) -> str:
     """순서를 물은 요청에서 **답의 순서가 읽은 목록의 순서와 다르면** 알린다 (2026-10-18 r/LLMDevs 에서 받은 지적 · 공개 약속).
 
@@ -212,7 +243,7 @@ def rank_order_warning(asked: str, answer: str, messages: list[dict[str, Any]] |
     for message in messages or []:
         if message.get("role") != "tool":
             continue
-        seen = _seen_text(str(message.get("content") or ""))
+        seen = _seen_text(_page_part(message.get("content")))
         positions = [seen.find(key) for key in keys]
         if min(positions) < 0:
             continue
@@ -226,6 +257,32 @@ def rank_order_warning(asked: str, answer: str, messages: list[dict[str, Any]] |
         return ("\n\n⚠ **답의 순서가 읽은 목록의 순서와 다릅니다.** 읽은 페이지에서의 순서는 " + shown
                 + " 입니다. 순위로 쓰시기 전에 어느 순서가 맞는지 확인해 주세요.")
     return ""
+
+
+def rank_order_source(answer: str, messages: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """순위 경고가 **무엇과** 견줬는지 — 도구 결과 하나와 그 안의 자리 · 이름 앞뒤 글 조금 (2026-10-23 · 헛경고 의심).
+
+    영어 화면 이어받기 판(레딧 영상)에서 「읽은 페이지의 순서는 fastapi → graphify → knowledge-work-plugins」가 붙었다. 그런데
+    손자리가 읽은 인기 목록도, 클로드가 읽은 목록도 그 순서가 아니었다. 도구가 읽은 본문은 기록에 안 남아 원인을 가릴 수 없었다
+    — 그래서 경고가 설 때 이것을 남긴다. 본문 전체가 아니라 이름 앞뒤 80자만.
+    """
+    names = _answer_names_in_order(answer)
+    keys = [_seen_text(name) for name in names]
+    if len(keys) < 2:
+        return {}
+    for index, message in enumerate(messages or []):
+        if message.get("role") != "tool":
+            continue
+        seen = _seen_text(_page_part(message.get("content")))
+        positions = [seen.find(key) for key in keys]
+        if min(positions) < 0:
+            continue
+        return {
+            "message_index": index, "tool_name": str(message.get("tool_name") or ""), "names": names,
+            "positions": positions, "length": len(seen),
+            "around": [seen[max(0, at - 60): at + len(key) + 20] for at, key in zip(positions, keys)],
+        }
+    return {}
 
 
 def count_met_by_rows_on_screen(plan_results: list[tuple[Any, bool, str]], seen_rows: int) -> list[tuple[Any, bool, str]]:

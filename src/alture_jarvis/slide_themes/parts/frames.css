@@ -1,0 +1,93 @@
+/* 표지 · 마무리 부품 (2026-10-26 대표 「템플릿은 참고만 — 글자 · 간격 · 줄 · 도형까지 손자리가 짓는다」).
+   템플릿 표지를 통째로 베끼지 않는다. 글(머리 말 · 큰 제목 · 부제 · 이름:값 · 날짜/출처 · 쪽)은 **위에서 아래로 흐르는 한 줄기**에만 놓는다 —
+   절대 위치 글이 없으니 글끼리 겹칠 수 없다(10-26 c81a10dd 표지: 긴 꼬리말이 작은 바닥 글과 겹쳤다).
+   장식(.pz-deco)은 코드가 결 값으로 그리는 도형이고, 글 줄기가 비켜 가는 자리(padding)에만 놓인다.
+   값은 slide_frames.frame_css 가 --pz-* 로 끼운다. 이 파일은 혼자 선다(IR 처럼 부품 묶음 CSS 가 없는 결도 쓴다). */
+section.slide.pz-frame {
+  width: 1280px; height: 720px; box-sizing: border-box; position: relative; inset: auto; overflow: hidden; margin: 0;
+  opacity: 1; visibility: visible; transform: none; pointer-events: auto; isolation: isolate;
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+  padding: 56px 72px 40px; background: var(--fr-bg); color: var(--fr-ink); font-family: var(--pz-font);
+  text-align: left; line-height: 1.5; letter-spacing: -0.2px; word-break: keep-all; overflow-wrap: break-word;
+  --fr-bg: var(--pz-bg); --fr-ink: var(--pz-ink); --fr-sub: var(--pz-sub); --fr-faint: var(--pz-faint); --fr-line: var(--pz-line);
+  --fr-key: var(--pz-key); --fr-head: var(--pz-head-color);
+  --fd-a: var(--pz-accent); --fd-b: var(--pz-key); --fd-c: var(--pz-hi); --fd-d: var(--pz-c2, var(--pz-accent)); --fd-e: var(--pz-c3, var(--pz-key));
+  --fd-f: var(--pz-c4, var(--pz-hi)); --fd-line: var(--pz-line-strong);
+}
+section.slide.pz-frame * { box-sizing: border-box; }
+section.slide.pz-frame::before, section.slide.pz-frame::after { content: none; }
+/* 마무리는 색 면으로 뒤집는다 — 표지와 같은 짜임, 다른 바탕(장표의 끝을 알린다). */
+section.slide.pz-frame.fr-closing {
+  --fr-bg: var(--pz-accent); --fr-ink: var(--pz-on-accent); --fr-sub: var(--pz-on-accent-sub); --fr-faint: var(--pz-on-accent-sub);
+  --fr-line: color-mix(in srgb, var(--pz-on-accent) 28%, transparent); --fr-key: var(--pz-on-accent); --fr-head: var(--pz-on-accent);
+  --fd-a: color-mix(in srgb, var(--pz-on-accent) 70%, transparent); --fd-b: var(--pz-on-accent);
+  --fd-c: color-mix(in srgb, var(--pz-on-accent) 35%, transparent); --fd-d: color-mix(in srgb, var(--pz-on-accent) 55%, transparent);
+  --fd-e: color-mix(in srgb, var(--pz-on-accent) 40%, transparent); --fd-f: color-mix(in srgb, var(--pz-on-accent) 25%, transparent);
+  --fd-line: var(--pz-on-accent);
+}
+section.slide.pz-frame > .pz-deco { position: absolute; z-index: 0; pointer-events: none; }
+section.slide.pz-frame > .pz-deco svg { display: block; width: 100%; height: 100%; overflow: visible; }
+section.slide.pz-frame > .fr-main, section.slide.pz-frame > .fr-foot, section.slide.pz-frame > .fr-panel { position: relative; z-index: 1; }
+
+/* 글 줄기 */
+/* safe — 글이 많아 넘칠 때 위(장식 자리)로 새지 않고 아래로 넘친다 → 넘침 재기가 잡아 글자를 줄인다(10-26 tri-tone 마무리: 제목이 위 알약 장식에 올라탔다). */
+/* 줄어들지 않는다(1 0 auto) — 글이 많으면 줄기가 바닥 줄을 밀어 장 밖으로 넘치고, 넘침 재기가 큰 글자를 줄인다.
+   줄어들게 두면 글이 바닥 줄 위로 흘러 겹쳤다(10-26 tri-tone 표지 + figure). */
+section.slide.pz-frame .fr-main { flex: 1 0 auto; min-height: auto; display: flex; flex-direction: column; justify-content: safe center; }
+section.slide.pz-frame .fr-kicker { margin: 0 0 22px; font-family: var(--pz-label-font); font-size: 15px; font-weight: 700; letter-spacing: 0.08em;
+  color: var(--fr-key); text-transform: none; line-height: 1.4; max-width: 760px; }
+section.slide.pz-frame .fr-title { margin: 0; font-family: var(--pz-head-font); font-weight: var(--pz-head-weight); font-size: var(--fs, 84px);
+  line-height: 1.12; letter-spacing: -0.03em; color: var(--fr-head); text-transform: none; text-wrap: balance; max-width: 100%; }
+section.slide.pz-frame .fr-title u { text-decoration: none; background-image: linear-gradient(var(--fr-key), var(--fr-key));
+  background-size: 100% 0.07em; background-position: 0 92%; background-repeat: no-repeat; }
+section.slide.pz-frame mark { background: linear-gradient(transparent 55%, var(--pz-hi) 55%); color: inherit; padding: 0 2px; }
+section.slide.pz-frame .fr-sub { margin: 26px 0 0; font-size: var(--ss, 22px); line-height: 1.6; color: var(--fr-sub); max-width: 820px; text-transform: none; }
+section.slide.pz-frame .fr-figure { margin-top: 30px; display: flex; flex-direction: column; }
+section.slide.pz-frame .fr-figure .fr-label { font-family: var(--pz-label-font); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: var(--fr-sub); }
+section.slide.pz-frame .fr-figure .n { font-family: var(--pz-num-font); font-weight: var(--pz-num-weight); font-size: 64px; line-height: 1.05; color: var(--fr-key);
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em; white-space: nowrap; margin: 6px 0 4px; }
+section.slide.pz-frame .fr-figure p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--fr-sub); }
+
+/* 바닥 줄 — 이름:값 · 날짜/출처 · 쪽. 한 줄기의 끝이라 위 글과 겹치지 않는다. */
+section.slide.pz-frame .fr-foot { flex: none; margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--fr-line);
+  display: flex; align-items: flex-end; gap: 36px; }
+section.slide.pz-frame .fr-meta { margin: 0; display: flex; gap: 36px; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; row-gap: 10px; }
+section.slide.pz-frame .fr-meta > div { min-width: 0; max-width: 360px; }
+section.slide.pz-frame .fr-meta dt { margin: 0 0 4px; font-family: var(--pz-label-font); font-size: 12px; font-weight: 700; letter-spacing: 0.04em; color: var(--fr-faint); }
+section.slide.pz-frame .fr-meta dd { margin: 0; font-size: 15px; line-height: 1.45; color: var(--fr-ink); }
+section.slide.pz-frame .fr-note { flex: 0 1 auto; font-size: 13px; color: var(--fr-faint); text-align: right; line-height: 1.45; max-width: 420px; }
+section.slide.pz-frame .fr-foot .folio { position: static; flex: none; font-family: var(--pz-num-font); font-size: 13px; color: var(--fr-faint);
+  letter-spacing: 0.04em; white-space: nowrap; }
+
+/* 짜임(arrangement) — 결마다 코드가 고른다. 장식 자리는 글 줄기의 padding 바깥이다. */
+section.slide.pz-frame.ar-side { padding-right: 470px; }
+section.slide.pz-frame.ar-side .fr-foot { margin-right: -398px; }
+section.slide.pz-frame.ar-center .fr-main { align-items: center; text-align: center; }
+section.slide.pz-frame.ar-center .fr-kicker, section.slide.pz-frame.ar-center .fr-sub { margin-left: auto; margin-right: auto; }
+section.slide.pz-frame.ar-center .fr-main { padding: 0 60px; }
+section.slide.pz-frame.ar-bottom { padding-top: 170px; }
+section.slide.pz-frame.ar-bottom .fr-main { justify-content: safe flex-end; }
+section.slide.pz-frame.ar-panel { padding-right: 472px; }
+section.slide.pz-frame.ar-panel > .fr-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 400px; padding: 64px 44px 40px;
+  background: var(--pz-accent); color: var(--pz-on-accent); display: flex; flex-direction: column; justify-content: flex-end; gap: 26px; }
+section.slide.pz-frame.ar-panel > .fr-panel .fr-figure { margin-top: 0; }
+section.slide.pz-frame.ar-panel > .fr-panel .fr-figure .n { color: var(--pz-on-accent); }
+section.slide.pz-frame.ar-panel > .fr-panel .fr-figure .fr-label, section.slide.pz-frame.ar-panel > .fr-panel .fr-figure p { color: var(--pz-on-accent-sub); }
+section.slide.pz-frame.ar-panel > .fr-panel .fr-meta { flex: none; flex-direction: column; gap: 0; border-top: 1px solid color-mix(in srgb, var(--pz-on-accent) 30%, transparent); }
+section.slide.pz-frame.ar-panel > .fr-panel .fr-meta > div { max-width: none; display: flex; justify-content: space-between; gap: 18px; padding: 11px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--pz-on-accent) 20%, transparent); }
+section.slide.pz-frame.ar-panel > .fr-panel .fr-meta dt { margin: 0; color: var(--pz-on-accent-sub); }
+section.slide.pz-frame.ar-panel > .fr-panel .fr-meta dd { color: var(--pz-on-accent); text-align: right; }
+section.slide.pz-frame.fr-closing.ar-panel { --fr-bg: var(--pz-bg); --fr-ink: var(--pz-ink); --fr-sub: var(--pz-sub); --fr-faint: var(--pz-faint);
+  --fr-line: var(--pz-line); --fr-key: var(--pz-key); --fr-head: var(--pz-head-color); }
+/* 붙인 종이 — 제목이 기운 쪽지 위에 앉는다(글은 반듯하게 · 기운 것은 종이뿐). */
+section.slide.pz-frame.ar-note .fr-title { position: relative; padding: 26px 40px 30px; isolation: isolate; }
+section.slide.pz-frame.ar-note .fr-title::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--pz-c1, var(--pz-hi));
+  transform: rotate(-1.6deg); box-shadow: 0 10px 22px var(--pz-shadow), 0 2px 3px var(--pz-shadow); border-radius: 2px; }
+section.slide.pz-frame.fr-closing.ar-note .fr-title::before { background: var(--pz-card); }
+section.slide.pz-frame.fr-closing.ar-note .fr-title { color: var(--pz-card-ink); }
+/* 틀 — 장 안쪽에 두른 선(peoples-platform) */
+section.slide.pz-frame.deco-frame { padding: 76px 96px 60px; }
+/* 아래 짜임의 큰 숫자 — 바닥 줄 오른쪽에 작게(위는 장식 자리라 줄기가 짧다). */
+section.slide.pz-frame .fr-foot .fr-figure-foot { margin: 0; flex: none; align-items: flex-end; text-align: right; }
+section.slide.pz-frame .fr-foot .fr-figure-foot .n { font-size: 44px; margin: 2px 0; }

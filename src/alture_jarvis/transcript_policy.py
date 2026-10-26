@@ -201,6 +201,8 @@ _THINKING_STREAM_CHARS = 20_000
 
 #: 조각마다 보내면 초당 수십 번이 된다. 시간으로 묶어 내보낸다.
 _THINKING_EMIT_SEC = 0.25
+#: 보라색 점 줄(`agent_live` · 지금 모델이 무엇을 하나)을 고치는 간격. 글은 안 보내고 무엇을 하는지 · 몇 자째인지만.
+_LIVE_EVERY_SEC = 1.0
 
 _FORCED_READ_LIMIT = 6
 

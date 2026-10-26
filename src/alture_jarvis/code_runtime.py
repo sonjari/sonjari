@@ -38,6 +38,9 @@ CODE_CORE_TOOL_NAMES = frozenset(
         "local_grep",
         "local_glob",
         "local_write_document",
+        # ★ 디자인된 장표 (2026-10-25). 바깥 클로드가 맡긴 판은 이 목록으로 돈다 — 여기 없어서 「손자리 소개 PPT」 판이
+        #   새 손을 못 보고 local_write_document 로 흰 바탕 PPT 를 만들었다(컴퓨터 창 연출도 안 나옴).
+        "local_make_slide",
         "local_read_text_file",
         # ★ 저장소에는 글자 파일만 있는 게 아니다 (2026-09-20). 설계문서가 PDF·docx 면
         #   어려운 과제의 절반을 못 보고 시작한다.
@@ -735,7 +738,13 @@ _QWEN_DESCRIPTIONS = {
         "do not open files and skim."
     ),
     "local_glob": "Find files by name pattern across the tree (e.g. **/*.test.ts).",
-    "local_write_document": "Create a real xlsx/docx/pptx/csv file from rows or blocks.",
+    "local_write_document": "Create a real xlsx/docx/csv file from rows or blocks. For a presentation deck use local_make_slide.",
+    "local_make_slide": (
+        "Design a presentation deck (PPTX). Call once without html (optionally with style) to get the design rules, "
+        "the style list and a style example, "
+        "then call per slide in order with title, index, total and a self-contained 1280x720 HTML slide. "
+        "Each slide appears on the user's screen as it is made; the last slide builds the PPTX."
+    ),
     "local_read_document": "Read a PDF, docx, xlsx, pptx or hwpx design document in the repository.",
     "local_read_text_file": (
         "Read actual code. Use before editing. "

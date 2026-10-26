@@ -3,7 +3,7 @@ import type { JobSummary, ScheduleRow } from "../types";
 import type { RoomRow } from "./jobs";
 import {
   DONE_KEEP, durationLabel, elapsedSec, groupJobs, isLive, jobMetrics, jobStateLabel,
-  jobShownHere, jobToFollow, paneContext, paneWidth, pendingSchedules, riskLabel, scheduleLabel, scheduleWhen, toneOf, whereAQueuedJobLands,
+  jobShownHere, jobToFollow, paneContext, paneWidth, pendingSchedules, riskLabel, routineFailed, routineLine, scheduleLabel, scheduleWhen, toneOf, whereAQueuedJobLands,
   withLiveRooms, withRunningFirst, withYieldedLast,
 } from "./jobs";
 
@@ -138,6 +138,36 @@ describe("예약", () => {
     expect(scheduleLabel(schedule("x", "pending", NOW - 30), NOW)).toBe("곧 시작");
     expect(scheduleLabel(schedule("y", "pending", NOW + 47 * 60), NOW)).toBe("47분 뒤");
     expect(scheduleLabel(schedule("z", "pending", NOW + 3 * 3600), NOW)).toBe("3시간 뒤");
+  });
+});
+
+describe("루틴 예약 (모델 없이 · 2026-10-23)", () => {
+  const routine = (status: string, last: object | null, updated = NOW - 60): ScheduleRow => ({
+    ...schedule(`r-${status}`, status, NOW - 120), kind: "routine", updated_at: updated,
+    last_result: last ? JSON.stringify(last) : "",
+  });
+
+  it("0건과 깨짐을 다른 말로 쓴다 — 깨진 회차를 0건처럼 보이면 「새 공고 없음」으로 읽힌다", () => {
+    const empty = routine("pending", { status: "empty", count: 0, at: NOW - 60 });
+    const broken = routine("pending", { status: "broken", count: 0, problems: ["career 칸을 10줄 모두에서 못 읽었다"], at: NOW - 60 });
+    expect(routineLine(empty, NOW)).toMatch(/^모델 없이 · 0건 · /);
+    expect(routineLine(broken, NOW)).toBe("깨짐 · career 칸을 10줄 모두에서 못 읽었다");
+    expect(routineFailed(broken)).toBe(true);
+    expect(routineFailed(empty)).toBe(false);
+  });
+
+  it("아직 안 돈 루틴 · 받기 실패도 그대로 말한다", () => {
+    expect(routineLine(routine("pending", null), NOW)).toBe("모델 없이 · 아직 안 돎");
+    expect(routineLine(routine("pending", { status: "failed", count: 0, at: NOW - 60 }), NOW)).toMatch(/^못 받음 · /);
+  });
+
+  it("한 번만 도는 루틴은 돈 뒤에도 하루 남는다(결과를 볼 자리) · 프롬프트 예약은 그대로 사라진다", () => {
+    const rows = pendingSchedules([
+      routine("ran", { status: "ok", count: 10, at: NOW - 60 }),
+      routine("ran", { status: "ok", count: 3 }, NOW - 2 * 86_400),
+      schedule("prompt-done", "dispatched", NOW - 60),
+    ], NOW);
+    expect(rows.map((row) => row.updated_at)).toStrictEqual([NOW - 60]);
   });
 });
 
@@ -308,6 +338,15 @@ describe("도는 판의 방은 목록에 줄이 있다 (2026-10-09 저녁)", () 
     expect(rows.map((row) => row.session_id)).toEqual(["mcp-room", "mine"]);
     expect(rows[0].title).toBe("맡긴 일");
     expect(rows[0].caller).toBeTruthy();
+  });
+
+  it("앱 안 Claude 가 맡긴 판(via=app)은 도는 동안에도 제 방을 세우지 않는다 (2026-10-26 대표)", () => {
+    const sessions = [room("mine")];
+    const rows = withLiveRooms(sessions, [job("j1", "running", { session_id: "mcp-app", origin: "mcp", via: "app" })]);
+    expect(rows).toBe(sessions);
+    // 바깥 클로드가 맡긴 판은 지금처럼 선다.
+    expect(withLiveRooms(sessions, [job("j2", "running", { session_id: "mcp-out", origin: "mcp" })]).map((row) => row.session_id))
+      .toEqual(["mcp-out", "mine"]);
   });
 
   it("이미 목록에 있는 방이면 진짜 줄을 그대로 쓴다 — 두 줄이 되지 않는다", () => {

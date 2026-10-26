@@ -45,6 +45,12 @@ function rungText(rung: ContextRung): string {
       return t("첫 칸보다 30% 넘게 느려짐{0}", speed);
     case "gpu_measurement_unavailable":
       return t("그래픽카드 비율을 읽지 못했습니다");
+    case "model_load_timeout":
+      return t("올리는 데 너무 오래 걸림");
+    case "model_out_of_memory":
+      return t("그래픽카드 메모리 부족");
+    case "ollama_not_answering":
+      return t("Ollama 가 답하지 않음");
     default:
       return t("올리지 못했습니다");
   }
@@ -55,7 +61,7 @@ function bySize(rungs: ContextRung[]): ContextRung[] {
   return [...rungs].sort((a, b) => a.num_ctx - b.num_ctx);
 }
 
-function errorText(error: string | undefined, current?: string): string {
+function errorText(error: string | undefined, current?: string, record?: ContextCeiling): string {
   switch (error) {
     case "busy":
       return t("Sonjari가 일하는 중입니다 — 재는 동안 모델을 내렸다 올려서, 끝난 뒤에 다시 눌러 주세요.");
@@ -67,13 +73,37 @@ function errorText(error: string | undefined, current?: string): string {
       return t("지금 대화 모델이 바뀌었습니다 — 다시 재 주세요.");
     case "user_set_context_length":
       return t("Ollama 기본값이 이미 {0} 로 적혀 있어 건드리지 않았습니다(직접 넣으신 값).", k(Number(current) || 0));
+    case "nothing_to_squeeze":
+      return t("더 좁힐 사이가 없습니다.");
     case "rung_did_not_load":
       return t("그 칸은 올리지 못했던 칸이라 고를 수 없습니다.");
-    case "no_context_fits":
-      return t("가장 작은 칸(8K)도 그래픽카드에 온전히 안 들어갑니다 — 더 작은 모델을 권합니다.");
+    case "no_context_fits": {
+      const first = record?.steps?.[0]?.num_ctx;
+      return t("가장 작은 칸({0})도 그래픽카드에 온전히 안 들어갑니다 — 더 작은 모델을 권합니다.", first ? k(first) : "16K");
+    }
+    case "first_rung_failed": {
+      // ★ 10-25: 올라가지도 못한 것을 「안 들어감」으로 말하지 않는다 — 모델이 작다는 뜻이 아니다.
+      const step = record?.steps?.[0];
+      const why = step ? rungText(step) : t("올리지 못했습니다");
+      return t("첫 칸{0}을 재지 못했습니다({1}). 모델이 커서가 아니라 그때 올리지 못한 것이라, 잠시 뒤 다시 재 주세요.",
+        step ? `(${k(step.num_ctx)})` : "", why);
+    }
     default:
       return error || t("알 수 없는 이유");
   }
+}
+
+/** 「더 쥐어짜기」로 좁힐 사이 — 합격 상한과 그 위 첫 불합격 칸(그래픽카드에 안 들어간 칸만). 백엔드 `squeeze_gap` 과 같은 셈. */
+const FIT_WHY = new Set(["not_fully_on_gpu", "context_clamped", "too_slow", "model_out_of_memory"]);
+const SQUEEZE_STEP = 8192;
+export function squeezeGap(row: ContextCeiling | undefined): [number, number] | null {
+  const ceiling = row?.ceiling ?? 0;
+  if (!row || !ceiling) return null;
+  const above = (row.steps ?? []).filter((r) => !r.passed && r.num_ctx > ceiling && FIT_WHY.has(r.why)).map((r) => r.num_ctx);
+  if (!above.length) return null;
+  const high = Math.min(...above);
+  const middle = Math.floor((ceiling + high) / 2 / SQUEEZE_STEP) * SQUEEZE_STEP;
+  return ceiling < middle && middle < high ? [ceiling, high] : null;
 }
 
 /** 잰 기록만 — 고른 칸만 적힌 기록은 `undefined`. */
@@ -141,6 +171,14 @@ export function ContextCeilingPanel({ api, model, onApplied, auto = false, role 
     await load();
   };
 
+  const squeeze = async () => {
+    setMessage("");
+    setChosen(null);
+    const done = await api.squeezeContext(model);
+    if (!done.ok) setMessage(errorText(done.error));
+    await load();
+  };
+
   const apply = async (numCtx: number) => {
     setBusy(true);
     setMessage("");
@@ -178,6 +216,7 @@ export function ContextCeilingPanel({ api, model, onApplied, auto = false, role 
   const last = measuredRecord(view.ceilings[model]);
   const live = view.live && view.live.model === model ? view.live : null;
   const ceiling = last?.ceiling ?? 0;
+  const gap = squeezeGap(last);
   // 고를 수 있는 칸 = 이 PC 에서 **실제로 올려 토큰을 만든** 칸. 못 올린 칸은 고를 게 없다.
   const choices = bySize(last?.steps ?? []).filter((rung) => (rung.tokens_per_sec ?? 0) > 0);
   const currentIsRung = choices.some((rung) => rung.num_ctx === view.num_ctx);
@@ -259,7 +298,22 @@ export function ContextCeilingPanel({ api, model, onApplied, auto = false, role 
       )}
       {measuring && <p className="context-note">{t("재는 동안(보통 1~3분)은 일을 맡기지 말아 주세요 — 모델을 내렸다 올립니다.")}</p>}
 
-      {!measuring && last && !last.ok && <p className="context-note warn">{errorText(last.error)}</p>}
+      {/* ★ 10-25 대표: 「128K 다음은 256K 로만 가나」 — 처음 재기는 둥근 칸만(09-29 결정), 그 사이는 사람이 누를 때만 두 번 더. */}
+      {!measuring && last?.ok && gap && (
+        <div className="context-squeeze">
+          <button type="button" onClick={() => void squeeze()} disabled={busy}>{t("더 쥐어짜기")}</button>
+          <small className="context-note">
+            {t("{0} 와 {1} 사이를 두 번 더 올려 봅니다(모델을 두 번 더 올려 1분 안쪽). 창을 넓혀도 그만큼 기록이 길어지면 처음부터 읽을 때 더 기다립니다.", k(gap[0]), k(gap[1]))}
+          </small>
+        </div>
+      )}
+      {!measuring && last?.squeezed && (
+        <small className="context-note">
+          {t("쥐어짜기: {0} → {1} · {2}초", k(last.squeezed.from), k(last.squeezed.to), Math.round(last.squeezed.took_sec))}
+        </small>
+      )}
+
+      {!measuring && last && !last.ok && <p className="context-note warn">{errorText(last.error, undefined, last)}</p>}
 
       {!measuring && target > 0 && (
         <div className="context-apply">

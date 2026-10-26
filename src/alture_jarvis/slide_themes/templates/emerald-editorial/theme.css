@@ -1,0 +1,743 @@
+/* sonjari-template */
+
+  :root {
+    --bg: #3CD896;
+    --bg-2: #2DC684;
+    --bg-3: #25B377;
+    --ink: #0F1A5C;
+    --ink-2: #1B2774;
+    --ink-3: #3A4593;
+    --paper: #F1E9D6;
+    --rule: rgba(15, 26, 92, 0.22);
+    --rule-strong: rgba(15, 26, 92, 0.85);
+    --display-font: Georgia, 'Batang', serif;
+  }
+
+  html, body { margin: 0; padding: 0; background: #0a0a0a; }
+  
+
+  section.slide {
+    width: 1280px;
+    height: 720px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    overflow: hidden;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  /* Bold display serif — Bodoni Moda heavy */
+  .display {
+    font-family: var(--display-font);
+    font-weight: 900;
+    font-style: normal;
+    letter-spacing: -0.005em;
+    line-height: 0.95;
+  }
+  .display-md {
+    font-family: var(--display-font);
+    font-weight: 800;
+    font-style: normal;
+  }
+
+  .sans {
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-weight: 600;
+  }
+  .sans-b {
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+
+  /* Double-rule decorative ornament — the signature treatment */
+  .ornament {
+    display: inline-flex;
+    align-items: center;
+    gap: 17.33px;
+    justify-content: center;
+    width: 100%;
+  }
+  .ornament .word {
+    font-family: var(--display-font);
+    font-weight: 800;
+    font-size: 0.42em;
+    letter-spacing: 0.02em;
+    padding: 0 2.67px;
+  }
+  .ornament .lines {
+    flex: 1;
+    height: 12px;
+    position: relative;
+  }
+  .ornament .lines::before,
+  .ornament .lines::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2.67px;
+    background: var(--ink);
+  }
+  .ornament .lines::before { top: 2px; }
+  .ornament .lines::after { bottom: 2px; }
+
+  /* Side double-rule for small inline words */
+  .of-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 14.67px;
+    font-family: var(--display-font);
+    font-weight: 700;
+  }
+  .of-mark::before, .of-mark::after {
+    content: "";
+    width: 42.67px;
+    height: 12px;
+    background:
+      linear-gradient(var(--ink), var(--ink)) 0 2.67px / 100% 2.67px no-repeat,
+      linear-gradient(var(--ink), var(--ink)) 0 8px / 100% 2.67px no-repeat;
+  }
+
+  /* Shared masthead / footline */
+  .masthead {
+    position: absolute;
+    top: 37.33px;
+    left: 53.33px;
+    right: 53.33px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 17.33px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .footline {
+    position: absolute;
+    bottom: 37.33px;
+    left: 53.33px;
+    right: 53.33px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 17.33px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--ink);
+  }
+  .rule-h { height: 2.67px; background: var(--ink); }
+
+  /* ============== SLIDE 1 — COVER ============== */
+  .s1 {
+    padding: 37.33px 73.33px;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+  }
+  .s1-top {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 700; letter-spacing: 0.05em; font-size: 17.33px;
+    flex-shrink: 0;
+  }
+  .s1-stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2.67px;
+    padding: 6.67px 0;
+    min-height: 0;
+  }
+  .s1-line { color: var(--ink); }
+  .s1-the { font-family: var(--display-font); font-weight: 800; font-size: 50.67px; line-height: 1; margin-bottom: -1.33px; }
+  .s1-big {
+    font-family: var(--display-font);
+    font-weight: 900;
+    font-size: 122.67px;
+    line-height: 0.92;
+    letter-spacing: -0.01em;
+  }
+  .s1-mid {
+    display: flex; align-items: center; justify-content: center;
+    gap: 21.33px;
+    width: 100%;
+    max-width: 933.33px;
+  }
+  .s1-mid .rule {
+    flex: 1; height: 14.67px; position: relative;
+  }
+  .s1-mid .rule::before, .s1-mid .rule::after {
+    content: ""; position: absolute; left: 0; right: 0; height: 3.33px; background: var(--ink);
+  }
+  .s1-mid .rule::before { top: 1.33px; }
+  .s1-mid .rule::after { bottom: 1.33px; }
+  .s1-mid .of {
+    font-family: var(--display-font); font-weight: 800;
+    font-size: 45.33px; line-height: 1; padding: 0 4px;
+  }
+
+  /* Ornament rule variants — controlled by :root[data-ornament] */
+  :root[data-ornament="single"] .s1-mid .rule::before,
+  :root[data-ornament="single"] .s4-state .ornament-row .rule::before,
+  :root[data-ornament="single"] .s8-mid .rule::before {
+    top: 50%; bottom: auto; transform: translateY(-50%); height: 4.67px;
+  }
+  :root[data-ornament="single"] .s1-mid .rule::after,
+  :root[data-ornament="single"] .s4-state .ornament-row .rule::after,
+  :root[data-ornament="single"] .s8-mid .rule::after { display: none; }
+
+  :root[data-ornament="none"] .s1-mid .rule,
+  :root[data-ornament="none"] .s4-state .ornament-row .rule,
+  :root[data-ornament="none"] .s8-mid .rule { display: none; }
+
+  .s1-credit {
+    margin-top: 20px;
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-weight: 700;
+    font-size: 18.67px;
+    letter-spacing: 0.18em;
+  }
+
+  /* ============== SLIDE 2 — AGENDA ============== */
+  .s2 {
+    padding: 73.33px 73.33px 46.67px;
+    display: flex; flex-direction: column;
+  }
+  .s2-eyebrow { font-size: 18.67px; font-weight: 800; letter-spacing: 0.18em; margin-bottom: 20px; }
+  .s2-title {
+    font-family: var(--display-font);
+    font-weight: 900;
+    font-size: 133.33px;
+    line-height: 0.9;
+    letter-spacing: -0.015em;
+    margin: 0 0 46.67px;
+  }
+  .s2-list { display: flex; flex-direction: column; gap: 0; }
+  .s2-row {
+    display: grid;
+    grid-template-columns: 86.67px 1fr 213.33px;
+    align-items: center;
+    padding: 17.33px 0;
+    border-top: 2.67px solid var(--ink);
+    column-gap: 26.67px;
+  }
+  .s2-row:last-child { border-bottom: 2.67px solid var(--ink); }
+  .s2-row .num {
+    font-family: var(--display-font);
+    font-weight: 800;
+    font-size: 42.67px;
+    line-height: 1;
+  }
+  .s2-row .name {
+    font-family: var(--display-font);
+    font-weight: 800;
+    font-size: 42.67px;
+    line-height: 1;
+    letter-spacing: -0.005em;
+  }
+  .s2-row .kind {
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-weight: 700;
+    font-size: 17.33px;
+    letter-spacing: 0.1em;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* ============== SLIDE 3 — SECTION OPENER ============== */
+  .s3 {
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .s3-left {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 46.67px 60px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .s3-left .top {
+    position: absolute; top: 46.67px; left: 60px; right: 60px;
+    display: flex; justify-content: space-between;
+    font-size: 17.33px; font-weight: 700; letter-spacing: 0.08em;
+  }
+  .s3-numeral {
+    font-family: var(--display-font);
+    font-weight: 900;
+    font-size: 306.67px;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    text-align: center;
+  }
+  .s3-left .bot {
+    position: absolute; bottom: 46.67px; left: 60px; right: 60px;
+    display: flex; justify-content: space-between;
+    font-size: 17.33px; font-weight: 700; letter-spacing: 0.08em;
+  }
+  .s3-right {
+    padding: 46.67px 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 20px;
+    overflow: hidden;
+  }
+  .s3-right .kicker {
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    font-size: 18.67px;
+  }
+  .s3-right h2 {
+    font-family: var(--display-font);
+    font-weight: 900;
+    font-size: 85.33px;
+    line-height: 0.95;
+    letter-spacing: -0.015em;
+    margin: 0;
+  }
+  .s3-right .lede {
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-size: 18.67px;
+    line-height: 1.5;
+    font-weight: 500;
+    max-width: 480px;
+  }
+  .s3-right .marks {
+    display: flex; gap: 9.33px; flex-wrap: wrap; padding-top: 13.33px;
+    border-top: 2.67px solid var(--ink);
+  }
+  .s3-right .mark {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 6.67px 14.67px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    font-size: 16px;
+  }
+
+  /* ============== SLIDE 4 — STATEMENT + SUPPORTING ============== */
+  .s4 {
+    padding: 73.33px 73.33px 46.67px;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 40px;
+  }
+  .s4-state {
+    font-family: var(--display-font);
+    font-weight: 900;
+    font-size: 86.67px;
+    line-height: 0.96;
+    letter-spacing: -0.015em;
+    text-align: center;
+    margin: 0;
+  }
+  .s4-state .ornament-row {
+    display: flex; align-items: center; justify-content: center;
+    gap: 21.33px;
+    margin: 9.33px 0;
+  }
+  .s4-state .ornament-row .of-word {
+    font-family: var(--display-font);
+    font-weight: 800;
+    font-size: 56px;
+    line-height: 1;
+  }
+  .s4-state .ornament-row .rule {
+    width: 146.67px; height: 12px; position: relative;
+  }
+  .s4-state .ornament-row .rule::before,
+  .s4-state .ornament-row .rule::after {
+    content: ""; position: absolute; left: 0; right: 0; height: 2.67px; background: var(--ink);
+  }
+  .s4-state .ornament-row .rule::before { top: 1px; }
+  .s4-state .ornament-row .rule::after { bottom: 1px; }
+  .s4-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 33.33px;
+    border-top: 2.67px solid var(--ink);
+    padding-top: 24px;
+  }
+  .s4-cell .n {
+    font-family: var(--display-font);
+    font-weight: 800;
+    font-size: 42.67px;
+    line-height: 1;
+    margin-bottom: 12px;
+  }
+  .s4-cell h4 {
+    font-family: var(--display-font);
+    font-weight: 800;
+    font-size: 29.33px;
+    line-height: 1.05;
+    margin: 0 0 10.67px;
+    letter-spacing: -0.005em;
+  }
+  .s4-cell p {
+    font-size: 17.33px; line-height: 1.5; font-weight: 500;
+    margin: 0;
+  }
+
+  /* ============== SLIDE 5 — CHART ============== */
+  .s5 {
+    padding: 73.33px 73.33px 46.67px;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 26.67px;
+  }
+  .s5-head {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 53.33px;
+    align-items: end;
+  }
+  .s5-h {
+    font-family: var(--display-font);
+    font-weight: 900;
+    font-size: 69.33px;
+    line-height: 0.95;
+    letter-spacing: -0.015em;
+    margin: 0;
+  }
+  .s5-sub {
+    font-size: 17.33px; line-height: 1.45; font-weight: 500;
+    margin: 0;
+  }
+  .s5-body {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 40px;
+    align-items: stretch;
+    min-height: 0;
+  }
+  .chart-card {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 24px 33.33px 20px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .chart-card .lbl {
+    font-weight: 800; letter-spacing: 0.14em; font-size: 16px;
+    margin-bottom: 16px;
+  }
+  .chart-area {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+  }
+  .chart-yaxis {
+    position: absolute; left: 0; top: 0; bottom: 40px; width: 53.33px;
+  }
+  .chart-yaxis span {
+    position: absolute; right: 9.33px; font-size: 17.33px;
+    font-family: var(--display-font); font-weight: 700;
+    transform: translateY(-50%);
+  }
+  .chart-grid {
+    position: absolute; left: 60px; right: 0; top: 0; bottom: 40px;
+  }
+  .chart-grid .gl {
+    position: absolute; left: 0; right: 0; height: 1.33px; background: rgba(60, 216, 150, 0.22);
+  }
+  .chart-bars {
+    position: absolute; left: 60px; right: 0; top: 0; bottom: 40px;
+    display: flex; gap: 16px; align-items: flex-end;
+  }
+  .grp { flex: 1; display: flex; gap: 6.67px; align-items: flex-end; height: 100%; }
+  .bar {
+    flex: 1;
+    background: var(--bg);
+    position: relative;
+  }
+  .bar.b2 { background: var(--paper); }
+  .bar .v {
+    position: absolute; top: -26.67px; left: 50%; transform: translateX(-50%);
+    font-family: var(--display-font); font-weight: 800;
+    font-size: 20px; color: var(--bg);
+  }
+  .bar.b2 .v { color: var(--paper); }
+  .chart-x {
+    position: absolute; left: 60px; right: 0; bottom: 13.33px;
+    display: flex; gap: 16px;
+  }
+  .chart-x span {
+    flex: 1; text-align: center; font-weight: 700;
+    letter-spacing: 0.06em; font-size: 16px;
+  }
+  .chart-legend {
+    display: flex; gap: 24px; margin-top: 13.33px;
+    font-size: 16px; font-weight: 700; letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+  .chart-legend .it { display: flex; align-items: center; gap: 9.33px; }
+  .chart-legend .sw { width: 14.67px; height: 14.67px; background: var(--bg); }
+  .chart-legend .sw.b2 { background: var(--paper); }
+
+  .s5-side {
+    display: flex; flex-direction: column;
+    gap: 14.67px;
+    border-top: 2.67px solid var(--ink);
+    padding-top: 17.33px;
+    overflow: hidden;
+  }
+  .s5-side .tag {
+    display: inline-block;
+    background: var(--ink); color: var(--bg);
+    padding: 5.33px 13.33px; font-weight: 700;
+    letter-spacing: 0.12em; font-size: 16px;
+    align-self: flex-start;
+    white-space: nowrap;
+  }
+  .s5-side .take {
+    font-family: var(--display-font);
+    font-weight: 800;
+    font-size: 32px;
+    line-height: 1.0;
+    letter-spacing: -0.005em;
+    margin: 0;
+  }
+  .s5-side .note {
+    font-size: 16px; line-height: 1.45; font-weight: 500; margin: 0;
+  }
+  .s5-side .stats {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-top: 2.67px solid var(--ink);
+    gap: 16px;
+    padding-top: 18.67px;
+  }
+  .s5-side .stats .stat .num {
+    font-family: var(--display-font);
+    font-weight: 900;
+    font-size: 61.33px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .s5-side .stats .stat .num .u {
+    font-size: 32px;
+    margin-left: 1.33px;
+  }
+  .s5-side .stats .stat .lbl {
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    font-size: 16px;
+    margin-top: 8px;
+    line-height: 1.35;
+  }
+
+  /* ============== SLIDE 6 — PROCESS ============== */
+  .s6 {
+    padding: 73.33px 73.33px 46.67px;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 33.33px;
+  }
+  .s6-head {
+    display: grid; grid-template-columns: 1.1fr 1fr; gap: 53.33px; align-items: end;
+  }
+  .s6-eyebrow { font-size: 18.67px; font-weight: 800; letter-spacing: 0.16em; }
+  .s6-h {
+    font-family: var(--display-font); font-weight: 900;
+    font-size: 80px; line-height: 0.95; letter-spacing: -0.015em;
+    margin: 12px 0 0;
+  }
+  .s6-sub {
+    font-size: 18.67px; line-height: 1.5; font-weight: 500; margin: 0;
+  }
+  .s6-flow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    align-items: stretch;
+  }
+  .step {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 21.33px 21.33px 17.33px;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .step.alt { background: var(--paper); color: var(--ink); }
+  .step .n {
+    font-family: var(--display-font); font-weight: 900;
+    font-size: 53.33px; line-height: 1;
+    margin-bottom: 9.33px;
+  }
+  .step h4 {
+    font-family: var(--display-font); font-weight: 800;
+    font-size: 26.67px; line-height: 1.0;
+    margin: 0 0 10.67px;
+    letter-spacing: -0.005em;
+    border-top: 2.67px solid currentColor;
+    padding-top: 10.67px;
+  }
+  .step p {
+    font-size: 16px; line-height: 1.4; font-weight: 500;
+    margin: 0 0 10.67px;
+  }
+  .step .meta {
+    margin-top: auto;
+    display: flex; justify-content: space-between;
+    font-weight: 700; letter-spacing: 0.08em; font-size: 16px;
+  }
+
+  /* ============== SLIDE 7 — KPI GRID ============== */
+  .s7 {
+    padding: 73.33px 73.33px 46.67px;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 26.67px;
+  }
+  .s7-head {
+    display: grid; grid-template-columns: 1.2fr 1fr; gap: 53.33px; align-items: end;
+    padding-right: 13.33px;
+  }
+  .s7-eyebrow { font-size: 18.67px; font-weight: 800; letter-spacing: 0.16em; margin-bottom: 9.33px; }
+  .s7-h {
+    font-family: var(--display-font); font-weight: 900;
+    font-size: 85.33px; line-height: 0.92; letter-spacing: -0.015em;
+    margin: 0;
+  }
+  .s7-sub {
+    font-size: 17.33px; line-height: 1.45; font-weight: 500; margin: 0;
+  }
+  .s7-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18.67px;
+  }
+  .kpi {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 24px 21.33px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 13.33px;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .kpi.alt {
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .kpi .lbl {
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    font-size: 16px;
+  }
+  .kpi .val {
+    font-family: var(--display-font);
+    font-weight: 900;
+    font-size: 96px;
+    line-height: 0.9;
+    letter-spacing: -0.03em;
+    white-space: nowrap;
+  }
+  .kpi .val .u {
+    font-size: 40px;
+    margin-left: 2.67px;
+    font-weight: 800;
+  }
+  .kpi .desc {
+    font-size: 16px;
+    line-height: 1.45;
+    font-weight: 500;
+  }
+  .kpi .delta {
+    display: inline-block;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    font-size: 16px;
+    padding: 4px 10.67px;
+    background: var(--bg);
+    color: var(--ink);
+    align-self: flex-start;
+    white-space: nowrap;
+  }
+  .kpi.alt .delta {
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  /* ============== SLIDE 8 — CLOSING ============== */
+  .s8 {
+    padding: 53.33px 73.33px;
+    display: flex; flex-direction: column;
+    text-align: center;
+  }
+  .s8-top {
+    display: flex; justify-content: space-between;
+    font-weight: 700; letter-spacing: 0.06em; font-size: 17.33px;
+  }
+  .s8-stage {
+    flex: 1;
+    display: flex; flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0;
+  }
+  .s8-kicker {
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+  .s8-h {
+    font-family: var(--display-font);
+    font-weight: 900;
+    font-size: 120px;
+    line-height: 0.92;
+    letter-spacing: -0.015em;
+    margin: 0;
+  }
+  .s8-mid {
+    display: flex; align-items: center; justify-content: center; gap: 21.33px;
+    width: 100%; max-width: 1000px; margin: 2.67px 0;
+  }
+  .s8-mid .rule {
+    flex: 1; height: 14.67px; position: relative;
+  }
+  .s8-mid .rule::before, .s8-mid .rule::after {
+    content: ""; position: absolute; left: 0; right: 0; height: 3.33px; background: var(--ink);
+  }
+  .s8-mid .rule::before { top: 1.33px; }
+  .s8-mid .rule::after { bottom: 1.33px; }
+  .s8-mid .of {
+    font-family: var(--display-font); font-weight: 800;
+    font-size: 50.67px; line-height: 1;
+  }
+  .s8-foot {
+    margin-top: 46.67px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 26.67px;
+    border-top: 2.67px solid var(--ink);
+    padding-top: 21.33px;
+    width: 100%;
+    max-width: 1000px;
+    text-align: left;
+  }
+  .s8-foot .col .lbl { font-weight: 800; letter-spacing: 0.14em; font-size: 16px; margin-bottom: 6.67px; }
+  .s8-foot .col .val {
+    font-family: var(--display-font); font-weight: 800;
+    font-size: 25.33px; line-height: 1.1;
+  }
+
+
+html,body{margin:0!important;padding:0!important;width:1280px;height:720px;overflow:hidden}
+section{width:1280px!important;height:720px!important;word-break:keep-all}

@@ -1,0 +1,34 @@
+{
+  "ko": {
+    "changes": "이번에 새로 생긴 것\n- 긴 조사가 빨라졌습니다. 손자리가 앞의 기록을 줄여 보낼 때마다 모델이 기록을 처음부터 다시 읽던 것을 고쳤습니다. 같은 조사 과제를 고치기 전후로 3판씩 돌렸더니 한 판이 평균 721초에서 541초로 줄었고 결과는 같았습니다.\n- 여러 페이지를 도는 조사에서 「일부만 하고 끝나는」 일이 줄었습니다. 찾을 말로 페이지 옆 칸까지 훑어 필요한 줄을 바로 집고, 「66.6k」를 66,600 으로 옮겨 적어도 막지 않습니다. 같은 깃허브 조사 과제에서 일부로 끝난 판이 6판 중 5판에서 1판이 됐습니다.\n- 클로드 같은 바깥 AI 가 맡긴 일은 「시킨 것 대조」를 그 AI 에게만 보냅니다. 손자리 창의 답은 깨끗해지고, 창에서 직접 시킨 일은 못 한 것이 있을 때만 한 줄로 알려 줍니다.\n- 표를 만들 때 이번에 열어 보지 않은 곳의 줄에 값이 채워져 있으면, 오른쪽 칸 「시킨 것」 아래에 「열지 않은 곳 N줄」로 알려 줍니다. 다른 글에서 옮긴 값일 수 있습니다.\n- 대화가 길어져 앞 기록을 접으면 대화에 한 줄로 알려 줍니다.\n\n이번에 고친 것\n- 디스코드 「연결 마치기」를 누를 때마다 「1초 뒤 다시」만 뜨던 것을 고쳤습니다.\n- 영어 화면에서 이어받기를 할 때 경고와 기다림 표시가 한국어로 나오던 것을 고쳤습니다.\n- 시키지 않은 일을 「못 했다」로 세던 것을 줄였습니다. 직접 시킨 문장에 있는 것만 끝을 가릅니다.\n- 순위 경고가 페이지가 아닌 손자리 메모와 순서를 견주던 헛경고를 고쳤습니다.\n- 서기: 이미 끝난 일이 「남은 일」로 남던 것과, 오래된 카드가 압축 뒤에 말없이 빠지던 것을 고쳤습니다.\n- 다른 프로그램의 설정 파일이 잠깐 잠겨 있으면 기다렸다 다시 씁니다.",
+    "tour": "이미 되는데 잘 모르시는 것\n- 디스코드로 일 시키기 — 밖에서 휴대폰 디스코드로 손자리에게 일을 맡기고 결과를 받습니다(설정 › 디스코드로 일 시키기).\n- 클로드 · 코덱스 · 커서에서 Sonjari 쓰기 — 그 AI 가 웹 조사 · 파일 일을 손자리에게 맡깁니다. 페이지는 이 PC 가 읽고 결과만 돌아가 클로드 사용 한도를 아낍니다(설정 › 연결).\n- 서기 — 클로드 코드 대화가 압축돼도 정한 것 · 남은 일을 다시 넣어 줍니다(설정 › 서기).\n- 예약 작업 — 정해 둔 시각에 같은 일을 돌립니다(설정 › 일반).",
+    "slides": [
+      {
+        "title": "긴 조사가 빨라졌습니다",
+        "body": "손자리가 앞의 기록을 줄여 보낼 때마다 모델이 처음부터 다시 읽던 것을 고쳤습니다. 같은 조사 과제를 3판씩 돌려 보니 한 판이 평균 721초에서 541초가 됐고, 결과는 같았습니다.",
+        "try": "레딧 · 깃허브처럼 여러 페이지를 읽는 조사를 맡겨 보세요."
+      },
+      {
+        "title": "클로드가 맡긴 일은 답이 깨끗합니다",
+        "body": "「시킨 것 대조」는 맡긴 AI 에게만 갑니다. 손자리 창에서는 오른쪽 칸 「시킨 것」에서 확인하고, 이번에 열지 않은 곳의 줄이 있으면 그 아래에 따로 알려 줍니다.",
+        "try": "일이 끝난 뒤 오른쪽 칸을 열어 보세요."
+      }
+    ]
+  },
+  "en": {
+    "changes": "New in this update\n- Long research runs are faster. Every time Sonjari trimmed older history, the model re-read it from the start; that is fixed. On the same research task, three runs before and after: 721 s to 541 s per run on average, with the same results.\n- Multi-page research ends half-done less often. Sonjari now searches the whole page, side column included, for the fields it needs, and \"66.6k\" written as 66,600 no longer counts as made up. On one GitHub research task, half-done runs went from 5 of 6 to 1 of 6.\n- Jobs handed over by Claude or another AI send the checklist back to that AI only; your window stays clean, and your own jobs show one line only when something was missed.\n- When a table has rows filled in for places this run never opened, the right panel shows \"N rows from places not opened\" under the checklist.\n- When a long conversation folds its earlier history, a single line in the chat says so.\n\nFixed in this update\n- Discord \"Finish connecting\" no longer answers \"try again in 1 second\" every time.\n- On an English screen, takeover warnings and the waiting line no longer show up in Korean.\n- Fewer \"not done\" calls for things you never asked for: only what your own request asked decides whether the job is done.\n- A false ranking warning that compared Sonjari's own notes instead of the page is gone.\n- Scribe: finished items no longer stay open, and older cards are no longer dropped silently after a compaction.\n- A briefly locked settings file is retried.",
+    "tour": "Things that already work\n- Work from Discord: hand Sonjari a job from Discord on your phone and get the result back (Settings > Work from Discord).\n- Use Sonjari from Claude, Codex or Cursor: that AI hands web research and file work to Sonjari. This PC reads the pages and only the result goes back, saving your Claude usage (Settings > Connect).\n- Scribe: decisions and open items come back after Claude Code compacts a conversation (Settings > Scribe).\n- Scheduled tasks: run the same job at set times (Settings > General).",
+    "slides": [
+      {
+        "title": "Long research runs are faster",
+        "body": "Sonjari no longer makes the model re-read its whole history every time older history gets trimmed. On the same research task, three runs each: 721 s to 541 s per run on average, with the same results.",
+        "try": "Try a job that reads many pages, like Reddit or GitHub research."
+      },
+      {
+        "title": "Clean answers for jobs Claude hands over",
+        "body": "The checklist goes back to the AI that handed over the job. In the Sonjari window, check it in the right panel; rows from places this run never opened are flagged right below it.",
+        "try": "Open the right panel after a job finishes."
+      }
+    ]
+  }
+}

@@ -7,22 +7,22 @@ export const PILOT_MODEL_KEY = "jarvis.pilot.model.v1";
 
 export const PILOT_MODELS = [
   {
-    id: "claude-haiku-4-5",
-    label: "Haiku 4.5",
+    id: "claude-haiku-5-5",
+    label: "Haiku 5.5",
     description: t("빠른 답과 가벼운 정리"),
     character: t("가장 빠름"),
     context: 200_000,
   },
   {
-    id: "claude-sonnet-5",
-    label: "Sonnet 5",
+    id: "claude-sonnet-5-5",
+    label: "Sonnet 5.5",
     description: t("{0} 일상 작업친구", userLabel()),
     character: t("균형"),
     context: 1_000_000,
   },
   {
-    id: "claude-opus-5",
-    label: "Opus 5",
+    id: "claude-opus-5-5",
+    label: "Opus 5.5",
     description: t("{0}의 비싼 교수님", userLabel()),
     character: t("최고 성능"),
     context: 1_000_000,
@@ -35,7 +35,7 @@ export function savedPilotModel(): PilotModelId {
   const saved = window.localStorage.getItem(PILOT_MODEL_KEY);
   return PILOT_MODELS.some((model) => model.id === saved)
     ? saved as PilotModelId
-    : "claude-sonnet-5";
+    : "claude-sonnet-5-5";
 }
 
 export function pilotModel(modelId: string) {

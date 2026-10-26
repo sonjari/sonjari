@@ -19,6 +19,7 @@ use tauri::{
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
+mod claude_agent;
 mod package;
 mod tray_status;
 mod webview_check;
@@ -1069,6 +1070,10 @@ fn parse_stream_output(stdout: &[u8]) -> Result<(Value, Vec<PilotToolStep>), Str
                         .get("input")
                         .cloned()
                         .unwrap_or_else(|| serde_json::json!({}));
+                    // 같은 도구 호출이 흐름에 두 번 실려 와도(부분 메시지 켬) 한 걸음으로 센다 — 화면 흐름(`emit_pilot_stream_line`)과 같은 규칙.
+                    if !id.is_empty() && by_id.contains_key(&id) {
+                        continue;
+                    }
                     let index = trace.len();
                     trace.push(PilotToolStep {
                         step: (index + 1) as u32,
@@ -1140,9 +1145,9 @@ fn parse_stream_output(stdout: &[u8]) -> Result<(Value, Vec<PilotToolStep>), Str
 
 fn selected_pilot_model(requested: &str) -> &'static str {
     match requested.trim() {
-        "claude-haiku-4-5" => "claude-haiku-4-5",
-        "claude-opus-5" => "claude-opus-5",
-        _ => "claude-sonnet-5",
+        "claude-haiku-5-5" => "claude-haiku-5-5",
+        "claude-opus-5-5" => "claude-opus-5-5",
+        _ => "claude-sonnet-5-5",
     }
 }
 
@@ -2152,7 +2157,9 @@ pub fn run() {
             pilot_translate_thinking,
             pilot_cancel,
             pilot_read_output,
-            pilot_preview_output
+            pilot_preview_output,
+            claude_agent::claude_agent_status,
+            claude_agent::claude_agent_chat
         ])
         .build(tauri::generate_context!())
         .expect("Sonjari HUD failed to start")

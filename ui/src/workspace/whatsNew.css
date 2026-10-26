@@ -28,6 +28,10 @@
 .wn-stage-image { height: auto; max-height: clamp(170px, 34vh, 270px); padding: 0; background: rgb(var(--surface-2)); }
 .wn-stage-image img { width: 100%; height: auto; max-height: inherit; object-fit: contain; display: block; }
 
+/* 쇼 장(2026-10-26) — 앱 화면 조각을 그대로 움직이니 창을 조금 키우고 위쪽 칸은 여백 없이 장면에 내준다. */
+.wn-deck-show { width: min(940px, 100%); height: min(700px, 100%); }
+/* 블록으로 둔다 — 격자 칸이면 안의 장면이 칸을 밀어 키우고, 장면은 칸 크기에 맞춰 다시 커지는 되먹임이 생겼다(장이 6만 px). */
+.wn-stage-show { display: block; height: clamp(260px, 50vh, 410px); padding: 0; }
 .wn-say { max-width: 30em; margin: 0; display: flex; align-items: flex-start; gap: 12px; color: rgb(var(--text-3)); font-size: var(--fs-4); font-weight: var(--fw-mid); line-height: 1.55; text-wrap: balance; word-break: keep-all; }
 .wn-say svg { flex: none; margin-top: 5px; color: rgb(var(--brand)); }
 /* 따라 말할 문장 — 말풍선 칩. 사람의 말이라 기계 글꼴(고정폭)이 아니다. */

@@ -42,6 +42,26 @@ describe("작업 궤적", () => {
     expect(summarize(t).label).toContain("바꾼 것 있음");
   });
 
+  it("Claude 가 파일을 고치거나 명령을 돌린 판도 「읽기만 함」이 아니다 (2026-10-26 대표 판)", () => {
+    let t = startTrajectory("claude-1", "s", "price.py 고쳐 줘", 0);
+    t = applyStep(t, progress(1, "Glob"), 1);
+    t = applyStep(t, progress(2, "Read"), 2);
+    t = applyStep(t, progress(3, "Edit"), 3);
+    expect(summarize(t).label).toContain("바꾼 것 있음");
+    // 맡긴 손자리 판이 장표를 구운 걸음도 쓰기다(실제 판 c81a10dd 의 도구).
+    let deck = startTrajectory("claude-2", "s", "장표", 0);
+    deck = applyStep(deck, progress(1, "mcp__sonjari__sonjari_task"), 1);
+    deck = applyStep(deck, progress(2, "local_make_slide"), 2);
+    expect(summarize(deck).wrote).toBe(true);
+    // 승인이 없어 거절된 명령만 있었으면 바꾼 것이 없다.
+    let denied = startTrajectory("claude-3", "s", "시험", 0);
+    denied = applyStep(denied, progress(1, "Read"), 1);
+    denied = applyStep(denied, progress(2, "Bash", "failed"), 2);
+    expect(summarize(denied).wrote).toBe(false);
+    denied = applyStep(denied, progress(3, "PowerShell"), 3);
+    expect(summarize(denied).wrote).toBe(true);
+  });
+
   it("대화와 궤적이 한 축에 시간 순으로 꿰인다", () => {
     const messages = [message(1, 100), message(2, 200, "assistant")];
     const t = startTrajectory("j1", "s", "물어본 것", 100);

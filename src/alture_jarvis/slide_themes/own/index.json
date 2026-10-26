@@ -1,0 +1,39 @@
+{
+ "ir-brief": {
+  "name": "IR · 투자 설명",
+  "when": "투자 IR · 피치덱 · 지원사업 발표 평가 — 섹션 제목 + 밑줄 두 줄 헤드라인 + 도식",
+  "uses": [
+   "투자",
+   "IR",
+   "사업계획",
+   "창업",
+   "재무",
+   "전략",
+   "임원"
+  ],
+  "moods": [
+   "신뢰",
+   "차분",
+   "깔끔"
+  ],
+  "formality": "높음",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ],
+  "own": true,
+  "flow": "IR 장 순서와 조립 레시피(있는 것만, 이 순서로 · 레시피는 출발점): 1 표지 = cover 부품(frame · figure 에 요청 금액 · meta 에 회사 · 발표자) / 2 질문 셋 = points 3개 / 3 사업 모델 = flow(우리 on) + kv 또는 text(수익 · 청구) / 4 견인 지표(사용자 · 매출이 이미 있으면 앞쪽, 없으면 뺀다) = metrics(evidence 로 원본 화면 자리) / 5 시장 = pair(지금 → 바뀐 뒤) + text(왜 지금) · layout 2:1 / 6 경쟁 = table(우리 줄 highlight) + steps(연차별 목표) · 2:1 / 7 단위 경제 = bars(같은 눈금 · 우리 on) + panel(이익률 · 기준) · 3:2 / 8 핵심 경쟁력(장마다 하나 · 여러 장 가능) = stat(위험 크기 · tone loss) + steps(막는 방법) + calc(사례 계산) · 1:1:1 / 9 로드맵 = stages / 10 손익 · 자금 = table(5년) + panel(누적 필요 자금) + kv(조달 진행) · 2:1 / 11 팀 = people 두 묶음(산업 · 현장) / 12 요약 = points 3개 + bottom(한 문장 결론) / 13 마무리 = closing 부품(frame · 요청 한 문장 · meta 에 연락). 모든 장: head 「섹션」 + sub 「소주제」, lede 두 줄(첫 줄 사실 · 둘째 줄 그래서, <u> 밑줄 핵심어), 숫자에는 산출식 · 출처."
+ }
+}

@@ -31,9 +31,10 @@ from .answer_gate import (
 from . import ui_i18n
 from .absence_scope import absence_scope_note
 from .attention import AttentionService
-from .browser import BrowserWorker
+from .browser import BrowserWorker, clean_find_terms
 from .clock import now_line_ko
 from .claude_code import CLAUDE_CODE_TOOL, DelegationDecision, completion_answer, delegation_decision
+from .api_escalation import advice_message, build_brief
 from .unity_editor import EDITOR_TOOL_NAMES
 from .unity_tools import UNITY_TOOL_NAMES
 from .human_gate import (
@@ -66,7 +67,7 @@ from .transcript_policy import (
     _TRANSCRIPT_BUDGET_CHARS, _TOOL_RESULT_MAX_CHARS, _CODE_CHARS_PER_TOKEN, _CODE_OUTPUT_RESERVE_TOKENS,
     _CODE_BUDGET_SHARE, _CHAT_BUDGET_SHARE_SMALL, _CHAT_SMALL_MAX_TOKENS, _CHAT_BUDGET_SHARE, _CHAT_CHARS_PER_TOKEN,
     _CHAT_OUTPUT_RESERVE_TOKENS, _SMALL_MODEL_TAG, _SYSTEM_BUDGET_CHARS, _TOOL_SCHEMA_CHARS_PER_TOKEN,
-    _PER_JOB_SECTIONS, _THINKING_STREAM_CHARS, _THINKING_EMIT_SEC, _FORCED_READ_LIMIT, _FORCED_READ_GRACE_SEC,
+    _PER_JOB_SECTIONS, _THINKING_STREAM_CHARS, _THINKING_EMIT_SEC, _LIVE_EVERY_SEC, _FORCED_READ_LIMIT, _FORCED_READ_GRACE_SEC,
     _OPEN_RESULT_TOOL, _EXTRACT_TOOL, _THINK_ALWAYS, _THINK_ADAPTIVE, _THINK_OFF, _REASONING_POLICY,
     code_transcript_budget, is_small_model, chat_transcript_budget, window_fitted_budget, _model_time_summary,
     _final_answer_thinks,
@@ -116,13 +117,15 @@ from .mission import build_mission, inject_mission_context, resume_goal
 from .observations import ObservationStore
 from .search_typo import repair_query, repair_search_url
 from .transcript import (
-    FOLD_SHEET_REQUEST, STEP_FOLD_TARGET, add_job_context, attach_system_notes, bounded as _bounded, fit_system_split,
+    FOLD_SHEET_REQUEST, STEP_FOLD_TARGET, add_job_context, append_only_enabled, attach_system_notes, bounded as _bounded,
+    fit_system_split,
     frame_harness_notes, harness_note_positions, needs_step_fold, person_message, pin_reply_language, set_fold_sheet,
     transcript_chars, with_job_context,
 )
-from .ollama import OllamaClient, collapse_repeated_paragraphs, tagged_call
+from .ollama import OllamaClient, collapse_repeated_paragraphs, tagged_call, wait_note_to
 from .presentation import paint_answer, paint_answer_apart
 from .promise_gate import (
+    rank_order_source,
     rank_order_warning,
     _GOAL_MET_CLOSING_STEPS, _GOAL_MET_CLOSING_STEPS_MANIPULATION, _GOAL_MET_CLOSING_SEC, _seen_text,
     table_rows_seen_by_tools, rows_seen_by_tools, list_items_seen_by_tools, _list_items, _cell_pieces, _row_was_seen,
@@ -135,6 +138,9 @@ from .promise_gate import (
 )
 from .write_order import reads_after_last_write, rewrite_note
 from .plan_nudges import (
+    _deck_in_progress,
+    _deck_steps_owed,
+    _slides_saved,
     _PLAN_PUSHBACK_LIMIT, _OBSERVE_PUSHBACK_LIMIT, _OPEN_THE_BODY_HINT, _FILL_FROM_OTHER_CANDIDATES_HINT,
     _LIST_IS_THE_ANSWER_HINT, _DELIVER_TURN_NOTE, _FINISH_THE_ARTIFACT_HINT, _VERIFY_THE_ARTIFACT_HINT,
     _SAW_READ_AND_LISTED, _URLISH_CELL, _bare_host, _read_enough_but_listed_short, _READ_THE_SOURCE_HINT,
@@ -173,15 +179,21 @@ from .plan import (
     check as check_plan,
     count_listed_items,
     extract as extract_plan,
+    firm_only,
     forbids_writes as plan_forbids_writes,
+    soft_only,
     write_prohibition_scope as plan_write_prohibition_scope,
     protected_path_hit as plan_protected_path_hit,
     protected_write_targets as plan_protected_write_targets,
     requested_news_recency as plan_requested_recency,
     remaining_note,
     satisfied_note,
+    summary_line,
     summary_note,
 )
+from . import check_notes
+from .run_card import RunCard
+from .unopened_places import rows_about_unopened_places, unopened_rows_note, visited_places
 from .site_atlas import (
     SEARCH_ENGINE_HOSTS as _SEARCH_ENGINE_HOSTS,
     SEED as _SITE_SEED,
@@ -460,6 +472,12 @@ def _forced_artifact_decision(
         return None, "made_elsewhere"
     if any(str(step.get("tool") or "") == _ARTIFACT_FALLBACK_TOOL for step in steps):
         return None, "already_attempted"
+    # ★ **만들다 만 장표는 답의 표로 대신하지 않는다** (2026-10-25 밤 daisy-days 판 ac529631). 6장 중 3장에서 멈춘 판의
+    #   답 표가 「무지개손.pptx」(장표가 아닌 표 문서)로 저장됐고, 그 파일로 대조가 「완료」가 됐다. 장표의 산출물은
+    #   구운 PPTX 하나다 — 장을 넣기 시작했으면 못 끝낸 것은 못 끝냈다고 남긴다.
+    if any(step.get("ok") and str(step.get("tool") or "") == "local_make_slide"
+           and (step.get("evidence") or {}).get("index") for step in steps):
+        return None, "deck_in_progress"
     body = str(answer or "").strip()
     # ★ 우리가 붙인 대조표는 **답이 아니다.** 자르지 않으면 산출물 안에 우리 눈금이 들어가고
     #   (실측: 엑셀에 `❌ 3개 이상 직접 열어 읽기`), 길이 검사도 그 글자로 통과한다.
@@ -1224,7 +1242,8 @@ from .tool_roster import (
     _compact_family_unrequested, _compact_tool_descriptions, _focused_tool_definitions, _is_web_research_job,
     _small_window_research_tools, _artifact_turn_is_due, _SMALL_WINDOW_RESEARCH_BUNDLE,
     _offered_and_allowed, _platform_scoped_tool_definitions, _platform_write_unrequested,
-    _read_only_tool_definitions, _route_hands, _route_refusals, _route_scoped_tool_definitions, _unmet_action_tools,
+    _read_only_tool_definitions, _route_hands, _route_refusals, _route_scoped_tool_definitions, _stable_tool_order,
+    _unmet_action_tools,
 )
 
 
@@ -1389,6 +1408,18 @@ def _reply_language_scoped(method: Any) -> Any:
     return wrapper
 
 
+def _shown_in_english() -> bool:
+    """사람에게 **화면으로** 보이는 진행 글(첫 글자 기다림 등)의 언어. 판 언어가 정해졌으면 그것, 아니면 화면 언어.
+
+    ★ 2026-10-23 영어 화면 이어받기: 판 언어가 「안 정함」(한국어 인계문 · 영어 화면)이라 「모델의 첫 글자를 기다리는 중 · 5초째」가
+      영어 화면에 한국어로 떴다(대표 · 레딧 영상 점검 판).
+    """
+    chosen = _REPLY_LANGUAGE.get()
+    if chosen in {"ko", "en"}:
+        return chosen == "en"
+    return ui_i18n.lang() == "en"
+
+
 def _say(ko: str, en: str, text: str = "") -> str:
     """같은 말의 한국어·영어 두 벌 중 이번 판의 언어를 고른다."""
     return en if reply_language(text) == "en" else ko
@@ -1440,6 +1471,7 @@ def _step_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
         #   것뿐이다. 한 자리가 비어서 산출물 대조·각주 대조·「만든 것」 서랍
         #   **셋이 동시에** 조용히 틀렸다.
         "local_write_document",
+        "local_make_slide",
         "local_edit_document",
         "local_edit_spreadsheet",
     }:
@@ -1500,7 +1532,8 @@ def _observation_failure_signature(observation: dict[str, Any]) -> str:
 
 
 #: 조사 판에서 **쓰기 전에** 숫자를 대조하는 도구. 코드 판은 대상이 아니다(코드 속 숫자는 근거 문제가 아니다).
-GROUNDED_WRITE_TOOLS = frozenset({"local_write_document", "local_write_file", "local_edit_document", "local_edit_spreadsheet"})
+GROUNDED_WRITE_TOOLS = frozenset({"local_write_document", "local_write_file", "local_edit_document", "local_edit_spreadsheet",
+                                  "local_make_slide"})
 #: 한 판에서 쓰기를 돌려보내는 최대 횟수. 넘으면 쓰게 두고 답에 경고를 붙인다(돌려보내기만 하면 고리가 된다).
 GROUNDED_WRITE_PUSHBACKS = 2
 #: 한 번 쓰기에 근거 없는 숫자가 이만큼 이상일 때만 돌려보낸다. 운영 조사+쓰기 306판에 거꾸로 돌려 재 봤다(2026-09-30):
@@ -1546,6 +1579,18 @@ def numbers_read_in(messages: list[dict[str, Any]]) -> set[str]:
 _WRITE_CODE_KEYS = frozenset({"code", "script", "source"})
 
 
+def _deck_built(steps: list[dict[str, Any]]) -> bool:
+    """장표를 PPTX 까지 구웠나 — 실제 브라우저로 그려 굽고 파일을 확인한 것이라 코드 판 규칙의 「만들고 확인함」으로 친다 (2026-10-25).
+
+    맡긴 「손자리 소개 PPT」 판이 코드 산출물로 읽혀 「파일을 고치지 않았고 실행 확인도 하지 않았다」로 접혔다 — 7장을 그려 PPTX 를 만든 판이었다.
+    """
+    return any(
+        step.get("ok") and str(step.get("tool") or "") == "local_make_slide"
+        and bool((step.get("evidence") or {}).get("verified")) and bool((step.get("evidence") or {}).get("output_path"))
+        for step in steps
+    )
+
+
 def ungrounded_write_numbers(arguments: dict[str, Any], seen: set[str]) -> list[str]:
     """파일에 쓰려는 숫자 중 **읽은 자료·요청 어디에도 없던 것** (2026-09-30 손자리 조사 판 e7dd3831).
 
@@ -1557,7 +1602,13 @@ def ungrounded_write_numbers(arguments: dict[str, Any], seen: set[str]) -> list[
     texts: list[str] = []
 
     def walk(value: Any, key: str = "") -> None:
-        if key in {"path", "output_path", "file", "filename"}:
+        if key in {"path", "output_path", "file", "filename", "index", "total"}:
+            return
+        if key == "html" and isinstance(value, str):
+            # ★ 장표 HTML 은 **보이는 글만** 본다 (2026-10-25 · `slides.visible_text`). CSS 의 1280px · 48px 는 쓴 숫자가 아니다.
+            from .slides import visible_text
+
+            texts.append(_URL_IN_TEXT.sub(" ", visible_text(value)))
             return
         if key in _WRITE_CODE_KEYS and isinstance(value, str):
             # ★ 계산 상자의 **코드**는 쓴 내용이 아니다 — 따옴표 안 글자만 본다 (2026-10-05, 판 e055235f).
@@ -1705,6 +1756,16 @@ _PREVIEW_TOOLS = frozenset({"windows_uia_preview", "windows_visual_preview"})
 _FINAL_TOO_SHORT_RATIO = 0.5
 
 
+def _find_from_needs_enabled() -> bool:
+    """바깥 AI 의 needs 를 본문 읽기의 찾을 칸으로 붙이나. 되돌리기: 설정 `JARVIS_FIND_FROM_NEEDS=0`(2026-10-24 · 전후 측정용)."""
+    try:
+        from .config import setting
+
+        return str(setting("JARVIS_FIND_FROM_NEEDS", "1")).strip().lower() not in {"0", "false", "off", "no"}
+    except Exception:  # noqa: BLE001 — 스위치를 못 읽으면 켠 것으로
+        return True
+
+
 class BrowserAgent:
     def __init__(
         self,
@@ -1741,11 +1802,27 @@ class BrowserAgent:
         self.observations = observations
         self.claude_code = claude_code
         self.code_scout = code_scout
+        # 막혔을 때만 내 API 키로 클로드에게 한 번 묻는 손(`api_escalation.ApiEscalation`). 없으면(테스트 · 옛 판) 묻지 않는다.
+        self.api_escalation: Any | None = None
         # 사고는 영어로 나온다(모델이 지시를 안 따른다 — thinking_ko 주석 참고).
         # 화면에만 한국어를 그린다. 3060 정찰기가 하고, 실패하면 조용히 원문이 남는다.
         self.thinking_ko = ThinkingTranslator(self.config, self.events.publish)
         # 이름↔주소는 판을 넘겨 쌓인다. 하드코딩 여덟 줄로는 범용이라 부를 수 없다.
         self.atlas = SiteAtlas(config.data_dir / "site_atlas.json")
+
+    def _api_escalation_advice(
+        self, job_id: str, prompt: str, unmet: list[str], steps: list[dict[str, Any]], answer: str
+    ) -> str:
+        """막힌 되받기 자리에서 한 번. 빈 문자열이면 묻지 않았거나 답을 못 받은 것 — 루프는 원래대로 간다."""
+        helper = getattr(self, "api_escalation", None)
+        if helper is None or not helper.switched_on():
+            return ""
+        try:
+            brief = build_brief(prompt, unmet, steps, answer)
+            entry = helper.ask(job_id, "pushback_stalled", brief)
+        except Exception:  # noqa: BLE001 — 바깥 API 의 어떤 고장도 로컬 판을 죽이지 않는다
+            return ""
+        return entry.advice if entry.ok else ""
 
     # ---- 혼자 더 갈 수 있는가 -------------------------------------------
     #
@@ -2398,7 +2475,9 @@ class BrowserAgent:
     @staticmethod
     def _plan_payload(plan_results: list[tuple[Any, bool, str]]) -> dict[str, Any]:
         items = [
-            {"kind": req.kind, "label": req.label, "met": bool(ok), "saw": saw}
+            {"kind": req.kind, "label": req.label, "met": bool(ok), "saw": saw,
+             # 확실성 등급과 그 요구가 선 자리(§55-41) — 화면 · 바깥 AI 는 몰라도 되고, 측정이 읽는다.
+             "grade": str(getattr(req, "grade", "") or "firm"), "origin": str(getattr(req, "origin", "") or "")}
             for req, ok, saw in plan_results
         ]
         return {
@@ -2527,6 +2606,7 @@ class BrowserAgent:
             "clipboard_read": "클립보드에 있는 글을 확인하는 중",
             "clipboard_write": "클립보드에 올리는 중",
             "local_write_document": "문서를 만드는 중",
+            "local_make_slide": "장표를 그리는 중",
             "local_edit_document": "문서를 고치는 중",
             "local_edit_spreadsheet": "엑셀 셀을 고치는 중",
             "naver_web": "네이버에서 국내 웹 자료를 찾는 중",
@@ -2592,6 +2672,7 @@ class BrowserAgent:
         preserve_recent_thinking: int = 0,
         tool_result_max: int = 0,
         pin_reads: bool = False,
+        fold_state: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """모델 창에 들어갈 만큼만 남긴다 — **여기가 진짜 상한이다.**
 
@@ -2618,6 +2699,7 @@ class BrowserAgent:
             tool_result_max=tool_result_max or _TOOL_RESULT_MAX_CHARS,
             preserve_recent_thinking=preserve_recent_thinking,
             pin_reads=pin_reads,
+            fold_state=fold_state,
         )
 
     @staticmethod
@@ -2867,6 +2949,15 @@ class BrowserAgent:
 
         yield_looked_at = time.monotonic()
         wait_watch: FirstTokenWatch | None = None  # 아래 부르기 직전에 만든다
+        # ★ 지금 모델이 무엇을 하나 — 화면의 보라색 점 줄 (2026-10-25 대표). 답 글은 다 쓴 뒤 검사를 거쳐 한 번에 칠하므로
+        #   (아래 「답은 여기서 안 칠한다」) 답을 쓰는 동안 화면은 「질문의 의도와 필요한 도구를 고르는 중」에 멈춰 있었다.
+        #   사람은 「멈췄나?」로 읽는다. 글은 보내지 않고 **무엇을 하는지 · 몇 자째인지**만 1초에 한 번 보낸다(`agent_live`).
+        live = {"content": 0, "tool": False, "sent": 0.0}
+
+        def publish_live(phase: str) -> None:
+            live["sent"] = time.monotonic()
+            self.events.publish("agent_live", {"job_id": job_id, "phase": phase, "thinking_chars": thinking_chars,
+                                               "content_chars": live["content"], "role": model_role})
 
         def on_chunk(chunk: dict[str, Any]) -> None:
             nonlocal thinking_started, thinking_chars, yield_looked_at
@@ -2913,6 +3004,13 @@ class BrowserAgent:
                     if time.monotonic() - thinking_last_emit >= _THINKING_EMIT_SEC:
                         flush_thinking()
             # 답은 여기서 안 칠한다 — 조용한 것과 엉뚱한 답이 떠 있는 것은 다르다.
+            content = str(chunk.get("content") or "")
+            if content:
+                live["content"] += len(content)
+            if chunk.get("tool_calls"):
+                live["tool"] = True
+            if (thinking or content or live["tool"]) and time.monotonic() - live["sent"] >= _LIVE_EVERY_SEC:
+                publish_live("tool" if live["tool"] else "writing" if live["content"] else "thinking")
 
         role_args = (
             {"role": model_role, "inference_profile": inference_profile}
@@ -2991,6 +3089,16 @@ class BrowserAgent:
                 }
                 self.events.publish("agent_transcript_step_folded", payload)
                 self.store.add_audit("agent_transcript_step_folded", job_id, payload)
+        # ★ 전사는 뒤에 붙기만 한다 (2026-10-24 · `transcript.APPEND_ONLY_FOLD_TARGET` 의 설명). 접은 것을 판 · 역할마다 들고 있다가
+        #   다음 부르기에도 똑같이 접는다 — 예전엔 부르기마다 처음부터 다시 골라 지난번 원문이 이번엔 접혀 앞부분 캐시가 깨졌다.
+        fold_states = self.__dict__.setdefault("_fold_states", {})
+        for other in [key for key in fold_states if key[0] != job_id]:
+            del fold_states[other]
+        # 접기 전 정리를 쓰게 하는 부르기는 접기 **전의** 대화를 그대로 봐야 한다 — 상태를 안 쓰고(접지도 적지도 않고) 예전 규칙으로.
+        fold_state = (
+            fold_states.setdefault((job_id, model_role), {})
+            if append_only_enabled() and not self.__dict__.get("_writing_fold_sheet") else None
+        )
         bounded = self._bounded_transcript(
             messages,
             max_chars=transcript_budget,
@@ -2998,7 +3106,14 @@ class BrowserAgent:
             preserve_recent_thinking=recent_thinking,
             # 작은 창에서는 「지금까지 읽은 화면」을 늘 보인다(`transcript.READ_LEDGER_PINNED_LEAD` 의 설명 · 2026-10-12).
             pin_reads=model_role != "code" and self._compact_tool_surface(model_role),
+            fold_state=fold_state,
         )
+        append_folded = bool(fold_state and fold_state.pop("just_folded", False))
+        if append_folded:
+            payload = {"job_id": job_id, "role": model_role, "folds": fold_state.get("folds", 0),
+                       "folded_messages": len(fold_state.get("folded", ())), "budget_chars": transcript_budget}
+            self.events.publish("agent_transcript_append_folded", payload)
+            self.store.add_audit("agent_transcript_append_folded", job_id, payload)
         # 판 도중 `[시스템]` 안내는 바로 앞 도구 결과에 붙여 보낸다 — 사용자 메시지로 두면 렌더러가 앞 걸음을
         # 다르게 그려 캐시가 중간부터 깨진다(2026-09-29 실측, transcript.attach_system_notes).
         bounded = attach_system_notes(bounded)
@@ -3010,11 +3125,19 @@ class BrowserAgent:
         if _REPLY_LANGUAGE.get() == "en":
             bounded = pin_reply_language(bounded)
         # ★ 첫 글자 전이 길면 그 까닭을 보인다 (2026-10-21 · `first_token_wait` 의 설명). 22시 예약 판이 88초를 말없이 기다렸다.
+        # ★ 첫 글자가 늦으면 **까닭**까지 말한다 (2026-10-25 대표 「도구가 바뀐 건지 또 느리다 — 화면에 알려 달라」). 직전 부르기와
+        #   지침 · 도구 목록 · 모델을 견준다(`ollama.reread_reason`). 모델 부르기 쪽 알림(`wait_note_to`)은 대화 길이 쓰고, 여기서는 끈다.
+        reason_for = getattr(self.ollama, "reread_reason_for", None)
+        try:
+            reason = str(reason_for(bounded, tools=tools, **role_args)) if callable(reason_for) else ""
+        except Exception:  # noqa: BLE001 — 까닭은 덤이다
+            reason = ""
         wait_watch = FirstTokenWatch(
             last=self.__dict__.get("_last_progress", {}).get(job_id),
             tokens=estimate_tokens(transcript_chars(bounded), measured),
-            english=_REPLY_LANGUAGE.get() == "en",
+            english=_shown_in_english(),
             publish=lambda payload: self.events.publish("agent_progress", payload),
+            reason=reason,
         )
         streamed = bool(self.config.agent_stream_enabled and hasattr(self.ollama, "chat_messages_stream"))
         # ★ 지난번에 보낸 대화와 **앞에서부터 몇 개가 같은가** (2026-10-21 · `docs/측정계획_첫글자대기` 1단계).
@@ -3034,8 +3157,10 @@ class BrowserAgent:
         prefix_tags = ({"prev_messages": len(before_sigs), "prefix_kept": prefix_kept} if before_sigs else {})
         if step_folded:
             prefix_tags["step_folded"] = True
+        if append_folded:
+            prefix_tags["append_folded"] = True
         try:
-            with tagged_call(**prefix_tags):
+            with tagged_call(**prefix_tags), wait_note_to(None):
                 if streamed:
                     message = self.ollama.chat_messages_stream(
                         bounded,
@@ -3053,8 +3178,16 @@ class BrowserAgent:
                         think=effective_think,
                         **role_args,
                     )
+        except BaseException:
+            if streamed:
+                publish_live("")  # 끊긴 부르기의 줄을 남기지 않는다
+            raise
         finally:
             wait_watch.close()
+        if streamed:
+            # 도구를 부르는 걸음이면 줄을 비운다(다음 걸음 줄이 말한다). 도구 없이 글을 다 썼으면 그것이 답이다 —
+            # 검사 · 다시 쓰기 · 칠하기가 남았으니 「검사하는 중」으로 둔다. 판이 끝나면 화면이 줄을 거둔다.
+            publish_live("checking" if live["content"] and not (live["tool"] or message.get("tool_calls")) else "")
         if streamed:
             # 시간으로 묶어 보내므로 마지막 조각이 남는다. 안 비우면 사고의 끝이
             # 늘 잘려 보인다 — 그게 결론에 가장 가까운 부분이다.
@@ -3217,6 +3350,19 @@ class BrowserAgent:
             return "", time.monotonic() - started
         return str(message.get("content") or "").strip(), time.monotonic() - started
 
+    def _with_find_terms(self, name: str, arguments: dict[str, Any], job_id: str) -> dict[str, Any]:
+        """본문 읽기면 이 판의 찾을 칸(바깥 AI 의 needs)을 붙인다. 모델이 직접 준 말이 앞에 온다.
+
+        실행하는 인자만 바꾼다 — 모델이 쓴 호출(대화 기록)은 그대로라 앞부분 캐시가 안 깨진다(§55-43).
+        """
+        if name != "browser_extract" or not _find_from_needs_enabled():
+            return arguments
+        terms = self.__dict__.get("_find_terms", {}).get(job_id) or ()
+        if not terms:
+            return arguments
+        merged = clean_find_terms([*clean_find_terms((arguments or {}).get("find")), *terms])
+        return {**(arguments or {}), "find": merged}
+
     def _execute_listening_for_a_person(
         self, listening: bool, name: str, arguments: dict[str, Any], *, job_id: str,
     ) -> tuple[ToolResult, bool]:
@@ -3229,6 +3375,7 @@ class BrowserAgent:
         바로 다음 걸음 앞(`between_steps`)에서 평소대로 비켜 준다. 되살아난 판의 모델은 그 결과를 보고 명령을 다시 돌린다.
         값: 끊은 명령은 처음부터 다시 돈다(시험 3분이면 3분). 사람이 기다리는 쪽이 더 비싸다고 봤다.
         """
+        arguments = self._with_find_terms(name, arguments, job_id)
         if not listening:
             return self.gateway.execute(name, arguments, job_id=job_id), False
         with stop_commands_when(self.store.person_is_waiting) as was_stopped:
@@ -3632,6 +3779,16 @@ class BrowserAgent:
             return ""
         # 구체값이 없으면 인용이 아니라 화제다("쿠팡에서 뭘 사는 게 좋을까?").
         if len(_TABLE_ROW.findall(answer)) < 3 and not _MONEY_CLAIM.search(answer) and not _EN_MONEY_CLAIM.search(answer):
+            return ""
+        # ★ 답의 금액이 **전부 사람이 과제에 직접 적은 값**이면 그 출처에 가서 볼 값이 아니다 (2026-10-25 「손자리 소개」 PPT 판 셋 모두).
+        #   과제에 「마이크로소프트 스토어에서 받을 수 있다」와 비용표($40.70 …)가 같이 있어, 사람이 준 값을 옮긴 답에
+        #   「스토어에 실제로 가지 않았다 · 가격은 기억에서」가 붙었다.
+        # ★ 표 줄 수로 가르지 않는다 (같은 날 4차 판 2b81aa61). 답에 **장 목록 표**(7줄)가 있어 「표 셋 줄 미만」 조건을 빠져나가
+        #   같은 헛경고가 또 붙었다. 표가 있어도 금액이 전부 사람이 준 값이면 가서 볼 값이 아니다. 금액이 없는 표는 예전대로 본다.
+        amounts = [m.group(1) for m in _MONEY_CLAIM.finditer(answer)] + [
+            m.group(1) or m.group(2) for m in _EN_MONEY_CLAIM.finditer(answer)]
+        plain_prompt = prompt.replace(",", "")
+        if amounts and all(str(value).replace(",", "") in plain_prompt for value in amounts if value):
             return ""
         opened = {step["tool"] for step in steps if step["ok"]}
         if opened & (_CONTENT_TOOLS | _DESKTOP_READ_TOOLS):
@@ -5447,8 +5604,12 @@ class BrowserAgent:
     @classmethod
     def _goal_shortfall_check(cls, prompt: str, steps: list[dict[str, Any]], answer: str = "",
                               messages: list[dict[str, Any]] | None = None,
-                              plan_results: list[tuple[Any, bool, str]] | None = None) -> str:
+                              plan_results: list[tuple[Any, bool, str]] | None = None,
+                              read_note: bool = True) -> str:
         """시킨 만큼 했는가. 모자라면 답에 그 사실을 적는다.
+
+        `read_note` — 거짓이면 **읽은 개수** 경고 글은 내지 않는다(답 끝 대조표가 같은 사실을 ❌ 줄로 말하는 판 · §55-41).
+        처리 개수(count_action) 경고는 그대로 낸다.
 
         `_commit_reality_check`(한 척)·`_sourced_claim_check`(본 척)·
         `_left_open_check`(띄운 척)의 마지막 짝이다 — **시킨 만큼 한 척.**
@@ -5518,7 +5679,7 @@ class BrowserAgent:
             #   하나만 읽고 표를 채운 것을 알리는 것이 이 경고의 일이다.
             if item.kind == "count" and not getattr(item, "list_only", False)
         ]
-        if not counts:
+        if not counts or not read_note:
             return ""
         target = max(counts)
         if target <= 1 or target > 30:
@@ -6309,9 +6470,15 @@ class BrowserAgent:
         if len(said) < 3 and len(names) < 3:
             return ""
         empty: Path | None = None
+        # ★ 장표 손이 구운 PPTX 는 보지 않는다 (2026-10-25 밤 scatterbrain 판 1dbcb16e) — 그 판의 답 표는 데이터가 아니라 「장 목록」
+        #   (「3 | 투표 결과 TOP 3 — 막대 5·4·3표」)이라 파일 글과 맞을 리가 없어 멀쩡한 장표에 「값이 하나도 없다」가 붙었다.
+        #   장표의 숫자는 장마다 따로 검사한다(계산 검사 · 근거 없는 숫자).
+        deck_files = {str(Path(str((step.get("evidence") or {}).get("output_path")))).casefold()
+                      for step in steps if str(step.get("tool") or "") == "local_make_slide"
+                      and (step.get("evidence") or {}).get("output_path")}
         # ★ 만든 파일 **중 하나라도** 답을 담으면 조용히 — 근거 덤프(md)와 표(xlsx)를 같이 만든 판(역검증 헛경고 f7a2268b).
         for path in dict.fromkeys(BrowserAgent._written_paths(steps)):
-            if path.suffix.lower() not in BrowserAgent._TABLE_ARTIFACTS:
+            if path.suffix.lower() not in BrowserAgent._TABLE_ARTIFACTS or str(path).casefold() in deck_files:
                 continue
             try:
                 if not path.is_file():
@@ -6458,6 +6625,19 @@ class BrowserAgent:
                 answer,
             )
         return _say(f"\n\n(열려 있는 주소: {landed[-1][:200]})", f"\n\n(Open now: {landed[-1][:200]})", answer)
+
+    def _rank_order_note(self, asked: str, answer: str, messages: list[dict[str, Any]], job_id: str) -> str:
+        """순위 경고 + 경고가 설 때 **무엇과 견줬는지**를 `rank_order_checks.jsonl` 에 남긴다 (2026-10-23 헛경고 의심 · 원인 미확인)."""
+        note = rank_order_warning(asked, answer, messages, english=reply_language(answer) == "en")
+        if note:
+            try:
+                record = {"at": time.time(), "job_id": job_id, "asked": str(asked or "")[:300],
+                          "source": rank_order_source(answer, messages)}
+                with (Path(self.config.data_dir) / "rank_order_checks.jsonl").open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(record, ensure_ascii=False) + chr(10))
+            except Exception:  # noqa: BLE001 — 기록 실패로 답을 망치지 않는다
+                pass
+        return note
 
     @staticmethod
     def _commit_reality_check(answer: str, steps: list[dict[str, Any]]) -> str:
@@ -7072,10 +7252,16 @@ class BrowserAgent:
         declared_check: str = "",
         # 켠 스킬팩이 적어 온 일의 갈래(`packs.WORK_KINDS` — 지금은 "web" 하나). 요구는 안 보태고 「조사 일인가」만 정한다.
         declared_work: str = "",
+        # 바깥 AI 가 맡기며 정한 「돌려받을 항목」(`sonjari_task` 의 needs · 2026-10-24). 본문 읽기(`browser_extract`)에
+        #   하네스가 찾을 칸으로 붙인다 — 모델이 고르지 않아도 페이지 전체(옆 칸 포함)에서 그 말이 든 줄이 온다.
+        find_terms: tuple[str, ...] = (),
         # 같은 대화방에서 방금 끝난 판이 **실제로 본문을 읽은 주소**와 그 답(2026-09-24). 이번 판의 읽기·사이트 요구 중
         # 그것으로 이미 채워지는 것은 다시 시키지 않는다(`_carry_prior_reads`).
         prior_reads: list[str] | None = None,
         prior_answer: str = "",
+        # 같은 대화방 앞 판들에서 **도구가 돌려준 숫자**(2026-10-24 · runtime `_prior_session_numbers`). 쓰기 전 숫자 문 ·
+        # 마무리 파일 · 비율 경고의 근거에 더한다. 앞 판 답의 숫자는 들어오지 않는다.
+        prior_numbers: frozenset[str] | set[str] = frozenset(),
         # ★ 측정용 「밀기 켬/끔」(2026-10-21 · 10-20 대표 결정 ②→③ 을 재서 정함). 거짓이면 계획 요구로 **도중에** 모델을 미는 것
         #   (되받기 · 다음 할 일 힌트 · 단계 거절 · 대신 열기/저장 · 계획으로 연장)을 끄고 **끝 검사만** 남긴다. None 이면 설정.
         plan_push: bool | None = None,
@@ -7094,7 +7280,13 @@ class BrowserAgent:
         if plan_prompt.strip():
             plan_text = " ".join(plan_prompt.split())
         # 이번 판의 경고·안내 언어 = 요청 언어(2026-10-01 영어판 ③-1). 이어하기는 앞 요청이 plan_text 에 실려 온다.
-        _REPLY_LANGUAGE.set("en" if _english.english_dominant(" ".join(str(plan_text or prompt).split())) else "ko")
+        # ★ 2026-10-23 영어 화면 이어받기: 요청 글이 손자리가 만든 **한국어 인계문**이라 판 언어가 「ko」로 정해졌고, 답은
+        #   `_voice_for` 의 「화면이 영어면 영어로」를 따라 영어로 나왔다 — 순위 경고만 한국어로 붙었다(레딧 영상 판).
+        #   답 언어와 같은 규칙으로 정한다: 요청이 영어면 en · 화면이 영어면 **아직 안 정함**(경고는 답의 언어를 따른다) · 그 밖은 ko.
+        if _english.english_dominant(" ".join(str(plan_text or prompt).split())):
+            _REPLY_LANGUAGE.set("en")
+        else:
+            _REPLY_LANGUAGE.set(None if ui_i18n.lang() == "en" else "ko")
         # 쓰기 금지는 **판 전체**일 수도, 지목한 대상 하나일 수도 있다.
         #
         # ★ 2026-09-03. 이 구분이 없어서 SWE 벤치가 통째로 막혔다. 벤치는 모든 판에
@@ -7777,6 +7969,8 @@ class BrowserAgent:
             observe_from=observe_reasons,
             code_workspace=code_mode,
             known_sites=self._known_sites(),
+            # 붙여넣은 글은 줄바꿈으로 가른다 — 계획 문장은 줄바꿈을 지운 글이라 원문을 같이 넘긴다(`plan.extract` 의 `own_from`).
+            own_from=str(prompt or ""),
         )
         # ★ 꺼진 팩의 도구를 「시킨 것」으로 세지 않는다(2026-09-27 팩 0판). 게임 팩이 꺼진 PC 에서 「유니티 점검」을
         #   시키면 계획이 부를 수도 없는 unity_run_recipe 를 요구해 영원히 못 채운다.
@@ -7819,6 +8013,11 @@ class BrowserAgent:
             # 뺐으니 세워 두면 어떻게 해도 못 채우는 체크리스트가 되고, 되받기가 그
             # 빈칸을 채우라고 판을 붙잡는다(E2E: 「시킨 것 0/2」·19걸음).
             plan = [item for item in plan if item.kind not in _READ_ONLY_UNMEETABLE_KINDS]
+        # ★ 판 카드 (2026-10-24 · 전략안 §55-41). 요구는 판 시작 때 여기서 한 번 확정된다 — 확실한 요구(`firm_plan`)만 판 도중에 밀고
+        #   완료를 가른다. 흐린 요구(시키는 문장 밖에서만 나온 것 · 배운 표에서만 아는 이름)는 판 기록(`plan_soft`)에만 남긴다.
+        #   `plan` 은 그대로 둔다 — 갈래 판정 · 걸음 예산 · 이어받기처럼 「판을 미는 것」이 아닌 자리는 예전 그대로 읽는다.
+        run_card = RunCard.of(plan)
+        firm_plan = run_card.firm()
         # 이 판의 갈래. 걸음마다 다시 세지 않는다 — 계획은 판 안에서 안 바뀐다.
         #   스킬팩이 적어 온 갈래는 판이 멈췄다 이어질 때도 같아야 한다 — 도중에 바뀌면 도구 목록이 바뀌어 앞부분을 다시 읽는다.
         known_work = self.__dict__.setdefault("_declared_work", {})
@@ -7826,6 +8025,12 @@ class BrowserAgent:
         if declared_work:
             known_work.clear()
             known_work[job_id] = declared_work
+        # 찾을 칸도 판이 멈췄다 이어질 때 같아야 한다 — 판 하나만 들고 있는다(다른 판의 칸이 새지 않게).
+        known_find = self.__dict__.setdefault("_find_terms", {})
+        terms_now = tuple(clean_find_terms(list(find_terms))) or known_find.get(job_id, ())
+        known_find.clear()
+        if terms_now:
+            known_find[job_id] = terms_now
         web_research_job = _is_web_research_job(plan, plan_text, declared=declared_work == "web")
         #: 계획이 요구로 세운 행동의 도구 — 「말하지 않은 서비스」 문이 낱말 대신 이것으로도 연다(`_platform_write_unrequested`).
         planned_action_tools = frozenset(
@@ -7871,14 +8076,14 @@ class BrowserAgent:
         last_plan_sent = ""
         if plan:
             last_plan_sent = self._publish_plan(
-                job_id, check_plan(plan, sources=[], steps=[]), last_plan_sent
+                job_id, check_plan(firm_plan, sources=[], steps=[]), last_plan_sent
             )
         # ★ 「밀기 켬/끔」 관문 하나(2026-10-21). 루프 안에서 판 도중 모델을 미는 자리만 `loop_plan` 을 쓴다 — 빈 목록이면 전부 꺼진다
         #   (`check_plan([])` 는 [] · `plan_all_met([])` 는 False · `_forced_*([])` 는 None). 끝 검사 · 사람 확인 문(목표를 채운 판이
         #   로그인에서 사람을 기다리지 않게) · 같은 문서 확정(14번 다시 쓰기 방지) · 갈래 판정 · 걸음 예산 크기는 그대로 `plan`.
         #   코드 판은 늘 켠다 — 끄면 「최종 답만 써라」(`code_ready_for_final_answer`)가 안 걸려 검토 뒤에도 돈다.
         plan_push_on = bool(getattr(self.config, "plan_push_enabled", True)) if plan_push is None else bool(plan_push)
-        loop_plan = plan if (plan_push_on or model_role == "code") else []
+        loop_plan = firm_plan if (plan_push_on or model_role == "code") else []
         # 모델이 "다 했다"며 멈췄는데 시킨 것이 남았을 때 되받은 횟수.
         # 무한히 되받으면 같은 말을 주고받게 된다 — `nudges` 와 같은 규율이다.
         plan_pushbacks = 0
@@ -8071,6 +8276,16 @@ class BrowserAgent:
                 self.store.delete_agent_checkpoint(job_id)
                 raise AgentCancelled("agent_cancelled")
             steered_now = self._apply_steer(job_id, messages, len(steps))
+            # ★ 장표 판은 남은 장 수만큼 걸음 자리를 둔다 (2026-10-25 밤 — 7장 판이 5장에서 걸음이 바닥났다). 자율 상한은 넘지 않는다.
+            deck_owed = _deck_steps_owed(steps)
+            if deck_owed:
+                step_limit = max(step_limit, len(steps) + min(deck_owed, max(0, cap_room(self.config, steps))))
+            if deck_owed or _deck_in_progress(steps):
+                # 시간도 한 구간 남겨 둔다 — 장 하나에 모델이 50~60초를 쓰는데, 그 호출 중에 한도를 넘기면 「남았다」 되받기가
+                #   `time.monotonic() < deadline` 에 막혀 「이어서 만들까요?」가 답이 됐다(daisy-days 판 ac529631, 3/6 장). 자율 상한 안에서만.
+                if time.monotonic() - segment_started < max(1, self.config.agent_autonomous_lease_sec):
+                    deadline = max(deadline, time.monotonic() + max(1, self.config.browser_task_timeout_sec))
+                    warning_at = deadline - max(5, self.config.agent_time_warning_sec)
             # ★ 하네스가 돌린 확인 명령이 **통과했으면 그 직전의 보고가 답이다** (2026-10-09 새 길의 첫 실제 판 4f03eedb).
             #   모델이 보고를 내면 하네스가 확인 명령을 대신 돌린다. 전에는 통과한 뒤 모델을 **한 번 더** 불러 답을 다시 쓰게 했다 —
             #   이미 보고를 끝낸 모델은 할 말이 없어 「현재 한국 시각은 15:50입니다」 한 줄을 냈고, 그것이 맡긴 쪽에 답으로 갔다
@@ -8590,7 +8805,8 @@ class BrowserAgent:
                 #   쓰기 도구를 뺀 53개 목록이 판이 바뀔 때마다 앞머리를 갈라 1만 5천 토큰(약 15초)을 다시 읽었다
                 #   (같은 목록이면 2초). 쓰기는 디스패치가 같은 이름표(`_READ_ONLY_FORBIDDEN_TOOLS`)로 이미 되돌려 보내고
                 #   (`explicit_read_only_contract`), 판 첫머리에 「읽기 전용」 안내도 붙는다 — 목록에서 빼는 것은 안전과 무관했다.
-                available_model_tools = self.tools.ollama_tools
+                # 순서를 고정한다 — 조사 판의 좁힌 목록이 넓은 목록의 앞부분과 같아지게(`_stable_tool_order` · 2026-10-24).
+                available_model_tools = _stable_tool_order(self.tools.ollama_tools)
                 # ★ 갈래에 맞는 손만 준다 (2026-09-09 실측). 조사·쓰기 28판에서
                 #   쓰인 도구는 22종/133종이고, 안 쓴 111종이 매 걸음 스키마로 실린다.
                 #   비용보다 나쁜 것은 주의다 — 책 조사 판이 진로DB를 6번 불러
@@ -8609,11 +8825,25 @@ class BrowserAgent:
                 compact_surface = self._compact_tool_surface(model_role)
                 # ★ 조사 판에도 **같은 목록**을 보낸다 (2026-10-07). 갈래 밖의 손은 목록에서 빼는 대신 부르면 되돌려 보낸다
                 #   (`_route_hands`). 창이 작거나 이 판이 안내를 두 번 어겼으면 예전처럼 좁힌 목록을 보낸다.
+                # ★ 늘어나는 양은 **실제로 보낼 목록**으로 잰다 (2026-10-24). 말하지 않은 서비스에 올리는 손(블로그 · 메일 보내기 ·
+                #   일정 만들기)은 바로 아래에서 빠지는데, 그것까지 세어 「창의 8%」를 넘긴다고 보고 조사 판을 좁혔다(11,434 대 실제 9,397토큰).
                 route_hands = None if compact_surface else _route_hands(
-                    available_model_tools, route_scoped_tools,
+                    _platform_scoped_tool_definitions(available_model_tools, platform_request_text, planned=planned_action_tools),
+                    _platform_scoped_tool_definitions(route_scoped_tools, platform_request_text, planned=planned_action_tools),
                     window=self._window(model_role), refused=_route_refusals(steps),
                 )
                 if route_hands is None:
+                    # ★ 「같은 목록 보여 주기」가 **크기 때문에** 꺼지면 판마다 한 번 남긴다 (2026-10-24). 10-10 · 10-21 두 번 다
+                    #   도구가 늘어 말없이 꺼졌고, 판 첫 걸음이 30초가 된 뒤에야 알았다.
+                    if (web_research_job and model_role != "code" and not compact_surface
+                            and route_scoped_tools is not available_model_tools
+                            and _route_refusals(steps) < _STAGE_REFUSALS_BEFORE_NARROWING
+                            and job_id not in self.__dict__.setdefault("_route_narrow_noted", set())):
+                        self._route_narrow_noted.add(job_id)
+                        noted = {"job_id": job_id, "tools": len(available_model_tools), "route_tools": len(route_scoped_tools),
+                                 "window": self._window(model_role)}
+                        self.events.publish("agent_route_list_narrowed", noted)
+                        self.store.add_audit("agent_route_list_narrowed", job_id, noted)
                     available_model_tools = route_scoped_tools
                 available_model_tools = _platform_scoped_tool_definitions(
                     available_model_tools, platform_request_text, compact=compact_surface,
@@ -8829,8 +9059,8 @@ class BrowserAgent:
                         )
                     )
                     for step in steps
-                ) or bool(browser_verification_indices(steps))  # 이 PC 안 페이지를 만지고 읽은 확인(2026-09-30)
-                code_mutated = any(
+                ) or bool(browser_verification_indices(steps)) or _deck_built(steps)  # 이 PC 안 페이지를 만지고 읽은 확인(2026-09-30)
+                code_mutated = _deck_built(steps) or any(
                     step.get("ok")
                     and (
                         (
@@ -9345,7 +9575,10 @@ class BrowserAgent:
                     (str(getattr(req, "label", "")), str(saw)) for req, ok, saw in plan_results or [] if not ok
                 ))
                 # ★ 그 사이에 **새로 읽은 곳이 있으면 진전이다** (2026-10-12 · `_pushback_stalled` 의 설명).
-                reads_now = len(self._sources_actually_read(steps))
+                # ★ **새로 만든 걸음도 진전이다** (2026-10-25 밤 grove 장표 판 6cda73c3) — 장표는 마지막 장을 넣어 구울 때까지 「열 수 있는
+                #   산출물 없음」이 그대로라, 장을 새로 넣어도 「진전 없음」으로 보여 두 번째 되받기가 안 나갔고 판이 1장에서 접혔다.
+                #   같은 파일을 거듭 다시 쓰는 판(10-12 열네 번)이 진전으로 보이지 않게 **새로 저장된 장 번호**만 센다(`_slides_saved`).
+                reads_now = len(self._sources_actually_read(steps)) + _slides_saved(steps)
                 read_more = _read_more_since(reads_now, pushback_reads_seen.get(pushback_stage))
                 stalled = _pushback_stalled(unmet_now, pushback_unmet_seen.get(pushback_stage), read_more=read_more)
                 if stalled and pushback_stage not in pushback_stall_noted:
@@ -9354,6 +9587,16 @@ class BrowserAgent:
                         "agent_plan_pushback_stalled",
                         {"job_id": job_id, "steps": len(steps), "stage": pushback_stage, "unmet": [u[0] for u in unmet_now]},
                     )
+                    # ★ 막힌 자리에서만 **사용자 자기 API 키로 클로드에게 한 번 묻는다** (2026-10-26 · `api_escalation.py`).
+                    #   실패 신호에서만 연다 — 요청 글로 어렵다고 미리 짐작하지 않는다(전략안 §19). 기본 꺼짐 · 측정 판 꺼짐 · 판마다 1번.
+                    #   조언은 사람 말처럼 끼울 뿐, 일은 로컬이 계속한다. 조언 뒤에도 같은 자리면 아래처럼 못 한 것을 적고 끝난다
+                    #   (`pushback_unmet_seen` 을 그대로 두니 다음 차례도 「진전 없음」이고, 이 갈래는 단계마다 한 번만 온다).
+                    advice = self._api_escalation_advice(job_id, prompt, [u[0] for u in unmet_now], steps, answer)
+                    if advice and time.monotonic() < deadline:
+                        messages.append(self._message_for_model(message))
+                        messages.append({"role": "user", "content": advice_message(advice)})
+                        step_limit = max(step_limit, len(steps) + 3)
+                        continue
                 if (
                     plan_results
                     and not plan_all_met(plan_results)
@@ -10101,7 +10344,7 @@ class BrowserAgent:
                     and len(
                         write_unsupported := ungrounded_write_numbers(
                             arguments or {},
-                            set(tool_numbers) | set(tool_numbers_body) | numbers_read_in(messages)
+                            set(tool_numbers) | set(tool_numbers_body) | numbers_read_in(messages) | set(prior_numbers or ())
                             | evidence_numbers_claimed_in(prompt) | evidence_numbers_claimed_in(plan_text),
                         )
                     ) >= GROUNDED_WRITE_MIN
@@ -10144,7 +10387,7 @@ class BrowserAgent:
                         # 기준은 문과 같다 — 계산값 한두 개는 경고도 하지 않는다(경보줄이 길면 아무도 안 읽는다).
                         left_ungrounded = ungrounded_write_numbers(
                             arguments or {},
-                            set(tool_numbers) | set(tool_numbers_body) | numbers_read_in(messages)
+                            set(tool_numbers) | set(tool_numbers_body) | numbers_read_in(messages) | set(prior_numbers or ())
                             | evidence_numbers_claimed_in(prompt) | evidence_numbers_claimed_in(plan_text),
                         )
                         if len(left_ungrounded) >= GROUNDED_WRITE_MIN:
@@ -10361,7 +10604,7 @@ class BrowserAgent:
                 #   같은 워드 파일을 열네 번 쓴 판이 있었다. 시킨 것이 남아 있으면 접지 않는다 — 그건 다른 일이 남은 판이다.
                 rewritten = "" if finish_now else _rewrote_a_finished_document(steps)
                 if rewritten and plan_all_met(
-                    check_plan(plan, sources=self._sources_actually_read(steps), steps=steps) or []
+                    check_plan(firm_plan, sources=self._sources_actually_read(steps), steps=steps) or []
                 ):
                     settled = {"job_id": job_id, "steps": len(steps)}
                     self.events.publish("agent_document_settled", settled)
@@ -10377,7 +10620,7 @@ class BrowserAgent:
                     stop_reason = "wrapped_up:goal_met"
                 if gate:
                     gate_plan_results = check_plan(
-                        plan,
+                        firm_plan,
                         sources=self._sources_actually_read(steps),
                         steps=steps,
                     )
@@ -10509,7 +10752,7 @@ class BrowserAgent:
             if plan:
                 last_plan_sent = self._publish_plan(
                     job_id,
-                    check_plan(plan, sources=self._sources_actually_read(steps), steps=steps),
+                    check_plan(firm_plan, sources=self._sources_actually_read(steps), steps=steps),
                     last_plan_sent,
                 )
             # 한 모델 응답이 도구 호출 여러 개를 내서 예산 경계를 단숨에 넘으면,
@@ -10837,7 +11080,7 @@ class BrowserAgent:
                 and code_budget_stop is None and model_role != "code"
                 and forced_commits < _FORCED_COMMIT_LIMIT and not self._cancelled(job_id)):
             closing_call, closing_why = _forced_artifact_decision(
-                check_plan(plan, sources=self._sources_actually_read(steps), steps=steps, answer=answer),
+                check_plan(firm_plan, sources=self._sources_actually_read(steps), steps=steps, answer=answer),
                 steps, answer, prompt,
             )
             if closing_call is None:
@@ -10848,7 +11091,7 @@ class BrowserAgent:
                 closing_unsupported = (
                     ungrounded_write_numbers(
                         closing_arguments,
-                        set(tool_numbers) | set(tool_numbers_body) | numbers_read_in(messages)
+                        set(tool_numbers) | set(tool_numbers_body) | numbers_read_in(messages) | set(prior_numbers or ())
                         | evidence_numbers_claimed_in(prompt) | evidence_numbers_claimed_in(plan_text),
                     )
                     if web_research_job else []
@@ -10908,13 +11151,15 @@ class BrowserAgent:
         # 상세를 안 열었다는 이유로 미달이 된다(무신사 실측: 정답 3개를 냈는데 0/1).
         # 답이 실제로 N개를 담았으면 그것도 충족이다.
         final_grounding_note = self._grounding_with_carry(answer, messages, steps, job_id, prior_answer if carried_labels else "")
-        final_plan_results = check_plan(
+        # 흐린 요구도 대조는 한다(판 기록용) — 완료 · 답 끝 대조표 · 바깥 AI 로 가는 체크리스트는 확실한 요구만 본다(§55-41).
+        every_plan_result = check_plan(
             plan,
             sources=self._sources_actually_read(steps),
             steps=steps,
             answer=answer,
             listed_entities_grounded=not bool(final_grounding_note),
         )
+        final_plan_results, final_plan_soft = firm_only(every_plan_result), soft_only(every_plan_result)
         initial_answer_conflict = (
             self._answer_trace_conflict(asked, answer, steps, final_plan_results)
             or self._unread_source_attribution_conflict(answer, steps)
@@ -10990,13 +11235,14 @@ class BrowserAgent:
         # 재합성으로 답의 항목 수나 이름이 바뀔 수 있다. 초안 대조표를 그대로 쓰면
         # 고친 답을 옛 답의 성적표로 채점한다.
         final_grounding_note = self._grounding_with_carry(answer, messages, steps, job_id, prior_answer if carried_labels else "")
-        final_plan_results = check_plan(
+        every_plan_result = check_plan(
             plan,
             sources=self._sources_actually_read(steps),
             steps=steps,
             answer=answer,
             listed_entities_grounded=not bool(final_grounding_note),
         )
+        final_plan_results, final_plan_soft = firm_only(every_plan_result), soft_only(every_plan_result)
         remaining_answer_conflict = self._answer_trace_conflict(
             asked, answer, steps, final_plan_results
         ) or self._unread_source_attribution_conflict(answer, steps)
@@ -11009,11 +11255,22 @@ class BrowserAgent:
         commit_note = self._commit_reality_check(answer, steps)
         goal_shortfall_note = "" if carried_labels else self._goal_shortfall_check(
             asked, steps, answer, messages, plan_results=final_plan_results)
+        # ★ 「N개 중 M개만 실제로 열어 읽었습니다」는 답 끝 대조표의 ❌ 줄과 같은 사실이다(10-23 전수조사 4-3: 104판 중 62판이 두 번 말함 ·
+        #   10-08 부터 계획 판정을 그대로 받는다). **대조표가 붙는 판**(도구를 쓴 판)에서는 그 글을 빼고 대조표 하나로 말한다(§55-41).
+        #   「일부」를 만드는 계산(`harness_shortfall="read_count"`)은 위의 글 그대로로 센다 — 바뀌지 않는다. 처리 개수(count_action) 경고는 그대로.
+        shown_shortfall_note = goal_shortfall_note if not steps or carried_labels else self._goal_shortfall_check(
+            asked, steps, answer, messages, plan_results=final_plan_results, read_note=False)
+        # ★ 이번 판에 **한 번도 안 연 곳**의 줄에 값이 채워졌나 (2026-10-24 bf69599d · `unopened_places`). 숫자가 아닌 칸(「매주」 · 「예」)은
+        #   근거 검사가 못 본다 — 그 줄의 곳을 열었는지를 걸음 기록으로 가른다. 앞 판을 이어받은 판은 그 판에서 연 곳을 모르니 보지 않는다.
+        unopened_found = [] if not steps or carried_labels else rows_about_unopened_places(
+            self._rows_with_urls(answer, steps), visited_places(steps))["rows"]
         correction = (
             commit_note
             + self._sourced_claim_check(answer, steps)
             + ("" if carried_labels else self._cited_source_check(asked, answer, steps))
-            + ("" if carried_labels else self._offsite_read_check(asked, steps))
+            # ★ 「대조 덩어리」(대조표와 「읽었나」 경고)는 표로 감싼다 (2026-10-24 · `check_notes`). 창에는 한 줄(사람이 시킨 판) 또는
+            #   아무것도(바깥 AI 가 맡긴 판), 바깥 AI 에게는 지금까지와 같은 글이 간다. 나누는 자리는 판이 끝나는 한 곳(runtime)이다.
+            + check_notes.wrap("" if carried_labels else self._offsite_read_check(asked, steps))
             + self._stale_read_check(asked, steps)
             + self._comparison_source_check(asked, answer, steps, job_id)
             + self._left_open_check(answer, steps)
@@ -11045,18 +11302,18 @@ class BrowserAgent:
             )
             + self._money_grounding_check(asked, answer, messages)
             # 순서를 물었으면 답의 순서가 읽은 목록의 순서와 같은가 (2026-10-18 · `rank_order_warning`).
-            + rank_order_warning(asked, answer, messages, english=reply_language(asked) == "en")
+            + self._rank_order_note(asked, answer, messages, job_id)
             # 요약 비율이 답 자신의 표와 맞는가 · 읽은 자료에 없는 비율이 있는가 (2026-10-01 밤 e84ae679 「8GB 이하 41.3%」).
             # ★ 코드 판에서는 **자기가 파일에 쓴 것**도 근거다 (2026-10-04 사다리 L2). 만든 페이지의 카드 확률 「78%」에
             #   「읽은 자료에 없는 비율」, 답의 표 칸에 「읽지 않고 적은 것」이 붙었다 — 조사 답을 보려던 검사가 만든 것을
             #   읽은 것으로 따졌다. 조사 판은 그대로다(자기가 쓴 파일로 자기 답을 뒷받침하면 구멍이 된다).
             + percent_warning(
                 answer,
-                set(tool_numbers) | set(tool_numbers_body) | numbers_read_in(messages)
+                set(tool_numbers) | set(tool_numbers_body) | numbers_read_in(messages) | set(prior_numbers or ())
                 | evidence_numbers_claimed_in(prompt) | evidence_numbers_claimed_in(asked)
                 | evidence_numbers_claimed_in(said_by_the_person(messages))  # 사람이 이 대화에서 준 글의 숫자
                 | numbers_read_in(_own_written_messages(steps) if model_role == "code" else []),
-                english=reply_language(asked) == "en",
+                english=reply_language(answer) == "en",
             )
             # ★ **도구를 하나도 안 쓴 답**에는 이름 경고와 대조표를 붙이지 않는다 (2026-10-05 대표 실사용, c6b5ad92).
             #   되묻는 대화 답에 「읽지 않고 적은 것이 있습니다: "첫 90일 커뮤니티 활성화 체크리스트"…」(만들어 주겠다고
@@ -11064,19 +11321,24 @@ class BrowserAgent:
             #   「안 읽음·안 함」인 것은 당연하고, 그 사실은 화면의 「0걸음 · 기억으로 답함 · 찾아보고 다시 답하기」가 이미 말한다.
             #   한 것처럼 **말한** 답을 잡는 검사(위의 읽은 개수·저장 주장)는 그대로 돈다. 판의 상태(일부)와 바깥 AI 로 가는
             #   대조표도 그대로다 — 사람이 읽는 답 글에만 안 붙인다.
-            + ("" if not steps else
-               self._grounding_with_carry(answer, messages, steps, job_id, prior_answer if carried_labels else "",
-                                          own=_own_written_messages(steps) if model_role == "code" else None))
-            + goal_shortfall_note
-            + ("" if not steps else summary_note(final_plan_results, reply_language(asked)))
-            # 개수는 위에서 센다. **무엇인지**는 아무도 안 봤다 — 실측에서
-            # "정규직 3개"에 계약직·파견직이 섞여 왔는데 개수가 맞아 전부 통과했다.
-            + broken_condition_note(asked, answer)
-            # 답이 형태·금액을 안 적었거나 틀리게 적은 줄 — 그 줄의 **페이지**와 맞춘다(2026-10-04 채용 공고 조사 판).
-            + self._row_facts_vs_page_check(asked, answer, steps, job_id)
-            # 반대 방향: 조건에 맞는다는 **근거가 없는** 줄(2026-10-03 K-Startup 「AI/SW」 이름표).
-            + self._topic_condition_check(asked, answer, steps, job_id)
+            + check_notes.wrap(
+                ("" if not steps else
+                 self._grounding_with_carry(answer, messages, steps, job_id, prior_answer if carried_labels else "",
+                                            own=_own_written_messages(steps) if model_role == "code" else None))
+                + unopened_rows_note(unopened_found, lambda ko, en: _say(ko, en, answer))
+                + shown_shortfall_note
+                + ("" if not steps else summary_note(final_plan_results, reply_language(answer)))
+                # 개수는 위에서 센다. **무엇인지**는 아무도 안 봤다 — 실측에서
+                # "정규직 3개"에 계약직·파견직이 섞여 왔는데 개수가 맞아 전부 통과했다.
+                + broken_condition_note(asked, answer)
+                # 답이 형태·금액을 안 적었거나 틀리게 적은 줄 — 그 줄의 **페이지**와 맞춘다(2026-10-04 채용 공고 조사 판).
+                + self._row_facts_vs_page_check(asked, answer, steps, job_id)
+                # 반대 방향: 조건에 맞는다는 **근거가 없는** 줄(2026-10-03 K-Startup 「AI/SW」 이름표).
+                + self._topic_condition_check(asked, answer, steps, job_id)
+            )
         )
+        # 사람이 창에서 시킨 판에 덩어리 대신 보일 한 줄 — 다 했으면 빈 글. 대조표와 같은 판정(확실한 요구)으로 센다.
+        checks_line = "" if not steps else summary_line(final_plan_results, reply_language(answer))
         # 레시피 제안은 correction 과 **따로 센다.** 답이 틀려서 붙는 말이 아니라
         # 다음에 안 막히려면 무엇을 하면 되는지 알리는 말이라, 이걸 correction 에
         # 섞으면 answer_corrected 가 "답을 고쳤다"는 뜻을 잃는다.
@@ -11161,10 +11423,12 @@ class BrowserAgent:
         # 바깥 AI 가 맡긴 판(`origin == "mcp"`)은 칸 사이를 쉬지 않는다 — 결과를 기다리는 것은 사람 눈이 아니라 그 호스트다.
         # 본 창이 시킨 판(`origin == "workspace"`)은 같은 속도로 칠하되 **판 밖에서** 칠한다 — 연출 때문에 판이 3~5초 늦게
         # 끝나지 않게(`paint_answer_apart`). 그 창은 판이 끝난 뒤에도 답을 끝까지 흘려 보여 준다.
+        # 칠하는 것은 **창에 남을 답**이다 — 대조 덩어리는 걷고, 사람이 시킨 판이면 한 줄을 그 자리에(`check_notes.screen`).
+        painted = check_notes.screen(answer, "" if origin == "mcp" else checks_line)
         if origin == "workspace":
-            paint_answer_apart(self.events, job_id, answer)
+            paint_answer_apart(self.events, job_id, painted)
         else:
-            paint_answer(self.events, job_id, answer, pace=origin != "mcp")
+            paint_answer(self.events, job_id, painted, pace=origin != "mcp")
 
         total_elapsed = elapsed_before + (time.monotonic() - segment_started)
         completion_state = _completion_state(stop_reason, final_plan_results, asked)
@@ -11229,12 +11493,14 @@ class BrowserAgent:
             "stop_reason": stop_reason,
             "completion_state": completion_state,
             "step_limit": step_limit,
-            "answer_corrected": bool(correction),
+            "answer_corrected": bool(check_notes.full(correction)),
+            # 사람이 시킨 판의 창에 대조 덩어리 대신 보인 한 줄(빈 글 = 다 함). 덩어리 원문은 판 기록의 `host_answer` 에.
+            "checks_line": checks_line,
             "artifact_fallback": artifact_fallback_note,
             "empty_answer_synthesis": empty_answer_synth_note,
             "deliver_turn_before_wrap_up": deliver_turn_used,
             # 이 판에서 계획 요구로 도중에 밀었는가(「밀기 켬/끔」 측정 · 2026-10-21). 거짓이면 끝 검사만 했다.
-            "plan_push": loop_plan is plan,
+            "plan_push": bool(plan_push_on or model_role == "code"),
             # 검증 없이 시간을 다 써서 접은 코드 판의 기록(없으면 None). 눈금은 이걸 보고 「완료」로 세지 않는다.
             "code_budget_exhausted": code_budget_stop,
             # 검증 없이 답을 내려 해 접은 코드 판의 기록(없으면 None) — 고쳤나 · 확인했나 · 되받은 횟수 · 막힌 쓰기.
@@ -11296,6 +11562,11 @@ class BrowserAgent:
             # 시킨 것 대조를 **장부에도 남긴다** (R3). 이벤트는 흘러가 버려서,
             # 화면을 새로 열면 끝난 판의 체크리스트를 다시 볼 방법이 없었다.
             "plan": self._plan_payload(final_plan_results),
+            # 흐린 요구의 대조 — 밀지도 완료를 가르지도 않았다. 다음 측정의 재료(§55-41). 칸 모양은 `plan.items` 와 같다.
+            "plan_soft": self._plan_payload(final_plan_soft)["items"],
+            # 한 번도 안 연 곳인데 값이 채워진 줄(답 끝에 한 줄로 밝힘 · 완료 판정은 안 바꿈). 다음 측정의 재료.
+            "unopened_place_rows": unopened_found,
+            "run_card": run_card.summary(),
             "contract_shadow": contract_summary,
             # 도구가 실제로 한 일. 「열었다」와 「읽었다」를 여기서만 구별할 수 있다.
             "evidence_shadow": summarize_evidence(

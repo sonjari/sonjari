@@ -1,0 +1,62 @@
+[
+ {
+  "class": "s-cover",
+  "classes": "s-cover grain",
+  "label": "01 Cover",
+  "html": "<section class=\"s-cover grain\"><div class=\"frame\"></div>\n  <div class=\"meta-top\">\n    <div class=\"pill\">Q2 · 2026</div>\n    <div>STRATEGIC REVIEW · INTERNAL</div>\n    <div class=\"pill\">VOL. 01</div>\n  </div>\n\n  <div class=\"center\">\n    <div class=\"title\">QUARTERLY<br/>REVIEW</div>\n    <div class=\"row2\">\n      <div class=\"for\">a</div>\n      <div class=\"sub\">PRESENTATION TEMPLATE</div>\n    </div>\n  </div>\n\n  <div class=\"footline\">\n    <span>PREPARED BY THE TEAM</span>\n    <span class=\"dot\"></span>\n    <span>MAY 2026</span>\n    <span class=\"dot\"></span>\n    <span>VERSION 01</span>\n  </div></section>"
+ },
+ {
+  "class": "s-toc",
+  "classes": "s-toc grain",
+  "label": "02 Contents",
+  "html": "<section class=\"s-toc grain\"><div class=\"head\">\n    <h2>WHAT'S<br/>INSIDE.</h2>\n    <div class=\"meta\">\n      <div class=\"big\">CONTENTS</div>\n      <div>SECTION GUIDE</div>\n      <div>02 / 10</div>\n    </div>\n  </div>\n  <div class=\"list\">\n    <div class=\"row\"><div class=\"n\">01</div><div class=\"t\">The Big Idea</div><div class=\"pg\">PG 03</div></div>\n    <div class=\"row\"><div class=\"n\">02</div><div class=\"t\">Three Pillars</div><div class=\"pg\">PG 04</div></div>\n    <div class=\"row\"><div class=\"n\">03</div><div class=\"t\">By the Numbers</div><div class=\"pg\">PG 05</div></div>\n    <div class=\"row\"><div class=\"n\">04</div><div class=\"t\">The Full Plan</div><div class=\"pg\">PG 06</div></div>\n    <div class=\"row\"><div class=\"n\">05</div><div class=\"t\">Voice of the Customer</div><div class=\"pg\">PG 07</div></div>\n    <div class=\"row\"><div class=\"n\">06</div><div class=\"t\">Roadmap</div><div class=\"pg\">PG 08</div></div>\n    <div class=\"row\"><div class=\"n\">07</div><div class=\"t\">Where We Land</div><div class=\"pg\">PG 09</div></div>\n    <div class=\"row\"><div class=\"n\">08</div><div class=\"t\">Next Steps</div><div class=\"pg\">PG 10</div></div>\n  </div></section>"
+ },
+ {
+  "class": "s-manifesto",
+  "classes": "s-manifesto grain",
+  "label": "03 Big Idea",
+  "html": "<section class=\"s-manifesto grain\"><div class=\"topbar\">\n    <div>— THE BIG IDEA —</div>\n    <div>03 / 10</div>\n    <div>ONE SENTENCE</div>\n  </div>\n  <div class=\"body\">\n    <div class=\"kicker\">★ ★ ★&nbsp;&nbsp;OUR THESIS&nbsp;&nbsp;★ ★ ★</div>\n    <h1>\n      The product gets <span class=\"scriptline\">simpler</span><br/>\n      as the team gets <span class=\"y\">braver</span> —<br/>\n      not the other way around.\n    </h1>\n    <div class=\"underline\"></div>\n  </div>\n  <div class=\"footrow\">\n    <div>— PARAGRAPH 01 —</div>\n    <div>SET IN ALFA SLAB</div>\n  </div></section>"
+ },
+ {
+  "class": "s-pillars",
+  "classes": "s-pillars grain",
+  "label": "04 Pillars",
+  "html": "<section class=\"s-pillars grain\"><div class=\"head\">\n    <h2>THREE<br/>PRIORITIES.</h2>\n    <div class=\"lede\">The work falls into three buckets this quarter. Each has a clear owner, a clear deliverable, and a clear way to know we are done.</div>\n  </div>\n  <div class=\"grid\">\n    <div class=\"col\">\n      <div class=\"num\">01</div>\n      <div class=\"tag\">— FOCUS —</div>\n      <h3>Ship the<br/>core flow.</h3>\n      <p>Cut three legacy paths and double down on the one that drives ninety percent of activations.</p>\n    </div>\n    <div class=\"col alt\">\n      <div class=\"num\">02</div>\n      <div class=\"tag\">— LEARN —</div>\n      <h3>Talk to<br/>ten teams.</h3>\n      <p>Standing weekly research with target customers. Findings briefed every Friday in a one-page memo.</p>\n    </div>\n    <div class=\"col\">\n      <div class=\"num\">03</div>\n      <div class=\"tag\">— SHIP —</div>\n      <h3>One launch,<br/>not five.</h3>\n      <p>Combine the four small drops on the calendar into a single, well-told release with shared positioning.</p>\n    </div>\n  </div></section>"
+ },
+ {
+  "class": "s-stat",
+  "classes": "s-stat grain",
+  "label": "05 Stat",
+  "html": "<section class=\"s-stat grain\"><div class=\"topbar\">\n    <div>— BY THE NUMBERS —</div>\n    <div>05 / 10</div>\n    <div>SECTION 02 / DATA</div>\n  </div>\n  <div class=\"stat\">\n    <div class=\"num\">63<sup>%</sup></div>\n    <div class=\"desc\">\n      <h3>of customers<br/><span class=\"accent\">recommend us</span> after onboarding.</h3>\n      <p>Net promoter scores climbed eighteen points after we shipped the redesigned first-run experience in March, the largest single-quarter jump on record for the product.</p>\n      <div class=\"source\">SOURCE — INTERNAL NPS, Q1 2026</div>\n    </div>\n  </div>\n  <div class=\"ribbon\">\n    <span>★ FOCUS</span>\n    <span>★ LEARN</span>\n    <span>★ SHIP</span>\n    <span>★ FOCUS</span>\n    <span>★ LEARN</span>\n    <span>★ SHIP</span>\n  </div></section>"
+ },
+ {
+  "class": "s-platform",
+  "classes": "s-platform grain",
+  "label": "06 Plan",
+  "html": "<section class=\"s-platform grain\"><div class=\"head\">\n    <h2>THE FULL<br/>PLAN.</h2>\n    <div class=\"lede\">Eight workstreams, costed and owned. Each links to a longer brief in the appendix; team leads are listed in the back of the book.</div>\n  </div>\n  <div class=\"body\">\n    <div class=\"item\">\n      <div class=\"n\">01</div>\n      <div>\n        <h4>Onboarding refresh</h4>\n        <p>Rebuild the first-run experience with progressive disclosure and a single primary action per screen.</p>\n      </div>\n    </div>\n    <div class=\"item\">\n      <div class=\"n\">02</div>\n      <div>\n        <h4>Pricing simplification</h4>\n        <p>Collapse the seven plans into three. Move add-ons behind a clearer feature matrix.</p>\n      </div>\n    </div>\n    <div class=\"item\">\n      <div class=\"n\">03</div>\n      <div>\n        <h4>Mobile parity</h4>\n        <p>Bring the four most-used desktop flows to mobile by end of quarter, including offline drafts.</p>\n      </div>\n    </div>\n    <div class=\"item\">\n      <div class=\"n\">04</div>\n      <div>\n        <h4>Self-serve setup</h4>\n        <p>Reduce time-to-first-value from three days to thirty minutes for teams under fifty seats.</p>\n      </div>\n    </div>\n    <div class=\"item\">\n      <div class=\"n\">05</div>\n      <div>\n        <h4>Trust &amp; security</h4>\n        <p>Ship audit logs, role-based access, and SSO for all paid tiers. SOC 2 Type II by year-end.</p>\n      </div>\n    </div>\n    <div class=\"item\">\n      <div class=\"n\">06</div>\n      <div>\n        <h4>Performance budget</h4>\n        <p>Cut median page load by forty percent. Set a hard ceiling and wire it into the release pipeline.</p>\n      </div>\n    </div>\n    <div class=\"item\">\n      <div class=\"n\">07</div>\n      <div>\n        <h4>Integrations push</h4>\n        <p>Native connectors for the top five tools customers ask for, plus a public API for the long tail.</p>\n      </div>\n    </div>\n    <div class=\"item\">\n      <div class=\"n\">08</div>\n      <div>\n        <h4>Brand refresh</h4>\n        <p>New marketing site, sharper category positioning, and a unified visual system across surfaces.</p>\n      </div>\n    </div>\n  </div></section>"
+ },
+ {
+  "class": "s-quote",
+  "classes": "s-quote grain",
+  "label": "07 Quote",
+  "html": "<section class=\"s-quote grain\"><div class=\"marks\">\"</div>\n  <div class=\"quote\">\n    The new onboarding cut our setup time<br/>\n    from three days to thirty minutes —<br/>\n    <span class=\"em\">we shipped the same week.</span>\n  </div>\n  <div class=\"attribution\">\n    <div class=\"who\">\n      <div class=\"avatar\">M</div>\n      <div>\n        <div class=\"name\">Maya Okonkwo</div>\n        <div class=\"role\">— HEAD OF OPS, NORTH STAR LABS —</div>\n      </div>\n    </div>\n    <div class=\"stamp\">★ Voice of the Customer ★</div>\n  </div></section>"
+ },
+ {
+  "class": "s-timeline",
+  "classes": "s-timeline grain",
+  "label": "08 Roadmap",
+  "html": "<section class=\"s-timeline grain\"><div class=\"head\">\n    <h2>THE<br/>ROADMAP.</h2>\n    <div class=\"sub\">— a plan, on a clock —</div>\n  </div>\n  <div class=\"track\"></div>\n  <div class=\"nodes\">\n    <div class=\"node\">\n      <div class=\"dot\"></div>\n      <div class=\"when\">MAY</div>\n      <h4>Kickoff</h4>\n      <p>Charter the workstreams, lock owners, and publish the shared scorecard.</p>\n    </div>\n    <div class=\"node alt\">\n      <div class=\"dot\"></div>\n      <div class=\"when\">JUNE</div>\n      <h4>Beta opens</h4>\n      <p>Onboard the first ten design partners on the new core flow.</p>\n    </div>\n    <div class=\"node\">\n      <div class=\"dot\"></div>\n      <div class=\"when\">AUGUST</div>\n      <h4>Launch</h4>\n      <p>Public release, marketing site refresh, and sales enablement complete.</p>\n    </div>\n    <div class=\"node alt\">\n      <div class=\"dot\"></div>\n      <div class=\"when\">OCTOBER</div>\n      <h4>Scale</h4>\n      <p>Roll the changes to the long tail and retire the legacy paths for good.</p>\n    </div>\n  </div>\n  <div class=\"below\">\n    <div class=\"kpi\">\n      <div class=\"label\">— TIME-TO-VALUE —</div>\n      <div class=\"v\">30m</div>\n    </div>\n    <div class=\"kpi alt\">\n      <div class=\"label\">— ACTIVATION RATE —</div>\n      <div class=\"v\">+24%</div>\n    </div>\n    <div class=\"kpi\">\n      <div class=\"label\">— REVENUE LIFT —</div>\n      <div class=\"v\">$1.4M</div>\n    </div>\n  </div></section>"
+ },
+ {
+  "class": "s-compare",
+  "classes": "s-compare grain",
+  "label": "09 Compare",
+  "html": "<section class=\"s-compare grain\"><div class=\"head\">\n    <h2>WHERE<br/>WE LAND.</h2>\n    <div class=\"sub\">A side-by-side of where the product is today and where this plan takes us by the end of the year.</div>\n  </div>\n  <div class=\"grid\">\n    <div class=\"side left\">\n      <div class=\"label\">— TODAY —</div>\n      <h3>Capable, but cluttered.</h3>\n      <ul>\n        <li>Three-day median time-to-value for new teams.</li>\n        <li>Seven pricing plans with overlapping feature sets.</li>\n        <li>Mobile parity at sixty percent of desktop flows.</li>\n        <li>Onboarding NPS sits at forty-five points.</li>\n      </ul>\n    </div>\n    <div class=\"side right\">\n      <div class=\"label\">— END OF YEAR —</div>\n      <h3>Sharper, faster, fewer.</h3>\n      <ul>\n        <li>Thirty-minute self-serve setup, no human required.</li>\n        <li>Three pricing plans with a clear feature matrix.</li>\n        <li>Full mobile parity, plus offline drafts.</li>\n        <li>Onboarding NPS targeted at sixty-three points.</li>\n      </ul>\n    </div>\n  </div></section>"
+ },
+ {
+  "class": "s-close",
+  "classes": "s-close grain",
+  "label": "10 Close",
+  "html": "<section class=\"s-close grain\"><div class=\"frame\"></div>\n  <div class=\"top\">\n    <div>— END OF DECK —</div>\n    <div>★ THANK YOU ★</div>\n    <div>10 / 10</div>\n  </div>\n  <div class=\"center\">\n    <div class=\"pre\">over to you —</div>\n    <h1 style=\"font-size: 153.33px\">QUESTIONS?</h1>\n    <div class=\"row\">\n      <div class=\"cta\">LET'S TALK</div>\n      <div class=\"url\">team@company.com</div>\n    </div>\n  </div>\n  <div class=\"footrow\">\n    <div class=\"signoff\">\n      PREPARED BY <span class=\"b\">THE PRODUCT TEAM</span><br/>\n      ★ MAY 2026 ★ INTERNAL DRAFT\n    </div>\n    <div class=\"stamp\">\n      <div class=\"big\">END</div>\n      <div class=\"small\">— V. 01 —</div>\n    </div>\n  </div></section>"
+ }
+]

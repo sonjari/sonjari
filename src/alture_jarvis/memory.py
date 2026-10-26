@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from .check_notes import SUMMARY_LINE_HEAD
 from . import fact_extract
 
 
@@ -122,7 +123,8 @@ def normalize_session_id(value: str) -> str:
 
 
 #: 답 끝에 **우리가 덧붙인** 글의 머리 — 경고(⚠ **…**)와 대조표(**시킨 것 대조** · **Checklist**).
-_OUR_TAIL_BLOCK = re.compile(r"(?:⚠\s*\*\*|\*\*(?:시킨 것 대조|Checklist)\*\*)")
+#: ★ 2026-10-24: 사람이 시킨 판은 대조표 대신 한 줄(`check_notes.SUMMARY_LINE_HEAD`)이 붙는다 — 그것도 우리 꼬리다.
+_OUR_TAIL_BLOCK = re.compile(r"(?:⚠\s*\*\*|\*\*(?:시킨 것 대조|Checklist)\*\*|" + SUMMARY_LINE_HEAD.pattern + ")")
 #: 답 맨 끝에 붙는 **사실 덩어리** — 만든 파일 목록 · 목록 줄의 주소. 모델에게도 남긴다(우리 꼬리를 뗄 때 건너뛴다).
 _FACT_TRAILER = re.compile(r"(?:만든 파일:|\[이 목록의 주소\])")
 
@@ -346,6 +348,17 @@ class ConversationMemory:
                     ON facts(kind, subject, fact);
                 """
             )
+            # ★ 대화 제목 (2026-10-26 대표: 「첫 말 앞부분이라 한눈에 뭔지 모른다」). 대화마다 한 줄인 요약 표에 얹는다 —
+            #   대화를 지우면 같이 지워지고(`delete_session`), 요약을 고쳐 써도(`save_summary`) 제목은 그대로다.
+            #   `title_source` 는 누가 지었나: model(내 PC 모델) · person(사람이 바꿈). 사람이 바꾼 제목은 모델이 덮지 않는다.
+            columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(conversation_summaries)")}
+            for name, ddl in (
+                ("title", "TEXT NOT NULL DEFAULT ''"),
+                ("title_source", "TEXT NOT NULL DEFAULT ''"),
+                ("title_at", "REAL NOT NULL DEFAULT 0"),
+            ):
+                if name not in columns:
+                    conn.execute(f"ALTER TABLE conversation_summaries ADD COLUMN {name} {ddl}")  # noqa: S608 - 고정 목록
             # Existing conversations predate the retrieval index. Backfill once and
             # keep the table in lock-step from add_message afterwards.
             conn.execute(
@@ -462,10 +475,16 @@ class ConversationMemory:
         return removed
 
     def list_sessions(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        """대화 목록. 제목은 지은 것(`set_title`)이 있으면 그것, 없으면 첫 사용자 말.
+
+        ★ 2026-10-26: 앱 안 Claude Agent 가 손자리에게 맡긴 판(via=app)은 제 방(`mcp-…`)을 받지만 **목록에 따로 세우지 않는다** —
+          그 판은 맡긴 Claude 대화 안(맡김 카드 · 눈금자)에 이미 보인다. 바깥 클로드 · 코덱스가 맡긴 방은 지금처럼 선다.
+          `job_id` 는 첫 질문을 처리한 판 번호 — 화면이 「Claude 대화에 묶인 판」(via 칸이 생기기 전 기록)을 알아본다.
+        """
         limit = max(1, min(int(limit), 200))
         with self._connection() as conn:
             rows = conn.execute(
-                """SELECT
+                """SELECT * FROM (SELECT
                        m.session_id,
                        COUNT(*) AS message_count,
                        MAX(m.created_at) AS updated_at,
@@ -482,6 +501,24 @@ class ConversationMemory:
                          ORDER BY first_user.id ASC LIMIT 1
                        ), '') AS caller,
                        COALESCE((
+                         SELECT CASE WHEN json_valid(first_user.metadata_json) THEN json_extract(first_user.metadata_json, '$.via') END FROM conversation_messages first_user
+                         WHERE first_user.session_id = m.session_id
+                           AND first_user.role = 'user'
+                         ORDER BY first_user.id ASC LIMIT 1
+                       ), '') AS via,
+                       COALESCE((
+                         SELECT CASE WHEN json_valid(first_user.metadata_json) THEN json_extract(first_user.metadata_json, '$.job_id') END FROM conversation_messages first_user
+                         WHERE first_user.session_id = m.session_id
+                           AND first_user.role = 'user'
+                         ORDER BY first_user.id ASC LIMIT 1
+                       ), '') AS job_id,
+                       COALESCE((
+                         SELECT s.title FROM conversation_summaries s WHERE s.session_id = m.session_id
+                       ), '') AS named_title,
+                       COALESCE((
+                         SELECT s.title_source FROM conversation_summaries s WHERE s.session_id = m.session_id
+                       ), '') AS title_source,
+                       COALESCE((
                          SELECT content FROM conversation_messages last_message
                          WHERE last_message.session_id = m.session_id
                          ORDER BY last_message.id DESC LIMIT 1
@@ -491,16 +528,20 @@ class ConversationMemory:
                          WHERE s.session_id = m.session_id AND length(s.content) > 0
                        ) AS has_summary
                    FROM conversation_messages m
-                   GROUP BY m.session_id
+                   GROUP BY m.session_id)
+                   WHERE via != 'app'
                    ORDER BY updated_at DESC
                    LIMIT ?""",
                 (limit,),
             ).fetchall()
         return [
             {
-                **dict(row),
+                **{key: value for key, value in dict(row).items() if key != "named_title"},
                 "message_count": int(row["message_count"]),
-                "title": str(row["title"])[:80],
+                "title": str(row["named_title"] or row["title"])[:80],
+                "title_source": str(row["title_source"] or ""),
+                "via": str(row["via"] or ""),
+                "job_id": str(row["job_id"] or ""),
                 # 바깥 AI 가 맡긴 대화면 그 호스트 이름(첫 사용자 메시지의 metadata). 없으면 빈 문자열.
                 "caller": str(row["caller"] or "")[:80],
                 "preview": str(row["preview"])[:160],
@@ -508,6 +549,63 @@ class ConversationMemory:
             }
             for row in rows
         ]
+
+    #: 누가 지은 제목인가. person 이 있으면 model 이 덮지 않는다.
+    TITLE_SOURCES = ("model", "person")
+    #: 제목 글자 상한 — 한국어 15자 안팎을 바라지만, 영어 제목 · 사람이 바꾼 제목을 자르지 않을 만큼.
+    TITLE_MAX_CHARS = 60
+
+    def title_of(self, session_id: str) -> dict[str, str]:
+        """지은 제목. 없으면 빈 글 둘."""
+        session_id = normalize_session_id(session_id)
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT title, title_source FROM conversation_summaries WHERE session_id = ?", (session_id,)
+            ).fetchone()
+        return {"title": str(row["title"] or "") if row else "", "source": str(row["title_source"] or "") if row else ""}
+
+    def set_title(self, session_id: str, title: str, *, source: str = "model") -> bool:
+        """제목을 단다. 사람이 바꾼 제목(person)은 모델(model)이 덮지 않는다 — 덮지 않았으면 False."""
+        session_id = normalize_session_id(session_id)
+        clean = " ".join(str(title or "").split()).strip()[: self.TITLE_MAX_CHARS]
+        if not clean or source not in self.TITLE_SOURCES:
+            return False
+        now = time.time()
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT title_source FROM conversation_summaries WHERE session_id = ?", (session_id,)
+            ).fetchone()
+            if source == "model" and row and str(row["title_source"] or "") == "person":
+                return False
+            conn.execute(
+                """INSERT INTO conversation_summaries
+                   (session_id, content, through_message_id, updated_at, title, title_source, title_at)
+                   VALUES (?, '', 0, ?, ?, ?, ?)
+                   ON CONFLICT(session_id) DO UPDATE SET
+                     title = excluded.title, title_source = excluded.title_source, title_at = excluded.title_at""",
+                (session_id, now, clean, source, now),
+            )
+        return True
+
+    def titles(self, *, limit: int = 300) -> dict[str, dict[str, str]]:
+        """지은 제목 전부(새 것부터) — 화면 저장소에만 있는 Claude 대화도 같은 제목을 받게."""
+        limit = max(1, min(int(limit), 1000))
+        with self._connection() as conn:
+            rows = conn.execute(
+                """SELECT session_id, title, title_source FROM conversation_summaries
+                   WHERE length(title) > 0 ORDER BY title_at DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return {str(row["session_id"]): {"title": str(row["title"]), "source": str(row["title_source"] or "")} for row in rows}
+
+    def user_turns(self, session_id: str) -> int:
+        """그 대화에서 사람이 한 말의 수 — 「첫 답이 끝났나」를 가른다."""
+        session_id = normalize_session_id(session_id)
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM conversation_messages WHERE session_id = ? AND role = 'user'", (session_id,)
+            ).fetchone()
+        return int(row[0] if row else 0)
 
     def latest_visual(self, session_id: str, *, max_age_sec: float | None = None) -> dict[str, Any] | None:
         session_id = normalize_session_id(session_id)

@@ -1,0 +1,14 @@
+/* 숲 · 분홍 — 따뜻한 편집(소개 · 회고 · 브랜드 이야기). 참고: editorial-forest(MIT · Zara Zhang) */
+:root {
+  --paper: #efe7d4; --ink: #1d1f1a; --ink-soft: #4a4a40; --ink-faint: #7d7866; --title: #2e4a2a;
+  --accent: #d27e96; --accent-text: #2e4a2a; --rule: #d3c8ad; --rule-strong: #2e4a2a;
+  --surface: #e4d9bf; --track: #e0d5bb; --bar: #9fae8f; --tile-b: #e89cb1; --tile-b-ink: #243a21;
+  --field: #2e4a2a; --field-ink: #f0b3c4; --field-accent: #efe7d4; --field-soft: #e7cfc9; --field-faint: #b7a9a3;
+  --field-rule: #4b6646; --field-surface: #3a5a36; --field-track: #3a5a36; --field-bar: #6d8a68; --field-kicker: #efe7d4;
+  --sans: 'Gowun Dodum', 'Malgun Gothic', sans-serif; --display: 'Gowun Batang', Georgia, 'Batang', serif; --display-weight: 400;
+  --quote: 'Gowun Batang', Georgia, 'Batang', serif; --quote-weight: 400; --figure: 'Gowun Batang', Georgia, 'Batang', serif; --figure-weight: 400;
+}
+section.cover::before { content: ""; position: absolute; top: 56px; right: 76px; width: 92px; height: 92px; border: 2px solid currentColor; border-radius: 50%; opacity: 0.85; }
+section.statement.field { background: #e89cb1; color: #243a21; --title: #243a21; --field-kicker: #243a21; }
+.tile { border-radius: 6px; } .compare .col { border-radius: 6px; }
+.tile:nth-child(5) { background: transparent; border: 2px solid var(--title); color: var(--title); }

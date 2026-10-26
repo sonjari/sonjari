@@ -6,7 +6,9 @@
 
 from __future__ import annotations
 
+import gc
 import re
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -150,13 +152,35 @@ def test_collect_reads_a_real_store_read_only(tmp_path: Path) -> None:
     store.set_status(mine["id"], JobStatus.COMPLETED, result={"agent_trace": {"steps": _steps(45000)}})
     person = store.create_job("chat", "t", {"origin": "workspace", "prompt": "사람"})
     store.set_status(person["id"], JobStatus.COMPLETED, result={"agent_trace": {"steps": _steps(45000)}})
-    before = (tmp_path / "jobs.db").read_bytes()
+    # ★ 준비가 쓴 것을 먼저 가라앉힌다 (2026-10-23). `JobStore` 의 연결은 `with` 뒤에도 안 닫히고(커밋만 한다)
+    #   파이썬 3.11 sqlite 연결은 순환 참조라 쓰레기 수거 때에야 닫힌다. 그때 마지막 연결이 WAL 을 본 파일에
+    #   옮겨 써(체크포인트) 머리의 변경 횟수(24~27 바이트)가 1→2 가 된다 — 그 수거가 `before` 뒤 아무 때나
+    #   돌아서 전체 회귀 7판 중 1판이 떨어졌다. `collect` 는 쓰지 않았다. 수거를 지금 돌려 WAL 이 비었는지 본다.
+    del store
+    gc.collect()
+    db = tmp_path / "jobs.db"
+    wal = tmp_path / "jobs.db-wal"
+    assert not wal.exists() or wal.stat().st_size == 0
 
-    receipt = sr.collect(tmp_path / "jobs.db", days=7)
+    def state() -> tuple[bytes, int]:
+        # WAL 모드에서 쓰기는 본 파일이 아니라 `-wal` 로 간다 — 본 파일만 보면 쓰기를 못 잡는다(아래 역검증).
+        return db.read_bytes(), wal.stat().st_size if wal.exists() else 0
+
+    before = state()
+
+    receipt = sr.collect(db, days=7)
 
     assert receipt["tokens_at_least"] == 10000
     assert receipt["jobs"]["total"] == 1
-    assert (tmp_path / "jobs.db").read_bytes() == before
+    assert state() == before
+    # 눈금 역검증 — 진짜 쓰기는 이 눈금에 잡혀야 한다(연결을 연 채로 재면 본 파일은 그대로다).
+    writer = sqlite3.connect(str(db))
+    try:
+        writer.execute("UPDATE jobs SET title = 'w'")
+        writer.commit()
+        assert state() != before
+    finally:
+        writer.close()
     # 읽기 전용 — 없는 DB 를 만들지 않는다.
     with pytest.raises(Exception):
         sr.collect(tmp_path / "nope.db")

@@ -12,7 +12,7 @@
   "app": {
     "windows": [],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8091 ws://127.0.0.1:8091; frame-src http://127.0.0.1:* http://localhost:*; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:"
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8091 ws://127.0.0.1:8091; frame-src http://127.0.0.1:* http://localhost:*; style-src 'self' 'unsafe-inline'; font-src 'self' http://127.0.0.1:8091; img-src 'self' data: blob:"
     }
   },
   "bundle": {

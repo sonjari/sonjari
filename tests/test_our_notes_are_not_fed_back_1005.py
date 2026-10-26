@@ -68,7 +68,7 @@ def test_the_model_sees_what_it_said_and_the_record_keeps_what_was_shown(tmp_pat
 def test_an_answer_that_used_no_tools_gets_no_name_warning_and_no_checklist() -> None:
     source = inspect.getsource(agent.BrowserAgent.run)
     assert '("" if not steps else' in source and "self._grounding_with_carry(answer, messages, steps, job_id," in source
-    assert '("" if not steps else summary_note(final_plan_results, reply_language(asked)))' in source
+    assert '("" if not steps else summary_note(final_plan_results, reply_language(answer)))' in source  # 10-23: 답 언어를 따른다
     # 한 것처럼 **말한** 답을 잡는 검사는 도구를 안 쓴 답에도 그대로 돈다.
     assert "+ claimed_reads_note(answer, steps)" in source
     assert "self._commit_reality_check(answer, steps)" in source

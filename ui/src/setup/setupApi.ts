@@ -358,6 +358,8 @@ export interface WayOutInfo {
   smaller: {
     model_key: string; name: string; num_ctx: number; needs_gb: number; download_gb: number;
     installed: boolean; weak_at?: string; good_at?: string;
+    /** 그림 부속을 뗀 채(글만 읽기)로 올리는 칸인가 — 그러면 적용 · 받기에 eyes=false 를 준다(2026-10-26). */
+    text_only?: boolean;
   } | null;
 }
 
@@ -588,6 +590,8 @@ export interface ContextCeiling {
   took_sec: number;
   measured_at: string;
   error?: string;
+  /** 「더 쥐어짜기」를 했으면 — 어디서 어디까지 올렸나. */
+  squeezed?: { from: number; to: number; below: number; stopped: string; took_sec: number; at: string };
 }
 export interface ContextView {
   chat_model: string;
@@ -713,7 +717,7 @@ export interface SetupApi {
   recommendation(): Promise<Recommendation>;
   models(): Promise<ModelsView>;
   /** `applyCtx` 를 주면 다 받은 뒤 **백엔드가** 적용한다 — 마법사를 닫아도 적용된다. */
-  pull(modelKey: string, applyCtx?: number): Promise<PullState & { ok: boolean; error?: string }>;
+  pull(modelKey: string, applyCtx?: number, eyes?: boolean): Promise<PullState & { ok: boolean; error?: string }>;
   /** `eyes: false` — 그림 부속을 뺀 「글만 읽기」로 올린다. 안 주면 예전 그대로 그림을 읽게 올린다. */
   apply(modelKey: string, numCtx: number, eyes?: boolean): Promise<ApplyResult>;
   installedModels(): Promise<{ models: InstalledModel[] }>;
@@ -722,6 +726,8 @@ export interface SetupApi {
   selectModel(tag: string, role: ModelRole, numCtx?: number): Promise<SelectResult>;
   contextStatus(): Promise<ContextView>;
   measureContext(model?: string): Promise<{ ok: boolean; error?: string }>;
+  /** 잰 상한과 그 위 첫 불합격 칸 사이를 두 번 더 올려 본다(10-25 「더 쥐어짜기」). */
+  squeezeContext(model?: string): Promise<{ ok: boolean; error?: string }>;
   /** `numCtx` = 잰 칸 하나(09-29 칸별 고르기). 비우면 잰 상한. */
   applyContext(model: string, alsoGlobal: boolean, numCtx?: number): Promise<ContextApplyResult>;
   /** `role: "code"` 면 다 받은 뒤 코드 역할에만 적용한다(대화 모델은 그대로). */
@@ -779,8 +785,8 @@ export function createSetupApi(bootstrap: BackendBootstrap): SetupApi {
     profile: (fresh = false) => call(`/v1/setup/profile${fresh ? "?fresh=true" : ""}`),
     recommendation: () => call("/v1/setup/recommendation"),
     models: () => call("/v1/setup/models"),
-    pull: (modelKey, applyCtx) =>
-      call("/v1/setup/models/pull", { method: "POST", body: JSON.stringify({ model_key: modelKey, apply_ctx: applyCtx ?? 0 }) }),
+    pull: (modelKey, applyCtx, eyes) =>
+      call("/v1/setup/models/pull", { method: "POST", body: JSON.stringify({ model_key: modelKey, apply_ctx: applyCtx ?? 0, ...(eyes === undefined ? {} : { eyes }) }) }),
     apply: (modelKey, numCtx, eyes) =>
       call("/v1/setup/models/apply", {
         method: "POST",
@@ -793,6 +799,8 @@ export function createSetupApi(bootstrap: BackendBootstrap): SetupApi {
     contextStatus: () => call("/v1/setup/context"),
     measureContext: (model) =>
       call("/v1/setup/context/measure", { method: "POST", body: JSON.stringify({ model: model ?? "" }) }),
+    squeezeContext: (model) =>
+      call("/v1/setup/context/squeeze", { method: "POST", body: JSON.stringify({ model: model ?? "" }) }),
     applyContext: (model, alsoGlobal, numCtx) =>
       call("/v1/setup/context/apply", { method: "POST", body: JSON.stringify({ model, also_global: alsoGlobal, num_ctx: numCtx ?? 0 }) }),
     pullTag: (tag, applyCtx, role = "chat", eyes) =>

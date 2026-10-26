@@ -1,0 +1,50 @@
+[
+ {
+  "class": "cover",
+  "classes": "cover",
+  "label": "01 Cover",
+  "html": "<section class=\"cover\"><div class=\"topbar\">\n      <span class=\"label\">A Presentation Template</span>\n      <div class=\"mark\">01</div>\n    </div>\n    <h1>Quarterly<br/>Review<br/>2026</h1>\n    <div class=\"footline\">\n      <span>Studio Placeholder</span>\n      <span>Presented by Name Placeholder</span>\n    </div></section>"
+ },
+ {
+  "class": "agenda",
+  "classes": "agenda",
+  "label": "02 Agenda",
+  "html": "<section class=\"agenda\"><div class=\"head\">\n      <h2>Agenda.</h2>\n      <span class=\"label\">Five topics &middot; ninety minutes</span>\n    </div>\n    <div class=\"agenda-grid\">\n      <div class=\"topic t-green\">\n        <div>\n          <div class=\"num\">01</div>\n          <h3>Where<br/>we stand<br/>today.</h3>\n        </div>\n        <div class=\"foot\">Context</div>\n      </div>\n      <div class=\"topic t-pink\">\n        <div>\n          <div class=\"num\">02</div>\n          <h3>The big shift.</h3>\n        </div>\n        <div class=\"foot\">Insight</div>\n      </div>\n      <div class=\"topic t-cream\">\n        <div>\n          <div class=\"num\">03</div>\n          <h3>By the numbers.</h3>\n        </div>\n        <div class=\"foot\">Data</div>\n      </div>\n      <div class=\"topic t-greenLite\">\n        <div>\n          <div class=\"num\">04</div>\n          <h3>How we&rsquo;ll get there.</h3>\n        </div>\n        <div class=\"foot\">Plan</div>\n      </div>\n      <div class=\"topic t-pink\">\n        <div>\n          <div class=\"num\">05</div>\n          <h3>What it adds up to.</h3>\n        </div>\n        <div class=\"foot\">Outcomes</div>\n      </div>\n    </div></section>"
+ },
+ {
+  "class": "statement",
+  "classes": "statement",
+  "label": "03 Statement",
+  "html": "<section class=\"statement\"><div>\n      <span class=\"label\">The shift</span>\n      <blockquote>The next twelve months are about doing fewer things, and doing them with more conviction.</blockquote>\n    </div>\n    <div class=\"attrib\">\n      <div>\n        <div class=\"name\">Name Placeholder</div>\n        <div style=\"margin-top: 5.33px;\">Role Placeholder</div>\n      </div>\n      <div>Section 02</div>\n    </div></section>"
+ },
+ {
+  "class": "two-col",
+  "classes": "two-col",
+  "label": "04 Two Column",
+  "html": "<section class=\"two-col\"><div class=\"col-img\">\n      <div class=\"figure\">[ image &middot; 880 &times; 760 ]</div>\n      <div class=\"caption\">\n        <span>Visual 01</span>\n        <span>Replace with photo</span>\n      </div>\n    </div>\n    <div class=\"col-text\">\n      <div class=\"eyebrow\">The big shift</div>\n      <h2>Fewer bets, stronger commitments.</h2>\n      <p>Placeholder body copy sits here as a stand&#8209;in for the supporting narrative. Open with the point you want the audience to remember when they walk out of the room.</p>\n      <p>Use the second paragraph to add proof &mdash; a customer, a moment in market, a number that earns the claim. Keep one idea per paragraph; trust the audience to follow.</p>\n      <dl class=\"meta\">\n        <div><dt>Owner</dt><dd>Team Placeholder</dd></div>\n        <div><dt>Timeframe</dt><dd>Q2 &mdash; Q4</dd></div>\n        <div><dt>Status</dt><dd>On track</dd></div>\n      </dl>\n    </div></section>"
+ },
+ {
+  "class": "data",
+  "classes": "data",
+  "label": "05 Data",
+  "html": "<section class=\"data\"><div class=\"head\">\n      <div>\n        <div class=\"label\">By the numbers</div>\n        <h2>Revenue by quarter,<br/>year over year.</h2>\n      </div>\n      <div class=\"legend\">\n        <span><span class=\"sw\" style=\"background: var(--pink);\"></span>This year</span>\n        <span><span class=\"sw\" style=\"background: var(--cream);\"></span>Last year</span>\n      </div>\n    </div>\n\n    <div class=\"chart\">\n      <div class=\"yaxis\">\n        <span>100</span><span>75</span><span>50</span><span>25</span><span>0</span>\n      </div>\n      <div class=\"plot\">\n        <div class=\"grid-lines\"></div>\n        <div class=\"bar-group\"><div class=\"bar-pair\">\n          <div class=\"bar a\" style=\"height: 62%;\"><span class=\"val\">62</span></div>\n          <div class=\"bar b\" style=\"height: 48%;\"><span class=\"val\">48</span></div>\n        </div></div>\n        <div class=\"bar-group\"><div class=\"bar-pair\">\n          <div class=\"bar a\" style=\"height: 74%;\"><span class=\"val\">74</span></div>\n          <div class=\"bar b\" style=\"height: 55%;\"><span class=\"val\">55</span></div>\n        </div></div>\n        <div class=\"bar-group\"><div class=\"bar-pair\">\n          <div class=\"bar a\" style=\"height: 81%;\"><span class=\"val\">81</span></div>\n          <div class=\"bar b\" style=\"height: 67%;\"><span class=\"val\">67</span></div>\n        </div></div>\n        <div class=\"bar-group\"><div class=\"bar-pair\">\n          <div class=\"bar a\" style=\"height: 88%;\"><span class=\"val\">88</span></div>\n          <div class=\"bar b\" style=\"height: 72%;\"><span class=\"val\">72</span></div>\n        </div></div>\n        <div class=\"bar-group\"><div class=\"bar-pair\">\n          <div class=\"bar a\" style=\"height: 92%;\"><span class=\"val\">92</span></div>\n          <div class=\"bar b\" style=\"height: 78%;\"><span class=\"val\">78</span></div>\n        </div></div>\n      </div>\n      <div class=\"xlabel-row\">\n        <span class=\"xlabel\">Q1</span>\n        <span class=\"xlabel\">Q2</span>\n        <span class=\"xlabel\">Q3</span>\n        <span class=\"xlabel\">Q4</span>\n        <span class=\"xlabel\">YTD</span>\n      </div>\n    </div>\n\n    <div class=\"footnote\">\n      <span>Source &middot; Internal data, 2026</span>\n      <span>Indexed to plan</span>\n    </div></section>"
+ },
+ {
+  "class": "framework",
+  "classes": "framework",
+  "label": "06 Framework",
+  "html": "<section class=\"framework\"><div class=\"head\">\n      <span class=\"label\">How we&rsquo;ll get there</span>\n      <span class=\"label\">Four steps</span>\n    </div>\n    <h2>A simple plan,<br/>in four moves.</h2>\n\n    <div class=\"flow\">\n      <div class=\"step\">\n        <div class=\"num\">Step 01</div>\n        <h3>Listen</h3>\n        <p>Open the quarter with structured conversations across teams. Capture what we hear without filtering.</p>\n        <div class=\"marker\"><span>Weeks 1&ndash;2</span><span>Owner</span></div>\n      </div>\n      <div class=\"step pinkfill\">\n        <div class=\"num\">Step 02</div>\n        <h3>Align</h3>\n        <p>Cluster signals into themes. Name them plainly so everyone uses the same language in every room.</p>\n        <div class=\"marker\"><span>Week 3</span><span>Owner</span></div>\n      </div>\n      <div class=\"step fill\">\n        <div class=\"num\">Step 03</div>\n        <h3>Build</h3>\n        <p>Translate the themes into a short list of bets. Decide what we&rsquo;re keeping, and what we&rsquo;re cutting.</p>\n        <div class=\"marker\"><span>Weeks 4&ndash;6</span><span>Owner</span></div>\n      </div>\n      <div class=\"step\">\n        <div class=\"num\">Step 04</div>\n        <h3>Ship</h3>\n        <p>Put the work in market on a known cadence. Measure against the plan; adjust without losing the thread.</p>\n        <div class=\"marker\"><span>Weeks 7&ndash;12</span><span>Owner</span></div>\n      </div>\n    </div></section>"
+ },
+ {
+  "class": "stats",
+  "classes": "stats",
+  "label": "07 Stats",
+  "html": "<section class=\"stats\"><div class=\"head\">\n      <span class=\"label\">What it adds up to</span>\n      <span class=\"label\">Year to date</span>\n    </div>\n    <h2>Three numbers that<br/>tell the story.</h2>\n\n    <div class=\"kpi-row\">\n      <div class=\"kpi\">\n        <span class=\"tag\">Growth</span>\n        <span class=\"big\">+42<span class=\"unit\">%</span></span>\n        <p class=\"desc\">Year over year increase in active accounts, ahead of the plan we set in January.</p>\n      </div>\n      <div class=\"kpi\">\n        <span class=\"tag\">Retention</span>\n        <span class=\"big\">94<span class=\"unit\">%</span></span>\n        <p class=\"desc\">Net retention across the top customer cohort, a four&#8209;point lift from last year.</p>\n      </div>\n      <div class=\"kpi\">\n        <span class=\"tag\">Reach</span>\n        <span class=\"big\">3.1<span class=\"unit\">M</span></span>\n        <p class=\"desc\">People served this quarter, across the markets we entered in the spring.</p>\n      </div>\n    </div></section>"
+ },
+ {
+  "class": "summary",
+  "classes": "summary",
+  "label": "08 Summary",
+  "html": "<section class=\"summary\"><div class=\"topbar\">\n      <span class=\"label\">In summary</span>\n      <span class=\"label\">Thank you</span>\n    </div>\n    <h2>Three<br/>things to take.</h2>\n    <div class=\"grid-cols\">\n      <div>\n        <h4>One</h4>\n        <p>The strategy holds. We are doing fewer things, and the right things.</p>\n      </div>\n      <div>\n        <h4>Two</h4>\n        <p>The numbers back the bets. Growth, retention, and reach are all ahead of plan.</p>\n      </div>\n      <div>\n        <h4>Three</h4>\n        <p>Next quarter, we keep the pace and add focus where the data points us.</p>\n      </div>\n    </div></section>"
+ }
+]

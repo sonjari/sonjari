@@ -32,7 +32,7 @@ def test_the_override_is_read_from_the_environment_too(tmp_path: Path, monkeypat
 def test_the_stream_uses_the_model_budget_when_none_is_given() -> None:
     import inspect
 
-    source = inspect.getsource(OllamaClient.chat_messages_stream)
+    source = inspect.getsource(OllamaClient._chat_messages_stream_body)  # 겉 `chat_messages_stream` 은 기다림 표시만 감싼다(10-25)
     assert "self._thinking_budget_for(selected)" in source
 
 

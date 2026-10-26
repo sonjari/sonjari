@@ -358,13 +358,13 @@ export default function SetupWizard() {
       if (smaller.installed) {
         setApplying(true);
         try {
-          setApplied(await api.apply(smaller.model_key, smaller.num_ctx));
+          setApplied(await api.apply(smaller.model_key, smaller.num_ctx, smaller.text_only ? false : undefined));
         } finally {
           setApplying(false);
         }
         return;
       }
-      const started = await api.pull(smaller.model_key, smaller.num_ctx);
+      const started = await api.pull(smaller.model_key, smaller.num_ctx, smaller.text_only ? false : undefined);
       if (!started.ok) throw new Error(started.error || t("받기를 시작하지 못했습니다"));
       setPull(started);
     } catch (err) {

@@ -43,6 +43,7 @@ from .brand import SELF_NAME_PATTERN, SELF_NAMES
 from .browser import BrowserTools, BrowserWorker
 from .clock import now_line_ko
 from .claude_code import ClaudeCodeTools, handoff_receipt, hold_reason, initial_delegation_reason, with_handoff_receipt
+from .api_escalation import ApiEscalation, hold_reason as api_escalation_hold_reason, trace_payload as api_escalation_trace, with_receipt as with_api_receipt
 from .code_scout import CodeScout
 from .config import JarvisConfig, build_id
 from .delegation import partial_work, unfinished_turn_note
@@ -66,7 +67,7 @@ from .local_computer import LocalComputerTools
 from .project_discovery import ProjectDiscovery
 from . import fact_extract, intent_shadow, updater
 from .media import MediaSessionController
-from . import delegated_branch
+from . import check_notes, delegated_branch
 from .memory import DELEGATED_ROOM_PREFIX, ConversationMemory, normalize_session_id
 from .outbound import outbound_record
 from .face_identity import FaceIdentity
@@ -76,7 +77,7 @@ from .models import ApprovalStatus, JarvisState, RiskLevel
 from .naver_blog import NaverBlogTools
 from .notifications import NotificationService
 from .observations import ObservationStore
-from .ollama import OllamaClient
+from .ollama import OllamaClient, wait_note_to
 from .transcript import with_job_context
 from .plan_nudges import _invented_ratios
 from .plan import (
@@ -519,6 +520,26 @@ def _asks_to_act_on_screen(prompt: str) -> bool:
 #: 라우터 직답이 출처 없는 숫자를 이만큼 단정하면 찾아보고 답하게 보낸다(`_general_route` 주석).
 #: 지난 직답 485개: 0개 352 · 1개 73 · 2~3개 34 · 4개 이상 26. 1~3개는 대개 상식·이 PC 사실이라 둔다.
 UNSOURCED_PARTICULARS_MIN = 4
+
+#: 초안이 그 숫자들을 **스스로 판단 · 짐작이라고 밝혔는가** — 밝힌 의견 답은 찾으러 보내지 않는다(2026-10-24 대표 판 f7269ce4).
+#
+# ★ 「너가 봤을 때 소규모 팀이 구독자 어느 정도면 괜찮아 보이노」에 초안이 1,000 · 3,000 · 5,000 · 10,000 을 썼고, 넷이라 문턱에 걸려
+#   「근거가 되는 대상 실제로 읽기」를 받았다. 찾을 사실이 없는 질문이라 모델은 방금 만든 전략 파일을 「근거」로 열고 나서야 같은 답을
+#   「제 판단으로 답합니다」로 냈다(129초). 대표가 「이 대화에서 몇 번 안 보고 하면 무조건 읽게 하는 것 같다」로 찾았다 — 횟수 장치는
+#   없고 이 숫자 문이었다. 이 문을 둔 까닭(09-30 솔라 모델 이름 · 「내일 여수 날씨」)은 **사실을 단정한** 초안이다 — 그런 초안은
+#   판단이라고 밝히지 않는다. 그래서 질문의 낱말이 아니라 **초안이 숫자를 무엇이라고 했는가**로 가른다. 확인 · 검색을 시킨 질문과
+#   사이트를 댄 질문은 밝혀도 지금처럼 보고 오게 한다.
+_JUDGMENT_LABEL = re.compile(
+    r"제\s*(?:판단|생각|짐작|어림|감|기준|의견)|짐작|어림(?:잡|으로|치)|개인적(?:으로|인)|경험(?:상|칙)|대략\s*이\s*정도"
+    r"|\b(?:my|a rough)\s+(?:guess|take|judg(?:e)?ment|estimate)\b|\brule of thumb\b|\bI'?d say\b",
+    re.I,
+)
+_ASKS_TO_CHECK = re.compile(r"확인|찾아|알아\s*봐|알아\s*보|조사|검색|최신|시세|가격|날씨|뉴스|\b(?:check|look up|search|latest)\b", re.I)
+
+
+def _judgment_answer_kept(prompt: str, draft: str) -> bool:
+    """출처 없는 숫자가 많아도 **판단이라고 밝힌 의견 답**이면 그대로 낸다(`_JUDGMENT_LABEL` 주석). 사이트를 댄 질문은 여기 오지 않는다."""
+    return bool(_JUDGMENT_LABEL.search(draft or "")) and not _ASKS_TO_CHECK.search(prompt or "")
 
 # ── 이 대화에서 이미 한 답을 **통째로 다시 낸** 초안 (2026-10-06 대표 실사용) ─────────────────────
 #
@@ -1076,6 +1097,10 @@ class JarvisRuntime:
         )
         self.local_computer.register(self.gateway)
         self.local_computer.known_secrets = self.known_secrets
+        # 장표가 한 장씩 그려지는 것을 컴퓨터 창에 보인다(`local_make_slide` · `deck_slide` · `deck_built`).
+        self.local_computer.publish = self.events.publish
+        # 장표 같이 만들기 — 앱에서 시킨 판인지 · 취소됐는지 본다(`slide_inbox`).
+        self.local_computer.job_info = self.store.get_job
         # 오래 걸리는 로컬 도구(파일 찾기)가 「어디까지 했나」를 화면에 흘리는 길 — 걸음 상자의 한 줄이 바뀐다.
         self.local_computer.progress_sink = lambda job_id, message: self.events.publish(
             "agent_progress",
@@ -1218,6 +1243,8 @@ class JarvisRuntime:
             self.config, self.events, self.local_computer
         )
         self.claude_code.register(self.gateway)
+        # 막혔을 때만 사용자 자기 API 키로 클로드에게 한 번 묻는 손(2026-10-26 · `api_escalation.py`). 넘기기와 다른 길.
+        self.api_escalation = ApiEscalation(self.config, self.events)
         self.plopfit = PlopfitTools(self.config)
         self.plopfit.register(self.gateway)
         # 우리 데이터. NAS 가 목록을 안 주면 도구 0 개로 조용히 지나간다 —
@@ -1331,6 +1358,7 @@ class JarvisRuntime:
             claude_code=self.claude_code,
             code_scout=self.code_scout,
         )
+        self.agent.api_escalation = self.api_escalation
         self.gate_watcher = HumanGateWatcher(
             self.store, self.browser, self.agent, self.events
         )
@@ -1794,6 +1822,7 @@ class JarvisRuntime:
                     "job_id": job_id,
                     **({"model_prompt": prompt[:12_000]} if prompt and prompt != display_prompt else {}),
                     **({"caller": str(payload.get("caller"))[:80]} if payload.get("caller") else {}),
+                    **({"via": str(payload.get("via"))[:20]} if payload.get("via") else {}),
                 },
                 assistant_metadata={"job_id": job_id, "unfinished": "cancelled" if cancelled else "failed", "error": error[:120]},
             )
@@ -2124,6 +2153,25 @@ class JarvisRuntime:
             except Exception:  # noqa: BLE001 — 데워 두기는 덤이다
                 pass
 
+    def _remember_router_note(self, job_id: str, since_seq: int, seconds: float) -> None:
+        """라우터가 이번 판을 어디로 왜 보냈나 — 그동안 나온 알림에서 읽어 판 기록에 붙일 몫을 쥐어 둔다."""
+        note: dict[str, Any] = {"seconds": round(seconds, 2)}
+        try:
+            for record in self.events.get_since(since_seq, limit=500):
+                payload = record.payload or {}
+                if record.event == "agent_route_selected":
+                    note.update({key: payload[key] for key in ("route", "reason", "numbers", "files") if key in payload})
+                elif record.event == "agent_route_kept_judgment":
+                    note["kept_judgment"] = True
+                elif record.event == "agent_route_draft_discarded" and str(payload.get("job_id") or "") == job_id:
+                    note["discarded_chars"] = int(payload.get("chars") or 0)
+        except Exception:  # noqa: BLE001
+            return
+        notes = self.__dict__.setdefault("_router_notes", {})
+        notes[job_id] = note
+        while len(notes) > 50:
+            notes.pop(next(iter(notes)))
+
     #: 마지막 모델 요청 뒤 이만큼 조용해야 서기가 돈다 — 사람이 막 일을 마친 직후에 끼어들지 않게.
     SCRIBE_QUIET_SEC = 90.0
 
@@ -2167,6 +2215,9 @@ class JarvisRuntime:
             return {"skipped": "고른 폴더 없음"}
         if self.state.snapshot().state != JarvisState.IDLE:
             return {"skipped": "일하는 중"}
+        held = getattr(self.ollama, "background_held", None)
+        if callable(held) and held():
+            return {"skipped": "모델 재는 중"}
         last_send = float(self.ollama.__dict__.get("_last_send_at", 0.0) or 0.0)
         if last_send and time.monotonic() - last_send < self.SCRIBE_QUIET_SEC:
             return {"skipped": "방금 모델을 썼다"}
@@ -2209,8 +2260,12 @@ class JarvisRuntime:
         closed = scribe.closed(limit=8, session=session)
         # 주제 색인(10-22): 주제 → 날짜 · 줄 번호. 압축 · 새 세션 때 펼쳐 주고, 자세한 건 대화 기록 파일의 그 줄을 연다.
         index = scribe.index(session=session)
+        # 압축 직후 넘기는 글(4차 · 10-24): 최근 40장이 아니라 그 세션의 열린 카드 전부에서 최근에 나온 것부터, 오래된 것은 접어서.
+        #   세션 794912da 에서 「최근 40장(모든 칸)」은 남은 일 45장 중 27장을 말없이 뺐다. 세션을 안 주면 넘길 대화가 없으니 빈 글.
+        handoff, folding = scribe.handoff(session) if session else ("", {})
         return {"enabled": bool(getattr(self.config, "scribe_enabled", False)), "folders": [str(p) for p in self._scribe_folders()],
                 "count": len(items), "items": items, "closed": closed, "card": render(items, closed),
+                "handoff": handoff, "handoff_counts": folding,
                 "index": index["text"], "index_dropped": index["dropped"]}
 
     def _start_background_warmup(self) -> None:
@@ -2338,11 +2393,42 @@ class JarvisRuntime:
                 ]
                 reads = list(dict.fromkeys(reads))
                 if not reads:
-                    return {}
+                    # ★ 도구 없이 답한 대화 판은 건너뛴다 (2026-10-24 대표 판 ab760dc8). 「지금까지 조사한 거 전부 MD 로」의 바로 앞 판이
+                    #   훅 문구를 묻는 대화(0걸음)라 여기서 멈췄고, 판은 「근거가 되는 대상 실제로 읽기」를 채우러 리뷰엉이 채널을 다시 열었다.
+                    #   조사 판과 정리 판 사이에 대화가 끼는 것이 보통이다. 창(`within_sec`)은 판마다 그대로 본다.
+                    continue
                 return {"prior_reads": reads, "prior_answer": str(result.get("answer") or "")[:6000]}
         except Exception:  # noqa: BLE001 — 이어받기는 보조 장치다
             return {}
         return {}
+
+    def _prior_session_numbers(self, session_id: str, job_id: str, *, within_sec: float = 7200.0) -> frozenset[str]:
+        """같은 대화방의 앞 판들에서 **도구가 실제로 돌려준 숫자** — 쓰기 전 숫자 문의 근거에 더한다 (2026-10-24).
+
+        대표 판(ab760dc8 · 「지금까지 조사한 거 전부 MD 로」): 숫자 문은 「이 판에서 읽은 것」만 근거로 쳐서, 앞 판 열한 개에서
+        읽어 온 조회수 · 구독자 수 59개를 「읽은 자료에 없는 숫자」로 두 번 막았다(53개가 앞 판 도구 숫자 · 6개는 소제목 번호).
+        모델은 안내대로 페이지를 다시 열었고 같은 긴 문서를 세 번 썼다(422초 중 약 280초). 앞 판의 **답**에 적힌 숫자는 넣지 않는다 —
+        답은 모델이 쓴 글이라, 넣으면 지어낸 숫자가 다음 판의 근거가 된다. 도구가 준 숫자(`tool_numbers` · `tool_numbers_body`)만 모은다.
+        `_prior_session_reads` 는 바로 앞 판 하나만 보지만(그 판이 읽은 것이 없으면 멈춘다) 여기서는 창 안의 판을 다 본다 —
+        그 사이에 도구 없이 답한 대화 판이 끼는 것이 보통이다.
+        """
+        if not session_id:
+            return frozenset()
+        found: set[str] = set()
+        try:
+            now = time.time()
+            for job in self.store.list_jobs(60, "completed"):
+                payload = job.get("payload") or {}
+                if str(job.get("id")) == job_id or str(payload.get("session_id") or "") != session_id:
+                    continue
+                if now - float(job.get("finished_at") or 0) > within_sec:
+                    continue
+                trace = (job.get("result") or {}).get("agent_trace") or {}
+                for key in ("tool_numbers", "tool_numbers_body"):
+                    found.update(str(number) for number in (trace.get(key) or []) if str(number))
+        except Exception:  # noqa: BLE001 — 근거를 넓히는 보조 장치다. 못 읽으면 예전처럼 이 판만 본다
+            return frozenset()
+        return frozenset(found)
 
     def _copies_an_earlier_answer(self, session_id: str, draft: str) -> int:
         """초안이 **이 대화의** 지난 답을 통째로 다시 낸 것이면 몇 번째 앞 답인지. 못 읽으면 0 — 대화는 간다."""
@@ -2470,6 +2556,21 @@ class JarvisRuntime:
                             "viewable": exists and self._inside_outputs(path),
                         }
                     )
+        # 장표(local_make_slide)는 구운 PPTX 를 장표 폴더의 built.json 에 적는다 — 사진을 넣어 다시 구운 판까지(2026-10-25).
+        for record in sorted((self.config.output_dir / "slides" / job_id).glob("*/built.json")) if job_id else []:
+            try:
+                built = json.loads(record.read_text(encoding="utf-8")).get("paths", [])
+            except (OSError, ValueError):
+                continue
+            for raw in built:
+                if not raw or raw in seen:
+                    continue
+                seen.add(raw)
+                path = Path(raw)
+                exists = path.is_file()
+                items.append({"step": 0, "tool": "local_make_slide", "name": path.name, "path": str(path),
+                              "bytes": path.stat().st_size if exists else 0, "kind": "file", "exists": exists,
+                              "viewable": exists and self._inside_outputs(path)})
         return {"job_id": job_id, "count": len(items), "items": items}
 
     def _inside_outputs(self, path: Path) -> bool:
@@ -2582,6 +2683,8 @@ class JarvisRuntime:
                 "workspace_mode": str(payload.get("workspace_mode") or "cowork"),
                 # 누가 맡겼나 — 화면이 방을 열자마자 그 이름을 두른다(기록이 도착하기 전에도).
                 "caller": str(payload.get("caller") or "")[:80],
+                # 앱 안 Claude 가 맡긴 판(via=app)이면 화면이 방을 열거나 목록에 세우지 않는다 — 맡긴 대화 안에 묶여 보인다.
+                "via": str(payload.get("via") or "")[:20],
             },
         )
         return job
@@ -4219,6 +4322,10 @@ class JarvisRuntime:
         def discard_draft() -> None:
             """쥐고 있던(또는 이미 흘린) 초안을 버린다.
 
+            ★ 2026-10-25 대표: 「버린다는 게 모델이 다 적고 난 뒤인데 이유는 머꼬」 — 02:03 판은 라우터 초안(출력 1,011토큰)을
+              다 쓰고 버려 약 26초가 날아갔는데, 버린 까닭이 판 기록에 없었다. 버릴 때 글자 수를 알림으로 남기고,
+              까닭(`agent_route_selected`)과 함께 판 기록의 `agent_trace.router` 에 붙인다(`_remember_router_note`).
+
             ★ 2026-08-10 부터 초안은 애초에 화면에 안 나간다(`_held_stream_callback`).
             그래서 대개 여기서 할 일은 손에 쥔 것을 놓는 것뿐이고, 아래 지우기
             이벤트는 예전 경로(이미 흘려 버린 경우)를 위한 보험으로 남긴다.
@@ -4234,6 +4341,11 @@ class JarvisRuntime:
             """
             if streamer is None:
                 return
+            try:
+                held = getattr(streamer, "state", {}).get("held") or []
+                self.events.publish("agent_route_draft_discarded", {"job_id": job_id, "chars": sum(len(str(x)) for x in held)})
+            except Exception:  # noqa: BLE001 — 기록은 덤이다
+                pass
             drop = getattr(streamer, "drop", None)
             if drop is not None:
                 drop()
@@ -4403,7 +4515,12 @@ class JarvisRuntime:
             #   새 문턱에 16 — 더 걸리는 것 6판(0.8%). 사이트가 화제일 뿐인 말(「네이버가 어떤 회사인지」)은 숫자를 지어내지
             #   않는 한 예전처럼 그대로 답한다.
             needed = 1 if _mentions_known_site(" ".join(prompt.split())) else UNSOURCED_PARTICULARS_MIN
-            if len(unsourced) >= needed:
+            # 판단이라고 밝힌 의견 답은 찾으러 보내지 않는다(2026-10-24 · `_judgment_answer_kept`). 사이트를 댄 질문(문턱 1)은 예외 없이 보고 온다.
+            if len(unsourced) >= needed and needed > 1 and _judgment_answer_kept(prompt, answer):
+                self.events.publish(
+                    "agent_route_kept_judgment", {"numbers": unsourced[:8], "prompt": prompt[:200]},
+                )
+            elif len(unsourced) >= needed:
                 discard_draft()
                 self.events.publish(
                     "agent_route_selected",
@@ -4515,6 +4632,73 @@ class JarvisRuntime:
             self.events.publish("fact_learning_skipped", {"session_id": str(args[0] if args else ""), "reason": "busy"})
 
         threading.Thread(target=later, name="jarvis-learn-facts", daemon=True).start()
+
+    #: 제목 짓기를 뒤로 미룰 때 — 마지막 모델 요청 뒤 이만큼 조용해야 부른다 · 이만큼 지나도 못 하면 그 대화는 첫 말 앞부분으로 둔다.
+    TITLE_QUIET_SEC = 8.0
+    TITLE_GIVE_UP_SEC = 900.0
+
+    def _title_soon(self, session_id: str, user_text: str, answer_text: str, *, force: bool = False) -> bool:
+        """대화의 첫 답이 끝나면 **조용할 때** 내 PC 모델에게 제목을 짓게 한다(2026-10-26 대표). 맡겼으면 True.
+
+        ★ 모델 자리 다툼을 피한다(10-25 상한 재기 사고 · `ollama.hold_background`): 손자리가 일하는 중 · 방금 모델을 쓴 직후 ·
+          모델을 재는 중이면 기다리고, 부르는 중에 사람 일이 오면 그 부르기는 끊긴다(`background_chat`) — 그러면 다시 기다린다.
+        생각 끔 · JSON 한 줄 · 48토큰. 못 지으면 아무것도 안 단다(목록은 첫 말 앞부분). 이미 제목이 있으면(사람이 바꿨거나 지었으면) 안 한다.
+        `force` 는 Claude 대화(서버에 글이 없다)의 문 — 「첫 답」인지는 화면이 가른다.
+        """
+        from . import conversation_title
+
+        if not force and self.memory.user_turns(session_id) != 1:
+            return False
+        if self.memory.title_of(session_id).get("title"):
+            return False
+        try:
+            from . import ui_i18n
+
+            lang = conversation_title.lang_of(ui_i18n.lang())
+        except Exception:  # noqa: BLE001 — 화면 언어를 못 읽으면 한국어
+            lang = "ko"
+        system, user = conversation_title.messages(user_text, answer_text, lang)
+
+        def attempt() -> str:
+            model = self.ollama._selected_model(None, role="chat")
+            # 대화 모델과 **같은 창 크기**로 부른다 — 다른 크기로 부르면 모델을 내렸다 다시 올린다(사고 P).
+            options = {**self.ollama._options(0.0, model=model, role="chat"), "num_predict": conversation_title.NUM_PREDICT}
+            raw = self.ollama.background_chat(system, user, model=model, options=options, rewarm=False)
+            return "cancelled" if raw is None else conversation_title.parse(raw, lang)
+
+        def done(title: str) -> None:
+            if title and self.memory.set_title(session_id, title, source="model"):
+                self.events.publish("conversation_titled", {"session_id": session_id, "title": title})
+            elif not title:
+                self.events.publish("conversation_title_skipped", {"session_id": session_id, "reason": "unusable"})
+
+        if not self.__dict__.get("_started_for_real"):
+            # 시험 런타임은 짓지 않는다(가짜 모델의 부르기 수를 세는 시험이 많다). 제목 시험은 `_title_sync` 를 켜고 그 자리에서 본다.
+            if not self.__dict__.get("_title_sync"):
+                return False
+            result = attempt()
+            done("" if result == "cancelled" else result)
+            return True
+
+        def later() -> None:
+            give_up = time.monotonic() + self.TITLE_GIVE_UP_SEC
+            while time.monotonic() < give_up and not self._warmup_stop.wait(2.0):
+                if self.state.snapshot().state != JarvisState.IDLE:
+                    continue
+                held = getattr(self.ollama, "background_held", None)
+                if callable(held) and held():
+                    continue
+                last_send = float(self.ollama.__dict__.get("_last_send_at", 0.0) or 0.0)
+                if last_send and time.monotonic() - last_send < self.TITLE_QUIET_SEC:
+                    continue
+                result = attempt()
+                if result != "cancelled":
+                    done(result)
+                    return
+            self.events.publish("conversation_title_skipped", {"session_id": session_id, "reason": "busy"})
+
+        threading.Thread(target=later, name="jarvis-conversation-title", daemon=True).start()
+        return True
 
     def _learn_facts(
         self,
@@ -4986,6 +5170,15 @@ class JarvisRuntime:
                 stack.enter_context(self.ollama.pin_model(override))
             if mode == "code":
                 stack.enter_context(self.ollama.pin_role("code"))
+            # ★ 대화 길(라우터 · 도구 없이 답하기)의 첫 글자 기다림도 까닭과 함께 알린다 (2026-10-25 대표 — `ollama.wait_note_to`).
+            #   일하는 길은 자기 걸음 줄에 같은 까닭을 싣고 여기 알림은 끈다(`agent._model_message`).
+            job_id = str(job.get("id") or "")
+            prompt_text = str(payload.get("prompt") or "")
+
+            def wait_note(message: str | None) -> None:
+                self.events.publish("model_wait", {"job_id": job_id, "message": message or ""})
+
+            stack.enter_context(wait_note_to(wait_note, english=not re.search(r"[가-힣]", prompt_text)))
             return self._chat_job_inner(job)
 
     def _chat_job_inner(self, job: dict[str, Any]) -> dict[str, Any]:
@@ -5037,6 +5230,9 @@ class JarvisRuntime:
         #   갈래 · 강제 호출 · 도구 손이 모두 이 표시를 본다.
         if getattr(self, "claude_code", None) is not None:
             self.claude_code.hold_for_job(str(job["id"]), hold_reason(payload, session_id))
+        # 「막히면 내 API 키로 묻기」도 같은 규칙 — 측정 판 · 클로드가 맡긴 판은 묻지 않는다(재는 스크립트만 따로 푼다).
+        if getattr(self, "api_escalation", None) is not None:
+            self.api_escalation.hold_for_job(str(job["id"]), api_escalation_hold_reason(payload, session_id))
         required_local_path = self._followup_output_path(session_id, prompt)
         # ★ 이어오기 인계 잡 (W0, 2026-09-15). 모델은 긴 인계문을 맥락으로 읽지만,
         #   **요구·갈래 판정은 사람이 본 문장 + 고른 방향**에서만 한다. 인계문 속 카드
@@ -5181,12 +5377,14 @@ class JarvisRuntime:
                     attached=True,
                 )
             else:
+                route_seq, route_started = self.events.sequence, time.monotonic()
                 route, routed_answer, routed_observation = self._general_route(
                     model_prompt,
                     session_id,
                     job_id=str(job["id"]),
                     images=attachment_images,
                 )
+                self._remember_router_note(str(job["id"]), route_seq, time.monotonic() - route_started)
             use_agent = route in {"browser", "agent"}
             # 갈래 이름이 아니라 **판정 자체**를 다시 묻는다. 라우터가 어느 갈래로
             # 보냈든, 이 셋 중 하나가 참이면 확인 없이 답해선 안 되는 요청이다.
@@ -5280,7 +5478,11 @@ class JarvisRuntime:
                 read_only=handoff_read_only,
                 declared_check=str((delegated or {}).get("check") or ""),
                 declared_work=pack_work,
+                # 바깥 AI 가 정한 「돌려받을 항목」 — 본문 읽기의 찾을 칸이 된다(`agent._with_find_terms` · 2026-10-24).
+                find_terms=tuple(str(item) for item in (payload.get("needs") or []) if isinstance(item, str)),
                 **self._prior_session_reads(session_id, str(job["id"])),
+                # 같은 대화 앞 판들에서 도구가 준 숫자 — 「지금까지 조사한 것 정리」가 막히지 않게(2026-10-24 · `_prior_session_numbers`).
+                prior_numbers=self._prior_session_numbers(session_id, str(job["id"])),
             )
             self.local_computer.forget_delivery(str(job["id"]))
             # 망가진 표 구분줄(`:---0`)은 화면이 표를 글로 뭉갠다 — 보이기 전에 고쳐 쓴다(2026-09-30 촬영 판).
@@ -5316,7 +5518,10 @@ class JarvisRuntime:
             else:
                 self.local_computer.open_pending(str(job["id"]))
             observation = None
+            router_note = (self.__dict__.get("_router_notes") or {}).pop(str(job["id"]), None)
             agent_trace = {
+                # 라우터가 일하는 길로 보낸 까닭 · 걸린 초 · 버린 초안 글자 수(2026-10-25 · `_remember_router_note`).
+                **({"router": router_note} if router_note else {}),
                 "steps": agent_result.steps,
                 "verification": agent_result.verification,
                 # 시킨 것 대조표. 이게 없으면 사후에 **무엇이 요구됐는지** 알 수 없어
@@ -5376,6 +5581,11 @@ class JarvisRuntime:
                 # ★ 넘겼으면 답이 그렇게 말한다(2026-10-19 · 「막히면 내 클로드에게 넘기기」). 끝까지 맡긴 판은
                 #   `completion_answer` 가 이미 적었고, 넘겼다가 못 끝낸 판 · 이어 간 판은 여기서 붙인다.
                 answer = with_handoff_receipt(answer, claude_steps)
+            # ★ 내 API 키로 클로드에게 물었으면 답이 그렇게 말한다 — 든 돈 · 보낸 글자 수와 함께(2026-10-26 · 영수증).
+            escalations = self.api_escalation.entries(str(job["id"])) if getattr(self, "api_escalation", None) else []
+            if escalations:
+                agent_trace["api_escalation"] = api_escalation_trace(escalations)
+                answer = with_api_receipt(answer, escalations)
         else:
             if routed_answer:
                 answer, observation = routed_answer, routed_observation
@@ -5423,6 +5633,13 @@ class JarvisRuntime:
                             self.events.publish("self_talk_offered", {"job_id": str(job["id"]), "kind": "show_me", "host": host})
             except Exception as exc:  # noqa: BLE001 — 권유가 틀어져도 답은 나간다
                 self.events.publish("self_talk_error", {"error": f"recipe_offer {type(exc).__name__}: {exc}"[:200]})
+        # ★ 답 끝의 「대조 덩어리」를 받는 쪽에 맞게 나누는 **한 자리** (2026-10-24 · `check_notes`). 바깥 AI 가 맡긴 판은 창에 덩어리를
+        #   안 남기고(바깥 AI 에게는 `host_answer` 로 지금까지와 같은 글), 사람이 시킨 판은 덩어리 자리에 한 줄만 둔다(다 했으면 아무것도).
+        host_answer = ""
+        if check_notes.has_blocks(answer):
+            host_answer = check_notes.full(answer)
+            checks_line = str(((agent_trace or {}).get("verification") or {}).get("checks_line") or "")
+            answer = check_notes.screen(answer, "" if check_notes.outside_ai(payload) else checks_line)
         grounding = answer_grounding(agent_trace, observation, attached=bool(attachment_metadata))
         # ★ 작업 도중 덧붙인 말도 이 턴의 요청이다(2026-09-27 밤). 기록에 안 남기면 다음 턴이 그 말을 모른다 —
         #   「찾은 거 정리해줘」가 앞 판의 방향 전환을 모른 채 엉뚱한 것을 찾았다.
@@ -5449,6 +5666,8 @@ class JarvisRuntime:
                 **({"steer_notes": steer_notes} if steer_notes else {}),
                 # 누가 맡겼나(MCP 호스트 이름). 대화 목록·말풍선이 그 출처의 이음선을 두른다.
                 **({"caller": str(payload.get("caller"))[:80]} if payload.get("caller") else {}),
+                # 어느 문으로 들어왔나 — 앱 안 Claude 가 맡긴 판(via=app)은 대화 목록에 제 방으로 안 세운다(`memory.list_sessions`).
+                **({"via": str(payload.get("via"))[:20]} if payload.get("via") else {}),
             },
             assistant_metadata={
                 "job_id": str(job["id"]),
@@ -5459,7 +5678,9 @@ class JarvisRuntime:
                 # 출처 도장 — 기록에 남겨야 다시 열어도 찍혀 있다.
                 "grounding": grounding,
                 # 바깥 AI 에게 무엇이 나갔나 — 한 줄 영수증(2026-10-15 · §55-32). 이 PC 의 기록은 원문 그대로 남는다.
-                **({"outbound": record} if (record := outbound_record(answer, payload, files=created_outputs)) else {}),
+                **({"outbound": record} if (record := outbound_record(
+                    check_notes.answer_for_receiver({"answer": answer, "host_answer": host_answer}, payload),
+                    payload, files=created_outputs)) else {}),
             },
         )
         # 사실 뽑기 (P2). 실패해도 대화는 끝난 것이다 — 안에서 다 삼킨다.
@@ -5474,6 +5695,12 @@ class JarvisRuntime:
             assistant_message_id,
             code_workspace=code_workspace,
         )
+        # 대화 제목 (2026-10-26) — 사람이 화면에서 시킨 대화의 첫 답만. 바깥 AI 가 맡긴 판 · 측정 판은 안 짓는다(모델 자리만 먹는다).
+        if str(payload.get("origin") or "") == "workspace" and not payload.get("measurement"):
+            try:
+                self._title_soon(session_id, display_prompt, answer)
+            except Exception:  # noqa: BLE001 — 제목은 덤이다
+                pass
         presentation = self._present(
             job=job,
             content=answer,
@@ -5485,6 +5712,8 @@ class JarvisRuntime:
         result = {
             **({"delegated": self._finish_delegated(delegated, display_prompt, agent_trace)} if delegated else {}),
             "answer": answer,
+            # 대조 덩어리까지 든 답(창에 보인 답과 다를 때만) — 바깥 AI 는 이것을 받는다(`outbound.outbound_job_view`).
+            **({"host_answer": host_answer} if host_answer and host_answer != answer else {}),
             "presentation": presentation,
             "session_id": session_id,
             "camera_observation": observation,

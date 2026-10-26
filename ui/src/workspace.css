@@ -621,6 +621,8 @@
 .step-tool { color: rgb(var(--text-2)); font-family: var(--font-mono); }
 .step-message { min-width: 0; overflow: hidden; color: rgb(var(--text-3)); text-overflow: ellipsis; white-space: nowrap; }
 .step-empty { color: rgb(var(--text-4)); font-size: var(--fs-1); }
+/* 걸음 줄의 세 칸(20px 아이콘 · 도구 · 내용) 규칙을 빈 줄이 물려받으면 글이 20px 칸에 갇혀 한 글자씩 세로로 꺾인다(2026-10-26 Claude 첫 판). */
+.trajectory-steps li.step-empty { display: block; }
 
 /* 결정은 화면을 덮지 않는다. 자기가 벌어진 자리에서 자란다 — 덮으면 무엇에 대한
    결정인지가 화면에서 사라진다(그게 예전 방식이었다). */
@@ -954,6 +956,13 @@ select:focus-visible,
 /* 확인하지 못한 것 — 초록(확인됨) 옆의 노랑. 경고 상자가 아니라 같은 줄의 다른 색이다. */
 .computer-plan li.unsure span { color: rgb(var(--hold-bright)); }
 .computer-plan li.unsure em { color: rgb(var(--hold-bright) / .75); }
+/* 한 번도 안 연 곳의 줄 — 「시킨 것」 아래 노란 한 줄(.agent-screen-warn 과 같은 색), 펼치면 어느 줄인지. */
+.computer-unopened { margin-top: 6px; }
+.computer-unopened > summary { padding: 6px 9px; display: flex; align-items: center; gap: 7px; border-radius: var(--r-1); color: rgb(var(--hold-bright)); background: rgb(var(--signal) / 0.1); font-size: var(--fs-1); cursor: pointer; list-style: none; }
+.computer-unopened > summary::-webkit-details-marker { display: none; }
+.computer-unopened > summary span { min-width: 0; flex: 1; }
+.computer-unopened ul { margin-top: 4px; padding-left: 4px; }
+.computer-unopened li span { color: rgb(var(--hold-bright)); }
 /* 답 아래 접힌 한 줄 — 「확인할 것 2」. 답 본문보다 조용하게, 펼치면 서버가 보낸 문장이 나온다. */
 .message-body > details.message-checks { margin: 10px 0 0; font-size: var(--fs-1); color: rgb(var(--text-4)); }
 .message-checks > summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: rgb(var(--hold-bright) / .85); list-style: none; user-select: none; }
@@ -2230,3 +2239,58 @@ button.code-think-raw:disabled { cursor: default; opacity: .6; }
 .message-unfinished > button { padding: 0; border: 0; background: none; color: rgb(var(--signal-bright)); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .message-unfinished > button:hover { color: rgb(var(--text-1)); }
 .message-unfinished > button:focus-visible { outline: 2px solid rgb(var(--brand) / .6); outline-offset: 2px; border-radius: var(--r-0); }
+
+/* ── 앱 안의 Claude Agent (2026-10-26 · 시안 generated_reports/claude_hands_mockup_1026) ─────────────────────
+   주황 = 클로드(`--origin-claude`) · 보라 = 손자리(`--brand`). 공식 로고는 안 쓴다 — 점 하나와 이름을 늘 함께. */
+.brain-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; }
+.brain-dot.claude { background: rgb(var(--origin-claude)); }
+.brain-dot.local { background: rgb(var(--brand)); }
+.pilot-model-trigger .brain-dot { margin-right: 2px; }
+.local-model-divider.brain-group { display: flex; justify-content: space-between; gap: 8px; }
+.local-model-divider.brain-group em { font-style: normal; opacity: .75; }
+.brain-claude-options { border-top: 1px solid rgb(var(--line)); margin-top: 6px; padding-top: 4px; }
+.brain-claude-options strong { display: inline-flex; align-items: center; gap: 7px; }
+.brain-claude-options > button:disabled { opacity: .5; cursor: not-allowed; }
+.brain-key-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 4px 2px; padding: 8px 10px;
+  border-radius: var(--r-1); background: rgb(var(--surface-2)); color: rgb(var(--text-3)); font-size: var(--fs-1);
+}
+.brain-key-row.ok span { color: rgb(var(--ok-bright)); }
+.brain-key-row button {
+  flex: none; border: 1px solid rgb(var(--origin-claude) / .55); background: rgb(var(--origin-claude) / .12);
+  color: rgb(var(--text-1)); border-radius: 999px; padding: 3px 10px; font-size: var(--fs-1); cursor: pointer;
+}
+.brain-key-row button:disabled { opacity: .6; cursor: wait; }
+
+/* 눈금자의 두 손 — 클로드 걸음은 주황 점선 테두리(속은 비움), 손자리 걸음은 보라 칠. */
+.tick.actor-claude i { background: transparent; border: 1px dashed rgb(var(--origin-claude) / .85); }
+.tick.actor-claude i u { color: rgb(var(--origin-claude)); }
+.tick.actor-local i { background: rgb(var(--brand) / .22); border-color: rgb(var(--brand) / .6); }
+.tick.actor-local i u { color: rgb(var(--brand-bright)); }
+.tick.actor-claude.on i, .tick.actor-local.on i { outline: 2px solid rgb(var(--m-text-1)); outline-offset: 1px; }
+.tick.actor-claude.on i u { color: rgb(var(--origin-claude)); }
+.tick.actor-local.on i u { color: rgb(var(--brand-bright)); }
+.scrub-seam { flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 2px; }
+.scrub-seam::before { content: ""; flex: 1; width: 2px; border-radius: 2px; background: linear-gradient(rgb(var(--origin-claude)), rgb(var(--brand))); }
+.scrub-seam span { font-size: 9px; line-height: 1; color: rgb(var(--m-text-2)); white-space: nowrap; }
+.scrub-legend { display: inline-flex; gap: 10px; color: rgb(var(--m-text-3)); }
+.scrub-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+
+/* 「손자리가 받았습니다」 — 클로드에서 손자리로 넘어가는 띠. */
+.handoff-card {
+  margin: 0 0 10px; padding: 11px 14px; border-radius: var(--r-2); color: rgb(var(--m-text-1));
+  background: linear-gradient(90deg, rgb(var(--origin-claude) / .16), rgb(var(--brand-dim) / .55));
+  border: 1px solid rgb(var(--brand) / .45);
+}
+.handoff-card strong { display: flex; align-items: center; gap: 8px; font-size: var(--fs-2); }
+.handoff-card span { display: block; margin-top: 2px; font-size: var(--fs-1); color: rgb(var(--m-text-2)); }
+.handoff-card span.handoff-card-sub { color: rgb(var(--m-text-3)); }
+.handoff-card em { display: block; margin-top: 4px; font-style: normal; font-size: var(--fs-1); color: rgb(var(--m-text-3)); }
+.handoff-card.done { border-color: rgb(var(--ok) / .45); background: linear-gradient(90deg, rgb(var(--brand-dim) / .45), rgb(var(--ok-dim) / .45)); }
+.handoff-card.failed { border-color: rgb(var(--stop) / .45); }
+
+/* 답 아래 영수증 줄 — CLI 가 준 값만. */
+.claude-receipt { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; font-family: var(--font-mono); font-size: var(--fs-1); color: rgb(var(--text-4)); }
+.claude-receipt i { display: inline-flex; align-items: center; gap: 5px; font-style: normal; }
+.message-claude-mark { width: 10px; height: 10px; }
+.scrub-legend, .scrub-legend span { letter-spacing: 0; font-family: var(--font-ui); }
