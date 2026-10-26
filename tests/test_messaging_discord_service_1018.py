@@ -126,7 +126,8 @@ def _service(tmp_path: Path, *, store: MemoryCredentialStore | None = None, disc
 
     service = DiscordService(_config(tmp_path), store=store or MemoryCredentialStore(), http=discord or FakeDiscord(),
                              clipboard=clipboard or FakeClipboard(""), compose=compose or fake_compose,
-                             installed=lambda: True, lang=lambda: "ko", retry_delays=(0.01,))
+                             installed=lambda: True, lang=lambda: "ko", retry_delays=(0.01,),
+                             sleep=lambda _seconds: None)
     service.composed = composed  # type: ignore[attr-defined]
     return service
 

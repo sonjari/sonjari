@@ -1,0 +1,160 @@
+{
+ "_about": "장표 결에 넣은 오픈 글꼴(전부 SIL OFL 1.1). 만든 곳이 배포한 파일을 그대로 넣었다 — 서브셋 · 이름 바꾸기 없음(예약 이름 없는 고운 둘만 woff2 로 꼴 바꿈 — converted_from). @font-face 는 이 표에서 만든다(slides_style.font_face_css). 파일 옆 OFL.txt 가 저작권 줄과 라이선스 원문. 받은 날 2026-10-26.",
+ "families": [
+  {
+   "family": "Pretendard",
+   "version": "1.3.9 (Version 1.309)",
+   "rfn": "Pretendard",
+   "copyright": "Copyright (c) 2021, Kil Hyung-jin (https://github.com/orioncactus/pretendard), with Reserved Font Name Pretendard.",
+   "source": "https://github.com/orioncactus/pretendard/releases/download/v1.3.9/Pretendard-1.3.9.zip (web/static/woff2 · LICENSE.txt)",
+   "faces": [
+    {
+     "file": "pretendard/Pretendard-Regular.woff2",
+     "weight": 400,
+     "bytes": 765892,
+     "sha256": "fad853f7f47c6c8b103171e7193fa095708cdcd70850a71d93aa5379e8a61d63",
+     "url": "Pretendard-1.3.9.zip!web/static/woff2/Pretendard-Regular.woff2"
+    },
+    {
+     "file": "pretendard/Pretendard-Bold.woff2",
+     "weight": 700,
+     "bytes": 791156,
+     "sha256": "4609c3356e536fafe38f4add0daeceb3d8595d3057bce13c428c33ddbd43d362",
+     "url": "Pretendard-1.3.9.zip!web/static/woff2/Pretendard-Bold.woff2"
+    }
+   ],
+   "license": "pretendard/OFL.txt"
+  },
+  {
+   "family": "IBM Plex Sans KR",
+   "version": "@ibm/plex-sans-kr 1.1.0 (Version 1.003)",
+   "rfn": "Plex",
+   "copyright": "Copyright © 2017 IBM Corp. with Reserved Font Name \"Plex\"",
+   "source": "https://github.com/IBM/plex/releases/download/%40ibm/plex-sans-kr%401.1.0/ibm-plex-sans-kr.zip (fonts/complete/woff2/hinted · LICENSE.txt — google/fonts ofl/ibmplexsanskr/OFL.txt 와 같은 글)",
+   "faces": [
+    {
+     "file": "ibm-plex-sans-kr/IBMPlexSansKR-Regular.woff2",
+     "weight": 400,
+     "bytes": 438540,
+     "sha256": "055a35664c3c3965161c92292504c5633ba9604ec904edc1ed799bf2a436276d",
+     "url": "ibm-plex-sans-kr.zip!ibm-plex-sans-kr/fonts/complete/woff2/hinted/IBMPlexSansKR-Regular.woff2"
+    },
+    {
+     "file": "ibm-plex-sans-kr/IBMPlexSansKR-Bold.woff2",
+     "weight": 700,
+     "bytes": 370492,
+     "sha256": "cf874a368dc2c2c0e4d1933c35611b849e48942023bfdd1fa11128475dbc4860",
+     "url": "ibm-plex-sans-kr.zip!ibm-plex-sans-kr/fonts/complete/woff2/hinted/IBMPlexSansKR-Bold.woff2"
+    }
+   ],
+   "license": "ibm-plex-sans-kr/OFL.txt"
+  },
+  {
+   "family": "Paperlogy",
+   "version": "1.001",
+   "rfn": "",
+   "copyright": "Copyright 2024 The PAPERLOGY Authors (https://freesentation.blog/paperlogy)",
+   "source": "https://freesentation.blog/paperlogyfont → https://github.com/Freesentation/paperlogy (커밋 8ef35f53 · woff2/ · OFL license.txt)",
+   "faces": [
+    {
+     "file": "paperlogy/Paperlogy-4Regular.woff2",
+     "weight": 400,
+     "bytes": 438072,
+     "sha256": "4b2e0fda1132919826d68682f13868f217cc26fafc073c390cfc06ab9073b7ed",
+     "url": "https://github.com/Freesentation/paperlogy/raw/refs/heads/main/woff2/Paperlogy-4Regular.woff2"
+    },
+    {
+     "file": "paperlogy/Paperlogy-7Bold.woff2",
+     "weight": 700,
+     "bytes": 440468,
+     "sha256": "39daa190bc0ccaa7dfe8bb55716953fc56acdad812da6701a6e31a4a051173af",
+     "url": "https://github.com/Freesentation/paperlogy/raw/refs/heads/main/woff2/Paperlogy-7Bold.woff2"
+    }
+   ],
+   "license": "paperlogy/OFL.txt"
+  },
+  {
+   "family": "Gowun Dodum",
+   "version": "Version 2.000",
+   "rfn": "",
+   "copyright": "Copyright 2021 The Gowun Dodum Project Authors (https://github.com/yangheeryu/Gowun-Dodum)",
+   "source": "https://github.com/google/fonts/tree/main/ofl/gowundodum (커밋 c1eda923 · 원 저장소 yangheeryu/Gowun-Dodum 과 같은 크기) — 굵기는 Regular 하나뿐",
+   "faces": [
+    {
+     "file": "gowun-dodum/GowunDodum-Regular.woff2",
+     "weight": 400,
+     "bytes": 665536,
+     "sha256": "e9a509a9f93da14481d9c971a39ab6a12510128ae3e23908a56b9d50d2267a78",
+     "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/gowundodum/GowunDodum-Regular.ttf",
+     "converted_from": {
+      "file": "GowunDodum-Regular.ttf",
+      "bytes": 7229088,
+      "sha256": "a6e457933227483a11758fd0947bc74422a106d46f0bf057fdaa5af94a30067d",
+      "note": "fontTools 4.63 woff2.compress(transform_tables 없음 — 풀기가 빨라 PPTX 심기에 씀)로 꼴만 바꿈 · 글리프 · 글자표 그대로 · 예약 이름 없는 글꼴이라 OFL 상 허용 · 2026-10-26"
+     }
+    }
+   ],
+   "license": "gowun-dodum/OFL.txt"
+  },
+  {
+   "family": "Gowun Batang",
+   "version": "Version 2.000",
+   "rfn": "",
+   "copyright": "Copyright 2021 The Gowun Batang Project Authors (https://github.com/yangheeryu/Gowun-Batang)",
+   "source": "https://github.com/google/fonts/tree/main/ofl/gowunbatang (커밋 c1eda923)",
+   "faces": [
+    {
+     "file": "gowun-batang/GowunBatang-Regular.woff2",
+     "weight": 400,
+     "bytes": 772184,
+     "sha256": "36e9323516128390f98f403b9ed885a624258c862234ffcb6acdaa024b243541",
+     "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/gowunbatang/GowunBatang-Regular.ttf",
+     "converted_from": {
+      "file": "GowunBatang-Regular.ttf",
+      "bytes": 8433296,
+      "sha256": "466c593e7147412e748af4856d5ad14709b5a860bdf62b9c2546f2c5874e9849",
+      "note": "fontTools 4.63 woff2.compress(transform_tables 없음 — 풀기가 빨라 PPTX 심기에 씀)로 꼴만 바꿈 · 글리프 · 글자표 그대로 · 예약 이름 없는 글꼴이라 OFL 상 허용 · 2026-10-26"
+     }
+    },
+    {
+     "file": "gowun-batang/GowunBatang-Bold.woff2",
+     "weight": 700,
+     "bytes": 720932,
+     "sha256": "298fa648799b579949322b85478460aa0e1a6b39b9ec51a6614c4d2682dfa5ee",
+     "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/gowunbatang/GowunBatang-Bold.ttf",
+     "converted_from": {
+      "file": "GowunBatang-Bold.ttf",
+      "bytes": 8178712,
+      "sha256": "dbfcaa646e5831e7478524924f02906f550285a5050699b4e38c9950b3ec4b94",
+      "note": "fontTools 4.63 woff2.compress(transform_tables 없음 — 풀기가 빨라 PPTX 심기에 씀)로 꼴만 바꿈 · 글리프 · 글자표 그대로 · 예약 이름 없는 글꼴이라 OFL 상 허용 · 2026-10-26"
+     }
+    }
+   ],
+   "license": "gowun-batang/OFL.txt"
+  },
+  {
+   "family": "SUIT",
+   "version": "v2.0.5 (Version 2.040)",
+   "rfn": "SUIT",
+   "copyright": "Copyright (c) 2022, SUNN (http://sun.fo/suit), with Reserved Font Name SUIT.",
+   "source": "https://github.com/sun-typeface/SUIT/releases/download/v2.0.5/SUIT-woff2.zip (SUIT-Regular · SUIT-Bold · LICENSE)",
+   "faces": [
+    {
+     "file": "suit/SUIT-Regular.woff2",
+     "weight": 400,
+     "bytes": 167672,
+     "sha256": "7a1971b4e54d6d797f105f2d8ad2fc5f5d6fd532195f582d74f4403177e83185",
+     "url": "SUIT-woff2.zip!SUIT-Regular.woff2"
+    },
+    {
+     "file": "suit/SUIT-Bold.woff2",
+     "weight": 700,
+     "bytes": 171380,
+     "sha256": "044e7df5d44e38ea371e9d808165fdec8d05257589bdad21da8f3b79ad4000de",
+     "url": "SUIT-woff2.zip!SUIT-Bold.woff2"
+    }
+   ],
+   "license": "suit/OFL.txt"
+  }
+ ]
+}

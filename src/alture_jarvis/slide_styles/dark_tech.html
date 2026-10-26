@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>dark_tech · 暗黑科技 · World-Class Mock</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800;900&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg-primary: #050b1f;
+    --bg-secondary: #0a1f3d;
+    --card-bg-from: rgba(34,211,238,0.08);
+    --card-bg-to: rgba(99,102,241,0.04);
+    --card-border: rgba(34,211,238,0.2);
+    --card-radius: 8px;
+    --text-primary: #FFFFFF;
+    --text-secondary: rgba(255,255,255,0.65);
+    --accent-1: #22D3EE;
+    --accent-2: #3B82F6;
+    --accent-3: #6366f1;
+    --accent-4: #FDE047;
+    --display-font: 'Inter Tight', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --body-font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --serif-italic-font: 'Instrument Serif', 'Fraunces', Georgia, serif;
+    --mono-font: 'JetBrains Mono', 'DM Mono', 'Courier New', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 720px; overflow: hidden; }
+  body {
+    background: radial-gradient(ellipse 100% 80% at 50% -20%, var(--bg-secondary) 0%, var(--bg-primary) 50%, var(--bg-primary) 100%);
+    color: var(--text-primary);
+    font-family: var(--body-font);
+    font-feature-settings: 'ss01', 'cv11', 'calt', 'kern', 'liga';
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    position: relative;
+  }
+
+  /* 极光辉光（双层 radial-gradient） */
+  .aurora-glow {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 80% 30%, rgba(99, 102, 241, 0.35) 0%, transparent 40%),
+      radial-gradient(circle at 20% 70%, rgba(34, 211, 238, 0.25) 0%, transparent 35%);
+    filter: blur(60px);
+    pointer-events: none;
+  }
+
+  /* 网格点阵 */
+  .grid-dot {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 80px 80px;
+    pointer-events: none;
+  }
+
+  /* 底部纤细辉光线 */
+  .bottom-line {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-1), transparent);
+    opacity: 0.5;
+  }
+
+  /* L 形角标装饰线 */
+  .corner-tl { position: absolute; top: 22px; left: 22px; width: 24px; height: 24px; border-top: 1px solid rgba(34,211,238,0.4); border-left: 1px solid rgba(34,211,238,0.4); }
+  .corner-br { position: absolute; bottom: 22px; right: 22px; width: 24px; height: 24px; border-bottom: 1px solid rgba(34,211,238,0.4); border-right: 1px solid rgba(34,211,238,0.4); }
+
+  /* 主容器 */
+  .stage {
+    position: relative;
+    width: 100%; height: 100%;
+    padding: 60px 80px;
+    display: flex; flex-direction: column;
+    z-index: 2;
+  }
+
+  /* 顶部导航 */
+  .top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 60px;
+  }
+  .logo {
+    font-family: var(--display-font);
+    font-size: 14px; font-weight: 700; letter-spacing: -0.02em;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-mark {
+    width: 20px; height: 20px; border-radius: 5px;
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-3));
+    box-shadow: 0 0 12px rgba(34,211,238,0.4);
+  }
+  .nav {
+    font-family: var(--mono-font);
+    font-size: 11px; opacity: 0.6;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    display: flex; gap: 24px;
+  }
+
+  /* PART label 带脉冲圆点 */
+  .label {
+    font-family: var(--body-font);
+    font-size: 11px; letter-spacing: 0.18em;
+    color: var(--accent-1);
+    font-weight: 600;
+    text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .label::before {
+    content: '';
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-1);
+    box-shadow: 0 0 10px currentColor;
+  }
+
+  /* 主标题（含 serif italic 混排） */
+  .headline {
+    font-family: var(--display-font);
+    font-size: 84px; font-weight: 700;
+    letter-spacing: -0.045em; line-height: 0.95;
+    margin-top: 24px;
+    background: linear-gradient(180deg, #fff 0%, rgba(255,255,255,0.7) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .headline em {
+    font-family: var(--serif-italic-font);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    background: linear-gradient(180deg, var(--accent-1) 0%, var(--accent-2) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* 副标题 */
+  .deck {
+    font-family: var(--body-font);
+    font-size: 17px; line-height: 1.55;
+    color: var(--text-secondary);
+    max-width: 620px;
+    margin-top: 24px;
+    letter-spacing: -0.005em;
+  }
+
+  /* 数据卡片群 */
+  .stats {
+    display: flex; gap: 56px;
+    margin-top: 60px;
+  }
+  .stat {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .stat .num {
+    font-family: var(--display-font);
+    font-size: 44px; font-weight: 700;
+    font-variant-numeric: tabular-nums proportional-nums;
+    letter-spacing: -0.035em;
+    line-height: 1;
+  }
+  .stat .num em {
+    font-family: var(--serif-italic-font);
+    font-style: italic;
+    color: var(--accent-1);
+    font-weight: 400;
+    margin-left: 2px;
+  }
+  .stat .l {
+    font-family: var(--body-font);
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* 右下角进度环 */
+  .progress-ring {
+    position: absolute;
+    bottom: 80px; right: 80px;
+    width: 130px; height: 130px;
+    z-index: 3;
+  }
+  .progress-ring svg {
+    width: 100%; height: 100%;
+  }
+  .progress-ring .ring-text {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  .progress-ring .ring-text .v {
+    font-family: var(--display-font);
+    font-size: 26px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    color: var(--accent-1);
+  }
+  .progress-ring .ring-text .l {
+    font-family: var(--body-font);
+    font-size: 9px; color: var(--text-secondary);
+    letter-spacing: 0.15em; text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* 底部页脚 */
+  .footer {
+    position: absolute; bottom: 18px; left: 80px; right: 80px;
+    display: flex; justify-content: space-between;
+    font-family: var(--body-font);
+    font-size: 10px; opacity: 0.45;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    z-index: 3;
+  }
+</style>
+</head>
+<body>
+  <div class="aurora-glow"></div>
+  <div class="grid-dot"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <div class="bottom-line"></div>
+
+  <div class="stage">
+    <div class="top">
+      <div class="logo">
+        <div class="logo-mark"></div>
+        Aurora Cloud
+      </div>
+      <div class="nav">
+        <span>CHANGELOG</span>
+        <span>DOCS</span>
+        <span>SIGN IN</span>
+      </div>
+    </div>
+
+    <div class="label">Build 2026.05 · Frontier</div>
+    <h1 class="headline">Intelligence,<br><em>at the edge.</em></h1>
+    <p class="deck">分布式推理把模型部署到离用户最近的边缘节点 — 延迟降到 <em style="font-style:italic;font-family:var(--serif-italic-font);color:var(--accent-1);">23 ms</em>，带宽成本下降 <em style="font-style:italic;font-family:var(--serif-italic-font);color:var(--accent-1);">67%</em>，企业上线提速 <em style="font-style:italic;font-family:var(--serif-italic-font);color:var(--accent-1);">8 倍</em>。</p>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="num">23<em>ms</em></div>
+        <div class="l">P99 LATENCY</div>
+      </div>
+      <div class="stat">
+        <div class="num">67<em>%</em></div>
+        <div class="l">COST REDUCED</div>
+      </div>
+      <div class="stat">
+        <div class="num">99.99<em>%</em></div>
+        <div class="l">UPTIME SLA</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右下角进度环 -->
+  <div class="progress-ring">
+    <svg viewBox="0 0 130 130">
+      <circle cx="65" cy="65" r="55" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6"/>
+      <circle cx="65" cy="65" r="55" fill="none" stroke="url(#ring-gradient)" stroke-width="6" stroke-dasharray="259 345" stroke-linecap="round" transform="rotate(-90 65 65)"/>
+      <defs>
+        <linearGradient id="ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#22D3EE"/>
+          <stop offset="100%" stop-color="#6366f1"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <div class="ring-text">
+      <div class="v">75%</div>
+      <div class="l">CACHE HIT</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>PART 02 — INTELLIGENCE INFRASTRUCTURE</span>
+    <span>03 / 12  ·  AURORA CLOUD</span>
+  </div>
+</body>
+</html>

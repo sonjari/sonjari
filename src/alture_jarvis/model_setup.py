@@ -63,6 +63,34 @@ CONTEXT_REFINE = False
 CONTEXT_MIN_SPEED_SHARE = 0.7
 #: 두 배 칸 사이를 좁힐 때의 눈금. 이보다 잘게 재 봐야 차이가 없고 적재만 늘어난다.
 CONTEXT_STEP = 4096
+#: 「더 쥐어짜기」(설정 화면에서 사람이 누를 때만 · 2026-10-25 대표). 처음 재기는 둥근 칸 다섯 개 그대로 두고,
+#: 잰 기록의 **합격 칸과 첫 불합격 칸 사이만** 반으로 두 번 더 올려 본다. 09-23 의 4K 이분 탐색은 128K → 256K 사이에서
+#: 다섯 번 더 올려 느렸다(09-29 되돌림). 두 번이면 이 PC(모델 한 번 올리기 7~20초)에서 30~40초 더.
+#: 득이 큰 곳은 16GB 카드처럼 「32K 합격 · 64K 불합격」인 PC — 48K · 56K 를 건진다.
+SQUEEZE_PROBES = 2
+SQUEEZE_STEP = 8192
+#: 올려 보고 그래픽카드에 다 안 들어간 것 — 이것만 「그 칸은 안 들어간다」의 증거다. 올리다 시간이 다 된 것 · 서버 무응답은 아니다.
+FIT_REASONS = frozenset({"not_fully_on_gpu", "context_clamped", "too_slow", "model_out_of_memory"})
+
+
+def squeeze_gap(record: dict[str, Any]) -> tuple[int, int] | None:
+    """잰 기록에서 (합격 상한, 그 위 첫 불합격 칸). 좁힐 사이가 없으면 None."""
+    ceiling = int(record.get("ceiling") or 0)
+    if not ceiling:
+        return None
+    above = [int(step.get("num_ctx") or 0) for step in record.get("steps") or []
+             if not step.get("passed") and int(step.get("num_ctx") or 0) > ceiling and step.get("why") in FIT_REASONS]
+    if not above:
+        return None
+    high = min(above)
+    if _squeeze_mid(ceiling, high) == 0:
+        return None
+    return ceiling, high
+
+
+def _squeeze_mid(low: int, high: int) -> int:
+    middle = (low + high) // 2 // SQUEEZE_STEP * SQUEEZE_STEP
+    return middle if low < middle < high else 0
 #: Ollama 모델 이름 모양 — `이름[:태그]`, 이름에 `네임스페이스/` 한 번. 셸·경로 문자는 받지 않는다.
 # ★ 2026-10-01 헤르메스 비교 중 발견: Ollama 는 `hf.co/작성자/저장소:양자화` 로 허깅페이스 GGUF 를 바로 받는데,
 #   이 검사가 슬래시 둘·대문자 때문에 거절해 「직접 입력」으로 그 길이 막혀 있었다. 허깅페이스 주소만 대소문자를 받는다.
@@ -159,7 +187,7 @@ def way_out(failed_key: str, *, installed: set[str] | None = None, snapshot: dic
 
     모르는 것은 모른다고 준다(None). 「들어갑니다」는 잰 값이 있을 때만 말한다. 못 읽으면 빈 dict — 화면은 예전 글을 쓴다.
     """
-    from .setup_profile import BASE_RESERVE_GB, smaller_that_fits
+    from .setup_profile import BASE_RESERVE_GB, smaller_choice
 
     model = by_key(failed_key)
     if model is None or not model.vram_gb:
@@ -180,12 +208,13 @@ def way_out(failed_key: str, *, installed: set[str] | None = None, snapshot: dic
         },
         "smaller": None,
     }
-    pick = smaller_that_fits(free, failed_key)
+    # 글만 읽기 칸도 본다(2026-10-26 · 16GB 에서 Swift 가 안 들어가면 Qwen3.6 2비트 · 글만 읽기) — 화면은 `text_only` 면 그림을 끄고 적용한다.
+    pick = smaller_choice(free, failed_key)
     if pick is not None:
-        smaller, ctx, need = pick
+        smaller, ctx, need, text_only = pick
         tags = {_bare_tag(tag) for tag in installed or ()}
         out["smaller"] = {
-            "model_key": smaller.key, "name": smaller.name, "num_ctx": ctx, "needs_gb": need,
+            "model_key": smaller.key, "name": smaller.name, "num_ctx": ctx, "needs_gb": need, "text_only": text_only,
             "download_gb": smaller.download_gb, "installed": _bare_tag(smaller.ollama_tag) in tags,
             "weak_at": smaller.weak_at, "good_at": smaller.good_at,
         }
@@ -536,7 +565,7 @@ class SetupService:
         self.last_bench = result
         return result
 
-    def start_pull(self, model_key: str, apply_ctx: int = 0) -> dict[str, Any]:
+    def start_pull(self, model_key: str, apply_ctx: int = 0, eyes: bool | None = None) -> dict[str, Any]:
         """받기 시작. `apply_ctx` 를 주면 **다 받은 뒤 백엔드가 바로 적용한다.**
 
         ★ 2026-09-16 노트북 첫 설치: 적용을 **마법사 화면이** 받기 끝나기를 지켜보다 했다. 「받는 동안 다음으로」 →
@@ -555,7 +584,8 @@ class SetupService:
             state = {"model_key": model_key, "status": "pulling", "completed": 0, "total": 0,
                      "detail": "시작합니다", "started_at": time.time()}
             self._pulls[model_key] = state
-        after = (lambda: self.apply(model_key, int(apply_ctx))) if apply_ctx else None
+        # `eyes=False` 면 받은 뒤 그림 부속을 뗀 채(글만 읽기)로 적용한다 — 「안 들어가면 작은 모델」의 글만 읽기 칸(2026-10-26).
+        after = (lambda: self.apply(model_key, int(apply_ctx), eyes=eyes)) if apply_ctx else None
         threading.Thread(target=self._pull, args=(model_key, model.ollama_tag, after), daemon=True).start()
         return {"ok": True, **state}
 
@@ -683,6 +713,21 @@ class SetupService:
             self._post(f"{self.base_url}/api/generate", {"model": tag, "keep_alive": 0, "prompt": ""}, 60.0)
         except Exception:  # noqa: BLE001 — 안 떠 있었으면 내릴 것도 없다
             pass
+
+    def _unload_others(self, tag: str) -> list[str]:
+        """같은 Ollama 에 올라와 있는 **다른** 모델을 내린다. 내린 이름들 — 못 읽으면 빈 목록(재기는 그대로 간다)."""
+        try:
+            rows = (self._get(f"{self.base_url}/api/ps") or {}).get("models") or []
+        except Exception:  # noqa: BLE001
+            return []
+        unloaded: list[str] = []
+        for row in rows:
+            name = str(row.get("name") or row.get("model") or "")
+            if not name or _bare_tag(name) == _bare_tag(tag) or self._same_model_file(row, tag):
+                continue
+            self._unload(name)
+            unloaded.append(name)
+        return unloaded
 
     def _measure_and_save(self, tag: str, ctx: int, previous: str, *, catalog_key: str, vision: bool,
                           status: str, remembered_first: bool = False) -> dict[str, Any]:
@@ -1066,6 +1111,64 @@ class SetupService:
         finally:
             self._apply_lock.release()
 
+    def squeeze_context_ceiling(self, tag: str | None = None, *,
+                                busy: Callable[[], bool] | None = None) -> dict[str, Any]:
+        """잰 기록의 합격 칸과 첫 불합격 칸 사이를 **두 번만** 더 올려 본다(`SQUEEZE_PROBES` · 사람이 누를 때만).
+
+        처음부터 다시 재지 않는다 — 이미 잰 칸은 사실이다. 끝나면 **지금 적용된 크기**로 다시 올려 둔다(재기와 적용은 따로).
+        """
+        if self.is_satellite:
+            return {"ok": False, "error": "satellite_uses_brain_models"}
+        tag = str(tag or self.config.model_for("chat") or "").strip()
+        if not OLLAMA_TAG.fullmatch(tag):
+            return {"ok": False, "error": "bad_tag"}
+        record = read_ceilings(Path(self.config.data_dir)).get(tag) or {}
+        if not record.get("measured_at"):
+            return {"ok": False, "error": "not_measured"}
+        gap = squeeze_gap(record)
+        if gap is None:
+            return {"ok": False, "error": "nothing_to_squeeze"}
+        if busy is not None and busy():
+            return {"ok": False, "error": "busy"}
+        if not self._apply_lock.acquire(blocking=False):
+            return {"ok": False, "error": "already_measuring"}
+        try:
+            steps = [dict(step) for step in record.get("steps") or []]
+            baseline = float(record.get("baseline_tokens_per_sec") or 0.0)
+            self.context_live = {"model": tag, "model_max": record.get("model_max"), "steps": steps, "loading": 0}
+            started = time.monotonic()
+            low, high = gap
+            stopped = "squeezed"
+            for _ in range(SQUEEZE_PROBES):
+                middle = _squeeze_mid(low, high)
+                if not middle:
+                    break
+                step = self._probe(tag, middle, steps, baseline)
+                if step["passed"]:
+                    low = middle
+                elif step.get("why") in FIT_REASONS:
+                    high = middle
+                else:
+                    # 올리지도 못했다 — 그 칸이 안 들어간다는 증거가 아니다. 거기서 멈추고 아는 것만 남긴다.
+                    stopped = str(step.get("why") or "load_failed")
+                    break
+            self.context_live["loading"] = -1
+            self._unload(tag)
+            applied = int(getattr(self.config, "ollama_num_ctx", 0) or 0)
+            passed = {int(step.get("num_ctx") or 0) for step in steps if step.get("passed")}
+            micro_bench(self.base_url, tag, applied if applied in passed else low, post=self._post,
+                        keep_alive=str(getattr(self.config, "ollama_keep_alive", "") or "30m"))
+            result = {**record, "ok": True, "ceiling": low, "steps": steps,
+                      "squeezed": {"from": gap[0], "to": low, "below": high, "stopped": stopped,
+                                   "took_sec": round(time.monotonic() - started, 1),
+                                   "at": time.strftime("%Y-%m-%dT%H:%M:%S")}}
+            _remember_ceiling(Path(self.config.data_dir), result)
+            self._publish("setup_context_measured", {k: v for k, v in result.items() if k != "steps"})
+            return result
+        finally:
+            self.context_live = None
+            self._apply_lock.release()
+
     def _probe(self, tag: str, ctx: int, steps: list[dict[str, Any]], baseline: float) -> dict[str, Any]:
         """한 칸: 내리고 → 그 컨텍스트로 실제 생성 → `/api/ps` 로 그래픽카드 비율·잡힌 컨텍스트를 본다."""
         self._publish("setup_context_probe", {"model": tag, "num_ctx": ctx, "phase": "loading"})
@@ -1074,6 +1177,12 @@ class SetupService:
         # 같은 모델이라도 컨텍스트가 다르면 Ollama 는 러너를 새로 띄워야 한다. 스스로 교체를 시작조차 안 한
         # 전례가 있어(8/31) 먼저 내린다 — 이 파일 머리말 2번.
         self._unload(tag)
+        # ★ 같은 Ollama 에 **다른 앱이 올려 둔 모델**도 내리고 잰다 (2026-10-25 대표 · 실사용자 PC). 같은 PC 의 다른 앱이 생각 글 번역에
+        #   `translategemma:4b`(3.3GB)를 같은 Ollama 에 올린다. 그대로 두고 재면 27B 가 그만큼 모자라 「다 못 올림」 → 9B 로 내려갔을 수 있다.
+        #   대화 부르기는 이미 그렇게 한다(`ollama._make_room_for` — Ollama 는 스스로 내리지 않는다 · 08-31 실측). 다른 앱은 다음에 부를 때 다시 올린다.
+        made_room = self._unload_others(tag)
+        if made_room:
+            self._publish("setup_context_probe", {"model": tag, "phase": "made_room", "unloaded": made_room})
         bench = micro_bench(self.base_url, tag, ctx, post=self._post, keep_alive="10m")
         if not bench.get("ok"):
             step = {"num_ctx": ctx, "passed": False, "why": why_apply_failed(bench),
@@ -1163,7 +1272,9 @@ class SetupService:
             "measured_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         }
         if not ceiling:
-            result["error"] = "no_context_fits"
+            # ★ 2026-10-25: 첫 칸이 **올라가지도 못한 것**(시간 초과 · 서버 무응답 · 로드 실패)을 「가장 작은 칸도 안 들어감 —
+            #   더 작은 모델을 권함」으로 말했다. 그 말은 올려 보고 그래픽카드에 다 안 들어갔을 때만 맞다. 나머지는 까닭을 그대로 준다.
+            result["error"] = "no_context_fits" if stopped in FIT_REASONS else "first_rung_failed"
         else:
             result.update(self._card_record(tag, steps))
         _remember_ceiling(Path(self.config.data_dir), result)

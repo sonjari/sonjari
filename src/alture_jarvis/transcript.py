@@ -32,6 +32,7 @@ prefill 한다. 접기는 그 절벽을 **뒤로 미룬다** — 접힌 줄은 �
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from typing import Any
@@ -628,6 +629,51 @@ def _job_context_chars(item: dict[str, Any]) -> int:
     return close + len(JOB_CONTEXT_CLOSE) if close >= 0 else 0
 
 
+# ── 전사는 뒤에 붙기만 한다 (2026-10-24 · 전략안 §55-43) ─────────────────────────────────────────────
+#
+# 본 것(운영 판 셋 · 27B · 창 131,072 · `data/model_calls.jsonl` 의 `prefix_kept` 와 `jarvis.db` 의 보낸 글자 수):
+#
+#     판         전체     지난 기록 그대로        중간부터 바뀜
+#     f6b60f9c   1,274초  23번 · 앞부분 154초     15번 · 552초 (한 번 25~44초)
+#     e9098192     700초  46번 · 164초             6번 · 124초
+#     bf69599d     428초  20번 · 161초             1번 · 14초
+#
+# 까닭은 둘이었다. 둘 다 **이번에 보낼 것을 처음부터 다시 고르는** 규칙이라, 지난번에 원문이던 것이 이번엔 접힌다:
+#   ① 넘침 묶어 접기(위 `pick`) — 「다 들어가는 가장 작은 묶음」을 매번 새로 찾는데, 마지막 묶음이 「최근 4개 빼고 전부」라
+#      그 경계가 결과 하나마다 한 칸씩 미끄러졌다. f6b60f9c 의 15번이 전부 이것이다(보낸 글자 15만 자 → 9만~12만 자로 줄어듦).
+#   ② 길 찾기 묶어 접기(`nav_fold_step`) — 예산이 남아도 결과 8개마다 오래된 스냅샷 · 요소 찾기를 접었다. e9098192 · bf69599d.
+#
+# 그래서 접기를 **상태로** 든다: 한 번 접은 메시지는 다음 부르기에도 똑같이 접고(`fold_state`), 새로 접는 것은 예산을 넘었을
+# 때뿐이며 그때는 예산의 이 비율까지 **한꺼번에** 내린다. 그 사이 부르기는 앞이 글자까지 같고 뒤에 붙기만 한다.
+# 길 찾기도 그때 같이 접는다(개수로 접지 않는다).
+#
+# 함께 견준 안(본문은 따로 두고 처음부터 짧은 요약만): 본문을 처음부터 안 보이면 모델이 그 페이지를 한 번은 다시 열어
+# 읽어야 하고(걸음이 는다), 바뀐 자리를 센 결과 앞이 바뀐 까닭은 본문의 길이가 아니라 「다시 고르기」 규칙이었다. 원본은 지금도
+# `messages` 에 그대로 있고(근거 장부 · 숫자 대조는 그쪽을 본다) 바뀌는 것은 모델에게 보내는 사본뿐이다.
+#
+# 시킨 일 · 이번 판 요청은 예전처럼 따로 지킨다(2026-08-20 쿠팡 판). 접어도 안 들어가면 예전 규칙으로 떨어진다.
+# 되돌리기: 설정 `JARVIS_APPEND_ONLY_TRANSCRIPT=0`(`append_only_enabled`).
+#: 넘쳤을 때 이 비율까지 한꺼번에 내린다. 낮을수록 다음 접기까지 오래 가지만 옛 걸음의 원문을 더 잃는다(계단식 접기와 같은 값).
+APPEND_ONLY_FOLD_TARGET = 0.5
+
+
+def append_only_enabled() -> bool:
+    try:
+        from .config import setting
+
+        return str(setting("JARVIS_APPEND_ONLY_TRANSCRIPT", "1")).strip().lower() not in {"0", "false", "off", "no"}
+    except Exception:  # noqa: BLE001 — 스위치를 못 읽으면 켠 것으로
+        return True
+
+
+def message_sig(item: dict[str, Any]) -> str:
+    """메시지 하나의 서명 — 안쪽 표식(`_` 로 시작하는 칸)은 뺀다. 같은 글이면 같은 서명."""
+    payload = {key: value for key, value in item.items() if not str(key).startswith("_")}
+    return hashlib.sha1(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()[:16]
+
+
 def bounded(
     messages: list[dict[str, Any]],
     *,
@@ -688,6 +734,9 @@ def bounded(
     nav_fold_step: int = 8,
     # 읽은 화면의 한 줄 묶음을 밀려난 것만이 아니라 **전부** 적는다 — 작은 창의 판(`READ_LEDGER_PINNED_LEAD` 의 설명).
     pin_reads: bool = False,
+    # 뒤에 붙기만 하는 전사(`APPEND_ONLY_FOLD_TARGET` 의 설명 · 2026-10-24). 부르는 쪽이 판마다 하나씩 들고 있는 빈 사전을 넘긴다 —
+    # 이번에 접은 메시지를 거기 적어 두고 다음 부르기에도 똑같이 접는다. None 이면 예전 규칙(시험 · 체크포인트).
+    fold_state: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """모델에게 보낼 전사. 예산 안에서 **버리는 대신 접는다.**
 
@@ -751,6 +800,9 @@ def bounded(
     overflow = max(0, len(tool_positions) - keep_recent_tools)
     step = max(1, nav_fold_step)
     nav_fold = set(tool_positions[: (overflow // step) * step])
+    if fold_state is not None:
+        # 뒤에 붙기만 하는 전사에서는 길 찾기도 개수로 접지 않는다 — 넘칠 때 한꺼번에 접는다(`_pick_append_only`).
+        nav_fold = set()
 
     assistant_positions = [
         i for i, item in enumerate(rest)
@@ -762,9 +814,11 @@ def bounded(
     chosen: set[int] = set()
 
     def build(
-        *, compact_code: bool, prefold: frozenset[int] = frozenset(), fold_on_overflow: bool = True,
+        *, compact_code: bool, prefold: frozenset[int] = frozenset(), fold_on_overflow: bool = True, cut: int = 0,
     ) -> tuple[list[dict[str, Any]], bool]:
         """전사를 담는다. 두 번째 값은 **하나도 안 잘렸는가**이다. ``prefold`` 는 미리 접어 둘 도구 결과 자리.
+
+        ``cut`` 앞의 메시지는 담지 않는다(뒤에 붙기만 하는 전사가 한꺼번에 덜어 낸 자리 — 이번 판 요청은 그래도 남긴다).
 
         ``fold_on_overflow=False`` 면 담다가 안 들어가는 것을 그 자리에서 접지 않고 「넘쳤다」(False)를 돌려준다 —
         그 자리 접기가 한 칸씩 미끄러지는 창이었다(아래 묶음 접기 주석).
@@ -780,6 +834,8 @@ def bounded(
             return selected, complete
 
         for index in range(len(rest) - 1, -1, -1):
+            if index < cut:
+                return stop(cut, True)
             item = rest[index]
             saved = {key: value for key, value in item.items() if key != "_metrics"}
             if index in keep_thinking:
@@ -832,8 +888,77 @@ def bounded(
     #
     # 길 찾기(NAVIGATION_TOOLS)는 위 규칙 그대로 둔다 — 그쪽은 창을 아끼려는
     # 것이 아니라 **오래된 화면이 근거인 척하는 것**을 막는 품질 규칙이다.
+    def pick_append_only() -> list[dict[str, Any]] | None:
+        """뒤에 붙기만 하는 담기 — 지난번에 접은 것만 접고, 넘칠 때만 **한꺼번에** 크게 접어 그 결정을 `fold_state` 에 남긴다.
+
+        접어도 과녁에 못 미치면(접힌 줄이 쌓인 긴 판) 오래된 걸음을 **한꺼번에** 덜어 낸다 — 덜어 낸 읽은 화면은 예전처럼
+        한 줄 묶음으로 이번 판 맥락에 남는다(`read_ledger`). 최근 원문(keep_full)까지 덜어야 하면 None — 예전 규칙으로 떨어진다.
+        """
+        nonlocal budget
+        assert fold_state is not None
+        sticky: set[str] = fold_state.setdefault("folded", set())
+        sigs = {index: message_sig(rest[index]) for index in tool_positions}
+        held = frozenset(index for index in tool_positions if sigs[index] in sticky)
+        # 덜어 낸 자리는 (자리, 서명) 둘로 든다 — 빈 걸음 메시지는 서명이 서로 같을 수 있어 서명만으로는 자리를 못 찾는다.
+        cut = 0
+        if fold_state.get("cut_sig"):
+            remembered = int(fold_state.get("cut_at", 0))
+            matches = [index for index, item in enumerate(rest) if message_sig(item) == fold_state["cut_sig"]]
+            cut = min(matches, key=lambda index: abs(index - remembered)) if matches else 0
+        selected, complete = build(compact_code=False, prefold=held, fold_on_overflow=False, cut=cut)
+        if complete:
+            return selected
+        # 넘쳤다 — 예산의 `APPEND_ONLY_FOLD_TARGET` 까지 내려가게 한 번에 접는다. 오래된 길 찾기는 다 접고,
+        # 근거(읽은 본문 등)는 **오래된 것부터** 들어갈 때까지만. 최근 원문(keep_full)은 안 접는다.
+        candidates = [index for index in tool_positions if index not in keep_full and index not in held and index >= cut]
+        base = set(held) | {index for index in candidates if _text(rest[index].get("tool_name")) in NAVIGATION_TOOLS}
+        others = [index for index in candidates if index not in base]
+        every = frozenset(base | set(others))
+        # 덜어 낼 수 있는 자리 — 도구 결과가 짝(부른 걸음)을 잃지 않게 도구 결과가 아닌 메시지에서만 자르고, 최근 원문 앞까지만.
+        oldest_kept = min(keep_full) if keep_full else len(rest)
+        cuts = [index for index in range(cut + 1, oldest_kept + 1) if index == oldest_kept or rest[index].get("role") != "tool"]
+        full = budget
+        budget = int(full * APPEND_ONLY_FOLD_TARGET)
+        try:
+            count, new_cut = len(others), cut
+            if build(compact_code=False, prefold=every, fold_on_overflow=False, cut=cut)[1]:
+                low, high = 0, len(others)
+                while low < high:  # 과녁에 들어가는 가장 작은 수(접는 수가 늘면 줄기만 한다)
+                    middle = (low + high) // 2
+                    if build(compact_code=False, prefold=frozenset(base | set(others[:middle])), fold_on_overflow=False, cut=cut)[1]:
+                        high = middle
+                    else:
+                        low = middle + 1
+                count = low
+            elif cuts:
+                low, high = 0, len(cuts) - 1
+                while low < high:  # 다 접고도 넘치면 과녁에 들어가는 가장 앞의 자르는 자리
+                    middle = (low + high) // 2
+                    if build(compact_code=False, prefold=every, fold_on_overflow=False, cut=cuts[middle])[1]:
+                        high = middle
+                    else:
+                        low = middle + 1
+                new_cut = cuts[low]
+        finally:
+            budget = full
+        folded = frozenset(base | set(others[:count]))
+        selected, complete = build(compact_code=False, prefold=folded, fold_on_overflow=False, cut=new_cut)
+        if not complete:
+            return None
+        sticky.update(sigs[index] for index in folded)
+        if new_cut != cut:
+            fold_state["cut_sig"] = message_sig(rest[new_cut]) if new_cut < len(rest) else ""
+            fold_state["cut_at"] = new_cut
+        fold_state["folds"] = int(fold_state.get("folds", 0)) + 1
+        fold_state["just_folded"] = True
+        return selected
+
     def pick() -> list[dict[str, Any]]:
         """예산 안에 담는다 — 묶어 접기 → 그 자리 접기 → 코드 결과 압축의 차례로."""
+        if fold_state is not None:
+            kept = pick_append_only()
+            if kept is not None:
+                return kept
         selected, complete = build(compact_code=False, fold_on_overflow=False)
         if not complete:
             # ★ 넘칠 때도 **묶어서** 접는다 (2026-09-29 저녁, 64K 로 줄인 뒤 MS 스토어 판에서 잡음).

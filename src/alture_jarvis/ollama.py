@@ -50,6 +50,61 @@ def tagged_call(**tags: Any) -> Iterator[None]:
         _CALL_TAGS.reset(token)
 
 
+#: 첫 글자 전 기다림을 **알릴 곳** — 부르는 쪽이 `wait_note_to` 로 건다. 없으면 아무것도 안 한다 (2026-10-25).
+#: ★ 대표: 일하던 판 뒤에 질문 하나를 하니 「도구가 바뀐 건지 또 느리다 — 모델 다시 올릴 때처럼 화면에 알려 달라」.
+#:   일하는 길(도구 133개 · 긴 지침)과 대화 길(도구 7개 · 짧은 지침)을 오가면 앞부분 기억을 못 쓰고 처음부터 읽는다(01:39 · 1만 토큰 · 8.9초).
+#:   기다림 표시는 일하는 길의 걸음 줄에만 있었고 대화 길에는 없었다. 모델 부르기 한 곳에서 둘 다 알린다.
+_WAIT_SINK: ContextVar[tuple[Callable[[str | None], None], bool] | None] = ContextVar("model_wait_sink", default=None)
+#: 이번 흐름(과 그 안의 다시 부르기)이 띄운 기다림 표시들 — 첫 조각이 오면 다 멈춘다.
+_ACTIVE_WAITS: ContextVar[list[Any] | None] = ContextVar("model_active_waits", default=None)
+
+
+@contextmanager
+def wait_note_to(sink: Callable[[str | None], None] | None, *, english: bool = False) -> Iterator[None]:
+    """이 안의 흐름 부르기가 첫 글자 전에 오래 기다리면 `sink(문구)` 를 부른다. 다 끝나면 `sink(None)`(원래대로)."""
+    token = _WAIT_SINK.set((sink, english) if sink is not None else None)
+    try:
+        yield
+    finally:
+        _WAIT_SINK.reset(token)
+
+
+def request_shape(body: dict[str, Any]) -> tuple[str, str, str]:
+    """(모델 · 도구 목록 지문 · 지침 앞머리 지문) — `_log_call` 의 `tools_sig` · `system_head_sig` 와 같은 셈."""
+    import hashlib
+
+    messages = body.get("messages") if isinstance(body.get("messages"), list) else []
+    system = next((str(item.get("content") or "") for item in messages if isinstance(item, dict) and item.get("role") == "system"), "")
+    tools = body.get("tools") if isinstance(body.get("tools"), list) else []
+    names = [str(((tool or {}).get("function") or {}).get("name") or "") for tool in tools]
+    return (
+        str(body.get("model") or ""),
+        hashlib.sha1("|".join(names).encode("utf-8")).hexdigest()[:10],
+        hashlib.sha1(system[:4000].encode("utf-8")).hexdigest()[:10],
+    )
+
+
+def reread_reason(previous: tuple[str, str, str] | None, current: tuple[str, str, str]) -> str:
+    """직전 부르기와 견줘 앞부분을 처음부터 읽게 될 **까닭**. 같은 모양이면 빈 값(까닭을 모른다)."""
+    if not previous:
+        return "first"
+    if previous[0] != current[0]:
+        return "model"
+    tools_changed, system_changed = previous[1] != current[1], previous[2] != current[2]
+    if tools_changed and system_changed:
+        return "both"
+    if tools_changed:
+        return "tools"
+    if system_changed:
+        return "system"
+    return ""
+
+
+def _stop_waits() -> None:
+    for waiter in _ACTIVE_WAITS.get() or ():
+        waiter.seen()
+
+
 #: 흐름을 열다 404 를 맞았을 때 다시 물어보는 횟수와 간격.
 #
 # 처음엔 한 번(2초)이었는데 그걸로 모자랐다 — 재시도를 붙인 뒤에도 같은 404 로 판이
@@ -76,10 +131,28 @@ def thinking_is_looping(text: str) -> bool:
         return False
     flat = re.sub(r"\s+", " ", text)
     tail = flat[-_REPEAT_WINDOW:]
-    # 너무 흔한 토막(같은 글자만 반복 등)은 판정에 쓰지 않는다 — 진짜 문장이어야 한다.
+    # 너무 흔한 토막(같은 글자만 반복 등)은 「앞에 또 있나」 판정에 쓰지 않는다 — 진짜 문장이어야 한다.
+    # ★ 다만 끝 전체가 **아주 짧은 토막 하나의 되풀이**면 그 자체가 되풀이다 (2026-10-26 06:05 판:
+    #   생각이 「1:1:1:…」로 꼬여 8,192토큰 · 105초를 다 쓰고 답 0자). 글자 종류가 적다는 예외에 걸려 끊기지 않았다.
     if len(set(tail)) < 12:
-        return False
+        return _short_unit_loop(flat)
     return flat.find(tail, 0, len(flat) - _REPEAT_WINDOW) >= 0
+
+
+#: 짧은 토막 되풀이 판정 — 끝 300자가 8자 이하 토막 하나를 그대로 되풀이한 것이면 꼬인 것이다.
+#: 멀쩡한 생각에서 300자가 한 주기로만 채워지는 일은 없다(표 구분선도 300자를 한 주기로 채우지 않는다).
+_SHORT_LOOP_TAIL = 300
+_SHORT_LOOP_MAX_UNIT = 8
+
+
+def _short_unit_loop(flat: str) -> bool:
+    if len(flat) < _SHORT_LOOP_TAIL:
+        return False
+    tail = flat[-_SHORT_LOOP_TAIL:]
+    for unit in range(1, _SHORT_LOOP_MAX_UNIT + 1):
+        if all(tail[index] == tail[index - unit] for index in range(unit, _SHORT_LOOP_TAIL)):
+            return True
+    return False
 
 
 #: **답 글**의 되풀이는 생각보다 엄격하게 본다 — 멀쩡한 답(표·코드)에도 같은 줄이 두 번 나올 수 있다.
@@ -1019,6 +1092,37 @@ class OllamaClient:
     #: 부르기 기록 파일이 이만큼 커지면 반으로 줄인다(최근 것만 남긴다).
     CALL_LOG_MAX_BYTES = 4_000_000
 
+    def reread_reason_for(self, messages: list[dict[str, Any]], *, tools: list[dict[str, Any]] | None = None,
+                          role: str = "chat", model: str | None = None, **_: Any) -> str:
+        """이 부르기가 직전 부르기와 견줘 앞부분을 처음부터 읽게 될 까닭(`reread_reason`). 일하는 길의 기다림 표시가 묻는다."""
+        body: dict[str, Any] = {"model": self._selected_model(model, role=role), "messages": messages}
+        if tools:
+            body["tools"] = tools
+        return reread_reason(self.__dict__.get("_last_shape"), request_shape(body))
+
+    def _start_wait_note(self, body: dict[str, Any]) -> None:
+        """`wait_note_to` 가 걸려 있으면 이 흐름의 첫 글자 기다림 표시를 띄운다 — 까닭은 직전 부르기와 견줘서."""
+        sink = _WAIT_SINK.get()
+        waits = _ACTIVE_WAITS.get()
+        if sink is None or waits is None or waits:
+            return
+        from .first_token_wait import FirstTokenWatch, estimate_tokens
+
+        publish, english = sink
+        messages = body.get("messages") if isinstance(body.get("messages"), list) else []
+        chars = sum(len(str(item.get("content") or "")) for item in messages if isinstance(item, dict))
+
+        def send(payload: dict[str, Any]) -> None:
+            publish(str(payload.get("message") or "") if payload.get("waiting_first_token") else None)
+
+        waits.append(FirstTokenWatch(
+            last={"kind": "model_wait"},
+            tokens=estimate_tokens(chars, self.__dict__.get("_last_ratio")),
+            english=english,
+            publish=send,
+            reason=reread_reason(self.__dict__.get("_last_shape"), request_shape(body)),
+        ))
+
     def _log_call(self, body: dict[str, Any], payload: dict[str, Any], first_byte: float, first_token: float = 0.0,
                   *, cut: str = "", elapsed: float = 0.0, thinking_chars: int | None = None,
                   content_chars: int | None = None) -> None:
@@ -1051,6 +1155,11 @@ class OllamaClient:
                 "temperature": (body.get("options") or {}).get("temperature"),
                 "think": body.get("think"),
             }
+            # 다음 부르기가 「지난번과 같은 모양인가」를 견줄 재료(`reread_reason`) · 토큰 어림(`first_token_wait.estimate_tokens`).
+            self.__dict__["_last_shape"] = request_shape(body)
+            sent_chars = sum(len(str(item.get("content") or "")) for item in messages if isinstance(item, dict))
+            if row["prompt_tokens"] and sent_chars:
+                self.__dict__["_last_ratio"] = (sent_chars, row["prompt_tokens"])
             # 이름표(왜 불렀나 · 지난번과 앞에서부터 같은 메시지 수) — 기록 칸 이름을 덮지 않는다.
             row.update({key: value for key, value in _CALL_TAGS.get().items() if key not in row})
             # ★ 2026-10-22 대표: 코딩 분업 판 33분 중 「글 쓰기 약 16분」을 생각과 실제 답으로 나누지 못했다(생성 토큰은 둘을 합친 수).
@@ -1207,6 +1316,8 @@ class OllamaClient:
           기다렸다(모델 서버는 한 번에 하나). 그래서 노는 시간 일은 **사람 요청이 오는 순간 끊기는** 문으로만 보낸다 — 앞부분 데우기와 같은 문.
         끝나면 본 지시문을 다시 데우게 표시한다(`_front_dirty`) — 서기가 캐시를 밀었어도 다음 사람 질문의 첫 글자가 늦지 않게.
         """
+        if self.background_held():
+            return None
         body = {"model": model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
                 "stream": False, "think": False, "format": "json", "options": dict(options),
                 "keep_alive": self.config.ollama_keep_alive}
@@ -1231,6 +1342,26 @@ class OllamaClient:
                 client.close()
             except Exception:  # noqa: BLE001
                 pass
+
+    @contextmanager
+    def hold_background(self):
+        """모델을 내렸다 올렸다 하는 동안(상한 재기) 노는 시간 일(서기 · 사실 뽑기 · 앞부분 데우기)을 멈춘다.
+
+        ★ 2026-10-25 02:09~02:12 이 PC 실측: 상한 재기가 모델을 내리고 16K 로 올리려는 3분 동안, 서기가 옛 대화를
+          30초마다 한 덩어리씩 정리하며 **대화 창(128K)으로** 같은 모델을 계속 불렀다(Ollama 기록: 약 35초마다 대화 요청 두 번).
+          재기의 16K 요청은 한 번도 차례를 못 받아 3분 만에 끊겼고(499), 화면은 그것을 「가장 작은 칸도 안 들어감」으로 옮겼다.
+          서기의 「조용할 때만」 검사는 우리 대화 부르기만 세서(`_last_send_at`) 재기의 요청을 못 봤다.
+        """
+        self.__dict__["_background_hold"] = int(self.__dict__.get("_background_hold", 0) or 0) + 1
+        self.cancel_background()
+        self.cancel_front_prime()
+        try:
+            yield
+        finally:
+            self.__dict__["_background_hold"] = max(0, int(self.__dict__.get("_background_hold", 1) or 1) - 1)
+
+    def background_held(self) -> bool:
+        return int(self.__dict__.get("_background_hold", 0) or 0) > 0
 
     def cancel_background(self) -> bool:
         """노는 시간 일이 나가 있으면 끊는다. 끊었으면 True."""
@@ -1292,6 +1423,8 @@ class OllamaClient:
     def front_prime_due(self) -> bool:
         """지금 데울 차례인가 — 켜져 있고, 기억한 앞부분이 있고, **켠 뒤 아직 큰 일도 데우기도 없었고**, 잠깐 조용했다."""
         if not getattr(self.config, "front_prime_enabled", False):
+            return False
+        if self.background_held():
             return False
         if self.__dict__.get("_prime_client") is not None:
             return False
@@ -1694,7 +1827,19 @@ class OllamaClient:
         )
         return message
 
-    def chat_messages_stream(
+    def chat_messages_stream(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        """흐름 부르기. 첫 글자 전 기다림 표시(`wait_note_to`)를 이 부르기 하나와 그 안의 다시 부르기에 묶는다."""
+        if _ACTIVE_WAITS.get() is not None:   # 안쪽 다시 부르기 — 바깥이 띄운 표시를 같이 쓴다
+            return self._chat_messages_stream_body(*args, **kwargs)
+        token = _ACTIVE_WAITS.set([])
+        try:
+            return self._chat_messages_stream_body(*args, **kwargs)
+        finally:
+            for waiter in _ACTIVE_WAITS.get() or ():
+                waiter.close()
+            _ACTIVE_WAITS.reset(token)
+
+    def _chat_messages_stream_body(
         self,
         messages: list[dict[str, Any]],
         *,
@@ -1792,6 +1937,7 @@ class OllamaClient:
         # 스트리밍도 같은 404 를 맞는다. 흐름을 열기 **전에** 한 번 갈라 둔다 —
         # 열고 나서 되돌리려면 이미 읽기 시작한 뒤라 지저분해진다(`_post_chat` 주석).
         self._wait_out_transient_404(body)
+        self._start_wait_note(body)
         started = time.monotonic()
         first_byte = 0.0
         first_token = 0.0  # 첫 생각 · 글 · 도구 조각이 실제로 들어온 때(`_log_call`)
@@ -1880,6 +2026,7 @@ class OllamaClient:
                             calls = [dict(item) for item in chunk.get("tool_calls") or []]
                             if not first_token and (thinking or content or calls):
                                 first_token = time.monotonic() - started
+                                _stop_waits()
                             if thinking:
                                 thinking_parts.append(thinking)
                                 thinking_chars += len(thinking)

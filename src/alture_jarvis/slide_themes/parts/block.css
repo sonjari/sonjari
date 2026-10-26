@@ -1,0 +1,53 @@
+/* 「면」 문법 — 색 면을 꽉 채운 칸 · 굵은 머리 · 굵은 숫자 · 두꺼운 선 (broadside · neo-grid-bold · peoples-platform …).
+   선 대신 면으로 나눈다: 칸 사이 머리카락 선을 지우고, 숫자 칸 · 요점 · 사람은 면 카드가 된다. 카드 색은 결의 팔레트를 돈다. */
+.pz-slide .ir-head { font-size: 34px; letter-spacing: -1.2px; line-height: 1.12; }
+.pz-slide .ir-rule { height: var(--pz-stroke); background: var(--pz-line-strong); margin: 16px 0 22px; }
+.pz-slide .ir-rule::before { width: 120px; height: calc(var(--pz-stroke) * 3); top: calc(var(--pz-stroke) * -1); background: var(--pz-accent); }
+.pz-slide .pz-col + .pz-col { border-left: 0; padding-left: 0; margin-left: 0; }
+.pz-slide .pz-grid { gap: 18px; }
+.pz-slide .cap-title { border-bottom: var(--pz-stroke) solid var(--pz-line-strong); font-weight: 800; }
+.pz-slide .ir-lede u { background-size: 100% 4px; background-image: linear-gradient(var(--pz-accent), var(--pz-accent)); }
+
+/* 숫자 · 요점 · 사람 → 면 카드 */
+.pz-slide .pz-row { gap: 12px; }
+.pz-slide .pz-metric, .pz-slide .pz-point, .pz-slide .pz-person {
+  border-left: 0; padding: 18px 18px 16px; background: var(--pz-card); color: var(--pz-card-ink); border-radius: var(--pz-radius);
+  border: var(--pz-card-border); box-shadow: var(--pz-card-shadow); }
+.pz-slide .pz-metric:first-child, .pz-slide .pz-point:first-child, .pz-slide .pz-person:first-child { padding-left: 18px; border-left: var(--pz-card-border); }
+.pz-slide .pz-row > :nth-child(4n+2) { background: var(--pz-c2, var(--pz-card)); color: var(--pz-c2-ink, var(--pz-card-ink)); }
+.pz-slide .pz-row > :nth-child(4n+3) { background: var(--pz-c3, var(--pz-card)); color: var(--pz-c3-ink, var(--pz-card-ink)); }
+.pz-slide .pz-row > :nth-child(4n+4) { background: var(--pz-c4, var(--pz-card)); color: var(--pz-c4-ink, var(--pz-card-ink)); }
+.pz-slide .pz-row .label, .pz-slide .pz-row .pz-note, .pz-slide .pz-row .sub, .pz-slide .pz-row .role,
+.pz-slide .pz-row .n, .pz-slide .pz-row .n small { color: inherit; }
+.pz-slide .pz-row .label, .pz-slide .pz-row .pz-note, .pz-slide .pz-row .sub { opacity: .78; }
+.pz-slide .pz-metric .n, .pz-slide .pz-point .n, .pz-slide .pz-stat .n { font-weight: var(--pz-num-weight); letter-spacing: -1.5px; }
+.pz-slide .pz-shot { border-color: currentColor; background: transparent; color: inherit; opacity: .8; }
+
+/* 큰 숫자 하나 — 면 위에 */
+.pz-slide .pz-stat { padding: 18px 20px; background: var(--pz-card); color: var(--pz-card-ink); border-radius: var(--pz-radius);
+  border: var(--pz-card-border); box-shadow: var(--pz-card-shadow); }
+.pz-slide .pz-stat .label, .pz-slide .pz-stat .pz-note, .pz-slide .pz-stat .n small { color: inherit; opacity: .8; }
+.pz-slide .pz-stat .n { color: var(--pz-card-key, var(--pz-card-ink)); }
+.pz-slide .pz-stat.navy, .pz-slide .pz-panel { border: var(--pz-card-border); box-shadow: var(--pz-card-shadow); }
+
+/* 흐름 · 단계 · 로드맵 · 표 — 두꺼운 테두리 */
+.pz-slide .pz-node, .pz-slide .pz-state .ours, .pz-slide .pz-stage-grid .stage { border: var(--pz-card-border); box-shadow: var(--pz-card-shadow); }
+.pz-slide .pz-node .label, .pz-slide .pz-stage-grid .stage .label { font-weight: 800; }
+.pz-slide .pz-arrow::before { height: var(--pz-stroke); }
+.pz-slide .pz-steps li { border-bottom: var(--pz-stroke) solid var(--pz-line-strong); padding-left: 52px; }
+.pz-slide .pz-steps li::before { font-size: 30px; font-weight: var(--pz-num-weight); color: var(--pz-key); top: 50%; }
+.pz-slide .pz-table th { background: var(--pz-line-strong); color: var(--pz-bg); padding: 9px 10px; border-bottom: 0; }
+.pz-slide .pz-table td { border-bottom: var(--pz-stroke) solid var(--pz-line); }
+.pz-slide .pz-bar i { border: var(--pz-card-border); border-bottom: 0; }
+.pz-slide .pz-bar-area { border-bottom-width: calc(var(--pz-stroke) + 1px); }
+.pz-slide .pz-bottom { border: var(--pz-card-border); box-shadow: var(--pz-card-shadow); font-weight: 800; }
+.pz-slide .pz-kv dt, .pz-slide .pz-kv dd { border-bottom: var(--pz-stroke) solid var(--pz-line); }
+
+/* 카드 안 글 색 — 카드 글자색에서 다시 뽑는다(공통 뼈대 끝 설명). 팔레트를 도는 카드는 강조색도 그 글자색을 따른다. */
+/* 면 묶음은 숫자 · 요점 · 사람 · 큰 숫자만 카드다(글 · 단계 · 표는 장 바탕 위). */
+.pz-slide :is(.pz-metric, .pz-point, .pz-person, .pz-stat:not(.navy)) {
+  --pz-ink: currentColor; --pz-sub: color-mix(in srgb, currentColor 74%, transparent);
+  --pz-faint: color-mix(in srgb, currentColor 55%, transparent); --pz-line: color-mix(in srgb, currentColor 22%, transparent);
+  --pz-line-strong: currentColor; --pz-key: var(--pz-card-key); }
+.pz-slide .pz-row > :nth-child(4n+2), .pz-slide .pz-row > :nth-child(4n+3), .pz-slide .pz-row > :nth-child(4n+4) { --pz-key: currentColor; }
+.pz-slide .pz-row .n { font-size: 40px; }

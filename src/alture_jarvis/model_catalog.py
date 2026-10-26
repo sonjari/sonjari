@@ -267,6 +267,36 @@ CATALOG: tuple[CatalogModel, ...] = (
         # 같은 날 가격 조사 세 과제(각 1판 · 온전한 줄 /9): 글만 읽기 64K 8 · 48K 5 — 16GB 급에서 갈린 것은 창이었다(전수조사 §7-36).
         text_only_vram_gb={65536: 13.8, 49152: 13.1},
     ),
+    # ★ 2026-10-26 대표 결정: 「16GB 기본은 Swift 27B(3비트 작게), 안 들어가면 Qwen3.6 2비트」. 16GB 카드에 다른 프로그램(3ds Max 등)이
+    #   그래픽 메모리를 쥐어 Swift 의 글만 읽기 64K(13.8GB)가 안 들어갈 때의 다음 칸이다(9B 보다 위).
+    #   2026-10-23 밤 이 PC(3090) 실측 · 글만 읽기 · 창 64K · 과제마다 한 판: 바깥 코드 과제 10/12(가운데 131초 · 9B 5/12) ·
+    #   한국어 3/3(한 판에 한자 한 낱말) · 가격 조사 2/3 · 2/3(놓친 곳은 둘 다 봇 검사에 막힌 G마켓) · 그래픽 메모리 12.4GB ·
+    #   모델 몫 12GB 로 흉내 냈을 때 88% 가 카드에 올라가고 초당 116토큰(9B 94~95). 기록 `D:\bench_tmp\sixteen_gb_1023\`.
+    #   MoE 라 넘치는 몫이 CPU 로 가도 덜 느려진다. 그림 있는 값은 재지 않았다 — 아래 vram_gb 는 글만 읽기 값 + 부속 약 0.9GB 어림.
+    CatalogModel(
+        key="qwen3.6-35b-iq2m",
+        name="Qwen 3.6 35B-A3B (2비트)",
+        vendor="Alibaba · Unsloth 압축",
+        ollama_tag="hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-IQ2_M",
+        download_gb=12.0,
+        vram_gb={65536: 13.3},
+        chain=None,
+        chain_ctx=None,
+        roles=("chat",),
+        vision=True,
+        blurb="35B 를 2비트로 눌러 담았습니다. 16GB 카드를 다른 프로그램과 나눠 쓸 때 9B 대신 올라가는 모델입니다.",
+        good_at="코드 과제 12개 중 10개(창 64K · 과제마다 한 판 · 9B 는 5개) · 한국어 3/3 · 9B 보다 빠름(초당 116 대 94토큰)",
+        weak_at="2비트라 Swift 27B 보다 코드 과제 두 개를 더 놓쳤습니다(10 대 12) · 글만 읽기로 쓰면 그림을 읽지 못합니다",
+        sources=("D:/bench_tmp/sixteen_gb_1023 (code · korean · price · speed runs.jsonl · 2026-10-23 밤)",),
+        status="verified",
+        license="Apache 2.0",
+        links=(("Hugging Face", "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF"),),
+        checked_at="2026-10-23",
+        memory_device="RTX 3090 24GB", minimum_vram_gb=14.0,
+        family="qwen3.6-35b", family_name="Qwen 3.6 35B-A3B", quant="UD-IQ2_M", quant_label="2비트",
+        # 그림 부속은 받을 때 따로 붙어 온다 — `projector_tag` 는 비운다(9B 3비트와 같은 길 · `eyes_of`).
+        text_only_vram_gb={65536: 12.4},
+    ),
     CatalogModel(
         key="qwen3.8-27b-gsq",
         name="Qwen 3.8 27B (압축 3비트)",

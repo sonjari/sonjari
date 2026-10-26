@@ -21,6 +21,7 @@
  */
 import { t } from "../i18n";
 import { motion, useReducedMotion } from "framer-motion";
+import { Fragment } from "react";
 import { isWriteTool, toolLabel } from "../trajectory";
 import type { StepRow } from "./observation";
 import { KIND_LABEL } from "./observation";
@@ -39,6 +40,16 @@ const KIND_GLYPH: Record<string, string> = {
   draft: "✎",
 };
 
+/** 클로드의 맡기기 걸음은 모양으로 — 맡김(→) · 결과 기다림(↺) · 사용법(◇). 나머지는 본 것의 갈래. */
+function glyphOf(row: StepRow): string {
+  if (row.actor === "claude") {
+    if (row.tool.endsWith("__sonjari_task")) return "→";
+    if (row.tool.endsWith("__sonjari_task_status")) return "↺";
+    if (row.tool.endsWith("__sonjari_guide")) return "◇";
+  }
+  return KIND_GLYPH[row.kind] ?? "·";
+}
+
 export function StepScrubber(props: {
   rows: StepRow[];
   /** 지금 열어 놓은 걸음. `null` 이면 「지금」을 보고 있다. */
@@ -50,26 +61,41 @@ export function StepScrubber(props: {
   const { rows, selected, live } = props;
   const still = useReducedMotion();
   if (!rows.length && !live) return null;
+  // ★ 두 손 (2026-10-26 · Claude Agent). 클로드가 직접 한 걸음은 주황 점선 테두리, 손자리(내 PC 모델)가 맡아 한 걸음은 보라 칠.
+  //   누가 했는지가 바뀌는 자리에 「손 넘김」 이음매. 혼자 한 판(actor 없음)은 지금까지와 한 픽셀도 다르지 않다.
+  const twoHands = rows.some((row) => row.actor === "claude");
 
   return (
     <div className="scrub">
       <div className="scrub-head">
         <span>{rows.length ? t("{0}걸음", rows.length) : t("걸음")}</span>
+        {twoHands && (
+          <span className="scrub-legend">
+            <span><i className="brain-dot claude" aria-hidden />{t("클로드")}</span>
+            <span><i className="brain-dot local" aria-hidden />{t("손자리(내 PC)")}</span>
+          </span>
+        )}
         <em>{selected === null ? t("지금 보는 중") : t("눌러서 그때로")}</em>
       </div>
       <div className="scrub-ticks" role="tablist" aria-label={t("걸음 눈금자")}>
-        {rows.map((row) => {
+        {rows.map((row, index) => {
           const on = selected === row.step;
           const write = isWriteTool(row.tool);
+          const previous = rows[index - 1];
+          const seam = twoHands && previous?.actor && row.actor && previous.actor !== row.actor;
+          const who = row.actor === "claude" ? t("클로드") : row.actor === "local" ? t("손자리") : "";
           return (
+            <Fragment key={row.step}>
+            {seam && (
+              <span className="scrub-seam" aria-hidden title={t("손 넘김")}><span>{t("손 넘김")}</span></span>
+            )}
             <button
-              key={row.step}
               type="button"
               role="tab"
               aria-selected={on}
-              className={`tick${on ? " on" : ""}${write ? " write" : ""}${row.ok ? "" : " fail"}`}
+              className={`tick${on ? " on" : ""}${write ? " write" : ""}${row.ok ? "" : " fail"}${twoHands && row.actor ? ` actor-${row.actor}` : ""}`}
               onClick={() => props.onSelect(row.step)}
-              title={t("{0}번째 걸음 · {1} · {2}{3}", row.step, toolLabel(row.tool), KIND_LABEL[row.kind] ?? row.kind, row.ok ? "" : t(" · 실패"))}
+              title={t("{0}번째 걸음 · {1} · {2}{3}", row.step, toolLabel(row.tool), KIND_LABEL[row.kind] ?? row.kind, row.ok ? "" : t(" · 실패")) + (twoHands && who ? ` · ${who}` : "")}
             >
               {/* 새 걸음은 **자라서** 붙는다. 0 에서 시작하는 이유는 「붙었다」가
                   보여야 하기 때문이다 — 그냥 나타나면 목록이 길어진 것만 보인다. */}
@@ -84,10 +110,11 @@ export function StepScrubber(props: {
                 style={{ transformOrigin: "bottom" }}
                 transition={{ duration: still ? 0 : 0.26, ease: [0.22, 1, 0.36, 1] }}
               >
-                <u aria-hidden>{KIND_GLYPH[row.kind] ?? "·"}</u>
+                <u aria-hidden>{glyphOf(row)}</u>
               </motion.i>
               <b>{row.step}</b>
             </button>
+            </Fragment>
           );
         })}
         {live && (

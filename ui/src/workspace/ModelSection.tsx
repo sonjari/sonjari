@@ -122,7 +122,7 @@ export function ModelSection({ api, onChanged }: { api: SetupApi | null; onChang
     }
   };
 
-  const choose = async (model: CatalogModel, ctxOverride?: number) => {
+  const choose = async (model: CatalogModel, ctxOverride?: number, eyes?: boolean) => {
     if (!api) return;
     // 「더 작은 모델로」에서 올 때는 백엔드가 지금 빈 자리에 맞춰 고른 창을 그대로 쓴다(WayOut).
     const ctx = ctxOverride ?? bestCtx(model);
@@ -130,11 +130,11 @@ export function ModelSection({ api, onChanged }: { api: SetupApi | null; onChang
     setError("");
     try {
       if (model.installed) {
-        const done = await api.apply(model.key, ctx);
+        const done = await api.apply(model.key, ctx, eyes);
         setResults((current) => ({ ...current, [model.key]: done }));
         if (done.ok) onChanged?.();
       } else {
-        const started = await api.pull(model.key, ctx);
+        const started = await api.pull(model.key, ctx, eyes);
         if (!started.ok) throw new Error(started.error || t("받기를 시작하지 못했습니다"));
       }
       await load();
@@ -314,7 +314,7 @@ export function ModelSection({ api, onChanged }: { api: SetupApi | null; onChang
                       const target = rows.find((other) => other.key === smaller.model_key);
                       if (!target) return;
                       setResults((current) => { const next = { ...current }; delete next[row.key]; return next; });
-                      void choose(target, smaller.num_ctx);
+                      void choose(target, smaller.num_ctx, smaller.text_only ? false : undefined);
                     }} />
                 </div>
               ) : result && !result.ok && (

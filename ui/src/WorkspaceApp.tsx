@@ -1,4 +1,5 @@
 import { lang, t } from "./i18n";
+import { setSlideFontBase } from "./workspace/slideFonts";
 import { isFailureNotice, jobFailureText } from "./workspace/jobFailure";
 import { foldNarration } from "./workspace/foldNarration";
 import { NO_PAINT, SETTLE_MAX_MS, isSettling, onAnswerPainted, onAnswerReset, onHeadJobDone, type PaintState } from "./workspace/settling";
@@ -17,6 +18,7 @@ import { nextFollowState, USER_SCROLL_GRACE_MS } from "./followOutput";
 import { forgetLocalSend, type LocalSend, rememberLocalSend, takeLocalEcho } from "./localEcho";
 import { MarkdownView } from "./MarkdownView";
 import { splitAnswerChecks } from "./workspace/answerChecks";
+import { unopenedRowsForJob, withoutUnopenedCheck } from "./workspace/unopenedRows";
 import { stateLabel } from "./Orb";
 import { TrajectoryNode } from "./TrajectorySpine";
 import { applyLooking } from "./workspace/looking";
@@ -25,6 +27,7 @@ import { CapabilityDrawer } from "./workspace/CapabilityDrawer";
 import { SettingsScreen } from "./workspace/SettingsScreen";
 import { DISCORD_REQUESTS_EVENT, DiscordRequestBanner } from "./workspace/DiscordSection";
 import { ComputerPane, ThinkingTrace } from "./workspace/ComputerPane";
+import { applyDeckEvent, type DeckState } from "./workspace/DeckStage";
 import { ApprovalCard, ContinuationCard, QuestionCard } from "./workspace/DecisionCards";
 import { OVERLAY_MAX_WIDTH, useNarrow } from "./workspace/useNarrow";
 import { MessageView } from "./workspace/MessageView";
@@ -44,18 +47,22 @@ import { JarvisMark } from "./workspace/JarvisMark";
 import { setUserLabel, userLabel } from "./workspace/userLabel";
 import { PilotAuthBar } from "./pilot/PilotAuthBar";
 import { PilotModelPicker, pilotModel, savePilotModel, savedPilotModel, type PilotModelId } from "./pilot/PilotModelPicker";
-import { LocalModelPicker } from "./workspace/LocalModelPicker";
+import { LocalModelPicker, type ClaudeChoice } from "./workspace/LocalModelPicker";
+import type { ClaudeLane } from "./claudeAgent/lane";
+import { createClaudeLane } from "./claudeAgent/setup";
+import { withClaudeLane } from "./claudeAgent/withClaudeLane";
+import { brainFor, claudeButtonLabel, isClaudeBrain, setBrain as saveBrain, type Brain as BrainChoice } from "./claudeAgent/brain";
 import { PermissionModePicker } from "./workspace/PermissionModePicker";
 import { ReasoningPicker, loadReasoningChoice, saveReasoningChoice, type ReasoningChoice } from "./workspace/ReasoningPicker";
 import { createSetupApi, type CodeUpgrade, type SetupApi } from "./setup/setupApi";
 import { CodeUpgradeCard } from "./workspace/CodeUpgradeCard";
-import { applyPlan, applyStep, buildTimeline, finishTrajectory, startTrajectory, toolLabel, type PlanItem, type Trajectory } from "./trajectory";
+import { applyPlan, applyStep, applyVerification, buildTimeline, finishTrajectory, startTrajectory, toolLabel, type PlanItem, type Trajectory } from "./trajectory";
 import { isLive, jobShownHere, jobToFollow, paneContext, whereAQueuedJobLands, withRunningFirst, withYieldedLast } from "./workspace/jobs";
 import { GATE_TITLES, HUMAN_GATE_CODES, gateCodeOf, gateSiteLabel } from "./workspace/humanGate";
 import { ProblemReportDialog } from "./workspace/ProblemReportDialog";
 import type {
   AgentProgress, Approval, AttentionNotice,
-  AutoApprovedNotice, ChatAttachment, ContinuationRequest, CoworkTakeoverOffer,
+  AutoApprovedNotice, ChatAttachment, ClaudeAgentStatus, ClaudeHandoff, ContinuationRequest, CoworkTakeoverOffer,
   ConversationHistory, ConversationMessage, ConversationSummary, ExternalActionPreview,
   GoogleStatus, JarvisEvent, JarvisState, JobOutput, JobSummary, Looking, PermissionModes,
   ScheduleRow, UndoOffer, WorkspaceMode,
@@ -88,6 +95,18 @@ function keepNarration(rows: NarrationRow[]): NarrationRow[] {
   const machine = rows.filter((row) => !row.you);
   const dropped = new Set(machine.slice(0, Math.max(0, machine.length - 12)));
   return rows.filter((row) => !dropped.has(row));
+}
+
+/** 「키 넣기」가 못 넣은 까닭 — 본체가 돌려준 코드를 사람 말로. 무엇이 복사돼 있었는지는 되풀이하지 않는다. */
+function apiKeyErrorText(code = ""): string {
+  switch (code) {
+    case "clipboard_empty": return t("복사해 둔 글이 없습니다 — Claude Console 에서 API 키를 복사한 뒤 다시 눌러 주세요");
+    case "not_an_api_key": return t("복사한 글이 API 키 모양이 아닙니다");
+    case "subscription_token": return t("구독 로그인 토큰은 쓸 수 없습니다 — Claude Console 의 API 키를 복사해 주세요");
+    case "clipboard_unavailable": return t("클립보드를 읽지 못했습니다 — 잠시 뒤 다시 눌러 주세요");
+    case "store_failed": return t("키를 저장하지 못했습니다");
+    default: return code || t("키를 넣지 못했습니다");
+  }
 }
 
 function savedWorkspaceMode(): WorkspaceMode {
@@ -165,6 +184,41 @@ async function readAttachment(file: File): Promise<LocalAttachment> {
 // 리허설 조종대는 개발 빌드에서만 존재한다. 동적 import 라 릴리스 번들에 안 실린다.
 const FixtureBar = import.meta.env.DEV ? lazy(() => import("./fixtures/FixtureBar")) : null;
 
+
+type LiveState = { phase: string; thinking: number; content: number; since: number };
+
+/** 걸음마다 같은 단계가 이어지면 시작 시각을 지킨다 — 초는 그 단계에 들어선 때부터 센다. 빈 단계는 줄을 거둔다. */
+export function applyLive(rows: Record<string, LiveState>, jobId: string, phase: string, thinking: number, content: number,
+                          now = Date.now()): Record<string, LiveState> {
+  const next = { ...rows };
+  if (!phase) {
+    delete next[jobId];
+    return next;
+  }
+  const before = rows[jobId];
+  next[jobId] = { phase, thinking, content, since: before && before.phase === phase ? before.since : now };
+  return next;
+}
+
+/** 보라색 점 줄의 글. 남은 시간은 말하지 않는다(재 본 적이 없다) — 지난 초와 글자 수만. */
+export function liveText(state: LiveState | undefined, now = Date.now()): string {
+  if (!state) return "";
+  const seconds = Math.max(0, Math.floor((now - state.since) / 1000));
+  const chars = (value: number) => value.toLocaleString();
+  switch (state.phase) {
+    case "thinking":
+      return t("모델이 생각하는 중 · {0}자 · {1}초째", chars(state.thinking), seconds);
+    case "writing":
+      return t("모델이 글을 쓰는 중 · {0}자 · {1}초째", chars(state.content), seconds);
+    case "tool":
+      return t("모델이 다음에 쓸 도구를 적는 중 · {0}초째", seconds);
+    case "checking":
+      return t("답을 다 썼습니다({0}자) · 검사하고 내보내는 중 · {1}초째", chars(state.content), seconds);
+    default:
+      return "";
+  }
+}
+
 export function WorkspaceApp() {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(savedWorkspaceMode);
   const workspaceModeRef = useRef<WorkspaceMode>(workspaceMode);
@@ -201,6 +255,12 @@ export function WorkspaceApp() {
   const [trajectories, setTrajectories] = useState<Record<string, Trajectory>>({});
   // 지금 읽는 그림 조각(일마다 하나). 걸음 기록에 넣지 않는다 — 그림은 읽는 동안에만 비춘다.
   const [looking, setLooking] = useState<Record<string, Looking>>({});
+  // 대화 길의 첫 글자 기다림 — 왜 처음부터 읽는지(도구 목록 · 지침이 바뀜 등)를 백엔드가 말해 준다(2026-10-25 대표). 일마다 하나.
+  const [modelWait, setModelWait] = useState<Record<string, string>>({});
+  /** 지금 모델이 무엇을 하나(`agent_live` · 10-25 대표) — 보라색 점 줄. 답은 다 쓴 뒤 검사를 거쳐 칠하므로 그동안 멈춘 것처럼 보였다. */
+  const [live, setLive] = useState<Record<string, LiveState>>({});
+  /** 판마다 그리는 장표(`deck_slide` · `deck_built` · 10-25 대표 「브라우저처럼 다 보이게」). */
+  const [decks, setDecks] = useState<Record<string, DeckState>>({});
   const [activeJobId, setActiveJobId] = useState("");
   const [pending, setPending] = useState<PendingSend[]>([]);
   const [attention, setAttention] = useState<AttentionNotice | null>(null);
@@ -321,6 +381,17 @@ export function WorkspaceApp() {
   const [outputs, setOutputs] = useState<Record<string, JobOutput[]>>({});
   const [undoOffers, setUndoOffers] = useState<UndoOffer[]>([]);
   const clientRef = useRef<JarvisClient | null>(null);
+  // 창이 본체보다 먼저 떠서 첫 읽기가 연결 실패로 끝났는가 — 연결되면 다시 읽고 그 오류 줄을 지운다(2026-10-26 「Failed to fetch」가 남음).
+  const bootFailedRef = useRef(false);
+  // ── 앱 안의 Claude Agent (2026-10-26 · `claudeAgent/`) ─ 갈림은 모델 칸 하나 · 대화마다. 없으면(파일럿 · 브라우저 미리보기) 메뉴에 안 뜬다.
+  const [claudeLane, setClaudeLane] = useState<ClaudeLane | null>(null);
+  const [claudeStatus, setClaudeStatus] = useState<ClaudeAgentStatus | null>(null);
+  const [brain, setBrainState] = useState<BrainChoice>("local");
+  const [handoffs, setHandoffs] = useState<Record<string, ClaudeHandoff[]>>({});
+  // 대화마다 고른 두뇌(내 PC 모델 / Claude Agent) — 대화를 옮기면 그 대화의 것으로.
+  useEffect(() => {
+    setBrainState(brainFor(sessionId));
+  }, [sessionId, claudeLane]);
   const activeJobRef = useRef("");
   const pendingRef = useRef<PendingSend[]>([]);
   // 이 창이 방금 보냈지만 아직 job_id 를 못 받은 질문들.
@@ -609,6 +680,34 @@ export function WorkspaceApp() {
   useEffect(() => {
     let alive = true;
     let presenceTimer = 0;
+    // 브라우저 fetch 가 본체에 닿지 못했을 때의 문구(창이 본체보다 먼저 뜸).
+    const isConnectFailure = (message: string) => /failed to fetch|networkerror|load failed/i.test(message);
+    // 첫 읽기를 못 한 창 — 본체가 붙으면 대화 목록 · 대화 · 판 · 상태를 다시 읽고 오류 줄을 지운다(한 번만).
+    const recoverBoot = async () => {
+      const client = clientRef.current;
+      if (!client || !alive || !bootFailedRef.current) return;
+      bootFailedRef.current = false;
+      setError("");
+      try {
+        const rows = await refreshSessions(client);
+        await loadConversation(sessionRef.current || rows[0]?.session_id || makeSessionId(), client);
+        refreshJobs(client);
+        refreshUndo(client);
+        const snapshot = await client.getState();
+        setState(snapshot.state as JarvisState);
+      } catch {
+        // 또 끊겼다 — 연결 신호가 다시 오면 그때 한 번 더.
+        bootFailedRef.current = true;
+      }
+    };
+    // 연결 신호가 실패보다 먼저 왔을 수도 있다 — 신호를 기다리지 않고 2초마다 직접 물어 붙으면 다시 읽는다.
+    const scheduleRecover = () => {
+      const retry = () => {
+        if (!alive || !bootFailedRef.current) return;
+        void clientRef.current?.getState().then(() => recoverBoot(), () => window.setTimeout(retry, 2_000));
+      };
+      window.setTimeout(retry, 2_000);
+    };
     const reloadModel = async () => {
       try {
         const next = await clientRef.current?.getConfig();
@@ -672,6 +771,11 @@ export function WorkspaceApp() {
         stageMini.onEvent(event);
         const payload = event.payload ?? {};
         const jobId = String(payload.job_id ?? "");
+        // 클로드가 손자리에게 맡긴 판의 상태 — 지금 보는 판이 아니어도 적어 둔다(돌아와 열면 카드가 그대로 있게).
+        if (event.event === "claude_handoff") {
+          if (jobId) setHandoffs((rows) => ({ ...rows, [jobId]: (payload.handoffs ?? []) as ClaudeHandoff[] }));
+          return;
+        }
         // 받기·자동 적용은 설정 창이 닫혀 있어도 서버에서 끝난다.
         if (event.event === "setup_model_applied" || event.event === "settings_changed") {
           void reloadModel();
@@ -757,6 +861,11 @@ export function WorkspaceApp() {
         // 사용자가 보고 있는 화면이고, 놓치면 브라우저가 조용히 멈춰 있는다.
         if (event.event === "attention_required") {
           setAttention(payload as unknown as AttentionNotice);
+          return;
+        }
+        // 내 PC 모델이 대화 제목을 지었다(2026-10-26) — 왼쪽 목록을 다시 읽는다(제목은 본체 목록 · 제목 문이 준다).
+        if (event.event === "conversation_titled") {
+          void refreshSessions();
           return;
         }
         // ★ 2026-09-26 E2E: 구조로 알아본 사람 문(비밀번호 칸·보안 문자·결제 칸)에서 온텔릭은 `agent_waiting_for_human` 을 보내고
@@ -859,6 +968,9 @@ export function WorkspaceApp() {
         // 작은 HUD 에 물어본 답이 여기 실시간으로 안 붙던 이유가 이것이었다 — 같은
         // 대화인데도 새로고침해야 보였다(2026-08-06).
         if (event.event === "job_queued") {
+          // ★ 앱 안 Claude 가 맡긴 판(via=app)은 방을 열지도 목록에 올리지도 않는다 (2026-10-26 대표: 「Claude Code…」 주황 방이 따로 떴다).
+          //   그 판은 맡긴 Claude 대화의 맡김 카드 · 눈금자로 이미 보인다 — 갈래(`ClaudeLane.observe`)가 같은 사건을 따로 받는다.
+          if (String(payload.via ?? "") === "app") return;
           const queuedSession = String(payload.session_id ?? "");
           const alreadyMine = pendingRef.current.some((item) => item.jobId === jobId);
           // ★ 바깥 AI(Claude·Codex)가 MCP 로 맡긴 일은 **대화가 달라도 따라간다** (2026-09-16).
@@ -944,6 +1056,11 @@ export function WorkspaceApp() {
                 Date.now() / 1000) }
             : rows);
           if (!pendingRef.current.some((item) => item.jobId === jobId)) {
+            // ★ 2026-10-26 Claude Agent 첫 판: 대기열 밖에서 만든 판(앱 안 Claude 갈래)이 실패하면 여기서 돌아가 버려
+            //   오류 문장이 화면에 한 번도 안 떴다 — 「0걸음 · 끝났습니다」만 남았다. 지금 보는 대화의 실패는 대기열과 상관없이 보인다.
+            if (event.event === "job_failed" && String(payload.session_id ?? "") === sessionRef.current) {
+              setError(jobFailureText(payload.error));
+            }
             // ★ 멈춤은 사건이 **두 번** 온다 (2026-10-04 라이브): 버튼을 누른 순간, 그리고 판이 실제로 멈춘 순간.
             //   서버는 둘째에야 「어디까지 했는지」를 대화에 남긴다 — 첫째에서 대기열을 비웠으니 여기로 온다. 한 번 더 읽는다.
             if (event.event !== "job_completed") {
@@ -1059,6 +1176,22 @@ export function WorkspaceApp() {
           if (line.text) {
             setNarration((rows) => keepNarration([...rows.filter((r) => r.key !== line.key), line]));
           }
+        } else if (event.event.startsWith("deck_")) {
+          setDecks((rows) => {
+            const next = applyDeckEvent(rows[jobId], event.event, payload);
+            return next ? { ...rows, [jobId]: next } : rows;
+          });
+        } else if (event.event === "agent_live") {
+          const phase = String(payload.phase ?? "");
+          setLive((rows) => applyLive(rows, jobId, phase, Number(payload.thinking_chars ?? 0), Number(payload.content_chars ?? 0)));
+        } else if (event.event === "model_wait") {
+          const message = String(payload.message ?? "");
+          setModelWait((rows) => {
+            const next = { ...rows };
+            if (message) next[jobId] = message;
+            else delete next[jobId];
+            return next;
+          });
         } else if (event.event === "agent_looking") {
           setLooking((rows) => applyLooking(rows, jobId, payload));
         } else if (event.event === "agent_progress") {
@@ -1080,7 +1213,8 @@ export function WorkspaceApp() {
           setTrajectories((rows) => {
             const current = rows[jobId] ?? startTrajectory(jobId, sessionRef.current,
               pendingRef.current.find((row) => row.jobId === jobId)?.prompt ?? "", Date.now() / 1000);
-            return { ...rows, [jobId]: applyStep(current, item, Date.now() / 1000) };
+            // 판 끝 검사(phase=verification)의 「한 번도 안 연 곳의 줄」은 오른쪽 판이 따로 읽는다(`applyVerification`).
+            return { ...rows, [jobId]: applyVerification(applyStep(current, item, Date.now() / 1000), item) };
           });
           // ★ 회복하면 「같은 곳에서 계속 막히고 있습니다」를 거둔다 (2026-10-01 운영 판 f7c9e4e3). 9·10걸음이 연달아 실패해
           //   띠가 떴고, 11걸음부터 다른 길로 끝까지 잘 갔는데 띠는 판이 끝날 때까지 남아 「막혔다」로 보였다.
@@ -1105,7 +1239,12 @@ export function WorkspaceApp() {
       };
       // 리허설(`?fixture=`)일 때만 가짜 백엔드가 들어온다. 개발 빌드 전용이고,
       // 릴리스에서는 이 팩토리가 진짜 JarvisClient 만 돌려준다.
-      const client = await createBackendClient(bootstrap, onEvent, (value) => {
+      // Claude 갈래: 원래 사건은 그대로 화면에 흐르고, 갈래는 클로드가 맡긴 손자리 판의 사건을 클로드 판의 사건으로 한 번 더 흘린다.
+      setSlideFontBase(bootstrap.baseUrl);  // 장표 미리보기 칸이 앱 글꼴을 본체에서 받는다(slideFonts)
+      const lane = await createClaudeLane(bootstrap, onEvent, () => clientRef.current).catch(() => null);
+      if (!alive) return;
+      const route = lane ? (event: JarvisEvent) => { onEvent(event); lane.observe(event); } : onEvent;
+      const client = await createBackendClient(bootstrap, route, (value) => {
         setConnected(value);
         // State arrives only as an event, so a dropped socket would otherwise
         // leave the header showing whatever the last event said.
@@ -1113,8 +1252,14 @@ export function WorkspaceApp() {
           void client.getState().then((snapshot) => setState(snapshot.state as JarvisState)).catch(() => undefined);
           void reloadModel();
           void reloadPermissions();
+          if (bootFailedRef.current) void recoverBoot();
         }
       });
+      if (lane) {
+        withClaudeLane(client, lane);
+        setClaudeLane(lane);
+        void lane.runner.status().then((next) => { if (alive) setClaudeStatus(next); }).catch(() => undefined);
+      }
       clientRef.current = client;
       client.connect();
       // 살아 있다는 것을 계속 알린다. 이 신호가 끊기면(창을 닫았거나 얼었거나) 백엔드는
@@ -1155,9 +1300,23 @@ export function WorkspaceApp() {
         const snapshot = await client.getState();
         setState(snapshot.state as JarvisState);
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : String(reason));
+        const message = reason instanceof Error ? reason.message : String(reason);
+        if (isConnectFailure(message)) {
+          bootFailedRef.current = true;
+          scheduleRecover();
+        } else setError(message);
       }
-    }).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
+    }).catch((reason) => {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      // 본체가 아직 안 떴다(브라우저 fetch 의 연결 실패) — 날 문구 대신 기다린다는 말, 연결되면 위에서 다시 읽고 지운다.
+      if (isConnectFailure(message)) {
+        bootFailedRef.current = true;
+        setError(t("Sonjari 본체에 연결하는 중입니다."));
+        scheduleRecover();
+        return;
+      }
+      setError(message);
+    });
     return () => {
       alive = false;
       window.removeEventListener("ontelic:model-changed", onModelChanged);
@@ -1266,7 +1425,7 @@ export function WorkspaceApp() {
   // 걸음마다 넓어졌다 좁아졌다 하면 정신없다 — 이번 일에서 브라우저를 한 번이라도 쓰면 넓히고, 일이 끝나고 5초 뒤에 되돌린다.
   // 사람이 머리말의 「크게/작게」를 누르면 **이번 일 동안은** 그 뜻을 따른다. 사람이 크롬을 넘겨받은 동안은 접지 않는다.
   const browserInJob = useMemo(
-    () => Boolean(activeJobId) && progress.some((row) => row.jobId === activeJobId && /^(browser_|site_|unity_editor_)/.test(row.tool)),
+    () => Boolean(activeJobId) && progress.some((row) => row.jobId === activeJobId && /^(browser_|site_|unity_editor_|local_make_slide)/.test(row.tool)),
     [progress, activeJobId],
   );
   // ★ 게임 팩(2026-09-28): 유니티 같은 바깥 앱도 브라우저와 같은 무대로 편다 — 비율·배치가 안 깨지고 사람 입장에서 한눈에 보인다.
@@ -1406,7 +1565,12 @@ export function WorkspaceApp() {
     // 막는 것은 **이 방에서** 판이 도는 동안뿐이다. 다른 방에서 도는 판(바깥 AI 가 맡긴 일 등)은 새 대화를 막지 않는다 —
     // 그 판은 제 방에서 계속 돌고, 새 대화에서 보낸 말은 새 일로 줄에 선다(서버가 맡긴 판을 비켜 세운다).
     if (jobShownHere(activeJobRef.current, sessionRef.current, pendingRef.current, jobsRef.current)) return;
-    void loadConversation(makeSessionId());
+    const next = makeSessionId();
+    // ★ 새 대화는 **지금 고른 두뇌**를 이어받는다 (2026-10-26 대표 판: 같은 요청의 방이 13:52 에 둘).
+    //   두뇌는 대화마다라 새 대화가 늘 「내 PC 모델」로 시작했다 — Claude 를 고른 채 새 대화에서 보낸 말이 내 PC 모델로 가서
+    //   (서버 판 eb3e24b8 · 13:51:51 · 13:52:10 멈춤), 다시 Claude 를 골라 새 방에서 보냈다(13:52:01). 방 둘이 같은 제목으로 남았다.
+    if (isClaudeBrain(brain)) saveBrain(next, brain);
+    void loadConversation(next);
   };
 
   // 대화 지우기 — 되돌릴 수 없으니 한 번 묻는다. 지금 보고 있던 대화면 새 대화로 옮긴다.
@@ -1842,6 +2006,22 @@ export function WorkspaceApp() {
       ? t("이전 대화를 요약해 맥락을 최적화했습니다")
       : t("{0}개 메시지를 현재 맥락으로 사용 중", history?.messages.length ?? 0);
   const selectedPilotModel = pilotModel(pilotModelId);
+  // 이 대화의 두뇌가 Claude Agent 인가 — 갈래가 있을 때만(파일럿 · 브라우저 미리보기는 늘 내 PC 모델).
+  const claudeBrain = Boolean(claudeLane) && isClaudeBrain(brain);
+  const claudeChoice: ClaudeChoice | undefined = claudeLane ? {
+    brain,
+    status: claudeStatus,
+    onPick: (next) => {
+      saveBrain(sessionId, next);
+      setBrainState(next);
+    },
+    onKeyIn: async () => {
+      const out = await claudeLane.runner.keyFromClipboard().catch((reason) => ({ ok: false, error: String(reason) }));
+      setClaudeStatus(await claudeLane.runner.status().catch(() => null));
+      return out.ok ? "" : apiKeyErrorText(out.error);
+    },
+    onOpen: () => { void claudeLane.runner.status().then(setClaudeStatus).catch(() => undefined); },
+  } : undefined;
   const activeModel = pilotMode ? selectedPilotModel.label : workspaceMode === "code"
     ? modelRoles.code || modelRoles.chat || ""
     : modelRoles.chat || "";
@@ -1868,9 +2048,14 @@ export function WorkspaceApp() {
   const renderedMessages = history?.messages ?? [];
   // 오른쪽 판의 「확인 안 됨」 줄 — 마지막 답에 붙어 온 것. 일하는 중에는 아직 답이 없으니 비운다.
   const lastAnswerText = [...renderedMessages].reverse().find((message) => message.role === "assistant")?.content ?? "";
+  // 오른쪽 판의 「열지 않은 곳 N줄」 — 이 창이 지켜본 판이면 끝 검사 알림에서, 아니면 대화 기록의 그 판 답 메타데이터에서.
+  const paneUnopened = useMemo(
+    () => trajectories[computerJobId]?.unopened ?? unopenedRowsForJob(renderedMessages, computerJobId),
+    [trajectories, computerJobId, renderedMessages],
+  );
   const paneChecks = useMemo(
-    () => (hasLiveJob || activeJobId ? [] : splitAnswerChecks(lastAnswerText).checks),
-    [lastAnswerText, hasLiveJob, activeJobId],
+    () => (hasLiveJob || activeJobId ? [] : withoutUnopenedCheck(splitAnswerChecks(lastAnswerText).checks, paneUnopened)),
+    [lastAnswerText, hasLiveJob, activeJobId, paneUnopened],
   );
   // 대화와 궤적을 한 축으로. 지금 보고 있는 대화의 것만 꿴다.
   const timeline = buildTimeline(
@@ -1995,8 +2180,9 @@ export function WorkspaceApp() {
                 api={setupApi}
                 role={workspaceMode === "code" ? "code" : "chat"}
                 label={activeModel ? `${displayModelName(activeModel)} · ${activeContextLabel}` : ""}
-                context={workspaceMode === "code" ? t("{0} · 코드 작업 전용", activeModel) : contextLabel}
+                context={claudeBrain ? t("이 대화는 Claude Agent 가 일합니다 · 내 API 키") : workspaceMode === "code" ? t("{0} · 코드 작업 전용", activeModel) : contextLabel}
                 onChanged={() => window.dispatchEvent(new Event("ontelic:model-changed"))}
+                claude={claudeChoice}
               />
             )}
           </div>
@@ -2040,9 +2226,14 @@ export function WorkspaceApp() {
               <AnimatePresence>
                 {(streaming || thinking) && (hereJobId || settlingJobId) && (
                   <motion.article className="workspace-message message-assistant streaming-message" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                    <div className="message-avatar"><JarvisMark state="working" connected size={18} /></div>
+                    {/* Claude Agent 판이면 이름 · 표식도 그쪽 것(주황 점 · 공식 로고는 안 씀). 손자리가 맡아 하는 걸음은 오른쪽 칸에 보인다. */}
+                    {claudeLane?.owns(hereJobId || settlingJobId) ? (
+                      <div className="message-avatar"><span className="brain-dot claude message-claude-mark" aria-hidden /></div>
+                    ) : (
+                      <div className="message-avatar"><JarvisMark state="working" connected size={18} /></div>
+                    )}
                     <div className="message-body">
-                      <div className="message-meta"><strong>Sonjari</strong><span>{t("지금")}</span></div>
+                      <div className="message-meta"><strong>{claudeLane?.owns(hereJobId || settlingJobId) && isClaudeBrain(brain) ? claudeButtonLabel(brain) : "Sonjari"}</strong><span>{t("지금")}</span></div>
                       {/* 젬마의 사고도 여기서 보인다 (2026-08-30).
                           ★ 서버는 처음부터 두 역할 모두의 사고를 흘리고 있었다 —
                             `flush_thinking()` 은 model_role 을 안 가리고, 한국어
@@ -2055,7 +2246,7 @@ export function WorkspaceApp() {
                           코드 모드에서는 오른쪽 칸이 이미 같은 것을 그린다.
                           두 곳에 겹쳐 두면 같은 글이 화면에 두 번 흐른다. */}
                       {workspaceMode !== "code" && (
-                        <ThinkingTrace text={thinkingText} ko={thinkingKo} live={Boolean(hereJobId)} client={clientRef.current} mode={workspaceMode} />
+                        <ThinkingTrace text={thinkingText} ko={thinkingKo} live={Boolean(hereJobId)} client={clientRef.current} mode={workspaceMode} translate={!claudeLane?.owns(hereJobId || settlingJobId)} />
                       )}
                       {/* 일하면서 한 말. 답이 아니라 **하는 말**이라 다른 칸에 둔다 —
                           섞으면 「했다」는 말이 결과로 읽힌다(실측에서 안 한 일을
@@ -2084,7 +2275,7 @@ export function WorkspaceApp() {
                           ? <ModelLoadLine client={clientRef.current} onResident={markModelWarm} />
                           // 그림을 읽는 중이면 이 줄을 내지 않는다 — 「도구를 고르는 중」은 그 순간 틀린 말이고, 위의 그림이 이미 무엇을 하는지 말한다.
                           : looking[hereJobId || settlingJobId] ? null
-                          : <div className="workspace-thinking"><span />{elapsed >= 3 && <p>{t("질문의 의도와 필요한 도구를 고르는 중입니다.")}</p>}</div>
+                          : <div className="workspace-thinking"><span />{elapsed >= 3 && <p>{modelWait[hereJobId || settlingJobId] || liveText(live[hereJobId || settlingJobId]) || t("질문의 의도와 필요한 도구를 고르는 중입니다.")}</p>}</div>
                       )}
                     </div>
                   </motion.article>
@@ -2258,7 +2449,11 @@ export function WorkspaceApp() {
           {error && <p className={isFailureNotice(error) ? "workspace-error is-notice" : "workspace-error"} role="status">{error}</p>}
           {/* ★ 2026-09-23 스토어 정책 11.16(생성형 AI): 사용자가 부적절한 결과를 개발자에게 알릴 수단이 있어야 한다. */}
           <small className="privacy-note">
-            {t("Sonjari는 실수할 수 있습니다. 중요한 결정은 근거와 원문을 함께 확인하세요.")}{" "}
+            {claudeBrain
+              ? (workspaceMode === "code"
+                  ? t("Claude Agent 가 이 폴더의 파일을 직접 읽고 고칩니다 · 읽은 내용은 클로드 API 로 갑니다")
+                  : t("클로드에게는 대화와 손자리가 돌려준 결과만 갑니다 · 페이지 원문은 이 PC에 남습니다"))
+              : t("Sonjari는 실수할 수 있습니다. 중요한 결정은 근거와 원문을 함께 확인하세요.")}{" "}
             {/* 2026-09-29: 메일 창 대신 앱 안에서 — 보낼 내용을 보여 주고 동의받은 뒤 보낸다(ProblemReportDialog). */}
             <button type="button" className="privacy-note-link" onClick={() => setReportOpen(true)}>{t("문제 보내기")}</button>
           </small>
@@ -2293,6 +2488,7 @@ export function WorkspaceApp() {
           progress={progress}
           plan={computerJobId ? trajectories[computerJobId]?.plan ?? [] : []}
           checks={paneChecks}
+          unopened={paneUnopened}
           elapsedLabel={elapsedLabel}
           thinkingText={thinkingText}
           thinkingKo={thinkingKo}
@@ -2311,6 +2507,28 @@ export function WorkspaceApp() {
           stageWidth={stageWidth}
           onStageToggle={stageAllowed ? () => setStageOverride(!stage) : undefined}
           onControlChange={setBrowserControl}
+          deck={computerJobId ? decks[computerJobId] : undefined}
+          handoffs={computerJobId && claudeLane?.owns(computerJobId)
+            ? handoffs[computerJobId] ?? claudeLane.handoffs(computerJobId)
+            : undefined}
+          localModel={displayModelName(modelRoles.chat || "")}
+          onDeckAnswer={computerJobId && decks[computerJobId]
+            ? (kind, value) => { void clientRef.current?.slidesAnswer(computerJobId, decks[computerJobId].title, kind, value).catch(() => null); }
+            : undefined}
+          onDeckOpen={computerJobId
+            ? (path, reveal) => { void clientRef.current?.openOutputOnPc(computerJobId, path, reveal).catch(() => null); }
+            : undefined}
+          onDeckPhoto={computerJobId && decks[computerJobId]
+            ? async (index, slot, file) => {
+                const data = await new Promise<string>((done, fail) => {
+                  const reader = new FileReader();
+                  reader.onload = () => done(String(reader.result ?? ""));
+                  reader.onerror = () => fail(reader.error);
+                  reader.readAsDataURL(file);
+                });
+                await clientRef.current?.slidesPhoto(computerJobId, decks[computerJobId].title, index, slot, data);
+              }
+            : undefined}
         />
       )}
       <CapabilityDrawer

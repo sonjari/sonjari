@@ -3,6 +3,8 @@ import { memo } from "react";
 import { Bot } from "lucide-react";
 import { JarvisMark } from "./JarvisMark";
 import { MarkdownView } from "../MarkdownView";
+import { ClaudeReceipt } from "../claudeAgent/HandoffCard";
+import { claudeButtonLabel, isClaudeBrain } from "../claudeAgent/brain";
 import type { ConversationMessage } from "../types";
 import { timeLabel } from "./format";
 import { userInitial, userLabel } from "./userLabel";
@@ -58,11 +60,14 @@ export const MessageView = memo(function MessageView({
   const showcaseJob = message.role === "assistant" && !unfinished && !fromMemory && typeof message.metadata?.job_id === "string"
     ? message.metadata.job_id
     : "";
+  // ★ 앱 안의 Claude Agent 가 쓴 답 (2026-10-26) — 이름은 「Claude Agent · Sonnet 5.5」, 표식은 주황 점(공식 로고는 안 씀), 끝에 영수증 줄.
+  const byClaude = message.role === "assistant" && message.metadata?.brain === "claude";
+  const claudeModel = byClaude ? String(message.metadata?.model ?? "") : "";
   const thinkingTokens = Number(message.metadata?.thinking_tokens ?? 0);
   const cacheReadTokens = Number(message.metadata?.cache_read_tokens ?? 0);
   const runtime = message.role === "assistant"
     ? [
-        model,
+        byClaude ? "" : model,
         thinkingTokens > 0 ? t("생각 {0}토큰", thinkingTokens.toLocaleString()) : "",
         cacheReadTokens > 0 ? t("캐시 {0}토큰 재사용", cacheReadTokens.toLocaleString()) : "",
       ].filter(Boolean).join(" · ")
@@ -72,11 +77,11 @@ export const MessageView = memo(function MessageView({
       <div className="message-avatar">
         {/* Sonjari의 말에는 로고 마크 — 끝난 말이라 멈춰 있다. 쓰는 중인 말은 WorkspaceApp 에서 고리가 돈다.
             바깥 AI 의 말은 「다른 AI」 표식을 출처 색으로 — 이니셜은 Claude·Codex·Cursor 가 전부 C 라 못 가른다(09-30 화면 확인). */}
-        {message.role === "assistant" ? <JarvisMark state="idle" connected size={18} /> : delegated ? <Bot size={15} aria-hidden /> : userInitial()}
+        {byClaude ? <span className="brain-dot claude message-claude-mark" aria-hidden /> : message.role === "assistant" ? <JarvisMark state="idle" connected size={18} /> : delegated ? <Bot size={15} aria-hidden /> : userInitial()}
       </div>
       <div className="message-body">
         <div className="message-meta">
-          <strong>{message.role === "assistant" ? "Sonjari" : delegated ? t("{0}가 맡긴 일", callerLabel(caller)) : userLabel()}</strong>
+          <strong>{byClaude ? (isClaudeBrain(claudeModel) ? claudeButtonLabel(claudeModel) : "Claude Agent") : message.role === "assistant" ? "Sonjari" : delegated ? t("{0}가 맡긴 일", callerLabel(caller)) : userLabel()}</strong>
           <span>{timeLabel(message.created_at)}</span>
           {runtime && <span className="message-runtime">{runtime}</span>}
         </div>
@@ -103,6 +108,7 @@ export const MessageView = memo(function MessageView({
         )}
         {/* 바깥 AI 에게 무엇이 나갔나 — 한 줄 영수증(2026-10-15 · §55-32). 바깥 AI 가 맡긴 판에만 서버가 남긴다. */}
         {outbound && <OutboundReceipt record={outbound} />}
+        {byClaude && <ClaudeReceipt metadata={message.metadata} />}
         {/* 일하는 도중 덧붙인 말 (2026-10-01, 대표). 서버는 질문 기록에 `steer_notes` 로 남기는데 화면이 안 그려서,
             판이 끝나면 「구글에서 봐 줘」 같은 방향 전환이 기록에서 사라졌다. 질문 아래·답 위 — 일어난 순서 그대로. */}
         {message.role === "user" && Array.isArray(message.metadata?.steer_notes) && (message.metadata.steer_notes as unknown[]).map((note, index) => (

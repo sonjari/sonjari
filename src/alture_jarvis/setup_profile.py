@@ -525,6 +525,9 @@ _LADDER: tuple[tuple[str, int, float], ...] = (
     #   글만 읽기 64K 가 온전한 줄 8/9, 48K 가 5/9 였다(각 1판). 내주는 것: 붙인 사진 · 그림으로 된 글 · 만든 화면을 눈으로 보는
     #   검사 — 모델 카드의 「그림 읽기」에서 되돌린다. 실제 16GB 카드에서 64K 가 다 올라가는지는 적용 단계가 잰다.
     ("qwen3.8-27b-swift-iq3xxs", 65536, 0.5),
+    # ★ 2026-10-26 대표 결정: 16GB 기본(위 Swift)이 안 들어가면 Qwen3.6 35B 2비트 · 글만 읽기 · 64K(12.4GB) — 9B 보다 먼저.
+    #   근거와 잰 값은 목록의 그 항목 주석(`model_catalog.py` · 2026-10-23 밤 실측).
+    ("qwen3.6-35b-iq2m", 65536, 0.5),
     ("qwen3.8-27b-swift-iq3xxs", 49152, 0.5),
     ("qwen3.8-27b-swift-iq3xxs", 32768, 0.5),
     ("qwen3.5-9b", 131072, 1.0),
@@ -545,7 +548,7 @@ _LADDER: tuple[tuple[str, int, float], ...] = (
 
 
 #: 사다리의 이 칸은 **그림 부속을 뗀 채**(「글만 읽기」) 올리는 칸이다 — (모델, 창). 메모리는 `text_only_need` 로 본다.
-_TEXT_ONLY_RUNGS: frozenset[tuple[str, int]] = frozenset({("qwen3.8-27b-swift-iq3xxs", 65536),
+_TEXT_ONLY_RUNGS: frozenset[tuple[str, int]] = frozenset({("qwen3.8-27b-swift-iq3xxs", 65536), ("qwen3.6-35b-iq2m", 65536),
                                                           ("qwen3.5-9b-q3", 49152), ("qwen3.5-9b-q3", 32768),
                                                           ("qwen3.5-4b-q3", 49152), ("qwen3.5-4b-q3", 32768)})
 
@@ -596,6 +599,29 @@ def smaller_that_fits(free_gb: float | None, failed_key: str) -> tuple[CatalogMo
             continue
         if free_gb >= need + headroom:
             return model, ctx, need
+    return None
+
+
+def smaller_choice(free_gb: float | None, failed_key: str) -> tuple[CatalogModel, int, float, bool] | None:
+    """`smaller_that_fits` 에 **글만 읽기 칸도** 넣은 판 — (모델, 창, 필요한 메모리, 글만 읽기인가). 없으면 None.
+
+    ★ 2026-10-26 대표 결정 「16GB 기본은 Swift, 안 들어가면 Qwen3.6 2비트」: 그 2비트는 글만 읽기 칸(12.4GB)이라
+      그림 있는 칸만 보던 `smaller_that_fits` 로는 영영 안 나오고 9B 로 내려갔다. 화면이 「그림을 끄고」 적용하도록 네 번째 값을 준다.
+    """
+    failed = by_key(failed_key)
+    if free_gb is None or failed is None or not failed.vram_gb:
+        return None
+    smallest_failed = min(list(failed.vram_gb.values()) + list(failed.text_only_vram_gb.values()))
+    for key, ctx, headroom in _LADDER:
+        model = by_key(key)
+        if model is None or key == failed_key or model.status != "verified":
+            continue
+        text_only = (key, ctx) in _TEXT_ONLY_RUNGS
+        need = text_only_need(model, ctx) if text_only else model.vram_gb.get(ctx)
+        if need is None or need >= smallest_failed:
+            continue
+        if free_gb >= need + headroom:
+            return model, ctx, need, text_only
     return None
 
 
@@ -758,6 +784,8 @@ def recommend(profile: dict[str, Any], bench: dict[str, Any] | None = None) -> d
                               "num_ctx": alt_ctx, "vram_gb": alt_need, "download_gb": alt.download_gb,
                               "installed": alt.ollama_tag in installed,
                               "confidence": "measured" if alt.chain and alt.chain_ctx == alt_ctx else "memory_only",
+                              # 대안도 글만 읽기 칸일 수 있다(16GB 의 Qwen3.6 2비트 · 2026-10-26) — 화면이 그대로 그림을 끄고 적용한다.
+                              "text_only": (alt.key, alt_ctx) in _TEXT_ONLY_RUNGS,
                               "license": alt.license, "license_open": True, "license_url": alt.license_url,
                               "chain": ({"ok": alt.chain[0], "total": alt.chain[1], "ctx": alt.chain_ctx} if alt.chain else None)})
                 break

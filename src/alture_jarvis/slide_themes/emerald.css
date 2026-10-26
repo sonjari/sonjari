@@ -1,0 +1,17 @@
+/* 에메랄드 · 남색 — 힘 있는 보고(전략 · 성과 · 계획). 참고: emerald-editorial(MIT · Zara Zhang) */
+:root {
+  --paper: #f3eedf; --ink: #151a4f; --ink-soft: #3c416e; --ink-faint: #6f7396; --title: #151a4f;
+  --accent: #151a4f; --accent-text: #151a4f; --rule: #d6d0bd; --rule-strong: #151a4f;
+  --surface: #e7e0cb; --track: #e2dbc6; --bar: #8fd9b6; --tile-b: #151a4f; --tile-b-ink: #44dd9c;
+  --field: #44dd9c; --field-ink: #121752; --field-accent: #121752; --field-soft: #1d2a5c; --field-faint: #24616a;
+  --field-rule: #2fb57d; --field-surface: #f3eedf; --field-track: #34c487; --field-bar: #22a56f; --field-kicker: #121752;
+  --sans: 'Pretendard', 'Malgun Gothic', sans-serif; --display: 'Paperlogy', Georgia, 'Malgun Gothic', serif; --display-weight: 700;
+  --quote: 'Paperlogy', Georgia, 'Malgun Gothic', serif; --quote-weight: 700; --figure: 'Paperlogy', Georgia, 'Malgun Gothic', serif; --figure-weight: 700;
+}
+section.cover { align-items: center; text-align: center; justify-content: center; }
+section.cover h1 { padding: 22px 0; border-top: 3px double currentColor; border-bottom: 3px double currentColor; }
+section.cover .meta { justify-content: center; border-top: 0; }
+section.cover .lede { margin-left: auto; margin-right: auto; }
+.section .big { background: #121752; color: #44dd9c; }
+.steps li.on::before { background: #121752; color: #44dd9c; }
+.tile:first-child { background: #121752; color: #f3eedf; }

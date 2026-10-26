@@ -132,6 +132,9 @@ _ALWAYS_ON_TOOLS = frozenset({
 #   없으면 안 쓰인다」이다. 그래서 **지우지 않고 갈래별로 준다.**
 _WEB_RESEARCH_PREFIXES = ("browser_", "site_", "ui_", "naver_web", "open_url",
                           "local_write", "local_edit", "local_read",
+                          # 장표(2026-10-25) — 이름이 local_write 로 시작하지 않아 이 갈래에서 `not_this_route` 로 막혔고,
+                          #   모델이 계산 상자의 python-pptx 로 돌아가 흰 바탕 PPT 를 만들었다(「손자리 소개」 셋째 판).
+                          "local_make_slide",
                           "artifact_", "sandbox_", "google_drive_",
                           # ★ 2026-10-04 도구 전수조사 2-F: 시스템 지시가 쓰라는 조사 API(「GitHub 탐색은 github_search」)와
                           #   내 PC 파일을 찾는 손이 조사 판 목록에서 빠져 있었다 — 「내 문서의 계약서 두 개 비교」에서
@@ -225,7 +228,8 @@ def _route_hands(
 
     전체 목록을 안 보여 주는 때(좁힌 목록을 보낸다 — 예전 그대로):
       - 이 판에서 이미 두 번 되돌려 보냈다. 안내를 안 따르는 판이다(35B 도 그런 판이 있었다 — 09-28).
-      - 더 실리는 도구 정의가 창의 5% 를 넘는다. 창이 작은 모델은 그 자리가 본문을 읽을 자리다.
+      - 더 실리는 도구 정의가 창의 `_ROUTE_WHOLE_LIST_MAX_SHARE`(10-24 부터 10%)를 넘는다. 창이 작은 모델은 그 자리가 본문을 읽을 자리다.
+        (아래 숫자는 10-07 날의 것이다. 지금 크기는 `tests/test_research_jobs_see_the_same_tool_list_1007.py` 가 실제 앱 목록으로 잰다.)
         (운영 목록 123개 − 79개 ≈ 5,700토큰: 256K 에서 약 2% · 128K 에서 약 4% · 64K 에서 약 9% — 64K 이하는 예전처럼 좁힌다.
         128K 는 조건에 들지만 **그 창에서 돌려 본 적은 없다.**)
     """
@@ -260,10 +264,41 @@ def _route_scoped_tool_definitions(
     kept = [
         tool
         for tool in tools
-        if (name := str((tool.get("function") or {}).get("name") or ""))
-        and (name in _ALWAYS_ON_TOOLS or name.startswith(_WEB_RESEARCH_PREFIXES))
+        if (name := str((tool.get("function") or {}).get("name") or "")) and _in_web_route(name)
     ]
     return kept or tools
+
+
+def _in_web_route(name: str) -> bool:
+    return name in _ALWAYS_ON_TOOLS or name.startswith(_WEB_RESEARCH_PREFIXES)
+
+
+def _is_platform_write(name: str) -> bool:
+    return any(
+        name == prefix or (prefix.endswith("_") and name.startswith(prefix))
+        for prefixes, _subjects, _label in _PLATFORM_WRITE_SUBJECTS
+        for prefix in prefixes
+    )
+
+
+def _stable_tool_order(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """도구 목록을 **늘 있는 손 → 가끔 붙는 손 → 말했을 때만 붙는 올리기 손** 순서로 둔다. 같은 칸 안에서는 받은 순서 그대로다.
+
+    ★ 2026-10-24 판 첫 걸음 30.6초(도구 133개 · 30,154토큰). 도구 목록은 프롬프트에서 지침 바로 뒤에 그려지는데, 등록부 순서로는
+      입시 · 진로 같은 갈래 밖의 손이 **맨 앞(0~4번째)과 중간**에 끼어 있었다. 그래서 조사 판의 좁힌 목록(79개)과 그 밖의 판의 목록(133개)은
+      첫 도구부터 달랐고, 두 종류의 판이 번갈아 올 때마다 도구 목록 전체와 대화를 처음부터 읽었다(`data/prefix_same_kind.jsonl`).
+      조사 갈래의 손을 앞에 모으면 좁힌 목록이 넓은 목록의 **앞부분과 글자까지 같아져**, 바뀌어도 늘어난 뒤쪽만 읽는다.
+      요청에 따라 들고 나는 올리기 손(블로그 · 메일 보내기 · 일정 만들기)은 맨 뒤라 빠져도 앞이 안 흔들린다.
+    """
+    ranked = sorted(
+        enumerate(tools),
+        key=lambda pair: (
+            2 if _is_platform_write(name := str((pair[1].get("function") or {}).get("name") or ""))
+            else 0 if _in_web_route(name) else 1,
+            pair[0],
+        ),
+    )
+    return [tool for _index, tool in ranked]
 
 
 #: 바깥 서비스에 **올리는** 손 — 그 서비스를 사용자가 말했을 때만 연다.

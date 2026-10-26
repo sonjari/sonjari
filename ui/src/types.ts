@@ -132,7 +132,11 @@ export interface AgentProgress {
   tool: string;
   status: "running" | "completed" | "partial" | "failed" | "cancelled";
   evidence?: Record<string, unknown>;
+  /** 누가 한 걸음인가(2026-10-26 · Claude Agent). `claude` = 클로드가 직접, `local` = 손자리(내 PC 모델)가 맡아서. 없으면 손자리 혼자 한 판이다. */
+  actor?: StepActor;
 }
+
+export type StepActor = "claude" | "local";
 
 /**
  * 지금 읽는 그림 조각 (`agent_looking`). 걸음 기록이 아니다 — 읽는 동안에만 화면에 비추고, 다음 걸음이 오면 거둔다.
@@ -198,6 +202,12 @@ export interface ConversationSummary {
   has_summary: boolean;
   /** 바깥 AI 가 맡긴 대화면 그 호스트 이름(MCP clientInfo — 예: claude-code). 없으면 빈 값. */
   caller?: string;
+  /** 어느 문으로 들어왔나(`app` = 앱 안 Claude 가 맡긴 판). 옛 서버는 안 준다. */
+  via?: string;
+  /** 첫 질문을 처리한 판 번호 — Claude 대화에 묶인 판을 알아본다. 옛 서버는 안 준다. */
+  job_id?: string;
+  /** 제목을 누가 지었나 — model(내 PC 모델) · person(사람). 비면 첫 말 앞부분. */
+  title_source?: string;
 }
 
 export interface ConversationMessage {
@@ -341,6 +351,8 @@ export interface JobSummary {
   workspace_mode?: string;
   /** 그 판의 작업 폴더(코드 판). 없으면 빈 문자열. */
   code_workspace?: string;
+  /** 어느 문으로 들어왔나(`app` = 앱 안 Claude 가 맡긴 판 · `remote`). 옛 서버는 안 준다. */
+  via?: string;
 }
 
 /** 도구 한 걸음이 장부에 남긴 줄. `agent_trace.steps[]` 의 원소다. */
@@ -396,6 +408,14 @@ export interface ScheduleRow {
   created_at: number;
   updated_at: number;
   last_job_id: string;
+  repeat_every?: string;
+  deliver_to?: string;
+  /** "prompt"(돌 때마다 모델이 판을 짠다) · "routine"(모델 없이 레시피 주소로 받아 칸만 읽는다 · 2026-10-23). 옛 백엔드는 안 보낸다. */
+  kind?: string;
+  /** 루틴 설명서(JSON 문자열) — recipe · query · region. */
+  routine?: string;
+  /** 루틴 마지막 회차의 작은 줄(JSON 문자열) — 상태 · 건수 · 깨진 까닭 · 파일. 비면 아직 안 돎. */
+  last_result?: string;
 }
 
 /** 도구 한 개. `GET /v1/capabilities` 의 `tools[]` — `/v1/tools` 와 같은 모양이다. */
@@ -661,7 +681,7 @@ export interface WhatsNewSlide {
   title: string;
   body: string;
   try?: string;
-  visual?: WhatsNewStat | WhatsNewImage;
+  visual?: WhatsNewStat | WhatsNewImage | WhatsNewShow;
 }
 
 /** 전 · 후 막대. `basis`(잰 조건)는 백엔드가 없으면 장에서 뺀다 — 화면에 오는 숫자에는 늘 있다. */
@@ -679,6 +699,12 @@ export interface WhatsNewImage {
   kind: "image";
   src: string;
   alt: string;
+}
+
+/** 영상 대신 앱의 진짜 화면 조각을 예시 데이터로 움직이는 장면(2026-10-26). 이름은 백엔드 `whats_new.SHOW_SCENES` 와 같다. */
+export interface WhatsNewShow {
+  kind: "show";
+  scene: "claude-hands" | "deck-build" | "pptx-fonts";
 }
 
 export interface UpdateStatus {
@@ -1089,4 +1115,67 @@ export interface SavingsReceipt {
   /** 맡긴 쪽이 전부 클로드면 "claude", 코덱스 등이 섞이면 "outside_ai". */
   host_word: "claude" | "outside_ai";
   basis: string;
+}
+
+
+// ── 앱 안의 Claude Agent (2026-10-26 · `src-tauri/src/claude_agent.rs` · `claudeAgent/`) ─────────────────
+
+/** Rust 가 `claude-agent-stream` 으로 보내는 사건 하나. */
+export interface AgentStreamEvent {
+  job_id: string;
+  kind: "thinking" | "text" | "tool" | "tool_done" | "delegated" | "delegation_status";
+  delta: string;
+  step: number;
+  tool: string;
+  tool_use_id: string;
+  message: string;
+  ok: boolean;
+  evidence: Record<string, unknown>;
+  local_job_id: string;
+  summary: DelegationSummary | null;
+}
+
+/** 맡긴 판의 검사 요약 — 센 숫자만. */
+export interface DelegationSummary {
+  status: string;
+  steps: number;
+  files: number;
+  sources: number;
+  unsupported_numbers: number;
+  needs_total: number;
+  needs_met: number;
+}
+
+export interface AgentChatResult {
+  answer: string;
+  /** stream-json `result.total_cost_usd` 그대로 — 없으면 null(지어내지 않는다). */
+  cost_usd: number | null;
+  duration_ms: number;
+  session_id: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  num_turns: number;
+  trace: Array<Omit<Observation, "job_id" | "truncation"> & { truncation?: Observation["truncation"] }>;
+  delegations: Array<{ tool_use_id: string; local_job_id: string }>;
+}
+
+export interface ClaudeAgentStatus {
+  ready: boolean;
+  claude_found: boolean;
+  has_key: boolean;
+  key_state: "none" | "ok" | "subscription_token" | "admin_key" | "unreadable";
+  message: string;
+}
+
+/** 클로드가 손자리에게 맡긴 한 판 — 컴퓨터 칸의 「손자리가 받았습니다」 카드가 그린다. */
+export interface ClaudeHandoff {
+  localJobId: string;
+  task: string;
+  state: "received" | "working" | "done" | "failed";
+  summary: DelegationSummary | null;
+  /** 이 판에서 손자리가 한 걸음 수(눈금자에 보인 것). */
+  steps: number;
 }

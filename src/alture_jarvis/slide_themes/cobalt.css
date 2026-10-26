@@ -1,0 +1,15 @@
+/* 코발트 · 종이 — 연구 · 조사 · 데이터(차분하게). 참고: cobalt-grid(MIT · Zara Zhang) */
+:root {
+  --paper: #f1ece3; --ink: #1b1d3a; --ink-soft: #3d4160; --ink-faint: #7a7c92; --title: #2230d6;
+  --accent: #2230d6; --accent-text: #2230d6; --rule: #c9c7d6; --rule-strong: #2230d6;
+  --surface: #e4e1ec; --track: #dddbe6; --bar: #a7acd9; --tile-b: #dfe2fb; --tile-b-ink: #2230d6;
+  --field: #2230d6; --field-ink: #f1ece3; --field-accent: #f1ece3; --field-soft: #d7daf7; --field-faint: #aab0ee;
+  --field-rule: #4a56e0; --field-surface: #3341e0; --field-track: #3846e2; --field-bar: #6f7ae8; --field-kicker: #f1ece3;
+  --sans: 'Pretendard', 'Malgun Gothic', sans-serif; --display: 'IBM Plex Sans KR', Georgia, 'Batang', serif; --display-weight: 400;
+  --quote: 'IBM Plex Sans KR', Georgia, 'Batang', serif; --quote-weight: 400; --figure: 'IBM Plex Sans KR', Georgia, 'Batang', serif; --figure-weight: 400;
+}
+section:not(.split):not(.section)::before { content: ""; position: absolute; left: 76px; right: 76px; top: 40px; height: 2px; background: var(--rule-strong); opacity: 0.85; }
+section.cover::after { content: ""; position: absolute; right: 120px; top: 110px; width: 230px; height: 420px;
+  background: repeating-linear-gradient(90deg, #2230d6 0 6px, transparent 6px 14px); }
+section.cover h1 { max-width: 760px; }
+.bar i { height: 34px; }

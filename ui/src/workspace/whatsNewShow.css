@@ -1,0 +1,127 @@
+/* 업데이트 쇼 (2026-10-26). 색은 앱의 뜻 그대로 — 사람 쪽은 따뜻한 바닥(surface), 손자리의 컴퓨터는 찬 바닥(machine),
+   클로드는 출처 색(origin-claude), 손자리는 brand, 확인된 것은 ok. 새 색을 만들지 않는다.
+   이 장면의 한 가지 기억할 것: **실 한 가닥이 따뜻한 쪽에서 찬 쪽으로 건너가며 색이 바뀐다** — 클로드가 생각하고 손자리가 손을 쓴다. */
+
+.wns { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.wns-example { position: absolute; top: 8px; right: 10px; z-index: 3; padding: 2px 8px; border-radius: var(--r-pill);
+  color: rgb(var(--text-4)); background: rgb(var(--ground) / .72); font-size: var(--fs-1); letter-spacing: .02em; pointer-events: none; }
+.wns .spin { animation: wns-spin 1s linear infinite; }
+@keyframes wns-spin { to { transform: rotate(360deg); } }
+
+/* ── ① 클로드 → 손자리 ─────────────────────────────────────────────── */
+.wns-hands { position: relative; height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.wns-human { min-width: 0; padding: 18px 44px 16px 20px; display: flex; flex-direction: column; gap: 10px; background: rgb(var(--surface-2)); }
+.wns-machine { min-width: 0; padding: 14px 18px 16px 30px; display: flex; flex-direction: column; gap: 10px; background: rgb(var(--machine-1)); }
+
+.wns-chip { align-self: flex-start; margin: 0; padding: 3px 10px; display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid rgb(var(--line)); border-radius: var(--r-pill); color: rgb(var(--text-2)); background: rgb(var(--surface-3)); font-size: var(--fs-1); }
+.wns-dot-claude { width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--origin-claude)); }
+.wns-you { align-self: flex-end; max-width: 92%; margin: 0; padding: 8px 12px; border-radius: var(--r-2) var(--r-2) var(--r-0) var(--r-2);
+  color: rgb(var(--text-1)); background: rgb(var(--surface-4)); font-size: var(--fs-2); line-height: 1.45; word-break: keep-all; }
+
+.wns-steps { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.wns-steps li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--r-1);
+  color: rgb(var(--text-4)); font-size: var(--fs-2); transition: color var(--t-move) var(--ease), background var(--t-move) var(--ease); }
+.wns-steps li.is-on { color: rgb(var(--text-1)); }
+.wns-steps li.is-done { color: rgb(var(--text-3)); }
+.wns-steps li.is-done svg { color: rgb(var(--ok)); }
+.wns-steps li.is-wait { color: rgb(var(--text-5)); }
+.wns-steps li small { margin-left: 4px; color: rgb(var(--text-4)); font-size: var(--fs-1); }
+.wns-hollow { width: 11px; height: 11px; margin: 0 1px; border: 1.5px solid rgb(var(--text-5)); border-radius: 50%; }
+/* 「맡김」 줄 — 실이 여기서 나간다. 켜지면 클로드의 색으로 테두리가 선다. */
+.wns-handoff { border: 1px solid transparent; }
+.wns-handoff.is-on { border-color: rgb(var(--origin-claude) / .55); background: rgb(var(--origin-claude) / .08); }
+.wns-handoff.is-on svg { color: rgb(var(--origin-claude)); }
+.wns-handoff.is-done { border-color: rgb(var(--line)); background: transparent; }
+
+.wns-receipt { margin: auto 0 0; padding-top: 12px; display: grid; grid-template-columns: auto auto; justify-content: start; gap: 2px 28px;
+  border-top: 1px dashed rgb(var(--line-strong)); opacity: 0; transform: translateY(6px);
+  transition: opacity var(--t-enter) var(--ease), transform var(--t-enter) var(--ease); }
+.wns-receipt.is-on { opacity: 1; transform: none; }
+.wns-cost { margin: 0; display: flex; flex-direction: column; gap: 1px; }
+.wns-cost span { color: rgb(var(--text-4)); font-size: var(--fs-1); }
+.wns-cost b { font-family: var(--font-mono); font-size: calc(var(--fs-5) * 1.45); font-weight: var(--fw-bold); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.wns-cost-claude b { color: rgb(var(--origin-claude)); }
+.wns-cost-local b { color: rgb(var(--brand-bright)); }
+.wns-receipt small { grid-column: 1 / -1; margin-top: 4px; color: rgb(var(--text-5)); font-size: var(--fs-1); }
+
+.wns-pc-head { display: flex; align-items: baseline; gap: 8px; color: rgb(var(--m-text-2)); font-size: var(--fs-1); }
+.wns-pc-head b { color: rgb(var(--m-text-1)); font-weight: var(--fw-mid); }
+/* 「받았습니다」 칸 — 실이 들어오는 곳. 켜지는 순간 손자리의 색이 번진다. */
+.wns-got { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px dashed rgb(var(--machine-line-strong));
+  border-radius: var(--r-2); color: rgb(var(--m-text-3)); background: rgb(var(--machine-2)); font-size: var(--fs-2);
+  transition: border-color var(--t-move) var(--ease), background var(--t-move) var(--ease), color var(--t-move) var(--ease), box-shadow var(--t-stage) var(--ease); }
+.wns-got.is-on { border-style: solid; border-color: rgb(var(--brand) / .7); color: rgb(var(--m-text-1)); background: rgb(var(--brand-dim) / .32);
+  box-shadow: 0 0 0 4px rgb(var(--brand) / .10); }
+.wns-got.is-on svg { color: rgb(var(--brand-bright)); }
+.wns-got small { margin-left: auto; color: rgb(var(--brand-bright)); font-size: var(--fs-1); }
+
+.wns-browser { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid rgb(var(--machine-line));
+  border-radius: var(--r-2); background: rgb(var(--machine-2)); opacity: .45; transition: opacity var(--t-move) var(--ease); }
+.wns-browser.is-on { opacity: 1; }
+.wns-url { margin: 0; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: var(--r-1); color: rgb(var(--m-text-2));
+  background: rgb(var(--machine-3)); font-size: var(--fs-1); font-variant-numeric: tabular-nums; }
+.wns-browser ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.wns-browser li { display: flex; align-items: center; gap: 8px; height: 14px; }
+.wns-browser li i { flex: none; width: 22px; height: 12px; border-radius: 3px; background: rgb(var(--machine-line)); }
+.wns-browser li span { height: 6px; border-radius: 3px; background: rgb(var(--machine-line)); transition: background var(--t-move) var(--ease); }
+.wns-browser li.is-reading span { background: rgb(var(--brand) / .55); }
+.wns-browser li.is-read span { background: rgb(var(--m-text-3) / .55); }
+.wns-browser li svg { margin-left: auto; color: rgb(var(--ok)); }
+.wns-private { margin: 0; color: rgb(var(--m-text-3)); font-size: var(--fs-1); line-height: 1.5; opacity: 0; transition: opacity var(--t-enter) var(--ease); }
+.wns-private.is-on { opacity: 1; color: rgb(var(--ok-bright)); }
+
+/* 실 — 두 칸 위에 걸친다. 쉬는 실은 흐리게 늘 있고, 맡기는 순간 클로드의 색에서 손자리의 색으로 그어진다. */
+.wns-thread { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.wns-thread path { fill: none; stroke-linecap: round; }
+.wns-thread-rest { stroke: rgb(var(--text-5) / .25); stroke-width: 1.5; stroke-dasharray: 3 5; }
+.wns-thread-go { stroke-width: 2.5; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.wns-thread-go.is-on { stroke-dashoffset: 0; transition: stroke-dashoffset .8s var(--ease); }
+.wns-bead { offset-rotate: 0deg; }
+.wns-bead-go { fill: rgb(var(--brand-bright)); filter: drop-shadow(0 0 6px rgb(var(--brand) / .9)); animation: wns-go .8s var(--ease) both; }
+.wns-bead-back { fill: rgb(var(--ok-bright)); filter: drop-shadow(0 0 6px rgb(var(--ok) / .9)); animation: wns-back .8s var(--ease) both; }
+@keyframes wns-go { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+@keyframes wns-back { from { offset-distance: 100%; } to { offset-distance: 0%; } }
+
+/* ── ② 같이 만드는 장표 — 진짜 장표 칸을 컴퓨터 칸의 바닥 위에 ──────────── */
+.wns-deck { height: 100%; padding: 14px 18px 12px; overflow: hidden; background: rgb(var(--machine-1)); display: flex; justify-content: center; }
+.wns-deck > .deck-stage { max-width: 600px; pointer-events: none; }
+.wns-deck-wait { margin: auto; display: inline-flex; align-items: center; gap: 8px; color: rgb(var(--m-text-2)); font-size: var(--fs-2); }
+
+/* ── ③ 같은 표지, 두 글꼴 ───────────────────────────────────────────── */
+.wns-fonts { height: 100%; min-height: 0; overflow: hidden; padding: 16px 18px 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; background: rgb(var(--machine-1)); }
+.wns-wipe { position: relative; flex: none; border-radius: var(--r-1); overflow: hidden; box-shadow: var(--lift-2); }
+.wns-slide { position: relative; overflow: hidden; background: #fff; }
+.wns-slide iframe { border: 0; display: block; pointer-events: none; background: #fff; }
+/* 지금의 글꼴 — 왼쪽부터 금이 쓸고 지나가며 드러난다. */
+.wns-after { position: absolute; inset: 0; clip-path: inset(0 100% 0 0); transition: clip-path 1.8s var(--ease); }
+.wns-wipe.is-wiped .wns-after { clip-path: inset(0 0 0 0); }
+.wns-seam { position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: rgb(var(--brand-bright));
+  box-shadow: 0 0 14px rgb(var(--brand) / .9); opacity: 0; transition: left 1.8s var(--ease), opacity .3s; }
+.wns-wipe.is-wiped .wns-seam { left: calc(100% - 2px); opacity: 1; }
+.wns-wipe.is-reset .wns-after, .wns-wipe.is-reset .wns-seam { transition: none; }
+.wns-tag { position: absolute; top: 10px; padding: 3px 9px; border-radius: var(--r-pill); font-size: var(--fs-1); font-weight: var(--fw-mid);
+  transition: opacity .4s var(--ease); }
+.wns-tag-before { left: 10px; color: rgb(var(--text-1)); background: rgb(var(--ground) / .78); }
+.wns-tag-after { right: 10px; color: rgb(var(--ground)); background: rgb(var(--brand-bright)); opacity: 0; }
+.wns-wipe.is-wiped .wns-tag-after { opacity: 1; transition-delay: 1.2s; }
+.wns-wipe.is-wiped .wns-tag-before { opacity: 0; }
+.wns-file { margin: 0; display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 4px 8px; padding: 6px 12px;
+  border: 1px solid rgb(var(--machine-line)); border-radius: var(--r-pill); color: rgb(var(--m-text-2)); background: rgb(var(--machine-2));
+  font-size: var(--fs-1); opacity: 0; transform: translateY(6px); transition: opacity var(--t-enter) var(--ease), transform var(--t-enter) var(--ease); }
+.wns-file.is-on { opacity: 1; transform: none; }
+.wns-file b { color: rgb(var(--m-text-1)); font-weight: var(--fw-mid); }
+.wns-file svg { color: rgb(var(--brand-bright)); }
+.wns-file em { font-style: normal; color: rgb(var(--ok-bright)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wns .spin { animation: none; }
+  .wns-thread-go { stroke-dashoffset: 0; }
+  .wns-after, .wns-seam, .wns-receipt, .wns-file, .wns-got { transition: none; }
+}
+/* 좁은 창 — 두 칸을 위아래로(실은 접는다). */
+@media (max-width: 620px) {
+  .wns-hands { grid-template-columns: 1fr; grid-auto-rows: auto; overflow-y: auto; }
+  .wns-human { padding-right: 20px; }
+  .wns-thread { display: none; }
+}

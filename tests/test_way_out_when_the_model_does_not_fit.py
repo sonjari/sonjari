@@ -26,7 +26,8 @@ def test_it_says_what_to_close_and_what_fits_right_now() -> None:
     assert out["close"]["apps"] == ["chrome", "Photoshop"], "윈도우 기본 프로그램은 닫으라고 하지 않는다"
     assert out["close"]["would_fit"] is True
     smaller = out["smaller"]
-    assert smaller["model_key"] == MID and smaller["installed"] is True
+    # ★ 2026-10-26: 빈 자리 13.4GB 면 9B 가 아니라 Qwen3.6 2비트(글만 읽기 12.4GB)가 먼저다 — 대표 「안 들어가면 3.6 2비트」.
+    assert smaller["model_key"] == "qwen3.6-35b-iq2m" and smaller["text_only"] is True and smaller["installed"] is False
     assert smaller["needs_gb"] < out["needs_gb"]
     assert smaller["needs_gb"] <= out["card"]["free_gb"], "지금 빈 자리에 들어가는 것만 권한다"
     assert smaller["weak_at"], "작은 모델로 가면 무엇이 약해지는지 같이 준다"
@@ -86,3 +87,20 @@ def test_the_failed_apply_carries_the_way_out() -> None:
 
     source = inspect.getsource(model_setup.ModelSetup._measure_and_save) if hasattr(model_setup, "ModelSetup") else inspect.getsource(model_setup)
     assert source.count("self._way_out(catalog_key)") == 2
+
+
+def test_16gb_card_shared_with_another_app_falls_to_qwen36_2bit_text_only_before_9b() -> None:
+    """★ 2026-10-26 대표: 「16GB 기본은 Swift(3비트 작게), 안 들어가면 Qwen3.6 2비트」.
+    사용자 PC 처럼 3ds Max 가 약 3.5GB 를 쥐어 Swift 글만 읽기 64K(13.8GB)가 안 들어갈 때, 9B 가 아니라 2비트(글만 읽기 12.4GB)를 권한다."""
+    from alture_jarvis.setup_profile import smaller_choice
+
+    out = way_out("qwen3.8-27b-swift-iq3xxs", snapshot=_card(16.0, 3.1, ["3dsmax"]))
+    assert out["smaller"]["model_key"] == "qwen3.6-35b-iq2m", out["smaller"]
+    assert out["smaller"]["text_only"] is True and out["smaller"]["num_ctx"] == 65536
+    assert out["smaller"]["needs_gb"] == 12.4
+    # 양방향: 빈 자리가 2비트도 못 받을 만큼 좁으면 그 아래(9B)로 간다 — 2비트를 억지로 권하지 않는다.
+    tight = smaller_choice(10.0, "qwen3.8-27b-swift-iq3xxs")
+    assert tight is not None and tight[0].key != "qwen3.6-35b-iq2m", tight
+    # 그림 있는 칸만 보는 옛 함수는 그대로다(다른 자리에서 쓰면 그림을 끄라는 뜻을 실을 칸이 없다).
+    old = smaller_that_fits(12.9, "qwen3.8-27b-swift-iq3xxs")
+    assert old is None or old[0].key != "qwen3.6-35b-iq2m"

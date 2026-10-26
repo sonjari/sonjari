@@ -27,6 +27,7 @@ import time
 from typing import Any
 
 from .brand import NAME, NAME_KO
+from .check_notes import SUMMARY_LINE_HEAD, answer_for_receiver
 from .evidence import WRITE_EFFECTS, code_string_values, numbers_claimed_in, unsupported_numbers
 from .outbound import check_needs, clean_needs, receipt, refine
 from .url_privacy import safe_url
@@ -48,7 +49,8 @@ def is_claude_code(caller: str) -> bool:
 
 _ANSWER_LIMIT = 6000
 #: 답 끝에 **우리가 붙인** 대조 칸의 머리(`plan` 의 대조표 · 한국어 「시킨 것 대조」 · 영어 「Checklist」).
-_OUR_CHECKLIST = re.compile(r"\n\s*\*\*(?:시킨 것 대조|Checklist)\*\*")
+#: ★ 2026-10-24: 사람이 시킨 판(디스코드 다리)은 덩어리 대신 한 줄(`plan.summary_line`)을 받는다 — 그 줄의 「3개 중 2개」도 하네스가 센 것이다.
+_OUR_CHECKLIST = re.compile(r"\n\s*(?:\*\*(?:시킨 것 대조|Checklist)\*\*|" + SUMMARY_LINE_HEAD.pattern + ")")
 _TERMINAL = {"completed", "failed", "cancelled"}
 
 TASK_TOOL: dict[str, Any] = {
@@ -292,6 +294,13 @@ def _strings(node: Any, out: list[str], depth: int = 0) -> None:
             if str(key) in _CODE_KEYS and isinstance(value, str):
                 out.extend(_code_strings(value))
                 continue
+            if str(key) == "html" and isinstance(value, str):
+                # ★ 장표 HTML(2026-10-25 · `local_make_slide`)은 **보이는 글만** — CSS · 그림 좌표(0.92 · 880 …)가
+                #   「도구가 준 적 없는 숫자 9개」로 찍혀 잘 만든 장표 판이 needs_review 가 됐다.
+                from .slides import visible_text
+
+                out.append(visible_text(value))
+                continue
             _strings(value, out, depth + 1)
     elif isinstance(node, (list, tuple)):
         for value in node[:500]:
@@ -306,7 +315,7 @@ def _is_write(step: dict[str, Any]) -> bool:
 #: 파일을 만들거나 고치는 손. 실패한 판이 **무엇을 남겼는지** 복원할 때 쓴다.
 _PARTIAL_WRITE_TOOLS = frozenset({
     "local_write_file", "local_apply_edit", "local_write_document",
-    "local_edit_document", "local_edit_spreadsheet",
+    "local_edit_document", "local_edit_spreadsheet", "local_make_slide",
 })
 
 
@@ -807,7 +816,8 @@ def summarize_job(
         summary.update(_failure_report(job, result, steps))
         return summary
 
-    answer = str(result.get("answer") or "")
+    # 맡긴 쪽이 받을 답 — 바깥 AI 면 대조 덩어리까지 든 답(2026-10-24 · `check_notes`). 영수증 셈(`receipt`)도 같은 글을 센다.
+    answer = answer_for_receiver(result, job.get("payload"))
     files: list[str] = []
     written: list[str] = []
     sources: list[str] = []

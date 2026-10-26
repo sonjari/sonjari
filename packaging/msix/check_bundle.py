@@ -41,6 +41,9 @@ REQUIRED = {
     "docx": "워드 문서 만들기",
     "openpyxl": "엑셀 만들기",
     "pptx": "PPT 만들기",
+    "fontTools": "장표 글꼴 — PPTX 에 쓴 글자만 담아 심는다(pptx_fonts · 2026-10-26)",
+    "lxml": "PPT 만들기(python-pptx 가 데려온다) · PPTX 글꼴 목록 쓰기",
+    "brotli": "장표 글꼴 — woff2 를 풀어 PPTX 에 심는다(2026-10-26). 없으면 PPTX 가 앱 글꼴 없이 나간다",
     "hwpx": "한글 문서",
     "pypdf": "PDF 읽기",
     "pypdfium2": "PDF 그림",
@@ -75,6 +78,9 @@ OPTIONAL = {
     "ultralytics": "사람 인식",
     "bleak": "블루투스",
     "psutil": "프로세스 목록(없으면 PowerShell 로 대신 본다)",
+    # 2026-10-26 「막히면 내 API 키로 클로드에게 묻기」(api_escalation.py). 없으면 그 설정만 켤 수 없다(「부품 없음」).
+    #   포장본에 넣는 것은 부품 판 올림이라 대표 허락 뒤 — 그 전까지는 빠진 채로 나가는 것이 맞다.
+    "anthropic": "막히면 내 API 키로 클로드에게 묻기(없으면 그 설정만 꺼짐)",
 }
 
 
@@ -156,6 +162,26 @@ def main() -> int:
                     f"  {folder}/ ({why}) — {root / folder} 에 {pattern} 가 {len(found)}개다(최소 {least})"
                 )
         print(f"data at {root}: " + ", ".join(counts))
+
+    # 장표 결의 앱 글꼴(2026-10-26) — 꾸러미 안 `alture_jarvis/slide_themes/fonts/`. 빠지면 죽지 않고 윈도우 기본 글꼴로 조용히
+    #   돌아가 「새 글꼴」이 사라진다(위 자료와 같은 모양). 목록(fonts.json)의 파일 · 크기 · 옆의 OFL.txt 를 하나하나 본다.
+    try:
+        from alture_jarvis import slides_style
+
+        fams = slides_style.bundled_fonts()
+        faces = [(fam, face) for fam in fams for face in fam.get("faces") or []]
+        if not faces:
+            missing.append(f"  장표 글꼴 — {slides_style.FONT_DIR / 'fonts.json'} 이 없거나 비었다")
+        for fam, face in faces:
+            path = slides_style.FONT_DIR / str(face["file"])
+            if not path.is_file() or path.stat().st_size != int(face["bytes"]):
+                missing.append(f"  장표 글꼴 {fam['family']} — {path} 가 없거나 크기가 다르다")
+        for fam in fams:
+            if not (slides_style.FONT_DIR / str(fam["license"])).is_file():
+                missing.append(f"  장표 글꼴 {fam['family']} — 라이선스 {fam['license']} 가 없다(OFL 은 글꼴 옆에 같이 둔다)")
+        print(f"slide fonts {len(faces)} files in {len(fams)} families")
+    except Exception as exc:  # noqa: BLE001
+        missing.append(f"  (장표 글꼴 목록을 못 읽었다) — {type(exc).__name__}: {exc}")
 
     if missing:
         print("MISSING:\n" + "\n".join(missing))

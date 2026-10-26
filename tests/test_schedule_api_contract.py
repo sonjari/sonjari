@@ -52,7 +52,7 @@ def _tool_argument_names() -> set[str]:
     return names
 
 
-@pytest.mark.parametrize("field", ["repeat_every", "deliver_to"])
+@pytest.mark.parametrize("field", ["repeat_every", "deliver_to", "routine"])
 def test_http_accepts_what_the_tool_accepts(field: str) -> None:
     """★ 도구로 되는 것이 HTTP 로도 돼야 한다.
 

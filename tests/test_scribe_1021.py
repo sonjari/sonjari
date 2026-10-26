@@ -267,4 +267,5 @@ def test_the_tick_waits_for_idle_and_a_quiet_model(tmp_path: Path) -> None:
     assert JarvisRuntime._scribe_tick(fake) == {"skipped": "방금 모델을 썼다"}
     fake.ollama.__dict__["_last_send_at"] = time.monotonic() - JarvisRuntime.SCRIBE_QUIET_SEC - 1
     ran = JarvisRuntime._scribe_tick(fake)
-    assert ran["ran"] and ran["done"] and len(asked) == 1
+    # 10-23 3차: 새 카드가 생기면 그 뒤 말로 닫기를 따로 한 번 더 부른다(새 카드 쓰기 1 + 닫기 1).
+    assert ran["ran"] and ran["done"] and len(asked) == 2

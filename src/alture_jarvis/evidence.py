@@ -34,6 +34,7 @@ import os
 import re
 import time
 from dataclasses import asdict, dataclass, field
+from decimal import Decimal
 from typing import Any, Callable, Iterable
 from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
@@ -153,6 +154,10 @@ MANIFEST: dict[str, _Spec] = {
     ),
     "local_write_file": _Spec(
         EFFECT_WRITE_LOCAL, TYPE_ARTIFACT, ("path",), (), "path"
+    ),
+    # 디자인된 장표(2026-10-25). 마지막 장에서만 PPTX 경로가 생긴다 — 그 전 장은 경로 없이 「저장함」이다.
+    "local_make_slide": _Spec(
+        EFFECT_WRITE_LOCAL, TYPE_ARTIFACT, ("output_path", "path"), (), "path"
     ),
     # 한글 → PDF(2026-10-17). 결과에는 원본을 `source_path` 로만 싣는다 — `path` 로 실으면 원본이 산출물로 둔갑한다.
     "hwp_export_pdf": _Spec(
@@ -491,6 +496,39 @@ def _korean_unit_readings(digits: str, frac: str, text: str, start: int, end: in
     return readings
 
 
+#: 영어 줄임 단위(「66.6k」 · 「1.2M」 · 「11 million」). 뒤에 라틴 글자가 이어지면 단위가 아니다(「5km」 · 「3MB」).
+_SCALE_AFTER = re.compile(r"\s?(?:([kKmMbB])(?![A-Za-z])|(thousand|million|billion)\b)", re.IGNORECASE)
+_SCALES = {"k": 1_000, "m": 1_000_000, "b": 1_000_000_000, "thousand": 1_000, "million": 1_000_000, "billion": 1_000_000_000}
+
+
+def _scaled_unit_readings(digits: str, frac: str, text: str, end: int) -> list[str]:
+    """영어 줄임 단위로 적힌 수를 풀어 쓴 값 (2026-10-24 밤 측정 판).
+
+    깃허브는 별 수를 「66.6k」로 보여 주고, 모델은 엑셀에 66,600 이라고 적는다. 레딧 글의 「11 million」은 답에서
+    「1,100만」이 됐다. 둘 다 숫자 검사가 「읽은 자료에 없는 숫자」로 막았고, 깃허브 과제 6판 중 5판이 그 막힘에서
+    파일을 못 쓰고 접혔다. 한국어 단위(`_korean_unit_readings`)와 같은 병이라 같은 방식으로 고친다 —
+    **읽은 쪽(seen)에만** 풀어 쓴 값을 더한다. 답 쪽에 더하면 헛 주장이 경고에 끼어든다.
+
+    - `66.6k` → 66600 · `1.2M` → 1200000 · `11 million` → 11000000 과 만 단위 1100.
+    - 반올림된 값(66.6k 의 실제 값은 66,550~66,649)을 정확한 값처럼 쓴 것은 지어낸 것이 아니라 표기라 받는다.
+    """
+    scale = _SCALE_AFTER.match(text[end:end + 12])
+    if not scale:
+        return []
+    word = (scale.group(1) or scale.group(2) or "").lower()
+    factor = _SCALES.get(word)
+    if not factor:
+        return []
+    total = Decimal(f"{digits}.{frac}" if frac else digits) * factor
+    if total != total.to_integral_value():
+        return []
+    whole = int(total)
+    readings = [str(whole)]
+    if whole >= 10_000:
+        readings += [str(whole // 10_000), str(round(whole / 10_000))]
+    return readings
+
+
 def numbers_in_body(evidence: dict[str, Any]) -> set[str]:
     """도구가 **본문 글자로 돌려준 숫자.** `numbers_in` 과 짝이다.
 
@@ -524,6 +562,9 @@ def numbers_in_body(evidence: dict[str, Any]) -> set[str]:
             whole, frac = match.group(1), match.group(2)
             digits = whole.replace(",", "")
             for scaled in _korean_unit_readings(digits, frac, clean, match.start(), match.end()):
+                if scaled not in _TRIVIAL_NUMBERS:
+                    found.add(scaled)
+            for scaled in _scaled_unit_readings(digits, frac, clean, match.end()):
                 if scaled not in _TRIVIAL_NUMBERS:
                     found.add(scaled)
             if frac:
@@ -596,6 +637,13 @@ def unsupported_numbers(claimed: set[str], seen: set[str]) -> set[str]:
     return kept
 
 
+#: 문서 소제목의 **절 번호**(「### 2.4 리뷰엉이 형식 해부」 · 「## 3. 결론」) — 값이 아니라 차례다.
+# ★ 2026-10-24 대표 판(ab760dc8): 「지금까지 조사한 것 MD 로」가 「읽은 자료에 없는 숫자」로 두 번 막혔는데, 앞 판 숫자를
+#   빼고 남은 여섯 개(2.4 · 2.6 · 3.4 · 5.2 · 5.3 · 6.3)가 전부 소제목 번호였다. 점이 든 번호이거나 끝에 점이 붙은 것만 지운다 —
+#   「## 37 stars」 같은 값은 남긴다(한 자리 번호는 원래 하찮은 숫자라 안 센다).
+_SECTION_NUMBER = re.compile(r"(?m)^(\s{0,3}#{1,6}[ \t]+)(?:\d+(?:\.\d+)+\.?|\d+\.)(?=[ \t])")
+
+
 def numbers_claimed_in(answer: str) -> set[str]:
     """답이 **주장한 숫자.** `numbers_in_body` 와 같은 정규화를 쓴다.
 
@@ -603,7 +651,8 @@ def numbers_claimed_in(answer: str) -> set[str]:
     「답은 360 이라 적었는데 도구는 안 줬다」는 거짓 고발이 나온다 — 실제로 그랬다.
     """
     found: set[str] = set()
-    for whole, frac in _NUMBER_IN_TEXT.findall(_DATE_SHAPES.sub(" ", answer or "")):
+    text = _SECTION_NUMBER.sub(r"\1", answer or "")
+    for whole, frac in _NUMBER_IN_TEXT.findall(_DATE_SHAPES.sub(" ", text)):
         digits = whole.replace(",", "")
         if frac:
             value = f"{digits}.{frac}".rstrip("0").rstrip(".")

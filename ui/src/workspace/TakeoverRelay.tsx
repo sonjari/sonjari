@@ -24,7 +24,7 @@ export function originTone(tool: string): "claude" | "codex" | "cursor" | "other
 export function callerLabel(caller: string): string {
   const normalized = caller.trim().toLowerCase();
   if (!normalized) return t("바깥 AI");
-  if (normalized.includes("claude-code") || normalized.includes("claude code")) return "Claude Code";
+  // 앤트로픽 상표 규칙(2026-10-26 대표): 이름표에 「Claude Code」 글자를 쓰지 않는다 — 클로드 코드(`claude-code`)가 맡겨도 「Claude」.
   if (normalized.includes("claude")) return "Claude";
   if (normalized.includes("codex")) return "Codex";
   if (normalized.includes("cursor")) return "Cursor";

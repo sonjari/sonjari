@@ -183,6 +183,7 @@ WRITE_TOOLS = frozenset(
         "local_delete_file",
         # 문서 생성·엑셀 편집도 실제 파일이 남는다. 둘 다 InverseSpec 이 붙어 있다.
         "local_write_document",
+        "local_make_slide",
         "local_edit_spreadsheet",
         "local_edit_document",
         # 클립보드는 사람 손이 닿는 곳까지 잇는 다리다 — 실제로 밖에 남는다.
@@ -216,6 +217,7 @@ COMMIT_TOOLS = frozenset(
         "local_apply_edit",
         "local_delete_file",
         "local_write_document",
+        "local_make_slide",
         "local_edit_spreadsheet",
         "artifact_from_observations",
         "hwp_apply_edit",

@@ -32,8 +32,8 @@ import json
 import re
 
 from . import english as _en
-from .quantities import ROLE_CONSTRAINT, ROLE_INPUT, ROLE_OUTPUT, counted_object, quantity_role
-from dataclasses import dataclass
+from .quantities import ROLE_CONSTRAINT, ROLE_INPUT, ROLE_OUTPUT, counted_object, lives_inside_a_page, quantity_role
+from dataclasses import dataclass, replace as dataclass_replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlparse
@@ -112,6 +112,47 @@ _DICTATED_CONTENT = re.compile(
     r"|내용(?:은|을|으로)?\s*[:：]?\s*['\"「“『]"
     r"|(?:주소|링크|URL|url|문구|텍스트|글자|번호)(?:를|을)?\s*(?:담은|담아|넣은|넣어|인코딩한|인코딩해)"
 )
+#: 「아래 사실만 써」 · 「다른 숫자는 지어내지 마」 — 사람이 쓸 자료를 다 주었다는 말(아래 `dictated_artifact`).
+_SUPPLIED_FACTS = re.compile(
+    r"(?:아래|다음|위|이|주어진|드린|적은|준)\s*(?:의\s*)?(?:사실|내용|자료|정보|숫자|값)(?:들)?\s*(?:만\s*)?(?:으로|로|을|를)?\s*(?:만\s*)?"
+    r"(?:써|쓰고|쓰|사용|가지고|이용|바탕|토대|넣어|담아|만들)"
+    r"|(?:다른|없는)\s*(?:숫자|사실|내용|값)(?:는|은)?\s*(?:지어내지|만들어\s*내지|넣지|쓰지)"
+)
+#: 요청 안에 **내용을 다 적어 준** 산출물의 표 — 「장 구성: ① … ② …」 · 「자료: …」 · 「- 」 줄 목록 (2026-10-26 거짓 「일부만 됨」).
+_CONTENT_START = re.compile(r"(?:자료|장\s*구성|구성|내용|사실|목차)\s*[:：]|[①-⑩]|(?:^|\s)-\s")
+_ENUM_ITEM = re.compile(r"[①-⑩]|(?:^|\s)-\s|(?:^|\s)\d[\).]\s")
+#: 지시 문장(내용 앞)에 이 말이 있으면 가서 찾는 일이다 — 내용을 받아 쓰는 일이 아니다.
+_RESEARCH_ASK = re.compile(r"찾아|조사|검색|알아[봐보]|모아|비교해|최신|읽어|열어|가져와|확인해")
+#: 지시 문장에 이것이 있으면 **있는 것을 다루거나 어딘가에 하는 일**이다 — 고치기 · 더하기 · 올리기 · 저장, 파일 · 저장소 · 폴더.
+#   첫 판정을 운영 5,252판에 대 보니 「블로그에 글 써서 임시저장까지」 · 「….py 에 함수를 더해」 · 「tox 저장소 버그를 고쳐」가 같이 빠졌다.
+_ACT_ON_EXISTING = re.compile(
+    r"고쳐|고치|수정|더해|추가해|바꿔|편집|임시\s*저장|저장해|올려|게시|발행|등록|보내|붙여|업로드|입력"
+    r"|저장소|폴더|파일에|\.\w{1,5}(?![가-힣\w])|r/\w"
+)
+
+
+def supplied_content_head(compact: str) -> str | None:
+    """「만들어 줘 + 내용은 여기 다 적었다」 꼴이면 **지시 문장**(내용 앞)을, 아니면 None.
+
+    ★ 장표 판 셋(fa828a92 · 8c9de860 · c81cf6b6)이 「장 구성: ① 표지 ② … 깃허브에 Apache-2.0 …」을 받아 PPT 를 굽고도
+      「근거가 되는 대상 실제로 읽기 0개 · 일부만 됨」이었다 — 자료 속 「읽기와 조사를 맡긴다」 · 「깃허브」를 시킨 읽기 · 사이트로 셌다.
+      사람이 내용을 다 준 일이다. 지시 문장에 찾기 · 조사 말이 있거나 읽을 주소가 있으면 예전대로 본다.
+    """
+    if not wants_an_artifact(compact) or _READABLE_ADDRESS.search(compact):
+        return None
+    start = _CONTENT_START.search(compact)
+    if not start or len(_ENUM_ITEM.findall(compact[start.start():])) < 3 and not re.match(r"\s*(?:자료|사실)", compact[start.start():]):
+        return None
+    head = compact[: start.start()]
+    if not head.strip() or _RESEARCH_ASK.search(head) or _ACT_ON_EXISTING.search(head):
+        return None
+    # 지시 문장이 사이트를 부르면(「레딧 인기 글에서 …」) 거기서 하는 일이다.
+    folded = head.casefold()
+    if any(name.casefold() in folded and _names_site(folded, name.casefold()) for name in SITE_ALIASES):
+        return None
+    return head
+
+
 #: 가서 읽을 수 있는 자리의 모양 — 웹 주소·도메인·이 PC 경로(드라이브·UNC).
 _READABLE_ADDRESS = re.compile(
     r"https?://|www\.|(?<![\w.])[a-z0-9-]+\.(?:com|net|org|io|co|kr|ai|dev|app|me|gg)\b|(?<![A-Za-z0-9])[A-Za-z]:[\\/]|\\\\",
@@ -295,15 +336,37 @@ def says_list_only(prompt: str) -> bool:
       운영 요청 17개의 이름표가 바뀌었고, 그 안에 「사람인 공고 3개의 **자격 요건**을 비교표로」·「YES24 책 2권의
       **쪽수·ISBN**」이 있었다 — 상세를 열어야 나오는 값인데 「하나하나 열 필요 없다」는 안내가 나갈 뻔했다.
       (교보·사람인 3/3 은 상세를 여는 배선에서 나온 숫자다.)
+    ★ 2026-10-23: 요구한 개수가 **한 페이지 안의 항목**(댓글 · 답글)을 세도 참이다(`_counts_entries_inside_a_page`).
+      상세를 원한다는 말보다 먼저 본다 — 「이 글의 본문을 빠짐없이 요약 … 댓글 10개」의 「본문」은 그 글 한 장의 본문이지
+      열 장을 열라는 말이 아니다.
     """
     compact = " ".join(str(prompt or "").split())
+    if _counts_entries_inside_a_page(compact):
+        return True
     if _wants_detail(compact):
         return False
     return bool(_LIST_ONLY.search(compact) or _DETAIL_DECLINED.search(compact) or _asks_only_listing_fields(compact))
 
 
 def _count_target(compact: str) -> int:
-    """프롬프트가 **몇 개를 요구하는가.**
+    """프롬프트가 **몇 개를 요구하는가.** 판정은 `_count_choice` 한 곳 — 여기는 개수만 꺼낸다."""
+    return _count_choice(compact)[0]
+
+
+def _counts_entries_inside_a_page(compact: str) -> bool:
+    """요구한 개수가 **한 페이지 안의 항목**(댓글 · 답글)을 세는가 — 그러면 열 페이지 수가 아니다.
+
+    ★ 2026-10-23 레딧 판(62555a75): 「이 레딧 글을 열어서 읽고 … 추천이 많은 댓글 위에서부터 10개를 「누가 · 무슨 말 ·
+      추천 수」로」가 「10개 이상 직접 열어 읽기」가 됐다. 글 하나를 읽으면 끝날 일에 손자리는 다른 페이지를 여느라 8분 넘게
+      헤맸다(saw 「3개 읽음」 · 사람이 취소). 숫자가 세는 낱말은 이미 「댓글」로 바르게 잡히고 있었다 — 틀린 것은 그 낱말을
+      글 · 기사와 같은 **한 장씩 여는 것**으로 본 데였다. 낱말 하나를 막는 대신 **무엇을 세는가**(페이지 / 페이지 속 항목)를
+      `quantities.lives_inside_a_page` 한 곳에서 가른다. 개수 요구는 남긴다(답에 N개를 담았나는 계속 센다 — 08-13 일찍 멈춤).
+    """
+    return lives_inside_a_page(_count_choice(compact)[1])
+
+
+def _count_choice(compact: str) -> tuple[int, str]:
+    """프롬프트가 **몇 개를 요구하는가** 와 그 숫자가 **세는 낱말**(모르면 빈 값).
 
     맨 앞 숫자를 그냥 집으면 안 된다. 2026-08-18 라이브에서 "리뷰 0개 신규 판매자가
     …최소 6개를 뽑아줘" 를 던졌더니 앞의 `0개` 가 먼저 잡혀 0 이 되고, 범위 밖이라
@@ -328,17 +391,16 @@ def _count_target(compact: str) -> int:
     plain: list[int] = []
     if _en.english_dominant(compact):
         # 영어는 단위 대신 명사로 센다 — 판정은 `english.counts` 한 곳(한국어 `_COUNT` 의 짝).
-        for value, is_qualified, role, start, _end in _en.counts(compact):
+        noun_of: dict[int, str] = {}
+        for value, is_qualified, role, start, end in _en.counts(compact):
             if not 1 < value <= 30 or role == _en.ROLE_OUTPUT:
                 continue
+            noun_of.setdefault(value, _en.counted_noun(compact, end)[0])
             if _en.ASKED_DIRECTLY.search(compact[max(0, start - 40) : start]):
                 direct.append(value)
             (qualified if is_qualified else plain).append(value)
-        if direct:
-            return max(direct)
-        if qualified:
-            return max(qualified)
-        return plain[0] if plain else 0
+        chosen = max(direct) if direct else max(qualified) if qualified else plain[0] if plain else 0
+        return (chosen, noun_of.get(chosen, "")) if chosen else (0, "")
     # 긴 글이거나, **시키는 문장이 따로 있는** 글 — 그때 진술 문장에 든 맨 숫자는 붙여넣은 내용이다.
     pasted_text = len(compact) > _PASTED_TEXT_CHARS or _has_a_request_sentence(compact)
 
@@ -365,7 +427,12 @@ def _count_target(compact: str) -> int:
         else:
             plain.append(value)
     chosen = max(direct) if direct else max(qualified) if qualified else plain[0] if plain else 0
-    return min(30, chosen * _groups_for(compact, where[chosen])) if chosen else 0
+    if not chosen:
+        return (0, "")
+    found = where[chosen]
+    unit_end = found.start(3) if found.group(3) else found.end()
+    noun = counted_object(compact, found.start(2), unit_end)[0]
+    return (min(30, chosen * _groups_for(compact, found)), noun)
 
 
 #: 묶음을 세는 낱말 — 「다섯 주제」 · 「세 사이트」의 뒤쪽.
@@ -1017,6 +1084,11 @@ class Requirement:
     list_only: bool = False
     # 개수 요구의 항목을 사람이 번호로 적어 줬으면 그 항목들(`enumerated_items`). 「N개 처리」를 **손댄 항목 수**로도 센다.
     items: tuple[str, ...] = ()
+    # ★ 확실성 등급 (2026-10-24 · 전략안 §55-41). 「확실(firm)」만 판 도중에 밀고 완료를 가른다 · 「흐림(soft)」은 판 기록에만 남는다.
+    #   등급은 `grade_requirements` 한 곳이 매긴다 — 여기 기본값은 등급을 안 거친 요구(예전 판 · 시험)가 예전처럼 확실이게.
+    grade: str = "firm"
+    # 그 요구가 어디서 섰나 — router · address · ask · english · kept · learned · mention(§55-41 표).
+    origin: str = ""
 
 
 #: 앞 판 근거를 **이어받지 않을** 말 — 새것·더·다른 것을 달라는 요청 (2026-09-24).
@@ -1176,18 +1248,246 @@ def own_words(prompt: str) -> str | None:
     return "\n\n".join(mine)
 
 
-def extract(prompt: str, **options: Any) -> list[Requirement]:
+def own_words_of_plan(plan_text: str, own_from: str | None = None) -> str | None:
+    """계획 문장에서 **사람의 말**(붙여넣은 글을 뺀 것). 붙여넣은 덩어리가 없으면 None.
+
+    원문(`own_from` · 줄바꿈이 살아 있는 글)이 계획 문장 **안에 그대로** 있을 때만 쓴다 — 계획 문장에는 앞뒤가 붙어 올 수 있다:
+    이어짓기면 앞 사람 말이 앞에(`planning_prompt`), 스킬이 고른 판이면 스킬의 지시 한 줄이 뒤에(판 6c8de096 · 「말한 상품을 스킬에
+    적힌 가게마다 …」). 그 앞뒤는 붙여넣은 글이 아니라 그대로 둔다.
+    """
+    whole = " ".join((plan_text or "").split())
+    latest = " ".join((own_from or "").split())
+    at = whole.find(latest) if latest else -1
+    if own_from is None or at < 0:
+        return own_words(plan_text)
+    words = own_words(own_from)
+    if words is None:
+        return None
+    before, after = whole[:at].strip(), whole[at + len(latest):].strip()
+    return "\n\n".join(part for part in (before, words, after) if part)
+
+
+def extract(prompt: str, *, own_from: str | None = None, **options: Any) -> list[Requirement]:
     """이 요청에서 **대조 가능한** 요구만 뽑는다 — 붙여넣은 글에서만 나온 요구는 뺀다(`own_words`).
 
     글 전체로 뽑은 요구 중 **사람의 말만으로도 서는 것**만 남긴다. 사람 말만으로 다시 뽑은 것을 그대로 쓰지 않는 까닭:
     개수 · 사이트의 꼴(라벨 · 별칭)은 글 전체 맥락으로 뽑은 쪽이 지금까지 써 온 판정이다 — 빼기만 하고 바꾸지는 않는다.
+
+    `own_from` — 붙여넣은 덩어리를 가를 **원문**(줄바꿈이 살아 있는 글). ★ 2026-10-24 대조에서 찾았다: 판의 계획 문장
+    (`planning_prompt`)은 줄바꿈을 지운 글이라 `own_words` 가 덩어리를 못 나눠, 10-20 의 붙여넣은 글 빼기가 **판에서는 한 번도
+    일하지 않았다**(판 6c8de096 의 작업 계약 해시로 확인 — 시험은 원문으로 불러 통과했다). 부르는 쪽이 원문을 같이 넘긴다.
     """
     found = _extract_all(prompt, **options)
-    words = own_words(prompt) if found else None
+    words = own_words_of_plan(prompt, own_from) if found else None
     if words is None:
-        return found
+        return grade_requirements(found, prompt, code_workspace=bool(options.get("code_workspace")))
     mine = {(item.kind, str(item.target)) for item in _extract_all(words, **options)}
-    return [item for item in found if (item.kind, str(item.target)) in mine]
+    return grade_requirements(
+        [item for item in found if (item.kind, str(item.target)) in mine], words,
+        code_workspace=bool(options.get("code_workspace")),
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 확실성 등급 — 「사람이 시킨 문장 안에 그 요구의 근거가 있나」 (2026-10-24 · 전략안 §55-41)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# 10-23 하네스 전수조사: 실사용 10-10 뒤 미달 판 34개 중 15판에 헛 요구가 있었고 전부 위 「뽑기」에서 났다 — 수다 속 「3명은
+# 깔았고」가 「3개 열어 읽기」, 「표로 정리해 줘」가 파일, 「여수에서 사는 집」이 사이트, 계산 없는 과제의 「개수」가 「직접 계산」.
+# 지금까지는 그때마다 낱말 예외를 하나씩 더했다(뽑기 본체만 예외 25개 · 고친 32번). 여기서 방향을 뒤집는다: **막을 꼴을 늘리지 않고,
+# 확실하다고 볼 조건을 종류마다 한 줄로 정한다.** 조건을 못 넘은 요구는 지우지 않고 「흐림」으로 남긴다 — 밀지 않고 완료를 가르지
+# 않을 뿐, 판 기록에는 남아 다음 측정의 재료가 된다. 모델에게 등급을 묻지 않는다(10-09 벤치: 9B 이하는 정규식보다 나빴다).
+
+#: 등급. 확실한 요구만 판 도중에 밀고(`agent` 의 `loop_plan`) 완료를 가른다(답 끝 대조표 · 「일부」 판정).
+GRADE_FIRM = "firm"
+GRADE_SOFT = "soft"
+#: **되돌리는 스위치.** 거짓이면 모든 요구가 예전처럼 확실이다(출처 칸은 그대로 적는다).
+GRADE_REQUIREMENTS = True
+
+#: 문장이 끊기는 자리(등급용) — 마침표 · 물음표 · 느낌표만. 글머리표 · 「 - 」는 끊지 않는다: 「…적어줘: - 검색어 - 결과 건수」의
+#: 항목은 그 앞의 시키는 문장에 딸린 것이다(운영 판 be340d26).
+_ASK_BREAK = re.compile(r"\.(?=\s|$)|[!?。！？]")
+#: 부탁하는 물음 — 「알아봐 줄 수 있나?」 · 「봐줄수있나」 · 「해 주실 수 있어요?」. 시키는 끝맺음(`_REQUEST_ENDING`)과 같은 몫이다
+#: (말로 시키는 지시는 이 꼴이 많다 — 운영 판 c41f09c2 「한 5개만 얘기해줄수있나」 · ce3573ce 「깃허브 들어가서 … 봐줄수있나」).
+_ASKS_AS_A_QUESTION = re.compile(r"(?:줄|주실)\s*수\s*(?:있|없)|주시겠")
+#: 이름이 **일하는 곳 자리**에 선 꼴 — 「다나와에서」 · 「네이버 항공권에서」 · 「깃허브 들어가서」 · 「YES24 사이트」.
+_PLACE_FRAME = re.compile(r"[^.!?\n]{0,20}?(?:에서|에\s*들어가|들어가|에\s*가서|에\s*접속|접속해|사이트|홈페이지)")
+#: 셈을 시키는 말 — 「직접 계산해 보기」가 확실하려면 시키는 문장에 이 중 하나가 있어야 한다. 「개수 · 점수 · 몇 개」는 **읽어 올 값**의
+#: 이름일 때가 많아 넣지 않는다(10-16 뒤 계산 미달 11번이 전부 그 꼴: 레딧 목록 · 한글 서식 · README 정리).
+_CALC_ASK = re.compile(
+    r"계산|평균|중앙값|표준편차|합계|총합|합산|(?<![가-힣])합(?:을|이)?\s*(?:계산|구해|구하)|까지\s*(?:의\s*)?합(?![가-힣])"
+    r"|비율|퍼센트|%|확률|소수|약수|배수|공약수|공배수|경우의\s*수|이자|복리|할인|몇\s*배"
+)
+#: 산출물이 확실하려면 시키는 문장의 대상이 **파일**이어야 한다 — 「표 · 초안」은 답 안에 그려도 되는 것이라 세지 않는다
+#: (「조사해 표로 정리해 줘」만 있는 글 · 1ed83530 「초안 … 폼 넣어주라」). 같은 글에 「결과는 엑셀로.」가 있으면 그 조각이 확실하게 만든다(904a9893).
+_ANSWER_SHAPED_TARGETS = frozenset({"표", "표로", "표를", "초안"})
+
+
+#: 문장 끝을 닫는 것들(마침표 · 괄호 · 따옴표 · 쌍점) — 끝맺음을 볼 때 건너뛴다.
+_CLOSERS = r"[\s.!?~)\]」』\"'*:：]*$"
+#: 반말 지시로 **끝나는** 문장 — 「댓글 많은 순으로 3개를 열어.」(운영 판 3dc56fb1) · 「…비교해.」. 일 시키는 낱말(`_TASK_REQUEST`)이 끝에 설 때만.
+#: (`_TASK_REQUEST` 는 아래에 정의된다 — 처음 부를 때 만든다.)
+_ENDS_WITH_A_TASK: "re.Pattern[str] | None" = None
+#: 풀이말로 끝나는 문장 — 서술 · 물음 · 이음(「…줬더라고」 · 「…언제뜨누」 · 「…봐야 해」 · 「…안 만들어도 됨」).
+#: 이것으로 **안** 끝나는 문장은 조각이다(「결과는 .xlsx 로.」 · 「결과는 markdown 파일로 저장.」 · 「볼 곳: ① …」) — 시키는 문장이 있는 글에서
+#: 조각은 그 지시에 딸린 것이라 시키는 문장으로 본다(운영 판 a181bdf6 · cd04286c · 0a9db218).
+#: 반말의 줄어든 끝(「…만들어버려」 · 「…써」 · 「…봐」)도 풀이말이다(운영 판 b93c137f — 버그 설명의 「기본 ValueError 를 만들어버려.」).
+_ENDS_WITH_A_PREDICATE = re.compile(
+    r"[다요죠까니냐나네지고데어아야해돼래라자게군걸음함됨임듯누노디세오려봐줘써놔워져쳐켜혀겨셔펴껴뤄춰꿔둬와가]" + _CLOSERS
+)
+
+
+def _ends_with_a_task(sentence: str) -> bool:
+    """반말 지시 — 문장이 **일 시키는 동사로 끝나는가**. 동사는 이 파일에 이미 있는 낱말표만 쓴다(새 낱말을 만들지 않는다):
+    일 시키는 말(`_TASK_REQUEST`) · 만드는 말(`_ARTIFACT_REQUEST_VERB`) · 코드를 바꾸는 말(`_CODE_REQUEST_VERB` · `_CODE_ACTION_EXTRA_VERB`) ·
+    셈하는 말(`_COMPUTE_VERB`). 끝에 붙어 있어야 한다 — 「기본 ValueError 를 만들어버려.」(버그 설명 · b93c137f)는 「만들어」로 안 끝난다.
+    운영 코드 사다리 판 「pager.py 와 slicer.py 를 고쳐서 전부 통과시켜.」가 이 꼴이다.
+    """
+    global _ENDS_WITH_A_TASK
+    if _ENDS_WITH_A_TASK is None:
+        verbs = (_TASK_REQUEST, _ARTIFACT_REQUEST_VERB, _CODE_REQUEST_VERB, _CODE_ACTION_EXTRA_VERB, _COMPUTE_VERB)
+        _ENDS_WITH_A_TASK = re.compile("(?:" + "|".join(f"(?:{verb.pattern})" for verb in verbs) + ")" + _CLOSERS, re.I)
+    return bool(_ENDS_WITH_A_TASK.search(sentence))
+
+
+def _ask_spans(text: str) -> tuple[str, list[tuple[int, int]], list[tuple[int, int]], str]:
+    """사람의 말에서 **시키는 문장**의 자리들. (따옴표 속 문장을 비운 글, 시키는 문장들, 거기 딸린 조각들, 어떻게 정했나)."""
+    compact = _without_quoted_sentences(" ".join((text or "").split()))
+    if _en.english_dominant(compact):
+        return compact, [(0, len(compact))], [], "english"
+    spans: list[tuple[int, int]] = []
+    fragments: list[tuple[int, int]] = []
+    statements = 0
+    start = 0
+    for found in [*_ASK_BREAK.finditer(compact), None]:
+        end = found.end() if found else len(compact)
+        sentence = compact[start:end].strip()
+        if sentence:
+            if _REQUEST_ENDING.search(sentence) or _ASKS_AS_A_QUESTION.search(sentence) or _ends_with_a_task(sentence):
+                spans.append((start, end))
+            elif not _ENDS_WITH_A_PREDICATE.search(sentence):
+                fragments.append((start, end))
+            else:
+                statements += 1
+        start = end
+    if spans:
+        return compact, spans, fragments, "ending"
+    # 풀이말이 하나도 없는 글은 그 자체가 지시다 — 「삼성전자 뉴스 3개」 · 「로지텍 MX Master 3S 가격 조사」(명사로 끝나는 지시).
+    if fragments and not statements:
+        return compact, [(0, len(compact))], [], "noun_phrase"
+    # 시키는 끝맺음이 하나도 없는 명사형 지시(「로지텍 MX Master 3S 가격 조사」) — 일 시키는 낱말이 있을 때만 글 전체가 지시다.
+    if compact and asked_for_work(compact):
+        return compact, [(0, len(compact))], [], "work_words"
+    return compact, [], [], "none"
+
+
+def _site_name(req: Requirement) -> str:
+    label = str(req.label or "")
+    return label[: -len("에서 하기")] if label.endswith("에서 하기") else label
+
+
+def _grade_one(
+    req: Requirement, compact: str, asks: list[tuple[int, int]], fragments: list[tuple[int, int]], how: str,
+    *, code_workspace: bool = False,
+) -> tuple[str, str]:
+    """요구 하나의 (등급, 출처). 정의는 전략안 §55-41 표 한 장이다 — 여기에 낱말 예외를 더하지 않는다.
+
+    개수 · 산출물 · 계산은 시키는 문장과 거기 딸린 조각(「결과는 엑셀로.」)에서 본다. 사이트는 **시키는 문장 자체**에서만 본다 —
+    조각 속 이름은 다룰 주제일 때가 많다(운영 판 c9910364 「… 깃허브에 관한 규칙은 빠짐없이 원문 그대로.」).
+    """
+    spans = sorted(asks + fragments)
+
+    def in_ask(position: int, *, with_fragments: bool = True) -> bool:
+        return any(start <= position < end for start, end in (spans if with_fragments else asks))
+
+    def ask_sentences() -> list[str]:
+        return [compact[start:end] for start, end in spans]
+
+    kind = str(req.kind or "")
+    if kind == "observe":
+        return GRADE_FIRM, "router"
+    if how == "english":
+        return GRADE_FIRM, "english"
+    folded = compact.casefold()
+    if kind == "site":
+        hosts = req.target if isinstance(req.target, (list, tuple)) else (req.target,)
+        if any(str(host).casefold() and str(host).casefold() in folded for host in hosts):
+            return GRADE_FIRM, "address"
+        name = _site_name(req)
+        if name not in SITE_ALIASES and name not in _en.SITE_NAMES:
+            return GRADE_SOFT, "learned"
+        key = name.casefold()
+        at = folded.find(key)
+        while at >= 0:
+            # 일하는 곳 자리(「X에서 · X 들어가서」)에 선 이름은 물음 속이어도 그곳이다 — 「얼마하노 쿠팡에서」(운영 판 fb5467da).
+            if in_ask(at, with_fragments=False) or _PLACE_FRAME.match(compact, at + len(name)):
+                return GRADE_FIRM, "ask"
+            at = folded.find(key, at + 1)
+        return GRADE_SOFT, "mention"
+    if kind in {"count", "count_action"}:
+        if kind == "count_action" and req.items:
+            return GRADE_FIRM, "kept"
+        try:
+            target = int(req.target)
+        except (TypeError, ValueError):
+            return GRADE_FIRM, "kept"
+        for match in _COUNT.finditer(compact):
+            value = _as_number(match.group(2))
+            if value > 1 and (value == target or target % value == 0) and in_ask(match.start()):
+                return GRADE_FIRM, "ask"
+        return GRADE_SOFT, "mention"
+    if kind == "artifact":
+        for sentence in ask_sentences():
+            # 만들 형식 · 파일 이름을 댔다(「결과는 엑셀로.」 · 「…naver_verify.md 파일에 적어 줘」) — 읽을 재료로 쓴 형식은 `_artifact_extensions` 가 뺀다.
+            if _artifact_extensions(sentence):
+                return GRADE_FIRM, "ask"
+            if not wants_an_artifact(sentence):
+                continue
+            named = any(
+                found.group(0) not in _ANSWER_SHAPED_TARGETS for found in _ARTIFACT_REQUEST_TARGET.finditer(sentence)
+            )
+            if named or wants_code(sentence):
+                return GRADE_FIRM, "ask"
+        # Code 탭은 사람이 고른 판 종류다 — 저장소 자체가 대상이라 「원인을 찾아서 고쳐 줘」처럼 파일 이름 없는 바꾸라는 말이 곧 산출물이다
+        # (`wants_code_action` · 운영 코드 사다리 판). 「고치지 말고 보여줘」만 있는 판은 바꾸라는 말이 없다(운영 판 b93c137f).
+        if code_workspace and any(wants_code_action(sentence) for sentence in ask_sentences()):
+            return GRADE_FIRM, "ask"
+        return GRADE_SOFT, "mention"
+    if kind == "action" and str(req.target) == "sandbox_run":
+        if any(_CALC_ASK.search(sentence) for sentence in ask_sentences()):
+            return GRADE_FIRM, "ask"
+        return GRADE_SOFT, "mention"
+    # 바깥 행위 · 정렬 · 필터 · 각주 · 실행 확인은 이번 판에서 등급을 안 매긴다(예전대로 확실).
+    return GRADE_FIRM, "kept"
+
+
+def grade_requirements(requirements: list[Requirement], text: str, *, code_workspace: bool = False) -> list[Requirement]:
+    """요구마다 확실성 등급과 출처를 매긴 목록. `text` 는 **사람의 말**(붙여넣은 글을 뺀 것) · `code_workspace` 는 Code 탭 판."""
+    if not requirements:
+        return requirements
+    compact, asks, fragments, how = _ask_spans(text)
+    graded: list[Requirement] = []
+    for req in requirements:
+        grade, origin = _grade_one(req, compact, asks, fragments, how, code_workspace=code_workspace)
+        graded.append(dataclass_replace(req, grade=grade if GRADE_REQUIREMENTS else GRADE_FIRM, origin=origin))
+    # 예비 「근거 읽기」(`_extract_all` 의 `spare`) — 확실한 읽기 개수가 그 일을 하면 뺀다(예전과 같은 목록). 아니면 라우터의 안전망으로 남긴다.
+    firm_count = any(
+        req.kind == "count" and req.grounding_required and req.grade != GRADE_SOFT for req in graded
+    )
+    return [
+        req for req, before in zip(graded, requirements)
+        if not (req.kind == "observe" and getattr(before, "origin", "") == "spare" and firm_count)
+    ]
+
+
+def firm_only(items: list[Any]) -> list[Any]:
+    """확실한 것만 — 요구 목록이든 `check` 의 (요구, 됐나, 본 것) 목록이든."""
+    return [item for item in items or [] if getattr(item[0] if isinstance(item, tuple) else item, "grade", GRADE_FIRM) != GRADE_SOFT]
+
+
+def soft_only(items: list[Any]) -> list[Any]:
+    """흐린 것만 — `firm_only` 의 짝."""
+    return [item for item in items or [] if getattr(item[0] if isinstance(item, tuple) else item, "grade", GRADE_FIRM) == GRADE_SOFT]
 
 
 def _extract_all(
@@ -1360,8 +1660,12 @@ def _extract_all(
     # ★ 영문 이름은 대소문자를 가리지 않는다 (2026-09-14). 사람은 「YES24」·「Yes24」·
     #   「yes24」를 다 쓴다. 한글에는 대소문자가 없으니 casefold 가 아무것도 안 바꾼다.
     folded = outside_quotes.casefold()
+    supplied_head = None if english else supplied_content_head(compact)
     for name in sorted(aliases, key=len, reverse=True):
         if name.casefold() not in folded:
+            continue
+        # 내용을 다 적어 준 산출물이면 **지시 문장**에 나온 이름만 일할 곳이다 — 자료 속 「깃허브에 공개」는 소재다(10-26).
+        if supplied_head is not None and name.casefold() not in supplied_head.casefold():
             continue
         # ★ 영문·숫자로 된 이름은 **낱말로** 있을 때만 건다 (2026-10-04 레딧 조사 판 aa741c81). 배운 사이트 이름 「GB」가
         #   「16GB 이하에서」 속에서 걸려 대조표에 「GB에서 하기」가 찍혔다. 한글 이름은 조사가 바로 붙으므로 그대로 둔다.
@@ -1525,7 +1829,16 @@ def _extract_all(
         and bool((_en.DICTATED_CONTENT if english else _DICTATED_CONTENT).search(compact))
         and not _read_intent(compact)
         and (not has_named_source or embedded_address)
-    )
+    ) or (
+        # ★ 「아래 사실만 쓰고 다른 숫자는 지어내지 마」 + 사실 목록으로 만들라는 일 (2026-10-25 「손자리 소개」 PPT 판).
+        #   사실 안의 「마이크로소프트 스토어」 · 「깃허브」를 가서 읽을 출처로, 「읽고」를 읽기 동사로 세어
+        #   「근거 읽기 0개 · 일부만 끝냄」이 붙었다. 사람이 자료를 다 준 일이다. 실제 주소(URL · 경로)가 있으면 예전대로 읽는다.
+        #   재 봤다: 운영 요청 5,217개 중 이 꼴 5개, 주소가 없는 것은 이 판 하나(나머지 넷은 reddit.com · huggingface.co 조사).
+        not english
+        and wants_an_artifact(compact)
+        and bool(_SUPPLIED_FACTS.search(compact))
+        and not _READABLE_ADDRESS.search(compact)
+    ) or (not english and supplied_content_head(compact) is not None)
     if (
         must_observe
         and not dictated_artifact
@@ -1539,8 +1852,10 @@ def _extract_all(
             observe_from and frozenset(observe_from) <= {"local", "workspace"} and _READ_FORBIDDEN.search(compact)
         )
         and not wants_a_count(compact)
-        and not any(item.kind == "count" and item.grounding_required for item in found)
     ):
+        # 읽기 개수 요구(본문 근거를 따지는 것)가 있으면 그것이 「근거 읽기」를 대신한다 — 예전부터 그랬다. 다만 그 개수가 **흐림**이 되면
+        # 대신할 것이 없어진다(§55-41). 그래서 여기서는 버리지 않고 「예비」로 세워 두고, 등급을 매긴 뒤 확실한 개수가 있을 때만 뺀다.
+        spare = any(item.kind == "count" and item.grounding_required for item in found)
         reasons = frozenset(observe_from or ())
         target = (
             "browser"
@@ -1555,7 +1870,7 @@ def _extract_all(
             if reasons and reasons <= {"local", "document", "workspace"}
             else "any"
         )
-        found.append(Requirement("observe", "근거가 되는 대상 실제로 읽기", target))
+        found.append(Requirement("observe", "근거가 되는 대상 실제로 읽기", target, origin="spare" if spare else ""))
     if code_workspace:
         # ★ Code 탭에서는 **읽기 개수·셈 요구를 낱말로 뽑지 않는다** (2026-09-30, 대표 「코드 모드에선 두더지가 특히 나쁘다」).
         #   코드 과제의 문장은 사양서다 — 「참가자 3명」은 넣을 예시, 「모바일에서도」는 반응형 조건, 「카드 3개」는 화면 구성.
@@ -1853,6 +2168,7 @@ _ARTIFACT_TOOLS = frozenset(
         #   파일 만들기 — 열 수 있는 산출물 없음」이 찍혔다. 등록 자리가 열 곳이라는
         #   말은 이런 뜻이다: 한 곳만 빠져도 조용히, 그리고 엉뚱한 모양으로 틀린다.
         "local_write_document",
+        "local_make_slide",
         "local_edit_document",
         "local_edit_spreadsheet",
         "artifact_from_observations",
@@ -2081,6 +2397,7 @@ _ACTION_TOOLS = frozenset({
     "google_calendar_delete",
     "google_drive_write",
     "local_write_document",
+    "local_make_slide",
     "local_edit_document",
     "local_edit_spreadsheet",
     "local_write_file",
@@ -2947,6 +3264,20 @@ def summary_note(results: list[tuple[Requirement, bool, str]], lang: str = "ko")
     return ("\n\n**Checklist**\n" if lang == "en" else "\n\n**시킨 것 대조**\n") + lines
 
 
+def summary_line(results: list[tuple[Requirement, bool, str]], lang: str = "ko", *, limit: int = 3) -> str:
+    """사람이 창에서 시킨 판의 대조 한 줄(2026-10-24). 다 됐으면 빈 글 — 대조표 덩어리(`summary_note`)는 판 기록 · 바깥 AI 에만."""
+    if not results or all(ok for _, ok, _ in results):
+        return ""
+    missing = [display_label(req, lang) for req, ok, _ in results if not ok]
+    met = sum(1 for _, ok, _ in results if ok)
+    shown = ", ".join(missing[:limit])
+    if lang == "en":
+        more = f" and {len(missing) - limit} more" if len(missing) > limit else ""
+        return f"Requested {len(results)} · done {met} ✓ · not done: {shown}{more}"
+    more = f" 외 {len(missing) - limit}개" if len(missing) > limit else ""
+    return f"시킨 것 {len(results)}개 중 {met}개 ✓ · 못 한 것: {shown}{more}"
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 「요구를 못 뽑았다」가 두 가지를 뜻하고 있었다
 # ═══════════════════════════════════════════════════════════════════════════
@@ -3290,6 +3621,13 @@ _NAMED_FILE_IS_READ = re.compile(
 )
 
 
+#: 형식 낱말 **바로 뒤**에 만드는 말이 붙었나 — 「PPT를 8장 안팎으로 만들어」 · 「엑셀로 정리해」 · 「워드 파일 작성해」.
+#: 문장이 끝나면 넘지 않는다(「… 문서를 직접 다룬다. 클로드가 … 만들어」의 「만들어」는 다른 문장).
+_FORMAT_IS_MADE = re.compile(
+    r"[^.。!?\n]{0,18}?(?:만들|작성|써\s*줘|써\s*주|뽑아|정리해|저장해|내보내|구워)"
+)
+
+
 def _format_is_source(compact: str, end: int, *, named_file: bool = False) -> bool:
     """`end` 에서 끝나는 형식 낱말(「엑셀」)이나 파일 이름(「매출표.xlsx」)이 읽을 재료로 쓰였는가."""
     pattern = _NAMED_FILE_IS_READ if named_file else _FORMAT_IS_SOURCE
@@ -3354,10 +3692,16 @@ def _artifact_extensions(prompt: str) -> tuple[str, ...]:
         (re.compile(r"자바스크립트|javascript", re.I), (".js", ".jsx")),
         (re.compile(r"이미지", re.I), (".png", ".jpg", ".jpeg", ".webp")),
     )
+    # ★ 규칙 순서로 고른 형식에 만드는 말이 안 붙었는데 **뒤 규칙의 형식에는 붙었으면** 그쪽이 시킨 형식이다 (2026-10-25).
+    #   「손자리 소개 PPT를 8장으로 만들어 줘. 자료: … 워드 · 엑셀 · 한글 문서를 직접 다룬다」(판 891b5d6a)가 .xlsx 를 요구해
+    #   PPTX 를 제대로 굽고도 「열 수 있는 산출물 없음 · partial」이 됐다. 자료 칸의 형식 이름은 소재다.
+    #   만드는 말이 둘 다 붙었거나 둘 다 안 붙었으면 예전처럼 규칙 순서를 따른다(바뀌는 판을 좁힌다).
+    first: tuple[str, ...] | None = None
     for pattern, extensions in rules:
         # 읽을 재료로 쓰인 것은 건너뛰고, 같은 낱말이 뒤에서 만들 형식으로 다시 나오면 그것을 본다
         # (「이 엑셀을 읽고 … 새 엑셀 파일로 저장해줘」). 영어 규칙에는 이 판정이 없다 — 한국어 조사를 본다.
-        match = next((found for found in pattern.finditer(compact) if not _format_is_source(compact, found.end())), None)
+        usable = [found for found in pattern.finditer(compact) if not _format_is_source(compact, found.end())]
+        match = usable[0] if usable else None
         if not match:
             continue
         # ★ 「파이썬 **책**」의 파이썬은 형식이 아니라 소재다 (2026-09-07 라이브).
@@ -3368,8 +3712,14 @@ def _artifact_extensions(prompt: str) -> tuple[str, ...]:
         #   답만 다시 쓰며 보냈다. 같은 낱말이 같은 날 `wants_code` 도 속였다.
         if _language_is_topic(compact, match):
             continue
-        return extensions
-    return ()
+        made = any(_FORMAT_IS_MADE.match(compact, found.end()) for found in usable)
+        if first is None:
+            if made:
+                return extensions
+            first = extensions
+        elif made:
+            return extensions
+    return first or ()
 
 
 def artifact_extensions(prompt: str) -> tuple[str, ...]:
@@ -4207,6 +4557,19 @@ _CODE_TARGET_IS_TOPIC = re.compile(
 )
 
 
+#: 문서 형식 — 만들 것이 이것뿐이면 그 판은 코딩이 아니다(`wants_code` 의 10-26 규칙).
+_DOCUMENT_FORMATS = frozenset({".pptx", ".docx", ".xlsx", ".hwpx", ".hwp", ".pdf", ".md", ".csv"})
+
+
+def _makes_a_document_only(compact: str) -> bool:
+    """요청이 정한 만들 형식이 문서 형식뿐인가(형식을 못 박지 않았으면 아니다)."""
+    try:
+        extensions = _artifact_extensions(compact)
+    except Exception:  # noqa: BLE001 — 판정을 못 하면 예전 규칙 그대로
+        return False
+    return bool(extensions) and set(extensions) <= _DOCUMENT_FORMATS
+
+
 def wants_code(prompt: str) -> bool:
     """설명 말고 실행할 코드를 요구했는가.
 
@@ -4230,8 +4593,15 @@ def wants_code(prompt: str) -> bool:
     targets = list(_CODE_TARGET.finditer(compact))
     if english:
         targets += list(_en.CODE_TARGET_WORDS.finditer(compact))
+    # ★ **만들 것이 문서면 일반 낱말은 소재다** (2026-10-26 장표 판 26개 중 9개가 코딩 갈래). 「소개 PPT … 클로드 코드가 … 코드는 깃허브에」 ·
+    #   「학원 프로그램 회사 7년」 · 「html 없이 한 번 불러」가 코드 대상으로 걸렸고, 0a39f113 은 code_unverified 로 「일부만 됨」이 됐다.
+    #   만들 형식이 문서(PPTX · 워드 · 엑셀 · 한글 · PDF · 마크다운 · CSV)면 「코드 · HTML · 프로그램 · 언어 이름」은 대상이 아니고,
+    #   이름을 댄 코드 파일(「app.py」)만 대상으로 센다.
+    document_product = _makes_a_document_only(compact)
     for match in targets:
         if topic.match(compact, match.end()):
+            continue
+        if document_product and not re.search(r"\.[A-Za-z]{1,6}$", match.group(0)):
             continue
         if _is_quoted(compact, match):
             continue

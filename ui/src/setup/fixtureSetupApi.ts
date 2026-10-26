@@ -428,6 +428,11 @@ export function createFixtureSetupApi(name: string): SetupApi | null {
       return { ...contextState, ceilings: { ...ceilings },
                live: contextState.live ? { ...contextState.live, steps: [...contextState.live.steps] } : null };
     },
+    // 「더 쥐어짜기」 리허설 — 흉내 카드에서는 좁힐 것이 없다고 답한다(진짜는 백엔드 `squeeze_context_ceiling`).
+    async squeezeContext() {
+      await wait(150);
+      return { ok: false, error: "nothing_to_squeeze" };
+    },
     async measureContext() {
       if (contextState.measuring) return { ok: false, error: "already_measuring" };
       const model = contextState.chat_model;

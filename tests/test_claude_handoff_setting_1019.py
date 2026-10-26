@@ -18,6 +18,7 @@ import httpx
 import pytest
 
 from alture_jarvis import claude_code as cc
+from alture_jarvis.api_escalation import hold_reason as esc_hold_reason
 from alture_jarvis.claude_code import (
     CLAUDE_CODE_TOOL,
     ClaudeCodeError,
@@ -168,6 +169,14 @@ def test_a_job_handed_to_us_by_claude_code_is_not_handed_back() -> None:
     assert hold_reason({"origin": "mcp", "caller": "claude-code"}, "mcp-0123456789ab") == "delegated_by_claude_code"
     assert hold_reason({"origin": "mcp", "caller": "Discord"}, "discord-1") == ""  # 사람이 폰으로 시킨 판
     assert hold_reason({"origin": "workspace"}, "s-1") == ""
+
+
+@pytest.mark.parametrize("caller", ["", "claude-ai", "Claude Desktop", "codex-mcp-client", "cursor-vscode", "remote-laptop"])
+def test_any_outside_ai_job_stays_on_the_local_model(caller) -> None:
+    # 2026-10-26 대표: 클로드 앱이 MCP 로 시킨 일은 무조건 로컬 — 부른 쪽 이름이 비어도(최근 14일 426판) 막는다.
+    assert hold_reason({"origin": "mcp", "caller": caller}, "mcp-0123456789ab") == "delegated_by_outside_ai"
+    assert esc_hold_reason({"origin": "mcp", "caller": caller}) == "delegated_by_outside_ai"
+    assert esc_hold_reason({"origin": "mcp", "caller": caller, "api_escalation_measure": True}) == "delegated_by_outside_ai"
 
 
 def test_measurement_job_is_forced_off_even_when_the_user_turned_it_on(runtime) -> None:

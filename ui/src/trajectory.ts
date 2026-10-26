@@ -8,6 +8,7 @@
  */
 import { t } from "./i18n";
 import type { AgentProgress, ConversationMessage } from "./types";
+import { unopenedRowsOf, type UnopenedRow } from "./workspace/unopenedRows";
 
 export interface TrajectoryStep {
   key: string;
@@ -45,7 +46,12 @@ export interface Trajectory {
   steps: TrajectoryStep[];
   /** 없으면 뽑을 수 있는 요구가 없었다는 뜻이다 — 빈 체크리스트를 그리지 않는다. */
   plan?: PlanItem[];
+  /** 판 끝 검사가 센 「한 번도 안 연 곳의 줄」(`verification.unopened_place_rows`). 판이 끝나야 온다. */
+  unopened?: UnopenedRow[];
 }
+
+/** 클로드 코드가 파일을 고치는 도구(코드 칸의 「패치」 · 「바꾼 곳」 · 아래 쓰기 목록). */
+export const CLAUDE_EDIT_TOOLS = ["Edit", "MultiEdit", "Write", "NotebookEdit"];
 
 /**
  * 밖을 바꾸는 도구. 이 목록에 없으면 "읽기만 했다"고 말한다.
@@ -69,6 +75,12 @@ export const WRITE_TOOLS = new Set([
   "hwp_apply_format",
   "hwp_export_pdf",
   "claude_code_delegate",
+  // 2026-10-26: 손자리가 파일을 만드는 문 — 백엔드 쓰기 목록(`write_order.WRITE_TOOLS`)에는 있었는데 여기 없었다.
+  //   앱 안 Claude 가 맡긴 장표 판(실제 판 c81a10dd: local_make_slide 9번)이 장표를 굽고도 「읽기만 함」으로 보였다.
+  "local_write_document", "local_make_slide", "local_edit_document", "local_edit_spreadsheet", "local_write_text_file", "unity_editor_change",
+  // 2026-10-26 대표 첫 실제 판: Claude 가 price.py 를 고쳤는데 궤적 머리가 「읽기만 함」. 클로드 코드의 쓰기 도구 이름.
+  //   명령(Bash · PowerShell)은 무엇이든 바꿀 수 있어 `shell_run` 과 같이 쓰기로 친다 — 모르는 것을 읽기로 치지 않는다.
+  ...CLAUDE_EDIT_TOOLS, "Bash", "PowerShell",
 ]);
 
 export function isWriteTool(tool: string): boolean {
@@ -102,6 +114,15 @@ export function applyPlan(trajectory: Trajectory, items: PlanItem[]): Trajectory
   return { ...trajectory, plan: items };
 }
 
+/**
+ * 판 끝 검사의 기록이 왔다(`agent_progress` · phase=verification). 걸음 목록에도 실리지만 걸음 자리는 번호 · 도구로 덮어써지므로,
+ * 오른쪽 판이 읽을 것만 따로 붙든다. 검사 기록이 아니면 그대로 돌려준다.
+ */
+export function applyVerification(trajectory: Trajectory, item: AgentProgress): Trajectory {
+  if (item.phase !== "verification" || !item.evidence) return trajectory;
+  return { ...trajectory, unopened: unopenedRowsOf(item.evidence) };
+}
+
 /** 시킨 것 중 몇 개를 채웠나. 요구가 없으면 `null` — "0/0" 은 아무 말도 아니다. */
 export function planProgress(trajectory: Trajectory): { met: number; total: number } | null {
   const plan = trajectory.plan ?? [];
@@ -128,7 +149,8 @@ export function summarize(trajectory: Trajectory): TrajectorySummary {
   const failed = trajectory.steps.filter((s) => s.status === "failed").length;
   const seconds = Math.max(0, Math.round((trajectory.endedAt ?? Date.now() / 1000) - trajectory.startedAt));
   const tools = [...new Set(trajectory.steps.map((s) => s.tool).filter(Boolean))];
-  const wrote = tools.some(isWriteTool);
+  // 막힌 쓰기(승인이 없어 거절된 명령 등)는 바꾼 것이 아니다 — 실패한 걸음은 뺀다(2026-10-26 대표 판: 명령 둘이 거절됐다).
+  const wrote = trajectory.steps.some((s) => isWriteTool(s.tool) && s.status !== "failed" && s.status !== "cancelled");
   const parts = [t("{0}걸음", done.length || trajectory.steps.length), t("{0}초", seconds)];
   if (failed) parts.push(t("{0}실패", failed));
   parts.push(wrote ? t("바꾼 것 있음") : t("읽기만 함"));
@@ -194,6 +216,18 @@ export function evidenceLine(step: TrajectoryStep, limit = 3): string {
  * 3번이 진짜 자물쇠다. 새 도구를 만든 날 검사가 빨개진다.
  */
 const TOOL_LABELS: Record<string, string> = {
+  // ── 앱 안의 Claude Agent 가 쓰는 이름(2026-10-26) — 클로드 쪽에서 본 말. 손자리 쪽 이름(아래 sonjari_task)과 방향이 반대다 ──
+  mcp__sonjari__sonjari_task: t("손자리에게 맡기기"),
+  mcp__sonjari__sonjari_task_status: t("손자리 결과 받기"),
+  mcp__sonjari__sonjari_guide: t("손자리 사용법 읽기"),
+  Read: t("파일 읽기"),
+  Edit: t("파일 고치기"),
+  MultiEdit: t("파일 고치기"),
+  Write: t("파일 쓰기"),
+  NotebookEdit: t("노트북 고치기"),
+  Glob: t("파일 찾기"),
+  Grep: t("글자 찾기"),
+  Bash: t("명령 실행"),
   // ── Claude 가 통째로 맡기는 문 (MCP) ──
   sonjari_task: t("맡은 일 받기"),
   sonjari_task_status: t("맡은 일 결과 알려 주기"),
@@ -264,6 +298,7 @@ const TOOL_LABELS: Record<string, string> = {
   browser_download: t("문서 내려받기"),
   clipboard_write: t("클립보드에 올리기"),
   local_write_document: t("문서 만들기"),
+  local_make_slide: t("장표 그리기"),
   local_edit_spreadsheet: t("엑셀 셀 고치기"),
   local_grep: t("코드에서 찾기"),
   local_glob: t("파일 패턴 찾기"),
@@ -398,7 +433,8 @@ const FAMILY: Array<[string, string]> = [
   ["schedule_", t("예약")],
   ["watch_", t("지켜보기")],
   ["sandbox_", t("작업판")],
-  ["claude_code_", "Claude Code"],
+  // 앤트로픽 상표 규칙: 화면에 「Claude Code」 글자를 쓰지 않는다(2026-10-26 대표) — 「Claude」.
+  ["claude_code_", "Claude"],
   ["site_", t("사이트 레시피")],
   ["skill_", t("요령")],
   ["ui_", t("화면 조작")],

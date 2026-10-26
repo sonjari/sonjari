@@ -170,6 +170,7 @@ WRITE_TOOL_NAMES: frozenset[str] = frozenset({
     #   안 뜨는데, 허용 명령에 `ruff format .` 처럼 **저장소 파일을 실제로 고쳐 쓰는**
     #   것이 있다. 이 목록에 없으면 「읽기만」 모드에서도 그대로 실행됐다 — 그 모드의
     #   약속("아무것도 안 바꾼다")이 깨지는 자리였다.
+    "local_make_slide",
     "local_run_project_command",
     "local_write_document",
     "local_write_file",

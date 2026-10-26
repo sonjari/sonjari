@@ -38,7 +38,7 @@ _FRESH_READ_TOOLS = frozenset({"browser_read", "browser_extract", "browser_open_
 #: 산출물 단계의 손 — 진척 판정과 산출물 차례(`_focused_tool_definitions`)가 **같이** 쓴다.
 _ARTIFACT_PROGRESS_TOOLS = frozenset({
     "local_write_document", "local_edit_document", "local_write_file",
-    "local_edit_spreadsheet", "artifact_from_observations", "hwp_apply_edit",
+    "local_edit_spreadsheet", "artifact_from_observations", "hwp_apply_edit", "local_make_slide",
     "hwp_apply_format", "hwp_export_pdf",
 })
 
@@ -59,7 +59,7 @@ _ARTIFACT_STAGE_SUPPORT = frozenset({
 
 _ARTIFACT_WRITE_TOOLS = frozenset({
     "local_write_document", "local_write_file", "local_edit_document",
-    "local_edit_spreadsheet", "artifact_from_observations", "sandbox_run",
+    "local_edit_spreadsheet", "artifact_from_observations", "sandbox_run", "local_make_slide",
 })
 
 

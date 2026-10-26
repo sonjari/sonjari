@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CoworkTakeoverCard } from "../types";
-import { originTone, relayFacts, stopReasonText } from "./TakeoverRelay";
+import { callerLabel, originTone, relayFacts, stopReasonText } from "./TakeoverRelay";
 
 function card(overrides: Partial<CoworkTakeoverCard> = {}): CoworkTakeoverCard {
   return {
@@ -19,6 +19,16 @@ describe("takeover relay origin", () => {
     expect(originTone("codex")).toBe("codex");
     expect(originTone("cursor-vscode")).toBe("cursor");
     expect(originTone("some-new-agent")).toBe("other");
+  });
+});
+
+describe("맡긴 쪽 이름표", () => {
+  it("클로드 코드가 맡겨도 이름표는 「Claude」 — 앤트로픽 상표 규칙(2026-10-26 대표)", () => {
+    expect(callerLabel("claude-code")).toBe("Claude");
+    expect(callerLabel("Claude Code")).toBe("Claude");
+    expect(callerLabel("claude-ai")).toBe("Claude");
+    expect(callerLabel("codex-mcp-client")).toBe("Codex");
+    for (const name of ["claude-code", "Claude Code", "claude code"]) expect(callerLabel(name)).not.toContain("Code");
   });
 });
 

@@ -1,0 +1,14 @@
+/* 흰 종이 · 파랑 — 업무 보고 기본(회의 · 계획 · 회사 소개). 참고: blue-professional(MIT · Zara Zhang) */
+:root {
+  --paper: #fbfaf7; --ink: #171a21; --ink-soft: #454b57; --ink-faint: #858a95; --title: #171a21;
+  --accent: #1f4fd1; --accent-text: #1f4fd1; --rule: #dfe1e6; --rule-strong: #171a21;
+  --surface: #eef0f4; --track: #e9ebf0; --bar: #b9c3da; --tile-b: #e3eafb; --tile-b-ink: #17306b;
+  --field: #17306b; --field-ink: #ffffff; --field-accent: #9fc0ff; --field-soft: #d3dcf2; --field-faint: #93a3cc;
+  --field-rule: #2c4687; --field-surface: #22407f; --field-track: #24427f; --field-bar: #5a74b0; --field-kicker: #9fc0ff;
+  --sans: 'Pretendard', 'Malgun Gothic', sans-serif; --display: 'Pretendard', 'Segoe UI', 'Malgun Gothic', sans-serif; --display-weight: 700;
+  --quote: 'Pretendard', 'Segoe UI', 'Malgun Gothic', sans-serif; --quote-weight: 700; --figure: 'Pretendard', 'Segoe UI', 'Malgun Gothic', sans-serif; --figure-weight: 700;
+}
+section.cover:not(.field)::before { content: ""; position: absolute; top: 0; right: 0; width: 46%; height: 100%; background: #eef2fb; clip-path: polygon(30% 0, 100% 0, 100% 100%, 0 100%); }
+section.cover.field::before { content: ""; position: absolute; top: 0; right: 0; width: 46%; height: 100%; background: #1d3a80; clip-path: polygon(30% 0, 100% 0, 100% 100%, 0 100%); }
+section.cover > * { position: relative; }
+.compare .col, .tile { border-radius: 4px; }

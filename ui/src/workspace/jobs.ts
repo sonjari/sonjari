@@ -151,9 +151,67 @@ export function jobMetrics(job: JobSummary, now = Date.now() / 1000): string[] {
 }
 
 /** 예약: 아직 돌 것만 위에. 취소·완료된 예약은 목록을 채울 뿐이다. */
-export function pendingSchedules(rows: ScheduleRow[]): ScheduleRow[] {
-  return rows.filter((row) => row.status === "pending" || row.status === "dispatching")
+export function pendingSchedules(rows: ScheduleRow[], now = Date.now() / 1000): ScheduleRow[] {
+  return rows.filter((row) => row.status === "pending" || row.status === "dispatching"
+    // 한 번만 도는 루틴은 돌고 나면 「ran」이다. 결과(건수 · 깨짐)를 볼 자리가 여기뿐이라 하루는 남긴다.
+    || (row.kind === "routine" && row.status === "ran" && now - row.updated_at < 86_400))
     .sort((a, b) => a.run_at - b.run_at);
+}
+
+/** 루틴 마지막 회차의 작은 줄. 백엔드 `routine.summary` 와 같은 모양. */
+export interface RoutineResult {
+  status: string;
+  count: number;
+  total_on_site?: number | null;
+  problems?: string[];
+  notes?: string[];
+  out?: string;
+  at?: number;
+}
+
+export function routineResult(row: ScheduleRow): RoutineResult | null {
+  if (row.kind !== "routine" || !row.last_result) return null;
+  try {
+    const parsed = JSON.parse(row.last_result) as RoutineResult;
+    return parsed && typeof parsed.status === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 루틴 줄의 결과 한 마디 (2026-10-23 · 전략안 §55-39 「루틴 카드 한 장」).
+ *
+ * 「0건」과 「깨짐」을 **다른 말로** 쓴다 — 깨진 회차를 0건처럼 보이면 사람은 「오늘은 새 공고가 없다」로 읽는다.
+ */
+export function routineLine(row: ScheduleRow, now = Date.now() / 1000): string {
+  const result = routineResult(row);
+  if (!result) return t("모델 없이 · 아직 안 돎");
+  const at = result.at ? new Date(result.at * 1000) : null;
+  const when = at
+    ? (now - result.at! < 86_400
+      ? at.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" })
+      : at.toLocaleDateString(locale(), { month: "short", day: "numeric" }))
+    : "";
+  const first = (result.problems ?? [])[0] ?? "";
+  switch (result.status) {
+    case "ok":
+    case "empty":
+      return t("모델 없이 · {0}건 · {1}", result.count, when);
+    case "broken":
+      return t("깨짐 · {0}", first);
+    case "failed":
+      return t("못 받음 · {0}", when);
+    case "refused":
+      return t("멈춤 · {0}", first);
+    default:
+      return result.status;
+  }
+}
+
+export function routineFailed(row: ScheduleRow): boolean {
+  const status = routineResult(row)?.status ?? "";
+  return status === "broken" || status === "failed" || status === "refused";
 }
 
 /** 언제 도는가. 지났는데 아직 안 돌았으면 그렇게 말한다(숨기지 않는다). */
@@ -279,6 +337,8 @@ export function withLiveRooms<T extends RoomRow>(sessions: T[], jobs: JobSummary
   const added: RoomRow[] = [];
   for (const job of [...jobs].sort((a, b) => b.created_at - a.created_at)) {
     if (!isLive(job) || !job.session_id || known.has(job.session_id)) continue;
+    // 앱 안 Claude 가 맡긴 판(via=app)은 맡긴 Claude 대화 안에 묶여 보인다 — 제 방을 따로 세우지 않는다(2026-10-26 대표).
+    if (job.via === "app") continue;
     known.add(job.session_id);
     added.push({
       session_id: job.session_id,

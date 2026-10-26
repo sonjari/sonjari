@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>mocha_editorial · Anthropic 级编辑器 · World-Class Mock</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400&family=Instrument+Serif:ital@0;1&family=Fraunces:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #f3ebde;
+    --bg-warm: #ede2d0;
+    --ink-primary: #2a1810;
+    --ink-deep: #1f1410;
+    --ink-secondary: #4a3a30;
+    --ink-label: #8b5a3c;
+    --accent: #c1502e;
+    --rule: rgba(42, 24, 16, 0.12);
+
+    --display-font: 'Source Serif 4', 'Tiempos Text', 'Iowan Old Style', Georgia, serif;
+    --italic-font: 'Instrument Serif', 'Fraunces', 'Source Serif 4', Georgia, serif;
+    --body-font: 'Source Serif 4', 'Iowan Old Style', Georgia, serif;
+    --label-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono-font: 'JetBrains Mono', 'DM Mono', 'Courier New', monospace;
+    --drop-font: 'Fraunces', 'Source Serif 4', Georgia, serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 720px; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--ink-primary);
+    font-family: var(--body-font);
+    font-feature-settings: 'kern', 'liga', 'onum', 'ss01';
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    position: relative;
+  }
+
+  .paper-grain {
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle at 18% 22%, rgba(193, 80, 46, 0.04) 0%, transparent 38%),
+      radial-gradient(circle at 88% 78%, rgba(139, 90, 60, 0.05) 0%, transparent 42%),
+      radial-gradient(circle at 50% 50%, rgba(42, 24, 16, 0.015) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .frame-line-top {
+    position: absolute; top: 36px; left: 80px; right: 80px;
+    height: 1px; background: var(--rule);
+    z-index: 2;
+  }
+  .frame-line-bottom {
+    position: absolute; bottom: 36px; left: 80px; right: 80px;
+    height: 1px; background: var(--rule);
+    z-index: 2;
+  }
+
+  .masthead {
+    position: absolute;
+    top: 50px; left: 80px; right: 80px;
+    display: flex; justify-content: space-between; align-items: center;
+    z-index: 3;
+    font-family: var(--label-font);
+    font-size: 10.5px;
+    color: var(--ink-secondary);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .masthead .brand {
+    font-family: var(--display-font);
+    font-style: italic;
+    font-size: 15px;
+    letter-spacing: 0.01em;
+    text-transform: none;
+    color: var(--ink-primary);
+    font-weight: 400;
+  }
+  .masthead .brand-meta {
+    display: flex; gap: 28px; align-items: center;
+  }
+
+  .stage {
+    position: relative;
+    width: 100%; height: 100%;
+    padding: 130px 80px 80px;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 60px;
+  }
+
+  .col-left {
+    display: flex; flex-direction: column;
+    padding-top: 0;
+  }
+
+  .accent-rule {
+    width: 24px;
+    height: 1.5px;
+    background: var(--accent);
+    margin-bottom: 18px;
+  }
+
+  .label {
+    font-family: var(--label-font);
+    font-size: 11px;
+    color: var(--ink-label);
+    font-weight: 600;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-bottom: 36px;
+  }
+
+  .headline {
+    font-family: var(--display-font);
+    font-size: 64px;
+    font-weight: 500;
+    color: var(--ink-deep);
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+    font-feature-settings: 'kern', 'liga', 'onum', 'ss01';
+  }
+  .headline em {
+    font-family: var(--italic-font);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+    letter-spacing: -0.015em;
+    padding-right: 2px;
+  }
+
+  .byline {
+    margin-top: 44px;
+    display: flex; align-items: center; gap: 14px;
+    font-family: var(--label-font);
+    font-size: 10.5px;
+    color: var(--ink-secondary);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .byline .dash { width: 18px; height: 1px; background: var(--ink-secondary); opacity: 0.5; }
+
+  .col-right {
+    padding-top: 130px;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+
+  .essay {
+    font-family: var(--body-font);
+    font-size: 16px;
+    line-height: 1.78;
+    color: var(--ink-primary);
+    text-align: justify;
+    hyphens: auto;
+    font-feature-settings: 'kern', 'liga', 'onum';
+    max-width: 600px;
+  }
+  .essay::first-letter {
+    float: left;
+    font-family: var(--drop-font);
+    font-size: 60px;
+    line-height: 0.85;
+    padding: 6px 10px 0 0;
+    font-weight: 600;
+    color: var(--ink-deep);
+    font-style: normal;
+  }
+  .essay em {
+    font-family: var(--italic-font);
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+    font-size: 17px;
+    letter-spacing: -0.005em;
+  }
+  .essay .num {
+    font-variant-numeric: tabular-nums oldstyle-nums;
+    font-weight: 600;
+  }
+
+  .meta-row {
+    margin-top: 38px;
+    display: flex; align-items: center; gap: 16px;
+    font-family: var(--label-font);
+    font-size: 10.5px;
+    color: var(--ink-deep);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .meta-row .sep {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--ink-label);
+    opacity: 0.6;
+  }
+  .meta-row .cta {
+    color: var(--accent);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .meta-row .cta .arrow {
+    font-family: var(--display-font);
+    font-style: normal;
+    font-size: 13px;
+    letter-spacing: 0;
+  }
+
+  .pull-quote {
+    margin-top: 30px;
+    padding-left: 18px;
+    border-left: 1.5px solid var(--accent);
+    font-family: var(--italic-font);
+    font-style: italic;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-secondary);
+    max-width: 460px;
+    letter-spacing: 0.005em;
+  }
+
+  .folio {
+    position: absolute;
+    bottom: 60px; right: 80px;
+    font-family: var(--mono-font);
+    font-size: 11px;
+    color: var(--ink-label);
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+    z-index: 3;
+  }
+
+  .left-foot {
+    position: absolute;
+    bottom: 60px; left: 80px;
+    font-family: var(--label-font);
+    font-size: 10px;
+    color: var(--ink-secondary);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    font-weight: 500;
+    opacity: 0.7;
+    z-index: 3;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .left-foot .glyph {
+    font-family: var(--display-font);
+    font-style: italic;
+    font-size: 13px;
+    letter-spacing: 0;
+    color: var(--ink-label);
+    text-transform: none;
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+  <div class="paper-grain"></div>
+  <div class="frame-line-top"></div>
+  <div class="frame-line-bottom"></div>
+
+  <div class="masthead">
+    <div class="brand-meta">
+      <span class="brand">Mocha Review</span>
+      <span>VOL. XII</span>
+    </div>
+    <div class="brand-meta">
+      <span>ALIGNMENT</span>
+      <span>INTERPRETABILITY</span>
+      <span>MAY 2026</span>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="col-left">
+      <div class="accent-rule"></div>
+      <div class="label">Research Paper · 2026</div>
+      <h1 class="headline">Models that <em>think</em><br>before they<br>speak.</h1>
+      <div class="byline">
+        <span class="dash"></span>
+        <span>An Essay on Latent Deliberation</span>
+      </div>
+    </div>
+
+    <div class="col-right">
+      <p class="essay">
+        延展推理（<em>extended reasoning</em>）让语言模型在产出前进行多轮内部审议。本研究展示了 <span class="num">4.7×</span> 的推理深度提升如何转化为显著降低的幻觉率，以及在高风险部署场景下的<em>可对齐性</em>增强。
+      </p>
+
+      <div class="pull-quote">
+        &ldquo; The space between question and answer is where alignment lives. &rdquo;
+      </div>
+
+      <div class="meta-row">
+        <span>By Research Team</span>
+        <span class="sep"></span>
+        <span class="cta">Continue Reading <span class="arrow">→</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="left-foot">
+    <span class="glyph">M.R.</span>
+    <span>Editorial · Long Form</span>
+  </div>
+  <div class="folio">§ 04.2</div>
+</body>
+</html>

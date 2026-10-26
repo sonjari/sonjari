@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>botanic_forest · 户外森林 · World-Class Mock</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,300;1,8..60,400;1,8..60,600&family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg-from: #1a2e1f;
+    --bg-mid:  #122318;
+    --bg-to:   #0d1a14;
+    --bg-deepest: #0a1410;
+
+    --text-primary: #e8efe2;
+    --text-secondary: rgba(232,239,226,0.70);
+    --text-faint: rgba(232,239,226,0.42);
+
+    --accent-warm: #ff8c42;
+    --accent-gold: #e8b86d;
+    --accent-moss: #7a9a6f;
+
+    --hairline: rgba(232,239,226,0.14);
+    --card-border: rgba(232,239,226,0.12);
+    --card-bg: rgba(255,255,255,0.025);
+
+    --display-font: 'Source Serif 4', 'Fraunces', Georgia, 'Iowan Old Style', serif;
+    --body-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono-font: 'JetBrains Mono', 'DM Mono', 'Courier New', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 720px; overflow: hidden; }
+  body {
+    background:
+      radial-gradient(ellipse 70% 55% at 82% 18%, rgba(255,140,66,0.18) 0%, rgba(255,140,66,0) 60%),
+      radial-gradient(ellipse 80% 60% at 15% 85%, rgba(122,154,111,0.10) 0%, rgba(122,154,111,0) 65%),
+      linear-gradient(165deg, var(--bg-from) 0%, var(--bg-mid) 45%, var(--bg-to) 80%, var(--bg-deepest) 100%);
+    color: var(--text-primary);
+    font-family: var(--body-font);
+    font-feature-settings: 'kern', 'liga', 'calt', 'ss01', 'cv11', 'ccmp';
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    position: relative;
+  }
+
+  .grain {
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle at 25% 30%, rgba(232,239,226,0.025) 1px, transparent 1.4px),
+      radial-gradient(circle at 75% 65%, rgba(232,239,226,0.018) 1px, transparent 1.4px);
+    background-size: 7px 7px, 11px 11px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .sun-disc {
+    position: absolute;
+    top: 92px; right: 240px;
+    width: 110px; height: 110px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 45% 45%, rgba(255,180,120,0.55) 0%, rgba(255,140,66,0.25) 45%, rgba(255,140,66,0) 75%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .corner-tl-h { position: absolute; top: 26px; left: 28px; width: 22px; height: 1px; background: rgba(232,239,226,0.32); z-index: 5; }
+  .corner-tl-v { position: absolute; top: 26px; left: 28px; width: 1px; height: 22px; background: rgba(232,239,226,0.32); z-index: 5; }
+  .corner-br-h { position: absolute; bottom: 26px; right: 28px; width: 22px; height: 1px; background: rgba(232,239,226,0.32); z-index: 5; }
+  .corner-br-v { position: absolute; bottom: 26px; right: 28px; width: 1px; height: 22px; background: rgba(232,239,226,0.32); z-index: 5; }
+
+  .stage {
+    position: relative;
+    width: 100%; height: 100%;
+    padding: 56px 80px 0 80px;
+    display: flex; flex-direction: column;
+    z-index: 4;
+  }
+
+  .top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 78px;
+  }
+  .logo {
+    font-family: var(--body-font);
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-mark {
+    color: var(--accent-warm);
+    font-size: 14px;
+    line-height: 1;
+    transform: translateY(-1px);
+  }
+  .nav {
+    font-family: var(--mono-font);
+    font-size: 10.5px;
+    color: var(--text-secondary);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    display: flex; gap: 8px;
+  }
+  .nav .dot { color: var(--accent-warm); opacity: 0.85; }
+
+  .label-row {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 26px;
+  }
+  .label-line {
+    width: 56px; height: 1px;
+    background: var(--accent-warm);
+  }
+  .label {
+    font-family: var(--mono-font);
+    font-size: 11px;
+    color: var(--accent-warm);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .headline {
+    font-family: var(--display-font);
+    font-size: 96px;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    line-height: 0.96;
+    color: var(--text-primary);
+    max-width: 920px;
+  }
+  .headline em {
+    font-family: var(--display-font);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent-gold);
+    letter-spacing: -0.025em;
+  }
+
+  .deck {
+    font-family: var(--body-font);
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    max-width: 540px;
+    margin-top: 28px;
+    letter-spacing: -0.005em;
+    font-weight: 400;
+  }
+  .deck em {
+    font-family: var(--display-font);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent-gold);
+    letter-spacing: 0;
+    font-size: 17px;
+  }
+
+  .stats {
+    display: flex; gap: 18px;
+    margin-top: 64px;
+  }
+  .stat {
+    flex: 1;
+    padding: 22px 24px 22px 24px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-accent {
+    position: absolute;
+    top: 0; left: 0;
+    width: 28px; height: 1px;
+    background: var(--accent-warm);
+  }
+  .stat .num {
+    font-family: var(--display-font);
+    font-size: 46px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.035em;
+    line-height: 1;
+    color: var(--text-primary);
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .stat .num .unit {
+    font-family: var(--display-font);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 20px;
+    color: var(--accent-gold);
+    letter-spacing: 0;
+  }
+  .stat .l {
+    font-family: var(--mono-font);
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-top: 12px;
+  }
+  .stat .sub {
+    font-family: var(--body-font);
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.04em;
+    margin-top: 6px;
+  }
+
+  .mountains {
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 100%;
+    height: 200px;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .leaf {
+    position: absolute;
+    right: 88px; top: 70px;
+    width: 124px; height: 148px;
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  .compass {
+    position: absolute;
+    bottom: 78px; right: 80px;
+    width: 96px; height: 96px;
+    z-index: 5;
+  }
+  .compass-cap {
+    position: absolute;
+    top: -16px; left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--mono-font);
+    font-size: 9px;
+    color: var(--accent-warm);
+    letter-spacing: 0.3em;
+  }
+  .compass-coords {
+    position: absolute;
+    top: 100%; left: 50%;
+    transform: translateX(-50%);
+    margin-top: 10px;
+    text-align: center;
+    font-family: var(--mono-font);
+    font-size: 9px;
+    color: var(--text-secondary);
+    letter-spacing: 0.18em;
+    white-space: nowrap;
+  }
+
+  .footer {
+    position: absolute; bottom: 22px; left: 80px; right: 80px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono-font);
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    z-index: 6;
+  }
+  .footer .right { display: flex; gap: 22px; align-items: center; }
+  .footer .pill {
+    border: 1px solid var(--hairline);
+    padding: 3px 9px;
+    border-radius: 999px;
+    color: var(--text-secondary);
+  }
+</style>
+</head>
+<body>
+  <div class="grain"></div>
+  <div class="sun-disc"></div>
+
+  <div class="corner-tl-h"></div>
+  <div class="corner-tl-v"></div>
+  <div class="corner-br-h"></div>
+  <div class="corner-br-v"></div>
+
+  <svg class="leaf" viewBox="0 0 124 148">
+    <path d="M62 14 Q14 70 62 138 Q110 70 62 14 Z" fill="none" stroke="#e8b86d" stroke-width="1" opacity="0.55"/>
+    <path d="M62 26 Q24 72 62 126 Q100 72 62 26 Z" fill="none" stroke="#e8b86d" stroke-width="0.6" opacity="0.35"/>
+    <line x1="62" y1="14" x2="62" y2="138" stroke="#e8b86d" stroke-width="1" opacity="0.6"/>
+    <path d="M62 44 Q42 50 32 64" fill="none" stroke="#e8b86d" stroke-width="0.6" opacity="0.45"/>
+    <path d="M62 44 Q82 50 92 64" fill="none" stroke="#e8b86d" stroke-width="0.6" opacity="0.45"/>
+    <path d="M62 64 Q40 72 28 88" fill="none" stroke="#e8b86d" stroke-width="0.6" opacity="0.4"/>
+    <path d="M62 64 Q84 72 96 88" fill="none" stroke="#e8b86d" stroke-width="0.6" opacity="0.4"/>
+    <path d="M62 86 Q44 92 34 106" fill="none" stroke="#e8b86d" stroke-width="0.6" opacity="0.35"/>
+    <path d="M62 86 Q80 92 90 106" fill="none" stroke="#e8b86d" stroke-width="0.6" opacity="0.35"/>
+    <circle cx="62" cy="14" r="2" fill="#e8b86d" opacity="0.7"/>
+    <line x1="62" y1="138" x2="62" y2="148" stroke="#e8b86d" stroke-width="1" opacity="0.5"/>
+  </svg>
+
+  <div class="stage">
+    <div class="top">
+      <div class="logo">
+        <span class="logo-mark">&#9650;</span>
+        <span>Alpine Collective</span>
+      </div>
+      <div class="nav">
+        <span>Journal</span>
+        <span class="dot">&middot;</span>
+        <span>Gear</span>
+        <span class="dot">&middot;</span>
+        <span>Stories</span>
+      </div>
+    </div>
+
+    <div class="label-row">
+      <div class="label-line"></div>
+      <div class="label">Expedition &middot; 042</div>
+    </div>
+
+    <h1 class="headline"><em>Wild Places.</em><br>Uncharted Stories.</h1>
+
+    <p class="deck">Documenting the last wilderness, one expedition at a time &mdash; <em>fourteen years</em> of field reports from the edge of the map.</p>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-accent"></div>
+        <div class="num">12,847<span class="unit">km</span></div>
+        <div class="l">Trails Covered</div>
+        <div class="sub">since spring 2012 &mdash; on foot, ski, packraft</div>
+      </div>
+      <div class="stat">
+        <div class="stat-accent"></div>
+        <div class="num">47</div>
+        <div class="l">National Parks</div>
+        <div class="sub">across six continents &amp; nineteen countries</div>
+      </div>
+      <div class="stat">
+        <div class="stat-accent"></div>
+        <div class="num">28<span class="unit">&middot; 2026</span></div>
+        <div class="l">Expeditions Logged</div>
+        <div class="sub">field journal updated weekly from base camp</div>
+      </div>
+    </div>
+  </div>
+
+  <svg class="mountains" viewBox="0 0 1280 200" preserveAspectRatio="none">
+    <polygon points="0,200 180,70 280,110 410,40 540,95 660,55 780,105 900,60 1020,95 1140,70 1280,90 1280,200" fill="#0a1410" opacity="0.95"/>
+    <polygon points="0,200 130,110 260,135 380,95 500,125 640,100 760,130 880,105 1000,130 1120,110 1280,125 1280,200" fill="#142a1c" opacity="0.85"/>
+    <polygon points="0,200 110,150 240,165 360,140 500,160 640,145 780,165 900,150 1040,165 1160,150 1280,160 1280,200" fill="#1a3522" opacity="0.7"/>
+    <line x1="180" y1="70" x2="220" y2="92" stroke="#e8efe2" stroke-width="0.6" opacity="0.35"/>
+    <line x1="410" y1="40" x2="450" y2="68" stroke="#e8efe2" stroke-width="0.6" opacity="0.35"/>
+    <line x1="660" y1="55" x2="700" y2="80" stroke="#e8efe2" stroke-width="0.6" opacity="0.3"/>
+    <line x1="900" y1="60" x2="940" y2="85" stroke="#e8efe2" stroke-width="0.6" opacity="0.3"/>
+  </svg>
+
+  <div class="compass">
+    <div class="compass-cap">N</div>
+    <svg viewBox="0 0 96 96" style="width:100%; height:100%;">
+      <circle cx="48" cy="48" r="44" fill="none" stroke="rgba(232,239,226,0.18)" stroke-width="1"/>
+      <circle cx="48" cy="48" r="36" fill="none" stroke="rgba(232,239,226,0.10)" stroke-width="1"/>
+      <line x1="48" y1="6" x2="48" y2="14" stroke="#ff8c42" stroke-width="1.4"/>
+      <line x1="48" y1="82" x2="48" y2="90" stroke="rgba(232,239,226,0.4)" stroke-width="1"/>
+      <line x1="6" y1="48" x2="14" y2="48" stroke="rgba(232,239,226,0.4)" stroke-width="1"/>
+      <line x1="82" y1="48" x2="90" y2="48" stroke="rgba(232,239,226,0.4)" stroke-width="1"/>
+      <polygon points="48,18 54,48 48,44 42,48" fill="#ff8c42"/>
+      <polygon points="48,78 54,48 48,52 42,48" fill="rgba(232,239,226,0.55)"/>
+      <circle cx="48" cy="48" r="2.2" fill="#e8b86d"/>
+    </svg>
+    <div class="compass-coords">50&deg;57&prime;S &middot; 73&deg;24&prime;W</div>
+  </div>
+
+  <div class="footer">
+    <span>Expedition 042 &mdash; Patagonia &middot; Torres del Paine</span>
+    <div class="right">
+      <span class="pill">Field Journal</span>
+      <span>Vol. xiv &middot; 03 / 12</span>
+    </div>
+  </div>
+</body>
+</html>

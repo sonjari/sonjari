@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { WhatsNewSlide, WhatsNewStat } from "../types";
 import { MarkdownView } from "../MarkdownView";
 import "./whatsNew.css";
+import { WhatsNewShowStage } from "./WhatsNewShow";
 
 /**
  * **업데이트 뒤 「바뀐 것」 슬라이드** (2026-10-21 대표 「그림에 글을 넣어 피피티마냥 한눈에 알아보고 이쁘게」).
@@ -60,7 +61,7 @@ export function WhatsNewDeck({ version, slides, changes, tour, onLater, onDone }
 
   return (
     <div className="settings-veil wn-veil" role="presentation" onClick={onLater}>
-      <section className="wn-deck" role="dialog" aria-modal="true" aria-labelledby="wn-title"
+      <section className={`wn-deck${slides.some((item) => item.visual?.kind === "show") ? " wn-deck-show" : ""}`} role="dialog" aria-modal="true" aria-labelledby="wn-title"
         onClick={(event) => event.stopPropagation()}>
         <header className="wn-head">
           <span className="wn-eyebrow"><Sparkles size={13} aria-hidden /> {t("Sonjari {0} 에서 바뀐 것", version)}</span>
@@ -71,6 +72,7 @@ export function WhatsNewDeck({ version, slides, changes, tour, onLater, onDone }
           <div className={`wn-stage ${visual ? `wn-stage-${visual.kind}` : "wn-stage-say"}`} key={`stage-${index}`}>
             {visual?.kind === "stat" && <StatBars stat={visual} />}
             {visual?.kind === "image" && <img src={`${import.meta.env.BASE_URL}${visual.src}`} alt={visual.alt} />}
+            {visual?.kind === "show" && <WhatsNewShowStage visual={visual} />}
             {sayOnStage && <SayStage text={slide.try ?? ""} />}
           </div>
         )}

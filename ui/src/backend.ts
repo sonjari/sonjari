@@ -316,6 +316,22 @@ export class JarvisClient {
     return this.request(`/v1/conversations?limit=${limit}`, { method: "GET" });
   }
 
+  /** 지은 대화 제목 전부 — 화면 저장소에만 있는 Claude 대화도 같은 제목을 받게(2026-10-26 · `MemoryStore.titles`). */
+  conversationTitles(): Promise<{ items: Record<string, { title: string; source: string }> }> {
+    return this.request("/v1/conversation-titles", { method: "GET" });
+  }
+
+  /**
+   * 첫 답이 끝난 대화의 제목을 내 PC 모델에게 짓게 한다 — 손자리가 쉴 때 뒤에서(`runtime._title_soon`). 다 지으면 `conversation_titled` 사건.
+   * 서버가 직접 답한 대화는 서버가 알아서 짓는다 — 이 문은 서버에 글이 없는 Claude 대화용이다.
+   */
+  nameConversation(sessionId: string, user: string, answer: string): Promise<{ scheduled: boolean; title: string }> {
+    return this.request(`/v1/conversations/${encodeURIComponent(sessionId)}/auto-title`, {
+      method: "POST",
+      body: JSON.stringify({ user: user.slice(0, 4000), answer: answer.slice(0, 4000) }),
+    });
+  }
+
   /** 대화 하나를 지운다(목록·기록). 사실 서랍은 그대로 — 백엔드 `MemoryStore.delete_session`. */
   deleteConversation(sessionId: string): Promise<{ ok: boolean }> {
     return this.request(`/v1/conversations/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
@@ -928,8 +944,33 @@ eceipts` 에 저장한다 — 경로는 백엔드가 정한다. */
     return this.request("/v1/browser/live/control", { method: "POST", body: JSON.stringify({ action, reason }) });
   }
 
+  /** 장표 같이 만들기 — 컴퓨터 칸에서 고른 결 · 고친 이야기판 · 한마디 · 멈춤(백엔드 `slide_inbox`). */
+  slidesAnswer(jobId: string, title: string, kind: string, value?: unknown): Promise<{ ok: boolean }> {
+    return this.request("/v1/slides/answer", { method: "POST", body: JSON.stringify({ job_id: jobId, title, kind, value }) });
+  }
+
+  /** 장의 사진 자리에 사진을 넣는다(data:image/…;base64). 이미 구운 장표면 백엔드가 사진이 든 판으로 다시 굽는다. */
+  slidesPhoto(jobId: string, title: string, index: number, slot: string, data: string): Promise<{ ok: boolean; rebaked?: string }> {
+    return this.request("/v1/slides/photo", { method: "POST", body: JSON.stringify({ job_id: jobId, title, index, slot, data }) });
+  }
+
   liveFit(width: number, height: number): Promise<{ ok: boolean }> {
     return this.request("/v1/browser/live/fit", { method: "POST", body: JSON.stringify({ width, height }) });
+  }
+
+  // ── 내 API 키 · 앱 안의 Claude Agent (2026-10-26) ─────────────────────────────
+  // 키는 몸통으로 **들어오지도 나가지도 않는다** — 본체가 클립보드를 직접 읽어 DPAPI 에만 둔다(`api_escalation.key_from_clipboard`).
+  apiKeyFromClipboard(): Promise<{ ok: boolean; error?: string; cleared?: boolean }> {
+    return this.request("/v1/api_escalation/key/from-clipboard", { method: "POST", body: "{}" });
+  }
+
+  clearApiKey(): Promise<{ ok: boolean; removed: boolean }> {
+    return this.request("/v1/api_escalation/key", { method: "DELETE" });
+  }
+
+  /** 클로드를 띄울 때 옆에 끼울 파일(손자리 MCP 한 줄 · 「앱 안」 지침)을 본체가 데이터 폴더에 쓴다. */
+  prepareClaudeAgent(language: string): Promise<{ ok: boolean; has_key: boolean }> {
+    return this.request("/v1/claude_agent/prepare", { method: "POST", body: JSON.stringify({ lang: language }) });
   }
 
   getExternalAction(actionId: string): Promise<ExternalActionPreview> {

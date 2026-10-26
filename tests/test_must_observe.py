@@ -686,7 +686,8 @@ def test_switching_models_makes_room_first() -> None:
 
     # 실제로 모델을 부르는 모든 경로가 자리를 비워야 한다 — 하나만 빠져도 그 경로에서
     # 그대로 재발한다(도구를 만들어도 갈래가 없으면 안 쓰인다는 그 교훈과 같은 자리).
-    for name in ("chat_message", "chat_messages", "chat_messages_stream"):
+    # 흐름 부르기의 몸은 `_chat_messages_stream_body` 다(겉은 첫 글자 기다림 표시만 감싼다 · 10-25).
+    for name in ("chat_message", "chat_messages", "_chat_messages_stream_body"):
         source = inspect.getsource(getattr(OllamaClient, name))
         assert "self._make_room_for(selected)" in source, f"{name} 이 자리를 안 비운다"
         assert "httpx.Timeout(" in source, f"{name} 이 읽기 자를 판 예산과 안 가른다"
@@ -1040,7 +1041,7 @@ def test_a_wedged_model_call_is_cut_before_it_eats_the_run() -> None:
     from alture_jarvis.config import JarvisConfig
     from alture_jarvis.ollama import OllamaClient
 
-    source = inspect.getsource(OllamaClient.chat_messages_stream)
+    source = inspect.getsource(OllamaClient._chat_messages_stream_body)  # 겉 `chat_messages_stream` 은 기다림 표시만 감싼다(10-25)
     assert "httpx.Timeout(" in source, "읽기 자가 판 예산과 안 갈려 있다"
     assert "ollama_stall_timeout_sec" in source
     assert "connect=" in source

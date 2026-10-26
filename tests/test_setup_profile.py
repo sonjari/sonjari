@@ -76,8 +76,11 @@ def test_a_16gb_card_gets_the_small_27b_first_and_9b_as_the_alternative() -> Non
         assert picks["verified"]["license_open"] is False and picks["verified"]["text_only"] is True
         assert picks["verified"]["vram_gb"] == 13.8, "그림 부속을 뗀 채 잰 값이어야 한다(그림 있는 64K 는 14.6)"
         assert any("그림 읽기를 끄고" in line and "읽지 못합니다" in line for line in rec["reasons"]), "내주는 것을 같이 말한다"
-        assert (picks["open_alternative"]["model_key"], picks["open_alternative"]["num_ctx"]) == ("qwen3.5-9b", 131072)
-        assert picks["open_alternative"]["confidence"] == "measured"
+        # ★ 2026-10-26 대표: 「16GB 기본은 Swift, 안 들어가면 Qwen3.6 2비트」 — 조건 없는 대안도 9B 128K 에서 2비트(Apache 2.0 ·
+        #   글만 읽기 64K · 코드 10/12 대 9B 5/12)로 바뀌었다. 사슬 벤치가 아니라 믿음은 「메모리만 잼」이다.
+        alt = picks["open_alternative"]
+        assert (alt["model_key"], alt["num_ctx"], alt["text_only"]) == ("qwen3.6-35b-iq2m", 65536, True)
+        assert alt["vram_gb"] == 12.4 and alt["license_open"] is True
         assert any("조건 없는 대안" in line for line in rec["reasons"])
 
 

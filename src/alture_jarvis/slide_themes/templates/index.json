@@ -1,0 +1,516 @@
+{
+ "editorial-forest": {
+  "name": "숲 · 분홍 편집",
+  "when": "분기 보고 · 내부 공유 · 팀 소식 — 따뜻한 잡지처럼",
+  "uses": [
+   "보고",
+   "분기",
+   "소개",
+   "회고",
+   "브랜드"
+  ],
+  "moods": [
+   "따뜻하게",
+   "차분"
+  ],
+  "formality": "보통",
+  "dark": false,
+  "layouts": [
+   "cover",
+   "agenda",
+   "statement",
+   "two-col",
+   "data",
+   "framework",
+   "stats",
+   "summary"
+  ]
+ },
+ "emerald-editorial": {
+  "name": "에메랄드 표지",
+  "when": "임원 보고 · 전략 발표 · 분기 리뷰 — 잡지 표지처럼 힘 있게",
+  "uses": [
+   "전략",
+   "임원",
+   "보고",
+   "분기",
+   "계획",
+   "투자",
+   "피칭",
+   "사업계획"
+  ],
+  "moods": [
+   "힘있게",
+   "신뢰"
+  ],
+  "formality": "높음",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "cobalt-grid": {
+  "name": "코발트 연구지",
+  "when": "연구 · 조사 보고 · 트렌드 리포트 — 차분하고 진지하게",
+  "uses": [
+   "연구",
+   "조사",
+   "리서치",
+   "동향",
+   "보고",
+   "논문",
+   "학위",
+   "심사",
+   "세미나"
+  ],
+  "moods": [
+   "차분",
+   "신뢰"
+  ],
+  "formality": "높음",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "editorial-tri-tone": {
+  "name": "세 빛 잡지",
+  "when": "브랜드 · 패션 · 라이프스타일 · 문화 기획 — 잡지 펼침면처럼",
+  "uses": [
+   "브랜드",
+   "기획",
+   "라이프스타일",
+   "마케팅"
+  ],
+  "moods": [
+   "따뜻하게",
+   "고급"
+  ],
+  "formality": "보통",
+  "dark": false,
+  "layouts": [
+   "s-cover",
+   "s-manifesto",
+   "s-grid",
+   "s-stat",
+   "s-timeline",
+   "s-chart",
+   "s-quote",
+   "s-closer"
+  ]
+ },
+ "biennale-yellow": {
+  "name": "노란 전시",
+  "when": "전시 · 문화 행사 · 컨퍼런스 프로그램 — 포스터처럼",
+  "uses": [
+   "전시",
+   "행사",
+   "프로그램",
+   "디자인"
+  ],
+  "moods": [
+   "고급",
+   "차분"
+  ],
+  "formality": "높음",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "broadside": {
+  "name": "호외 신문",
+  "when": "선언 · 비전 발표 · 브랜드 메시지 — 강렬하게",
+  "uses": [
+   "비전",
+   "브랜드",
+   "선언",
+   "발표"
+  ],
+  "moods": [
+   "힘있게"
+  ],
+  "formality": "보통",
+  "dark": true,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "creative-mode": {
+  "name": "크리에이티브",
+  "when": "기획 제안 · 디자인 스튜디오 · 광고 제안 — 자신 있게",
+  "uses": [
+   "제안",
+   "기획",
+   "디자인",
+   "광고",
+   "마케팅"
+  ],
+  "moods": [
+   "힘있게",
+   "발랄"
+  ],
+  "formality": "보통",
+  "dark": false,
+  "layouts": [
+   "s1",
+   "s2",
+   "s3",
+   "s4",
+   "s5",
+   "s6",
+   "s7",
+   "s8"
+  ]
+ },
+ "mat": {
+  "name": "무광 공방",
+  "when": "제품 · 공간 · 공예 브랜드 소개 — 어둡고 따뜻하게",
+  "uses": [
+   "제품",
+   "브랜드",
+   "공간",
+   "소개"
+  ],
+  "moods": [
+   "고급",
+   "따뜻하게"
+  ],
+  "formality": "보통",
+  "dark": true,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "neo-grid-bold": {
+  "name": "네온 격자",
+  "when": "제품 출시 · 창업 피칭 · 데이터 강조 — 또렷하게",
+  "uses": [
+   "제품",
+   "출시",
+   "투자",
+   "피칭",
+   "데이터"
+  ],
+  "moods": [
+   "힘있게"
+  ],
+  "formality": "보통",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "peoples-platform": {
+  "name": "광장 포스터",
+  "when": "캠페인 · 공공 · 커뮤니티 · 분기 리뷰 — 크고 솔직하게",
+  "uses": [
+   "캠페인",
+   "커뮤니티",
+   "공공",
+   "행사",
+   "보고"
+  ],
+  "moods": [
+   "힘있게",
+   "발랄"
+  ],
+  "formality": "낮음",
+  "dark": false,
+  "layouts": [
+   "s-cover",
+   "s-toc",
+   "s-manifesto",
+   "s-pillars",
+   "s-stat",
+   "s-platform",
+   "s-quote",
+   "s-timeline",
+   "s-compare",
+   "s-close"
+  ]
+ },
+ "pin-and-paper": {
+  "name": "핀과 종이",
+  "when": "조사 결과 · 회고 · 생각 정리 — 손으로 만든 느낌",
+  "uses": [
+   "조사",
+   "회고",
+   "연구",
+   "보고"
+  ],
+  "moods": [
+   "따뜻하게",
+   "친근"
+  ],
+  "formality": "보통",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "sakura-chroma": {
+  "name": "레트로 카탈로그",
+  "when": "제품 카탈로그 · 신제품 소개 · 브랜드 연감 — 발랄하게",
+  "uses": [
+   "제품",
+   "카탈로그",
+   "출시",
+   "브랜드"
+  ],
+  "moods": [
+   "발랄",
+   "따뜻하게"
+  ],
+  "formality": "낮음",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "soft-editorial": {
+  "name": "고요한 편집",
+  "when": "리서치 공유 · 인사이트 · 브랜드 이야기 — 문학적으로",
+  "uses": [
+   "리서치",
+   "인사이트",
+   "브랜드",
+   "연구",
+   "보고"
+  ],
+  "moods": [
+   "차분",
+   "고급"
+  ],
+  "formality": "높음",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "stencil-tablet": {
+  "name": "스텐실 기록",
+  "when": "기관 · 문화재 · 장기 프로젝트 · 원칙 정리 — 묵직하게",
+  "uses": [
+   "기관",
+   "프로젝트",
+   "원칙",
+   "전략"
+  ],
+  "moods": [
+   "신뢰",
+   "힘있게"
+  ],
+  "formality": "높음",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "long-table": {
+  "name": "긴 식탁",
+  "when": "모임 · 행사 · 매장 · 지역 커뮤니티 소개 — 따뜻하게",
+  "uses": [
+   "행사",
+   "모임",
+   "매장",
+   "커뮤니티",
+   "소개"
+  ],
+  "moods": [
+   "따뜻하게",
+   "친근"
+  ],
+  "formality": "보통",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "grove": {
+  "name": "숲속 정원",
+  "when": "친환경 · 웰니스 · 자연 · 식음료 브랜드 — 어둡고 차분하게",
+  "uses": [
+   "환경",
+   "웰니스",
+   "브랜드",
+   "제안"
+  ],
+  "moods": [
+   "차분",
+   "고급"
+  ],
+  "formality": "높음",
+  "dark": true,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "scatterbrain": {
+  "name": "포스트잇 벽",
+  "when": "브레인스토밍 · 워크숍 · 아이디어 회의 — 자유롭게",
+  "uses": [
+   "워크숍",
+   "아이디어",
+   "회의",
+   "기획"
+  ],
+  "moods": [
+   "발랄",
+   "친근"
+  ],
+  "formality": "낮음",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ },
+ "daisy-days": {
+  "name": "데이지 교실",
+  "when": "수업 · 어린이 · 교육 프로그램 · 공동체 워크숍 — 다정하게",
+  "uses": [
+   "강의",
+   "교육",
+   "어린이",
+   "워크숍"
+  ],
+  "moods": [
+   "발랄",
+   "친근"
+  ],
+  "formality": "낮음",
+  "dark": false,
+  "layouts": [
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide",
+   "slide"
+  ]
+ }
+}

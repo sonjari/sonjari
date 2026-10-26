@@ -90,6 +90,6 @@ def test_nothing_to_paint_starts_nothing() -> None:
 def test_only_jobs_asked_in_the_main_window_are_painted_apart() -> None:
     """맡긴 판은 쉬지 않고 한 번에(호스트가 기다린다), 음성·작은 창은 예전처럼 판 안에서 — 그쪽 화면은 이 약속을 모른다."""
     source = inspect.getsource(agent.BrowserAgent.run)
-    branch = source.index('if origin == "workspace":\n            paint_answer_apart(self.events, job_id, answer)')
-    other = source.index('paint_answer(self.events, job_id, answer, pace=origin != "mcp")')
+    branch = source.index('if origin == "workspace":\n            paint_answer_apart(self.events, job_id, painted)')
+    other = source.index('paint_answer(self.events, job_id, painted, pace=origin != "mcp")')
     assert branch < other

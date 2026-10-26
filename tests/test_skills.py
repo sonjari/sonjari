@@ -226,6 +226,9 @@ def test_the_real_harvest_loads(tmp_path) -> None:
         # 2026-09-15 사용자님 승인 — 개발 분야 GitHub 수집(MIT, sha 고정, 실행 파일에 기대는 스킬 제외).
         #   addyosmani/agent-skills 22종 · tech-leads-club/agent-skills 70종. skills/sources.json 참고.
         "addyosmani", "tech-leads-club",
+        # ★ `docforms` 도 우리가 쓴 것이다 (2026-10-25 대표 「문서 유형별 표준 꼴을 증류해 탑재」). 문서 꼴 카드 11개 —
+        #   법령 · 편람 · 국립국어원 · 고용노동부 원문을 읽고 규칙만 우리 말로. LICENSE 는 같은 자리에 둔다.
+        "docforms",
     }
 
 

@@ -90,6 +90,7 @@ export function WayOut({ info, busy, onRetry, onSmaller }: {
                 <b>{smaller.name}</b>
                 <span className="num wayout-meta">
                   {t("필요 {0}GB · 창 {1}K", gb(smaller.needs_gb), Math.round(smaller.num_ctx / 1024))}
+                  {smaller.text_only ? ` · ${t("글만 읽기(그림 읽기 끔)")}` : ""}
                   {" · "}
                   {smaller.installed ? t("이미 받아 둠") : t("받을 크기 {0}GB", gb(smaller.download_gb))}
                 </span>

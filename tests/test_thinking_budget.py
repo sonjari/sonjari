@@ -86,12 +86,18 @@ class _Client:
         return type(self).plan[len(type(self).bodies) - 1]
 
 
+def _varied(chars: int, start: int = 0) -> str:
+    """되풀이 없는 생각 글 — 「가」만 늘어놓으면 「짧은 토막 되풀이」로 끊긴다(2026-10-26)."""
+    return "".join(f"{index}번째 생각을 이어 간다. " for index in range(start, start + chars // 8 + 10))[:chars]
+
+
 def _thinking_lines(chars: int, chunk: int = 500) -> list[str]:
     """사고만 흘리는 조각들. 끝에 done 을 두지만 예산에 걸리면 거기까지 안 간다."""
+    text = _varied(chars)
     lines = []
     sent = 0
     while sent < chars:
-        piece = "가" * min(chunk, chars - sent)
+        piece = text[sent:sent + min(chunk, chars - sent)]
         sent += len(piece)
         lines.append(json.dumps({"message": {"thinking": piece}}, ensure_ascii=False))
     lines.append(json.dumps({"message": {"content": "늦은 답"}, "done": True,
@@ -163,9 +169,9 @@ def test_a_turn_that_already_started_answering_is_left_alone(monkeypatch: Any) -
     # 사고 조각이 통째로 하나라 예산 검사는 그 조각 뒤에 처음 돈다 — 그때는 아직 답이 없다.
     # 그래서 여기서는 답이 먼저 온 경우를 본다.
     lines = [
-        json.dumps({"message": {"thinking": "가" * 4000}}, ensure_ascii=False),
+        json.dumps({"message": {"thinking": _varied(4000)}}, ensure_ascii=False),
         json.dumps({"message": {"content": "이미 답 중"}}, ensure_ascii=False),
-        json.dumps({"message": {"thinking": "가" * 9000}}, ensure_ascii=False),
+        json.dumps({"message": {"thinking": _varied(9000, start=600)}}, ensure_ascii=False),
         json.dumps({"message": {"content": " 계속"}, "done": True, "done_reason": "stop"}, ensure_ascii=False),
     ]
     client = _client(monkeypatch, [_Response(lines)])

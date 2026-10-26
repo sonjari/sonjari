@@ -454,6 +454,17 @@ export class FixtureClient extends JarvisClient {
     return rows;
   }
 
+  /** 내 PC 모델이 지은 대화 제목(리허설: 이 PC 의 모델이 10-26 에 실제로 지은 것 · `generated_reports/claude_agent_fixes_1026`). */
+  override async conversationTitles(): Promise<{ items: Record<string, { title: string; source: string }> }> {
+    return this.scenario.id === "claude-hands"
+      ? { items: { "claude-room": { title: "국내 AI 에이전트 소식 장표", source: "model" } } }
+      : { items: {} };
+  }
+
+  override async nameConversation(): Promise<{ scheduled: boolean; title: string }> {
+    return { scheduled: false, title: "" };
+  }
+
   override async getConversation(sessionId: string): Promise<ConversationHistory> {
     if (sessionId === this.history.session_id) return structuredClone(this.history);
     return { session_id: sessionId, summary: "", has_summary: false, messages: [], context_window: 131_072, retrieval_enabled: true };

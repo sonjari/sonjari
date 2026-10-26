@@ -356,6 +356,25 @@ export const SCENARIOS: Scenario[] = [
     settledAnswer: "이번 주는 네 가지입니다.\n\n**하나.** 견적서 초안을 수요일까지 보냅니다.\n\n**둘.** 회의실 예약을 다음 주로 옮깁니다.\n\n**셋.** 교육 자료의 표를 새 숫자로 바꿉니다.\n\n**넷.** 금요일 보고 전에 한 번 더 읽습니다.",
   },
   {
+    // 2026-10-26 · 앱 안의 Claude Agent — 갈래 쪽 흐름은 `fixtures/claudeHands.ts`(손으로 만든 사건 시간표)가 흘린다.
+    id: "claude-hands",
+    label: "Claude Agent → 손자리에게 맡김",
+    hint: "모델 칸 하나로 두뇌를 고른다. 클로드 걸음(주황 점선)과 손자리 걸음(보라)이 한 눈금자에 잇고, 「손자리가 받았습니다」 · 영수증 줄이 뜨는지. 데이터는 지어낸 것 · ?claudeKey=none 이면 키 없는 메뉴.",
+    prompt: "국내 AI 에이전트 소식 5개 찾아서 장표 6장으로 만들어 줘",
+    sessions: [
+      summary("claude-room", "국내 AI 에이전트 소식 5개 → 장표", "", 1, 0),
+      // 앱 안 Claude 가 맡긴 판의 방(via=app) — 목록에 따로 서면 안 된다(2026-10-26). 바깥 클로드가 맡긴 방은 「Claude」 이름표로 선다.
+      { ...summary("mcp-fixture", "바깥 AI 가 맡긴 일 · 국내 AI 에이전트 소식 5개 읽기 → 장표 6장", "", 1, 2), caller: "claude-code", via: "app" },
+      { ...summary("mcp-outside", "바깥 AI 가 맡긴 일 · 레딧 세 게시판 인기 글 조사", "", 40, 2), caller: "claude-code" },
+      ...SESSIONS,
+    ],
+    history: emptyHistory("claude-room"),
+    // 손자리 혼자 한 판의 걸음은 없다 — 이 장면의 걸음은 전부 갈래가 준다.
+    steps: [],
+    browser: BROWSER_OK,
+    browserFrame: { url: "https://news.example.kr/ai-agent", title: "AI 에이전트 소식 — 뉴스 예시" },
+  },
+  {
     id: "agent-running",
     label: "도구를 쓰는 중",
     hint: "걸음이 붙는 리듬. 답이 도착한 뒤에도 궤적이 남는지가 핵심이다.",

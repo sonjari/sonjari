@@ -1194,6 +1194,97 @@ def _site_of_url(url: str) -> str:
 # 점수 = 글자 수 − 링크 안 글자 수. 메뉴·이웃목록·인기글은 글자가 거의 전부 링크
 # 안에 있어서 점수가 0 근처로 떨어지고, 본문은 링크가 드물어 높게 나온다.
 # `<article>`·`<main>` 이 있으면 그대로 믿는다(그게 있는 사이트는 정확하다).
+#: 찾을 칸 — 한 번에 받는 말 수 · 말마다 싣는 줄 수 · 덩어리 전체 글자 · 옆 칸 요약 글자.
+_FIND_TERMS_MAX = 12
+_FIND_LINES_PER_TERM = 3
+_FIND_LINE_CHARS = 160
+_FIND_BLOCK_MAX = 2400
+_ASIDE_DIGEST_MAX = 700
+#: 찾기에 쓰는 페이지 글(틀 하나) — 모델에게는 안 간다.
+_FIND_PAGE_TEXT_MAX = 60_000
+
+#: 옆 칸(사이드바). 본문 고르기가 일부러 빼는 곳인데, 깃허브의 라이선스 · 소개처럼 값이 거기 있는 사이트가 있다.
+_ASIDE_JS = """
+() => {
+  const picks = Array.from(document.querySelectorAll('aside, [role="complementary"], .Layout-sidebar'));
+  const out = [];
+  for (const el of picks) {
+    if (picks.some((other) => other !== el && other.contains(el))) continue;
+    const text = (el.innerText || '').trim();
+    if (text) out.push(text);
+  }
+  return out.join('\\n\\n');
+}
+"""
+
+
+def clean_find_terms(raw: Any) -> list[str]:
+    """찾을 말 — 글자만 · 앞뒤 빈칸 없이 · 겹침 없이 · 40자 · 12개까지."""
+    values = raw if isinstance(raw, (list, tuple)) else ([raw] if isinstance(raw, str) else [])
+    terms: list[str] = []
+    for value in values:
+        term = " ".join(str(value or "").split())[:40]
+        if term and term.casefold() not in {t.casefold() for t in terms}:
+            terms.append(term)
+    return terms[:_FIND_TERMS_MAX]
+
+
+def found_block(page_text: str, terms: list[str], *, aside: str = "", body: str = "") -> tuple[str, dict[str, Any]]:
+    """페이지 전체 글(옆 칸 포함)에서 찾을 말이 든 줄만 골라 덩어리 하나로 (2026-10-24 대표 발상 · 전략안 새 절).
+
+    ★ 깃허브 저장소 11개 조사(판 e9098192)가 56걸음 중 20걸음 안팎을 라이선스 찾기에 썼다. 라이선스는 깃허브 **옆 칸**에
+      있는데 본문 고르기(`_extract`)는 설명대로 옆 칸을 뺀다. 모델은 라이선스 파일을 따로 8번 열었다. 찾을 칸을 알면
+      페이지를 통째로 다시 읽지 않고 그 말이 든 줄만 집으면 된다 — 클로드 코드가 큰 파일을 grep 으로 읽는 것과 같다.
+
+    - 찾은 줄이 이름표처럼 짧으면 다음 줄(값)을, 아니면 바로 앞 줄(짧은 이름표)을 같이 싣는다(「License」↵「MIT」).
+    - 말마다 3줄 · 덩어리 2,400자까지. 잘랐으면 잘랐다고 적는다(조용히 자르지 않는다).
+    - 못 찾은 말은 「못 찾음」으로 — 「없다」가 아니다. 다른 말로 적혀 있을 수 있다.
+    - 옆 칸은 본문에 안 실린 경우에만 앞 700자를 붙인다(찾을 말이 다른 언어여도 값이 보이게).
+    """
+    lines = [" ".join(line.split()) for line in str(page_text or "").splitlines()]
+    lines = [line for line in lines if line]
+    picked: list[str] = []
+    hits: dict[str, int] = {}
+    missed: list[str] = []
+    for term in terms:
+        needle = term.casefold()
+        count = 0
+        for index, line in enumerate(lines):
+            if needle not in line.casefold():
+                continue
+            count += 1
+            if count > _FIND_LINES_PER_TERM:
+                continue
+            if len(line) <= 30 and index + 1 < len(lines):
+                # 이름표만 있는 짧은 줄 — 값은 다음 줄에 온다(깃허브 옆 칸 「License」↵「MIT license」).
+                shown = line + " / " + lines[index + 1]
+            else:
+                before = lines[index - 1] if index and len(lines[index - 1]) <= 60 and needle not in lines[index - 1].casefold() else ""
+                shown = (before + " / " if before else "") + line
+            shown = shown if len(shown) <= _FIND_LINE_CHARS else shown[: _FIND_LINE_CHARS - 1] + "…"
+            if shown not in picked:
+                picked.append(shown)
+        hits[term] = count
+        if not count:
+            missed.append(term)
+    parts = [f"[찾는 칸 — 이 페이지 전체(옆 칸 포함)에서 찾은 줄 · 찾은 말: {' · '.join(terms)}]"]
+    parts += [f"- {line}" for line in picked]
+    if missed:
+        parts.append(f"못 찾음: {' · '.join(missed)} — 이 페이지 글에 그 말이 없다(다른 말로 적혀 있을 수 있다).")
+    aside_clean = "\n".join(" ".join(line.split()) for line in str(aside or "").splitlines() if line.strip())
+    aside_shown = 0
+    if aside_clean and " ".join(aside_clean[:80].split()) not in " ".join(str(body or "").split()):
+        digest = aside_clean[:_ASIDE_DIGEST_MAX]
+        aside_shown = len(digest)
+        parts.append("[옆 칸 — 본문 고르기에서 빠진 곳" + (f", 앞 {_ASIDE_DIGEST_MAX}자" if len(aside_clean) > _ASIDE_DIGEST_MAX else "") + "]\n" + digest)
+    block = "\n".join(parts)
+    cut = len(block) > _FIND_BLOCK_MAX
+    if cut:
+        block = block[: _FIND_BLOCK_MAX - 30] + "\n…(찾은 줄이 더 있다 — 잘라냈다)"
+    meta = {"terms": terms, "hits": hits, "missed": missed, "lines": len(picked), "aside_chars": aside_shown, "truncated": cut}
+    return block, meta
+
+
 _EXTRACT_MAIN_JS = """
 (readSelectors) => {
   const strip = ['script','style','noscript','nav','header','footer','aside',
@@ -11117,7 +11208,40 @@ class BrowserWorker:
 
     def _extract_with_data(self, page: Any, arguments: dict[str, Any]) -> dict[str, Any]:
         """본문 + 구조화 데이터. 에이전트가 부르는 `browser_extract` 는 이 길로 온다(2026-09-18)."""
-        return self._attach_listing(page, self._attach_post_stats(page, self._attach_structured(page, self._extract(page, arguments))))
+        result = self._attach_listing(page, self._attach_post_stats(page, self._attach_structured(page, self._extract(page, arguments))))
+        return self._attach_found(page, arguments, result)
+
+    def _attach_found(self, page: Any, arguments: dict[str, Any], result: Any) -> Any:
+        """찾을 칸(`find`)이 있으면 페이지 전체 글(옆 칸 포함)에서 그 말이 든 줄을 본문 **맨 앞**에 붙인다(`found_block`).
+
+        맨 앞에 두는 까닭: 도구 결과는 기록에 실릴 때 뒤에서 잘린다(`_TOOL_RESULT_MAX_CHARS`) — 뒤에 붙이면 정작 찾은 줄이 잘린다.
+        같은 `browser_extract` 결과 안이라 근거 장부 · 숫자 검사가 그 줄을 읽은 원문으로 그대로 센다(새 도구 이름을 만들면
+        읽기를 세는 분류표 서른 군데를 다 고쳐야 하고, 하나만 빠져도 그 도구의 읽기가 분모에서 조용히 빠진다).
+        """
+        terms = clean_find_terms((arguments or {}).get("find"))
+        if not terms or not isinstance(result, dict) or not isinstance(result.get("text"), str):
+            return result
+        # 줄바꿈이 살아 있는 글이어야 줄 단위로 찾는다 — `_read` 는 빈칸을 한 칸으로 뭉쳐 페이지가 한 줄이 된다(이 시험이 잡음).
+        #   이 글은 모델에게 가지 않고 찾기에만 쓴다. 그래서 상한을 넉넉히(틀마다 6만 자) 잡는다.
+        parts: list[str] = []
+        for frame in self._frames_of(page):
+            try:
+                parts.append(str(frame.evaluate("() => (document.body && document.body.innerText) || ''") or "")[:_FIND_PAGE_TEXT_MAX])
+            except Exception:
+                continue
+        page_text = "\n".join(part for part in parts if part)
+        try:
+            aside = str(page.evaluate(_ASIDE_JS) or "")
+        except Exception:
+            aside = ""
+        block, meta = found_block(page_text, terms, aside=aside, body=str(result.get("text") or ""))
+        if any(len(part) >= _FIND_PAGE_TEXT_MAX for part in parts):
+            meta["page_text_truncated"] = True
+        updated = dict(result)
+        updated["text"] = block + "\n\n" + updated["text"]
+        updated["char_count"] = len(updated["text"])
+        updated["find"] = meta
+        return updated
 
     def _read_with_data(self, page: Any, arguments: dict[str, Any]) -> dict[str, Any]:
         return self._attach_listing(page, self._attach_post_stats(page, self._attach_structured(page, self._read(page, arguments))))
@@ -15292,8 +15416,14 @@ class BrowserTools:
             self._function(
                 "browser_extract",
                 "지금 페이지의 **본문만** 추려 읽는다. 메뉴·사이드바·추천글을 뺀다. "
-                "글 한 편을 읽을 때는 browser_read 대신 이걸 써라 — read 는 화면 글을 전부 준다.",
-                {"max_chars": {"type": "integer"}},
+                "글 한 편을 읽을 때는 browser_read 대신 이걸 써라 — read 는 화면 글을 전부 준다. "
+                "찾을 칸(find)을 주면 페이지 전체(옆 칸 포함)에서 그 말이 든 줄을 맨 앞에 따로 모아 준다 — "
+                "라이선스 · 가격 · 마감일처럼 칸 이름을 알면 같은 페이지를 다시 열지 말고 이걸로 찾아라.",
+                {
+                    "max_chars": {"type": "integer"},
+                    "find": {"type": "array", "items": {"type": "string"},
+                             "description": "찾을 칸 이름이나 낱말(페이지에 적힌 말로 · 12개까지)"},
+                },
             ),
             self._function(
                 "browser_links",

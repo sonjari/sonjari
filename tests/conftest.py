@@ -355,16 +355,205 @@ _tests_never_touch_the_real_bot_token()
 # 멈춘 시험은 그때마다 달랐다. 크롬 시험을 한 작업자에 모아 봤더니 이번엔 결과 목록 시험 21개가 조용히 「건너뜀」이
 # 됐다(초록불 · 되돌림). 그래서 막지 않고 드러낸다: 한 시험이 이 시간을 넘으면 그 작업자는 걸린 자리의 스택을 찍고
 # 끝난다 — xdist 는 그 시험을 실패로 적고 작업자를 새로 띄운다. 영원히 기다리지도, 조용히 건너뛰지도 않는다.
-_TEST_HANG_SEC = 300
+_TEST_HANG_SEC = int(os.environ.get("SONJARI_TEST_HANG_SEC") or 300)  # 감시 자체를 시험할 때만 줄인다
+
+# ★ 2026-10-22 밤: 위 감시가 작업자를 끝낼 때 찍는 스택이 **늘 사라졌다.** 시험 동안 fd 2 는 pytest 의 출력 가로채기가 임시 파일로
+#   돌려놓은 자리라, 스택이 그 임시 파일에 써지고 작업자와 함께 지워진다. 회귀 기록엔 「worker 'gw10' crashed while running …」 한 줄만
+#   남았다(10-19 ~ 10-22 기록 6판 모두 gw10 · 모두 크롬 시험 · 모두 평소 판(158~256초) + 300초 = 373~443초 — 판이 길어서 죽은 게
+#   아니라, 멈춘 시험을 감시가 300초 기다려서 판이 길어진 것). 그래서 진단은 **가로채기 밖 파일**에 쓴다:
+#   ① 작업자마다 파일 하나(`%TEMP%\sonjari_tests_watchdog\<주인 PID>\<작업자>.txt`) — 시험 시작 · 끝을 한 줄씩 바로 적는다.
+#   ② 감시(파이썬이 멈춰도 도는 C 타이머)의 스택과, 바로 죽는 고장(native crash)의 스택도 그 파일로.
+#   ③ 감시가 끝내기 20초 전에 파이썬 스레드가 자식 프로세스(크롬 · 드라이버)와 메모리 · 스택을 그 파일에 적는다.
+#   ④ 회귀 끝 요약에 「시작만 있고 끝이 없는」 작업자 파일 꼬리를 붙인다.
+#   감시 범위는 그 시험의 준비 · 실행 · 정리 전부(`pytest_runtest_protocol`) — 정리에서 멈춰도 잡는다.
+#
+# ★ 같은 날: 멈춘 크롬은 **작업자를 죽이지 않고 그 시험의 실패로** 만든다. 크롬을 띄우는 시험은 평소 길어야 42초다(10-22 밤 전체
+#   회귀 6판 · 크롬 시험만 몰아 돈 판에서 잰 최장). 한 시험이 `_BROWSER_STALL_SEC` 를 넘겼는데 이 프로세스의 자손에 크롬 · Playwright
+#   드라이버(node)가 있으면, 진단을 먼저 적고 **그 자손만** 끝낸다(사람이 쓰는 크롬은 이 프로세스의 자손이 아니라 닿지 않는다).
+#   그러면 Playwright 가 「브라우저가 닫혔다」로 시험 안에서 오류를 내고, 시험은 보통 실패로 끝나며 실패 보고에 진단이 붙는다.
+#   작업자는 살아서 다음 시험을 돈다 — 판이 300초 늘지 않고, 진단도 가로채기에 묻히지 않는다. 300초 감시는 마지막 안전망으로 남는다.
+_WATCHDOG_ROOT = __import__("pathlib").Path(_tempfile.gettempdir()) / "sonjari_tests_watchdog"
+_WATCHDOG_PRE_SEC = 20
+_BROWSER_STALL_SEC = int(os.environ.get("SONJARI_TEST_BROWSER_STALL_SEC") or 150)
+_BROWSER_NAMES = ("chrome", "headless_shell", "msedge", "chromium")
+_DELIBERATE_STALL = "_deliberate_browser_stall_"  # 이 낱말이 시험 이름에 든 시험은 감시를 재려고 일부러 크롬을 얼린다 — 요약에서 뺀다
+_watchdog_state: dict = {"file": None, "nodeid": None, "started": 0.0, "noted": None, "stall": None, "stalled": {}}
+# 한 판의 작업자 파일을 한 폴더에 모으는 번호. 주인 프로세스가 정해 환경변수로 물려준다 — venv 의 python.exe 는 진짜 파이썬을
+# 한 번 더 띄우는 실행기라, 작업자의 부모 PID 는 주인 PID 가 아니다(처음엔 그걸로 묶었다가 판이 작업자마다 갈렸다).
+if not os.environ.get("PYTEST_XDIST_WORKER"):
+    os.environ["SONJARI_TEST_RUN_ID"] = f"{__import__('time').strftime('%m%d-%H%M%S')}-{os.getpid()}"
 
 
-@pytest.fixture(autouse=True)
-def _a_hung_test_fails_loudly():
+def _watchdog_dir():  # type: ignore[no-untyped-def]
+    return _WATCHDOG_ROOT / os.environ.get("SONJARI_TEST_RUN_ID", f"pid{os.getpid()}")
+
+
+def _watchdog_file():  # type: ignore[no-untyped-def]
+    """이 프로세스의 진단 파일(열어 둔 채로 쓴다 — C 타이머가 그 파일 번호로 쓴다)."""
+    if _watchdog_state["file"] is None:
+        import faulthandler
+        import threading
+
+        worker = os.environ.get("PYTEST_XDIST_WORKER")
+        folder = _watchdog_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        handle = open(folder / f"{worker or 'main'}.txt", "a", encoding="utf-8", buffering=1)  # noqa: SIM115
+        handle.write(f"# pid={os.getpid()} worker={worker or 'main'}\n")
+        _watchdog_state["file"] = handle
+        faulthandler.enable(file=handle, all_threads=True)  # 바로 죽는 고장도 여기로
+        threading.Thread(target=_watchdog_pre_note, name="sonjari-test-watchdog", daemon=True).start()
+    return _watchdog_state["file"]
+
+
+def _watchdog_note(title: str) -> str:
+    """지금 이 순간의 자손 프로세스 · 메모리 · 모든 스레드 스택을 진단 파일에 적고, 같은 글을 돌려준다(실패 보고에 붙인다)."""
     import faulthandler
+    import tempfile
 
-    faulthandler.dump_traceback_later(_TEST_HANG_SEC, exit=True)
-    yield
-    faulthandler.cancel_dump_traceback_later()
+    handle = _watchdog_state["file"]
+    lines = [f"!! {title}"]
+    try:
+        import psutil
+
+        me = psutil.Process()
+        lines.append(f"!! 이 프로세스 rss={me.memory_info().rss // 2**20}MB threads={me.num_threads()}")
+        for child in me.children(recursive=True):
+            try:
+                with child.oneshot():
+                    lines.append(f"!! 자손 pid={child.pid} ppid={child.ppid()} {child.name()} {child.status()} "
+                                 f"rss={child.memory_info().rss // 2**20}MB cpu={sum(child.cpu_times()[:2]):.1f}s "
+                                 f"cmd={' '.join(child.cmdline())[:240]}")
+            except Exception as exc:  # noqa: BLE001 — 진단용
+                lines.append(f"!! 자손 pid={child.pid} 읽기 실패 {type(exc).__name__}")
+    except Exception as exc:  # noqa: BLE001
+        lines.append(f"!! 프로세스 목록 실패 {type(exc).__name__}: {exc}")
+    lines.append("!! 파이썬 스택(이 순간)")
+    stack = ""
+    try:
+        with tempfile.TemporaryFile("w+", encoding="utf-8") as scratch:  # 스택은 파일 번호로만 찍힌다
+            faulthandler.dump_traceback(file=scratch, all_threads=True)
+            scratch.seek(0)
+            stack = scratch.read()
+    except Exception as exc:  # noqa: BLE001
+        stack = f"스택 실패 {type(exc).__name__}: {exc}\n"
+    text = "\n".join(lines) + "\n" + stack
+    try:
+        handle.write(text)
+        handle.flush()
+    except Exception:  # noqa: BLE001
+        pass
+    return text
+
+
+def _end_stalled_browsers(names: tuple[str, ...]) -> list[str]:
+    """이 프로세스의 **자손** 가운데 이름이 맞는 것을 끝낸다. 끝낸 것을 「이름 pid」로 돌려준다."""
+    import psutil
+
+    ended: list[str] = []
+    for child in psutil.Process().children(recursive=True):
+        try:
+            name = child.name().lower()
+            if name.startswith(names):
+                child.kill()
+                ended.append(f"{name} {child.pid}")
+        except Exception:  # noqa: BLE001 — 그사이 끝난 것
+            continue
+    return ended
+
+
+def _watchdog_pre_note() -> None:
+    """① 크롬 시험이 멈추면 진단을 적고 자손 크롬 · 드라이버를 끝낸다 ② 300초 감시가 끝내기 직전 진단을 적는다."""
+    import time as _time
+
+    while True:
+        _time.sleep(2)
+        nodeid, started = _watchdog_state["nodeid"], _watchdog_state["started"]
+        if not nodeid:
+            continue
+        key, elapsed = (nodeid, started), _time.monotonic() - started
+        try:
+            stall = _watchdog_state["stall"]
+            if elapsed >= _BROWSER_STALL_SEC and (stall is None or stall[0] != key):
+                import psutil
+
+                kids = [c for c in psutil.Process().children(recursive=True) if _safe_name(c).startswith(_BROWSER_NAMES + ("node",))]
+                if kids:
+                    text = _watchdog_note(f"크롬 시험이 {_BROWSER_STALL_SEC}초 넘게 안 끝남: {nodeid} — 자손 크롬을 끝낸다")
+                    ended = _end_stalled_browsers(_BROWSER_NAMES)
+                    _watchdog_state["file"].write(f"!! 끝낸 크롬: {ended}\n")
+                    _watchdog_state["stall"] = (key, _time.monotonic(), text + f"끝낸 크롬: {ended}\n")
+                    _watchdog_state["stalled"][nodeid] = _watchdog_state["stall"][2]
+            elif stall is not None and stall[0] == key and stall[1] and _time.monotonic() - stall[1] >= 15:
+                # 크롬을 끝내도 15초째 그대로면 드라이버(node)가 멈춘 것 — 드라이버도 끝낸다(파이썬 쪽 통로가 닫혀 오류가 난다).
+                text = _watchdog_note(f"크롬을 끝낸 뒤 15초째 그대로: {nodeid} — 자손 드라이버(node)도 끝낸다")
+                ended = _end_stalled_browsers(("node",))
+                _watchdog_state["file"].write(f"!! 끝낸 드라이버: {ended}\n")
+                _watchdog_state["stall"] = (key, 0.0, stall[2])
+                _watchdog_state["stalled"][nodeid] = stall[2] + text + f"끝낸 드라이버: {ended}\n"
+            if elapsed >= _TEST_HANG_SEC - _WATCHDOG_PRE_SEC and _watchdog_state["noted"] != key:
+                _watchdog_state["noted"] = key
+                _watchdog_note(f"{_TEST_HANG_SEC - _WATCHDOG_PRE_SEC}초 넘음 — {_WATCHDOG_PRE_SEC}초 뒤 감시가 작업자를 끝낸다: {nodeid}")
+        except Exception:  # noqa: BLE001 — 진단이 시험을 깨뜨리지 않게
+            pass
+
+
+def _safe_name(process) -> str:  # type: ignore[no-untyped-def]
+    try:
+        return process.name().lower()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):  # type: ignore[no-untyped-def]
+    outcome = yield
+    text = _watchdog_state["stalled"].get(item.nodeid)
+    if text and call.when in ("call", "teardown"):
+        report = outcome.get_result()
+        report.sections.append(("멈춘 크롬 감시(tests/conftest.py)", text))
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_protocol(item, nextitem):  # type: ignore[no-untyped-def]
+    import faulthandler
+    import time as _time
+
+    handle = _watchdog_file()
+    handle.write(f"▶ {_time.strftime('%H:%M:%S')} {item.nodeid}\n")
+    _watchdog_state.update(nodeid=item.nodeid, started=_time.monotonic())
+    faulthandler.dump_traceback_later(_TEST_HANG_SEC, exit=True, file=handle)
+    try:
+        yield
+    finally:
+        faulthandler.cancel_dump_traceback_later()
+        _watchdog_state.update(nodeid=None, stall=None)
+        _watchdog_state["stalled"].pop(item.nodeid, None)
+        handle.write(f"■ {_time.monotonic() - _watchdog_state['started']:.1f}s\n")
+
+
+def _watchdog_report(terminalreporter) -> None:  # type: ignore[no-untyped-def]
+    """시작만 있고 끝이 없는 작업자 파일(=감시가 끝냈거나 바로 죽은 작업자)의 꼬리를 회귀 끝에 붙인다."""
+    if hasattr(terminalreporter.config, "workerinput"):
+        return
+    folder = _watchdog_dir()
+    if not folder.is_dir():
+        return
+    for path in sorted(folder.glob("*.txt")):
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        starts = [i for i, line in enumerate(lines) if line.startswith("▶")]
+        for n, begin in enumerate(starts):  # 시험 하나 = ▶ 부터 다음 ▶ 앞까지
+            block = lines[begin:starts[n + 1] if n + 1 < len(starts) else len(lines)]
+            if any(_DELIBERATE_STALL in line for line in block):
+                continue  # 감시를 재려고 일부러 얼린 시험
+            unfinished = not any(line.startswith("■") for line in block)
+            flagged = any(line.startswith("!!") or "Timeout (" in line or "Fatal Python error" in line
+                          or "fatal exception" in line for line in block)
+            if not (unfinished or flagged):
+                continue
+            what = "끝나지 않음(작업자가 끝남)" if unfinished else "감시가 멈춘 크롬을 끝냄"
+            terminalreporter.write_sep("!", f"{path.stem} · {what} — 진단 {path}")
+            for line in block[:200]:
+                terminalreporter.write_line(line)
 
 
 # ★ **시험은 사람이 저장한 레시피를 읽지 않는다** (2026-10-20 · 확장 설계 T5).
@@ -394,9 +583,18 @@ def _under_real_documents(path) -> bool:  # type: ignore[no-untyped-def]
 def pytest_sessionstart(session):  # type: ignore[no-untyped-def]
     if not hasattr(session.config, "workerinput"):  # 병렬이면 주인 프로세스에서만 지난 기록을 비운다
         _REAL_DOCUMENTS_READS.unlink(missing_ok=True)
+        import time as _time
+
+        for old in (_WATCHDOG_ROOT.iterdir() if _WATCHDOG_ROOT.is_dir() else ()):
+            try:
+                if _time.time() - old.stat().st_mtime > 2 * 86400:
+                    _shutil.rmtree(old, ignore_errors=True)
+            except OSError:
+                pass
 
 
 def pytest_terminal_summary(terminalreporter):  # type: ignore[no-untyped-def]
+    _watchdog_report(terminalreporter)
     if _REAL_DOCUMENTS_READS.exists():
         lines = _REAL_DOCUMENTS_READS.read_text(encoding="utf-8").splitlines()
         terminalreporter.write_sep("!", f"시험이 진짜 문서 폴더를 읽으려다 막힘 {len(lines)}번 — 새는 길을 찾을 것")

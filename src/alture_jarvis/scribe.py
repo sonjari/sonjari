@@ -25,6 +25,30 @@
 - 이미 지나간 기록은 노는 시간에 **닫기만 하는 되읽기**로 따라잡는다(`next_reconcile_chunk`).
 - 같은 말을 또 적지 않는다(basic-memory 의 유사 노트 경고처럼) · 카드마다 그 말의 시각(절대 시각)을 단다.
 - 훅이 넣은 말(`isMeta` — 예: 한국어 검사 훅의 「다시 쓰세요」)은 사람이 한 말이 아니라 읽지 않는다(「사람이 고쳐 줬다」로 적혔었다).
+
+## 3차 (2026-10-23 밤) — 압축 뒤 다시 넣은 「남은 일」 넷이 이미 끝났거나 뒤집힌 채였다
+
+세션 794912da 가 실제로 압축됐고 훅이 넣은 카드를 대 보니 남은 일 넷이 열려 있었다. 서기는 그 뒤 줄을 **이미 읽었다**(읽은 자리 322375).
+까닭은 둘이었다:
+1. **새 카드 쓰기와 닫기를 한 번의 부르기에 같이 시켰다.** 끝낸 말(「한국어 3개는 통과로 봅니다」 · 「젬마 4 26B는 …」 · 레딧 초안)이
+   카드가 열린 목록에 있던 바로 다음 조각에 있었는데 모델이 닫지 않았다. 그 조각을 다시 볼 기회도 없었다(되읽기는 이미 따라와 있었다).
+   → 새 카드 쓰기와 **닫기를 따로** 부른다(닫기만 보는 부르기 · 이 조각에서 새로 생긴 카드도 그 뒤 말로). 확실하지 않으면 닫지 않고
+   「이 뒤 줄 N에서 같은 이야기 — 확인」 표시(`op: mention`)만 남긴다(대표 10-23 제안 「넘기기 전에 대조」). 그리고 닫기 규칙이 바뀌면
+   (`CLOSE_VERSION`) 최근 구간(`REWIND_BYTES`)을 한 번 다시 읽어 그동안 놓친 카드를 닫는다.
+2. **클로드가 일하는 동안 사람이 친 말은 기록에 `user` 줄이 아니라 `attachment`(queued_command)로만 남는다.** 서기는 그걸 통째로
+   안 읽었다 — 이 세션에서만 사람 말 799개 · 알림 658개(보통 사람 줄은 3,294개). 「스위치 판 끝남」 알림도 거기 있었다. → 읽는다.
+
+## 4차 (2026-10-24 새벽) — 닫기 창 밖으로 밀려난 카드는 영영 닫힐 기회가 없었다
+
+닫기는 덩어리마다 「지금 열린 카드」를 보여 주는데, 그 목록이 그 세션의 남은 일 최근 30 + 정한 것 최근 15(`Scribe.active`)로 묶여 있다.
+세션 794912da(10-24 01시 사본): 열린 남은 일 45장 중 15장 · 열린 정한 것 97장 중 82장이 창 밖이었다. 창 밖 남은 일 15장을 그 뒤 대화와
+손으로 대 보니 4장은 끝났거나 바뀐 것이 대화에 그대로 있었다(PR #21 합침 · HN 세기 결과 · 바로잡기 댓글 · 0.4.30.0 → 0.4.31.0).
+압축 훅은 그 반대로 **최근 40장(모든 칸)** 만 받아 남은 일 45장 중 27장이 말없이 빠졌다(창 안의 남은 일 12장 포함).
+1. **노는 시간에 창 밖 카드를 몇 장씩 돌아가며 대 본다**(`next_sweep`). 그 카드 뒤의 말 가운데 카드와 낱말이 가장 많이 겹치는 말만
+   골라(겹침 순위 — 거르개가 아니라 고르기다 · 결정은 모델과 인용 검사가 한다) 닫기만 보는 부르기에 넣는다. 닫는 규칙은 지금 그대로 —
+   그 말 안의 글자 그대로 인용이 있어야 닫힌다. 대 본 카드는 `op: sweep` 줄로 남기고, 그 뒤 새 줄이 `SWEEP_AGAIN_LINES` 쌓여야 다시 본다.
+2. **압축 직후 넘기는 글은 칸마다 「최근에 나온」 카드부터 예산 안에서**(`render_handoff`). 오래되고 그 뒤 다시 나오지 않은 카드는
+   「(접음) … N장 — 닫힌 것이 아니다 · 줄 …」 한 줄로 접는다. 닫지는 않는다(닫기는 근거가 있을 때만).
 """
 
 from __future__ import annotations
@@ -132,6 +156,9 @@ _TAGS = re.compile(r"<(?:pasted_content|antml:[a-z_]+|command-[a-z-]+)[^>]*>|</(
 CLOSE_STATUSES = {"done": "끝남", "superseded": "바뀜", "wrong": "틀림"}
 #: 닫을 수 있는 칸 — 「버린 것」 · 「고쳐 준 것」은 지난 일의 기록이라 닫을 게 없다.
 CLOSABLE = ("open", "decided")
+#: 닫기 규칙의 판. 올리면 기록마다 최근 구간(`Scribe.REWIND_BYTES`)을 한 번 다시 읽어 새 규칙으로 닫는다.
+#: 2 = 2026-10-23 밤: 닫기를 새 카드 쓰기와 따로 부르고 · 일하는 중에 친 사람 말(queued_command)도 읽는다.
+CLOSE_VERSION = 2
 
 
 @dataclass
@@ -158,7 +185,12 @@ def card_id(row: dict[str, Any]) -> str:
 
 
 def _norm(text: str) -> str:
-    return re.sub(r"\s+", "", str(text or ""))
+    """인용을 견줄 꼴 — 빈칸과 마크다운 강조(`*` · `` ` ``)를 뺀다.
+
+    ★ 2026-10-23: 클로드 답은 「한국어 3개는 **통과로 봅니다.**」처럼 굵은 글씨가 많은데, 모델은 별표를 빼고 옮긴다. 그래서 맞는 인용이
+      「글자 그대로가 아니다」로 버려졌다(세션 794912da 재생에서 실제로). 양쪽에서 똑같이 빼므로 지어낸 인용은 여전히 걸린다.
+    """
+    return re.sub(r"[\s*`]+", "", str(text or ""))
 
 
 def _same_story(a: str, b: str) -> bool:
@@ -200,8 +232,32 @@ def _commit_of(message: dict[str, Any]) -> str:
     return ""
 
 
+def _queued_of(number: int, raw: str) -> Turn | None:
+    """클로드가 일하는 동안 사람이 친 말 · 백그라운드 알림 — 기록에 `user` 줄이 아니라 `attachment`(queued_command)로만 남는다.
+
+    ★ 2026-10-23: 서기는 이걸 통째로 안 읽었다. 세션 794912da 에서 사람 말 799개(보통 사람 줄 3,294개의 4분의 1) · 알림 658개.
+      같은 말이 `queue-operation`(넣기/빼기)과 `api-request-blob` 에도 찍히지만 그건 사본이라 안 읽는다 — 이 줄 하나만.
+    """
+    try:
+        row = json.loads(raw)
+    except ValueError:
+        return None
+    attachment = row.get("attachment") if isinstance(row, dict) else None
+    if row.get("type") != "attachment" or not isinstance(attachment, dict) or attachment.get("type") != "queued_command" \
+            or row.get("isSidechain"):
+        return None
+    text = _TAGS.sub("", _REMINDER.sub("", _text_of({"content": attachment.get("prompt")}))).strip()
+    if not text:
+        return None
+    return Turn(number, "사람", secret_scrub.scrub(text)["text"], _local_time(row.get("timestamp") or attachment.get("timestamp")))
+
+
 def _turn_of(number: int, raw: str) -> Turn | None:
     """기록 한 줄이 **사람의 말이나 클로드의 글**이면 그 말 — 도구 결과 · 시스템 안내 · 잘릴 때 남긴 요약 · 곁가지는 None."""
+    if '"queued_command"' in raw:
+        queued = _queued_of(number, raw)
+        if queued is not None:
+            return queued
     # 줄 머리만 보고 거른다 — 도구 결과 줄은 수 MB 라 다 해석하면 느리다.
     if '"type":"user"' not in raw and '"type":"assistant"' not in raw and '"type": "user"' not in raw and '"type": "assistant"' not in raw:
         return None
@@ -269,11 +325,15 @@ def read_turns_from(path: Path, offset: int, line: int, limit: int) -> tuple[lis
 def tail_start(path: Path, tail_bytes: int) -> tuple[int, int]:
     """처음 보는 기록은 끝 `tail_bytes` 만 읽는다 — 서기는 **최근 대화**를 정리하는 것이지 몇 주 전 것을 다시 쓰는 게 아니다.
     (바이트 자리, 그 자리의 줄 번호). 줄 번호는 근거 자리라 앞 줄바꿈을 세어 맞춘다(1.3GB 에 1~2초, 처음 한 번만)."""
-    size = Path(path).stat().st_size
-    if size <= tail_bytes:
+    return start_near(path, Path(path).stat().st_size, tail_bytes)
+
+
+def start_near(path: Path, end: int, back_bytes: int) -> tuple[int, int]:
+    """바이트 자리 `end` 에서 `back_bytes` 앞의 첫 온전한 줄 — (바이트 자리, 그 줄 번호). 처음 보는 기록 · 닫기 규칙이 바뀐 뒤 되읽기."""
+    if end <= back_bytes:
         return 0, 0
     with Path(path).open("rb") as handle:
-        handle.seek(size - tail_bytes)
+        handle.seek(end - back_bytes)
         handle.readline()  # 반쪽 줄은 건너뛴다
         offset = handle.tell()
         handle.seek(0)
@@ -347,9 +407,19 @@ _CLOSE_RULES = """
 - 「시작했다」 · 「하는 중」 · 「돌립니다」는 끝난 게 아니다.
 - 「커밋」 줄은 실제로 커밋한 기록이다. 커밋 메시지가 그 카드의 일을 했다고 적고 있으면 done 으로 닫아도 된다(quote 는 커밋 줄에서)."""
 
+#: 확실하지 않을 때 — 닫지 않고 표시만(대표 10-23 「넘기기 전에 대조 · 확실하지 않으면 열린 채 두되 같은 이야기가 나왔다고 표시」).
+_MENTION_RULE = """
+- 끝났는지 확실하지 않은데 이 조각에서 그 카드의 일이 다시 나왔으면 닫지 말고 mentions 에 적어라:
+  {"id": "c번호", "line": 그 말의 [번호], "quote": 그 말에서 그대로 옮긴 구절(8~40자)} — 사람이 그 줄을 열어 확인하게 표시만 한다."""
+
 _CLOSE_ONLY_SYSTEM = """너는 대화의 서기다. 아래는 사람과 클로드(코딩 도우미)가 나눈 대화 조각이다. 각 줄 앞의 [번호]는 그 말의 자리다.
-이번에는 새 카드를 쓰지 않는다. 열린 카드 중 이 조각이 닫는 것만 찾는다. 지어내지 마라.""" + _CLOSE_RULES + """
-형식: {"closes": [...]}"""
+이번에는 새 카드를 쓰지 않는다. 열린 카드를 하나씩 이 조각과 대 보고, 이 조각이 닫는 것만 찾는다. 지어내지 마라.""" + _CLOSE_RULES \
+    + _MENTION_RULE + """
+형식: {"closes": [...], "mentions": [...]}"""
+
+#: 새 카드만 쓰는 부르기에서 열린 카드를 보여 줄 때 — 닫기는 따로 부른다(3차 · 10-23).
+_DRAFT_KNOWN = """
+조각 뒤 「지금 열린 카드」([c번호])는 이미 적힌 카드다. 같은 일을 다시 적지 마라. 닫기는 따로 하니 여기서는 새 카드만 낸다."""
 
 
 def _parse(raw: str) -> dict[str, Any]:
@@ -361,9 +431,12 @@ def _parse(raw: str) -> dict[str, Any]:
 
 
 def _body(turns: list[Turn], active: list[dict[str, Any]],
-          topics: list[str] | None = None) -> tuple[str, dict[str, dict[str, Any]]]:
-    """모델에게 보일 글 — 대화 조각이 먼저(줄 번호가 맨 앞), 열린 카드는 뒤에 짧은 이름표로."""
-    body = "\n".join(f"[{turn.line}] {turn.role}: {turn.text[:TURN_CHARS]}" for turn in turns)
+          topics: list[str] | None = None, view: dict[int, str] | None = None) -> tuple[str, dict[str, dict[str, Any]]]:
+    """모델에게 보일 글 — 대화 조각이 먼저(줄 번호가 맨 앞), 열린 카드는 뒤에 짧은 이름표로.
+
+    `view` 는 줄마다 보일 발췌(창 밖 카드 대 보기 · 4차) — 긴 말의 앞 700자가 아니라 카드와 겹치는 부분. 인용 검사는 원래 말 전체로 한다."""
+    view = view or {}
+    body = "\n".join(f"[{turn.line}] {turn.role}: {view.get(turn.line, turn.text)[:TURN_CHARS]}" for turn in turns)
     tags: dict[str, dict[str, Any]] = {}
     if active:
         rows = []
@@ -377,6 +450,28 @@ def _body(turns: list[Turn], active: list[dict[str, Any]],
     return body, tags
 
 
+def _grounded(entry: Any, by_turn: dict[int, Turn], tags: dict[str, dict[str, Any]]) -> tuple[dict[str, Any], Turn, str] | None:
+    """(카드, 근거 말, 인용) — 아는 이름표 · 카드(또는 다시 연 자리)보다 뒤의 말 · 그 말 안의 글자 그대로 인용일 때만."""
+    if not isinstance(entry, dict):
+        return None
+    card = tags.get(str(entry.get("id") or "").strip())
+    if card is None:
+        return None
+    try:
+        line = int(entry.get("line"))
+    except (TypeError, ValueError):
+        return None
+    turn = by_turn.get(line)
+    quote = str(entry.get("quote") or "").strip()
+    # 사람이 다시 연 카드는 그때까지 읽은 말로 또 닫지 못한다(`reopen_after`) — 10-21 저녁 되읽기가 같은 옛 근거로 다시 닫았다.
+    floor = max(int(card.get("line") or 0), int(card.get("reopen_after") or 0))
+    if turn is None or line <= floor:
+        return None
+    if len(quote) < 4 or not _norm(quote) or _norm(quote) not in _norm(turn.text):
+        return None
+    return card, turn, quote
+
+
 def _closes(data: dict[str, Any], turns: list[Turn], tags: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     """닫기도 새 카드와 같은 규칙 — 그 조각 안의 글자 그대로 인용, 카드보다 뒤의 말, 아는 이름표만."""
     by_turn = {turn.line: turn for turn in turns}
@@ -385,26 +480,32 @@ def _closes(data: dict[str, Any], turns: list[Turn], tags: dict[str, dict[str, A
     for close in (data.get("closes") or [])[:40]:
         if not isinstance(close, dict) or close.get("status") not in CLOSE_STATUSES:
             continue
-        card = tags.get(str(close.get("id") or "").strip())
-        if card is None or card_id(card) in taken:
+        grounded = _grounded(close, by_turn, tags)
+        if grounded is None or card_id(grounded[0]) in taken:
             continue
-        try:
-            line = int(close.get("line"))
-        except (TypeError, ValueError):
-            continue
-        turn = by_turn.get(line)
-        quote = str(close.get("quote") or "").strip()
-        # 사람이 다시 연 카드는 그때까지 읽은 말로 또 닫지 못한다(`reopen_after`) — 10-21 저녁 되읽기가 같은 옛 근거로 다시 닫았다.
-        floor = max(int(card.get("line") or 0), int(card.get("reopen_after") or 0))
-        if turn is None or line <= floor:
-            continue
-        if len(quote) < 4 or _norm(quote) not in _norm(turn.text):
-            continue
+        card, turn, quote = grounded
         taken.add(card_id(card))
-        found.append({"op": "close", "id": card_id(card), "status": close["status"], "line": line, "quote": quote[:80],
+        found.append({"op": "close", "id": card_id(card), "status": close["status"], "line": turn.line, "quote": quote[:80],
                       "at": turn.at, "card_kind": card.get("kind"), "card_text": str(card.get("text") or "")[:200],
                       "card_line": card.get("line")})
     return found
+
+
+def _mentions(data: dict[str, Any], turns: list[Turn], tags: dict[str, dict[str, Any]],
+              closed: set[str]) -> list[dict[str, Any]]:
+    """「이 뒤 줄 N에서 같은 이야기 — 확인」 표시. 닫기와 같은 근거 규칙 · 이번에 닫힌 카드는 빼고 · 카드마다 가장 뒤의 줄 하나."""
+    by_turn = {turn.line: turn for turn in turns}
+    latest: dict[str, dict[str, Any]] = {}
+    for entry in (data.get("mentions") or [])[:40]:
+        grounded = _grounded(entry, by_turn, tags)
+        if grounded is None or card_id(grounded[0]) in closed:
+            continue
+        card, turn, quote = grounded
+        key = card_id(card)
+        if key not in latest or turn.line > latest[key]["line"]:
+            latest[key] = {"op": "mention", "id": key, "line": turn.line, "quote": quote[:80], "at": turn.at,
+                           "card_line": card.get("line")}
+    return list(latest.values())
 
 
 def draft_and_close(turns: list[Turn], ask: Callable[[str, str], str], active: list[dict[str, Any]] | None = None,
@@ -419,19 +520,30 @@ def draft_and_close(turns: list[Turn], ask: Callable[[str, str], str], active: l
     return _kept_items(data, turns, max_items), _closes(data, turns, tags)
 
 
+def check_cards(turns: list[Turn], ask: Callable[[str, str], str],
+                cards: list[dict[str, Any]], view: dict[int, str] | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """닫기만 보는 부르기 — (닫을 카드, 「이 뒤 같은 이야기 — 확인」 표시). 새 카드 쓰기와 따로 부른다(3차 · 10-23)."""
+    cards = [card for card in cards if card.get("kind") in CLOSABLE]
+    if not turns or not cards:
+        return [], []
+    body, tags = _body(turns, cards, view=view)
+    data = _parse(ask(_CLOSE_ONLY_SYSTEM, body))
+    closes = _closes(data, turns, tags)
+    return closes, _mentions(data, turns, tags, {row["id"] for row in closes})
+
+
 def close_only(turns: list[Turn], ask: Callable[[str, str], str], active: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """지나간 조각을 다시 읽어 닫기만 — 새 카드는 이미 그때 썼다."""
-    if not turns or not active:
-        return []
-    body, tags = _body(turns, active)
-    return _closes(_parse(ask(_CLOSE_ONLY_SYSTEM, body)), turns, tags)
+    return check_cards(turns, ask, active)[0]
 
 
-def draft(turns: list[Turn], ask: Callable[[str, str], str], *, max_items: int = 12) -> list[dict[str, Any]]:
-    """한 덩어리의 말로 초안 항목을 뽑고, **인용이 실제로 있는 것만** 남긴다."""
+def draft(turns: list[Turn], ask: Callable[[str, str], str], *, max_items: int = 12,
+          known: list[dict[str, Any]] | None = None, topics: list[str] | None = None) -> list[dict[str, Any]]:
+    """한 덩어리의 말로 초안 항목을 뽑고, **인용이 실제로 있는 것만** 남긴다. `known` 은 이미 열린 카드(다시 적지 않게 보여만 준다)."""
     if not turns:
         return []
-    return _kept_items(_parse(ask(_SYSTEM, _body(turns, [])[0])), turns, max_items)
+    body, _ = _body(turns, list(known or []), topics)
+    return _kept_items(_parse(ask(_SYSTEM + (_DRAFT_KNOWN if known else ""), body)), turns, max_items)
 
 
 def _kept_items(data: dict[str, Any], turns: list[Turn], max_items: int) -> list[dict[str, Any]]:
@@ -449,7 +561,7 @@ def _kept_items(data: dict[str, Any], turns: list[Turn], max_items: int) -> list
         quote = str(item.get("quote") or "").strip()
         source = by_line.get(line, "")
         # 근거 검사 — 인용이 그 말 안에 글자 그대로 없으면 버린다(빈칸만 느슨하게).
-        if len(quote) < 4 or re.sub(r"\s+", "", quote) not in re.sub(r"\s+", "", source):
+        if len(quote) < 4 or not _norm(quote) or _norm(quote) not in _norm(source):
             continue
         text = str(item.get("text") or "").strip()[:200]
         # ★ 진행 보고는 남은 일이 아니다 (2026-10-22 · 「손자리가 7개 프로젝트를 조사하여 문서를 작성하는 중이다」가 하루 넘게 열려 있었다).
@@ -477,6 +589,12 @@ def _where(line: Any, quote: Any, at: Any = "") -> str:
     return f"({at} · 줄 {line} · 「{quote}」)" if at else f"(줄 {line} · 「{quote}」)"
 
 
+def _check_mark(item: dict[str, Any]) -> str:
+    """닫지는 못했지만 그 뒤에 같은 이야기가 나온 카드 — 그 줄을 열어 확인하라고(카드 글 바로 뒤 · 근거 자리 앞에 둔다)."""
+    line = item.get("check_line")
+    return f" [확인: 이 뒤 줄 {line}에서 같은 이야기]" if line else ""
+
+
 def render(items: list[dict[str, Any]], closed: list[dict[str, Any]] | None = None) -> str:
     """사람 · 클로드가 읽는 카드 — 열린 카드만 칸별로(줄마다 시각 · 근거 자리), 그 아래 최근에 닫힌 카드와 닫힌 까닭."""
     lines: list[str] = []
@@ -485,12 +603,155 @@ def render(items: list[dict[str, Any]], closed: list[dict[str, Any]] | None = No
         if not mine:
             continue
         lines.append(f"## {KIND_NAMES[kind]}")
-        lines += [f"- {item['text']}  {_where(item['line'], item['quote'], item.get('at'))}" for item in mine]
+        lines += [f"- {item['text']}{_check_mark(item)}  {_where(item['line'], item['quote'], item.get('at'))}" for item in mine]
     if closed:
         lines.append("## 최근 닫힌 것(끝남 · 바뀜 · 틀림 — 위 목록에서 뺐다)")
         lines += [f"- [{CLOSE_STATUSES.get(row.get('status'), row.get('status'))}] {row.get('card_text')}  "
                   f"{_where(row.get('line'), row.get('quote'), row.get('at'))}" for row in closed]
     return "\n".join(lines)
+
+
+# ── 압축 직후 넘기는 글 (4차 · 2026-10-24) ─────────────────────────────────────────────────────
+#: 카드 글의 글자 예산 — 훅 전체 한도(`claude_hooks.TEXT_MAX` 9,000자)에서 주제 색인(≤1,500) · 머리말(≈800)을 뺀 자리.
+HANDOFF_CHARS = 6_000
+#: 칸마다 넘기는 카드 상한 — 남은 일 · 정한 것은 닫기 창(`Scribe.active`)과 같다.
+HANDOFF_CAPS = {"decided": 15, "dropped": 5, "open": 30, "corrected": 10}
+HANDOFF_CLOSED = 6
+#: 접은 줄에 적는 줄 번호 수(최근 것부터) — 그 줄을 열어 볼 수 있게.
+FOLD_LINES_SHOWN = 12
+FOLD_MARK = "(접음)"
+
+
+def _recency(card: dict[str, Any]) -> int:
+    """그 카드의 일이 마지막으로 나온 줄 — 카드의 줄 또는 그 뒤 「같은 이야기 — 확인」 표시의 줄 가운데 뒤쪽."""
+    return max(int(card.get("line") or 0), int(card.get("check_line") or 0))
+
+
+def render_handoff(cards: list[dict[str, Any]], closed: list[dict[str, Any]] | None = None,
+                   *, budget: int = HANDOFF_CHARS) -> tuple[str, dict[str, Any]]:
+    """압축 직후 넘기는 카드 글 — (글, {"shown": 칸별 수, "folded": 칸별 수}).
+
+    칸마다 **최근에 나온** 카드부터(`_recency`) 상한까지, 예산을 넘으면 가장 오래 안 나온 남은 일 · 정한 것부터 접는다.
+    접은 카드는 「(접음) … N장 — 닫힌 것이 아니다 · 줄 …」 한 줄로 남는다 — 닫지 않는다. 근거 인용은 빼고 시각 · 줄 번호만
+    (인용은 `render` · sonjari_story 에 그대로). 칸 안의 순서는 `render` 와 같이 오래된 것이 위 — 훅이 최신부터로 뒤집는다.
+    """
+    by_kind = {kind: sorted((c for c in cards if c.get("kind") == kind), key=_recency, reverse=True) for kind in KINDS}
+    shown = {kind: by_kind[kind][:HANDOFF_CAPS.get(kind, 10)] for kind in KINDS}
+    recent_closed = list(closed or [])[-HANDOFF_CLOSED:]
+
+    def text() -> str:
+        lines: list[str] = []
+        for kind in KINDS:
+            folded = by_kind[kind][len(shown[kind]):]
+            if not shown[kind] and not folded:
+                continue
+            lines.append(f"## {KIND_NAMES[kind]}")
+            if folded:
+                nums = sorted({int(c.get("line") or 0) for c in folded}, reverse=True)
+                more = f" 외 {len(nums) - FOLD_LINES_SHOWN}장" if len(nums) > FOLD_LINES_SHOWN else ""
+                lines.append(f"{FOLD_MARK} 오래되고 그 뒤 다시 나오지 않은 {KIND_NAMES[kind]} {len(folded)}장 — 닫힌 것이 아니다 · 줄 "
+                             + " · ".join(str(n) for n in nums[:FOLD_LINES_SHOWN]) + more)
+            for card in sorted(shown[kind], key=_recency):
+                at = f"{card.get('at')} · " if card.get("at") else ""
+                lines.append(f"- {card.get('text')}{_check_mark(card)}  ({at}줄 {card.get('line')})")
+        if recent_closed:
+            lines.append("## 최근 닫힌 것(끝남 · 바뀜 · 틀림 — 위 목록에서 뺐다)")
+            lines += [f"- [{CLOSE_STATUSES.get(row.get('status'), row.get('status'))}] {row.get('card_text')}  "
+                      f"({(str(row.get('at')) + ' · ') if row.get('at') else ''}줄 {row.get('line')})" for row in recent_closed]
+        return "\n".join(lines)
+
+    out = text()
+    while len(out) > budget:
+        # 가장 오래 안 나온 남은 일 · 정한 것부터 접는다. 그래도 넘치면 최근 닫힌 것 → 버린 것 → 고쳐 준 것 순으로 줄인다.
+        pool = [(_recency(shown[kind][-1]), kind) for kind in ("open", "decided") if shown[kind]]
+        if pool:
+            kind = min(pool)[1]
+            shown[kind] = shown[kind][:-1]
+        elif recent_closed:
+            recent_closed = recent_closed[1:]
+        elif shown["dropped"]:
+            shown["dropped"] = shown["dropped"][:-1]
+        elif shown["corrected"]:
+            shown["corrected"] = shown["corrected"][:-1]
+        else:
+            break
+        out = text()
+    return out, {"shown": {kind: len(shown[kind]) for kind in KINDS},
+                 "folded": {kind: len(by_kind[kind]) - len(shown[kind]) for kind in KINDS}}
+
+
+# ── 창 밖 카드 대 보기 (4차 · 2026-10-24) ─────────────────────────────────────────────────────
+
+
+def _grams(text: str) -> set[str]:
+    """글자 두 개씩 — 한국어는 띄어쓰기 · 조사가 달라도 「바로잡기 댓글」과 「댓글 바로잡기」가 겹친다."""
+    flat = re.sub(r"[\W_]+", "", str(text or "")).casefold()
+    return {flat[i:i + 2] for i in range(len(flat) - 1)}
+
+
+def pick_turns(cards: list[dict[str, Any]], turns: list[Turn], *, per_card: int = 6, limit: int = 40,
+               min_score: float = 0.15) -> tuple[list[Turn], dict[int, str]]:
+    """(창 밖 카드마다 그 뒤에서 낱말이 가장 많이 겹치는 말, 줄마다 보일 발췌).
+
+    겹침은 드문 글자쌍일수록 무겁게(흔한 「니다」 · 「습니」는 가볍게) 센다. **고르기**일 뿐 닫는 것은 모델 + 인용 검사다.
+    카드(또는 다시 연 자리)보다 앞선 말은 고르지 않는다 — 그 말로는 어차피 못 닫는다(`_grounded`).
+    """
+    import math
+
+    # 점수 = (말 전체 겹침 + 가장 겹치는 문단 하나의 겹침) / 2. 말 전체만 세면 긴 보고가 여러 칸에 흩어진 낱말로 모든 카드와 겹치고,
+    # 문단만 세면 짧게 흩어진 끝낸 말을 놓친다. 사본 재생(10-24 · 세션 794912da · 손으로 찾은 근거가 있는 카드 5장 · 근거 말 7개)에서
+    # 섞은 쪽이 근거를 카드마다 6위 안에 가장 많이 올렸다. 표본이 작다 — 실제로 닫히는 수로 다시 볼 것.
+    paragraphs = [[_grams(part) for part in turn.text.split("\n") if part.strip()] or [set()] for turn in turns]
+    whole_grams = [set().union(*parts) for parts in paragraphs]
+    df: dict[str, int] = {}
+    for parts in paragraphs:
+        for gram in set().union(*parts):
+            df[gram] = df.get(gram, 0) + 1
+    total = max(1, len(turns))
+
+    def weight(gram: str) -> float:
+        return math.log((total + 1) / (df.get(gram, 0) + 1)) + 0.1
+
+    best: dict[int, float] = {}
+    wanted: dict[int, set[str]] = {}
+    for card in cards:
+        mine = _grams(f"{card.get('text') or ''} {card.get('quote') or ''}")
+        whole = sum(weight(g) for g in mine)
+        if not whole:
+            continue
+        floor = max(int(card.get("line") or 0), int(card.get("reopen_after") or 0))
+        scored = sorted((((sum(weight(g) for g in mine & whole_grams[index])
+                          + max(sum(weight(g) for g in mine & part) for part in parts)) / (2 * whole), index)
+                         for index, (turn, parts) in enumerate(zip(turns, paragraphs)) if turn.line > floor), reverse=True)
+        for score, index in scored[:per_card]:
+            if score < min_score:
+                break
+            best[index] = max(best.get(index, 0.0), score)
+            wanted.setdefault(index, set()).update(mine)
+    chosen = sorted(sorted(best, key=lambda i: best[i], reverse=True)[:limit])
+    picked = [turns[i] for i in chosen]
+    view: dict[int, str] = {}
+    for index in chosen:
+        text = turns[index].text
+        if len(text) <= TURN_CHARS:
+            continue
+        # 긴 말은 앞 700자가 아니라 카드와 겹치는 문단만 — 끝낸 말이 긴 보고의 중간에 있었다(「PR #21 합침」은 보고 셋째 칸).
+        parts = [part for part in text.split("\n") if part.strip()]
+        ranked = sorted(range(len(parts)), key=lambda i: sum(weight(g) for g in _grams(parts[i]) & wanted[index]), reverse=True)
+        keep: list[int] = []
+        used = 0
+        for i in ranked:
+            if used + len(parts[i]) + 3 > TURN_CHARS and keep:
+                continue
+            keep.append(i)
+            used += len(parts[i]) + 3
+        out: list[str] = []
+        for i in sorted(keep):
+            if out and i - 1 not in keep:
+                out.append("…")
+            out.append(parts[i])
+        view[turns[index].line] = "\n".join(out)
+    return picked, view
 
 
 class Scribe:
@@ -507,6 +768,8 @@ class Scribe:
     TAIL_BYTES = 30_000_000
     #: 이보다 오래 안 바뀐 기록은 안 본다 — 끝난 대화를 몇 주 뒤에 다시 쓰지 않는다.
     RECENT_SEC = 2 * 86400
+    #: 닫기 규칙이 바뀐 뒤(`CLOSE_VERSION`) 다시 읽는 최근 구간 — 끝 30MB 에 말 약 300개(10-21 실측) · 덩어리 8개쯤.
+    REWIND_BYTES = 30_000_000
 
     def __init__(self, data_dir: Path, folders: list[Path]) -> None:
         self.root = Path(data_dir) / "scribe"
@@ -530,6 +793,8 @@ class Scribe:
             pos = {"offset": int(value["offset"]), "line": int(value["line"])}
             if "rc_offset" in value and "rc_line" in value:
                 pos.update(rc_offset=int(value["rc_offset"]), rc_line=int(value["rc_line"]))
+            if "rc_ver" in value:
+                pos["rc_ver"] = int(value["rc_ver"])
             state[str(key)] = pos
         return state
 
@@ -554,16 +819,22 @@ class Scribe:
         # 줄 순서대로 — 닫기 뒤의 다시 열기(`op: reopen`, 잘못 닫은 것을 사람 · 클로드가 되돌림)가 이긴다. 둘 다 지우지 않고 남는다.
         shut: dict[str, dict[str, Any]] = {}
         guard: dict[str, int] = {}
+        seen_again: dict[str, int] = {}
         for row in rows:
             if row.get("op") == "close":
                 shut[str(row.get("id"))] = row
             elif row.get("op") == "reopen":
                 shut.pop(str(row.get("id")), None)
                 guard[str(row.get("id"))] = int(row.get("after_line") or 0)
+            elif row.get("op") == "mention":
+                key = str(row.get("id"))
+                seen_again[key] = max(seen_again.get(key, 0), int(row.get("line") or 0))
         closes = list(shut.values())
         tags = self._tags(rows)
         cards = [({**row, "reopen_after": guard[card_id(row)]} if card_id(row) in guard else row)
                  for row in rows if not row.get("op") and card_id(row) not in shut]
+        # 「이 뒤 줄 N에서 같은 이야기 — 확인」(3차 · 10-23) — 닫히지 않은 카드에만, 가장 뒤의 줄 하나.
+        cards = [({**card, "check_line": seen_again[card_id(card)]} if card_id(card) in seen_again else card) for card in cards]
         cards = [({**card, "topics": tags[card_id(card)]} if not card.get("topics") and card_id(card) in tags else card)
                  for card in cards]
         return cards, closes
@@ -716,6 +987,19 @@ class Scribe:
                 else:
                     start = min(int(card.get("line") or 0) for card in active) + 1
                     pos.update(rc_offset=offset_of_line(log, start), rc_line=start)
+                pos["rc_ver"] = CLOSE_VERSION
+                state[str(log)] = pos
+                self._save_state(state)
+            elif pos.get("rc_ver") != CLOSE_VERSION:
+                # 닫기 규칙이 바뀌었다 — 옛 규칙으로 놓친 카드를 최근 구간만 한 번 다시 읽어 닫는다(3차 · 10-23).
+                #   최근 `REWIND_BYTES` 와 가장 오래된 열린 카드 다음 줄 가운데 **뒤쪽**에서 — 몇 주 치를 다시 읽지 않게.
+                if active:
+                    first = min(int(card.get("line") or 0) for card in active) + 1
+                    near_offset, near_line = start_near(log, pos["offset"], self.REWIND_BYTES)
+                    start_offset, start_line = (near_offset, near_line) if near_line > first else (offset_of_line(log, first), first)
+                    if start_offset < pos["rc_offset"]:
+                        pos.update(rc_offset=start_offset, rc_line=start_line)
+                pos["rc_ver"] = CLOSE_VERSION
                 state[str(log)] = pos
                 self._save_state(state)
             if pos["rc_offset"] >= pos["offset"]:
@@ -725,10 +1009,84 @@ class Scribe:
                 # 새 카드를 쓴 자리를 넘어가지 않는다 — 거기부터는 새 카드를 쓸 때 같이 닫는다.
                 turns = [turn for turn in turns if turn.line < pos["line"]]
                 offset, line = pos["offset"], pos["line"]
-            first = turns[0].line if turns else line
-            earlier = [card for card in active if int(card.get("line") or 0) < first]
+            # 이 덩어리의 마지막 말보다 앞선 카드 전부 — 덩어리 중간에 생긴 카드도 그 뒤 말로 닫을 수 있다(카드보다 앞선 말로는 못 닫는다 ·
+            # `_grounded`). 3차(10-23) 전에는 덩어리 첫 말보다 앞선 카드만 봐서, 중간에 생긴 카드는 그 덩어리 안의 끝낸 말을 놓쳤다.
+            last = turns[-1].line if turns else line
+            earlier = [card for card in active if int(card.get("line") or 0) < last]
             return log, turns, {"rc_offset": offset, "rc_line": line}, earlier
         return None
+
+    #: 창 밖 카드 대 보기(4차) — 한 번에 대 볼 카드 수 · 모델에게 보일 말 수(덩어리와 같다) · 카드마다 고를 뒤 말 수.
+    SWEEP_CARDS = 8
+    SWEEP_TURNS = 40
+    SWEEP_PER_CARD = 6
+    #: 대 본 카드는 그 기록에 새 줄이 이만큼 쌓인 뒤에야 다시 본다(같은 카드를 맴돌지 않게 · 모델 부르기를 늘리지 않게).
+    #: 세션 794912da 는 1만 줄에 말 약 470개(덩어리 12개쯤 · 부르기 24번쯤) — 다시 대 보기 한 바퀴(이 세션 13번)는 그 절반쯤이다.
+    SWEEP_AGAIN_LINES = 10_000
+
+    def _swept(self) -> dict[str, int]:
+        """카드 이름표 → 마지막으로 대 본 때 서기가 읽어 둔 줄(`op: sweep`)."""
+        last: dict[str, int] = {}
+        for row in self._rows():
+            if row.get("op") == "sweep":
+                for key in row.get("ids") or []:
+                    last[str(key)] = max(last.get(str(key), 0), int(row.get("read_to") or 0))
+        return last
+
+    def next_sweep(self) -> tuple[Path, list[Turn], dict[int, str], list[dict[str, Any]], int] | None:
+        """닫기 창(`active`) 밖으로 밀려난 열린 카드 몇 장과, 그 뒤 말 가운데 그 카드들과 가장 많이 겹치는 말.
+
+        (기록, 고른 말, 줄마다 발췌, 대 볼 카드, 서기가 읽어 둔 줄). 할 게 없으면 None. 새 카드 쓰기 · 되읽기가 다 따라온 기록만 —
+        그쪽이 먼저다. 처음 보는 카드부터, 남은 일부터, 오래된 것부터.
+        """
+        state = self._state()
+        swept = self._swept()
+        for log in self._logs()[:20]:
+            pos = state.get(str(log))
+            if pos is None or int(pos.get("rc_offset", pos["offset"])) < int(pos["offset"]):
+                continue
+            read_to = int(pos["line"])
+            cards, _ = self._split(log.stem)
+            window = {card_id(card) for card in self.active(log.stem)}
+            old = [card for card in cards if card.get("kind") in CLOSABLE and card_id(card) not in window
+                   and read_to - swept.get(card_id(card), -self.SWEEP_AGAIN_LINES) >= self.SWEEP_AGAIN_LINES
+                   and int(card.get("line") or 0) < read_to]
+            if not old:
+                continue
+            old.sort(key=lambda card: (card_id(card) in swept, card.get("kind") != "open", int(card.get("line") or 0)))
+            batch = old[: self.SWEEP_CARDS]
+            start = min(max(int(c.get("line") or 0), int(c.get("reopen_after") or 0)) for c in batch) + 1
+            offset, line = offset_of_line(log, start), start
+            turns: list[Turn] = []
+            while line < read_to:
+                got, offset, line = read_turns_from(log, offset, line, 500)
+                if not got:
+                    break
+                turns += [turn for turn in got if turn.line < read_to]
+            picked, view = pick_turns(batch, turns, per_card=self.SWEEP_PER_CARD, limit=self.SWEEP_TURNS)
+            return log, picked, view, batch, read_to
+        return None
+
+    def _sweep_once(self, asked: Callable[[str, str], str]) -> dict[str, Any]:
+        found = self.next_sweep()
+        if found is None:
+            return {"done": False, "why": "읽을 새 말이 없음"}
+        log, picked, view, batch, read_to = found
+        try:
+            closes, mentions = check_cards(picked, asked, batch, view=view) if picked else ([], [])
+        except _Cancelled:
+            return {"done": False, "why": "사람 일이 와서 비켰다", "log": log.name}
+        tail = {"session": log.stem, "folder": log.parent.name}
+        # 대 본 기록은 닫힌 것이 없어도 남긴다 — 다음 차례에 다른 카드로 넘어가게(돌아가며).
+        self._append([{**row, **tail} for row in closes + mentions]
+                     + [{"op": "sweep", "ids": [card_id(card) for card in batch], "read_to": read_to, "turns": len(picked), **tail}])
+        return {"done": True, "log": log.name, "swept": len(batch), "turns": len(picked), "closed": len(closes),
+                "checked": len(mentions)}
+
+    def handoff(self, session: str, *, budget: int = HANDOFF_CHARS) -> tuple[str, dict[str, Any]]:
+        """압축 직후 넘기는 카드 글(`render_handoff`) — 그 세션의 열린 카드 전부에서 고른다(최근 40장만이 아니라)."""
+        cards, closes = self._split(session)
+        return render_handoff(cards, closes, budget=budget)
 
     def _caught_up(self, log: Path, rc: dict[str, int]) -> None:
         state = self._state()
@@ -753,38 +1111,35 @@ class Scribe:
             try:
                 result = self._reconcile_once(asked)
                 # 읽을 말도 되읽을 말도 없으면 옛 카드에 주제를 붙인다(주제 색인 · 10-22).
-                return result if result.get("done") else self._tag_once(asked)
+                if not result.get("done"):
+                    result = self._tag_once(asked)
+                # 그것도 없으면 닫기 창 밖으로 밀려난 카드를 몇 장씩 돌아가며 그 뒤 말과 대 본다(4차 · 10-24).
+                return result if result.get("done") else self._sweep_once(asked)
             except _Cancelled:
                 return {"done": False, "why": "사람 일이 와서 비켰다"}
         log, chunk, next_pos = found
         before = self._state().get(str(log), {})
         active = self.active(log.stem)
         try:
-            items, closes = draft_and_close(chunk, asked, active, topics=self.topics(log.stem))
+            items = draft(chunk, asked, known=active, topics=self.topics(log.stem))
+            known, _ = self._split(log.stem)
+            fresh: list[dict[str, Any]] = []
+            for item in items:
+                # 이미 적힌 말을 또 적지 않는다 — 같은 세션의 열린 카드와 같은 이야기면 건너뛴다.
+                if any(_same_story(item["text"], card.get("text")) for card in known + fresh):
+                    continue
+                row = {**item, "session": log.stem, "folder": log.parent.name}
+                row["id"] = card_id(row)
+                fresh.append(row)
+            # ★ 닫기는 새 카드 쓰기와 **따로** 부른다 (3차 · 2026-10-23 밤). 한 부르기에 둘을 같이 시켰더니 끝낸 말이 바로 그 조각에 있어도
+            #   모델이 닫지 않았다(세션 794912da: 「한국어 3개 통과」 · 「젬마는 안 했다」 · 레딧 초안 — 카드가 열린 목록에 있던 다음 조각).
+            #   이 조각에서 새로 생긴 카드도 같이 대 본다(카드보다 뒤의 말로만 닫힌다) — 10-22 의 「뒤에 커밋이 있을 때만」 특례를 대신한다.
+            closes, mentions = check_cards(chunk, asked, active + fresh)
         except _Cancelled:
+            # 둘 중 하나라도 끊기면 이 조각은 통째로 다음 차례에 — 새 카드만 남고 닫기는 영영 안 하는 일이 없게.
             return {"done": False, "why": "사람 일이 와서 비켰다", "log": log.name}
-        known, _ = self._split(log.stem)
-        fresh: list[dict[str, Any]] = []
-        for item in items:
-            # 이미 적힌 말을 또 적지 않는다 — 같은 세션의 열린 카드와 같은 이야기면 건너뛴다.
-            if any(_same_story(item["text"], card.get("text")) for card in known + fresh):
-                continue
-            row = {**item, "session": log.stem, "folder": log.parent.name}
-            row["id"] = card_id(row)
-            fresh.append(row)
-        # ★ **같은 조각 안에서 생기고 끝난 일** (2026-10-22). 닫기는 이미 열려 있던 카드만 보므로, 한 조각 안에서 「주제 색인을 만든다」가
-        #   생기고 그 뒤에 커밋까지 끝나면 그 카드는 영영 열린 채였다(「버그 둘 수정」 · 「주제 색인」 둘 다 커밋 뒤에도 열림).
-        #   새 남은 일보다 **뒤에 커밋 줄**이 있을 때만 그 뒤 말들로 닫기를 한 번 더 — 커밋이 없으면 모델 부르기가 늘지 않는다.
-        fresh_open = [row for row in fresh if row.get("kind") == "open"]
-        if fresh_open:
-            first = min(int(row["line"]) for row in fresh_open)
-            later = [turn for turn in chunk if turn.line > first]
-            if any(turn.role == "커밋" for turn in later):
-                try:
-                    closes = list(closes) + close_only(later, asked, fresh_open)
-                except _Cancelled:
-                    pass  # 사람 일이 왔다 — 새 카드는 남기고, 닫기는 다음 기회에
-        self._append(fresh + [{**close, "session": log.stem, "folder": log.parent.name} for close in closes])
+        tail = {"session": log.stem, "folder": log.parent.name}
+        self._append(fresh + [{**row, **tail} for row in closes + mentions])
         state = self._state()
         # 되읽기가 이미 따라와 있었으면 같이 옮긴다. 2차 이전 기록(되읽기 자리 없음)에 열린 카드가 있으면 옮기지 않는다 —
         # 그래야 노는 시간에 지나간 말을 다시 읽어 옛 카드를 닫는다.
@@ -795,8 +1150,11 @@ class Scribe:
         state[str(log)] = {**state.get(str(log), {}), **next_pos}
         if caught_up:
             state[str(log)].update(rc_offset=next_pos["offset"], rc_line=next_pos["line"])
+            if "rc_offset" not in before:
+                state[str(log)]["rc_ver"] = CLOSE_VERSION  # 처음부터 지금 규칙으로 읽었다 — 다시 읽을 것이 없다
         self._save_state(state)
-        return {"done": True, "log": log.name, "turns": len(chunk), "items": len(fresh), "closed": len(closes)}
+        return {"done": True, "log": log.name, "turns": len(chunk), "items": len(fresh), "closed": len(closes),
+                "checked": len(mentions)}
 
     def _reconcile_once(self, asked: Callable[[str, str], str]) -> dict[str, Any]:
         found = self.next_reconcile_chunk()
@@ -807,12 +1165,13 @@ class Scribe:
             self._caught_up(log, rc)
             return {"done": True, "log": log.name, "reconciled": True, "turns": len(turns), "closed": 0}
         try:
-            closes = close_only(turns, asked, earlier)
+            closes, mentions = check_cards(turns, asked, earlier)
         except _Cancelled:
             return {"done": False, "why": "사람 일이 와서 비켰다", "log": log.name}
-        self._append([{**close, "session": log.stem, "folder": log.parent.name} for close in closes])
+        self._append([{**row, "session": log.stem, "folder": log.parent.name} for row in closes + mentions])
         self._caught_up(log, rc)
-        return {"done": True, "log": log.name, "reconciled": True, "turns": len(turns), "closed": len(closes)}
+        return {"done": True, "log": log.name, "reconciled": True, "turns": len(turns), "closed": len(closes),
+                "checked": len(mentions)}
 
     def recent(self, limit: int = 30, session: str = "") -> list[dict[str, Any]]:
         """**열린** 카드 — 최근 것부터 `limit` 개. `session` 을 주면 그 세션 것만. 닫힌 카드는 `closed` 로."""

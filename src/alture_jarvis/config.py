@@ -106,6 +106,10 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "answer_claims.py",
         # 「없다 · 아직 없다」에 본 범위(목록 화면 · 연 글 수)를 붙인다(2026-10-19) — 조사 답에 붙는 글이 바뀐다.
         "absence_scope.py",
+        # 한 번도 안 연 곳의 줄에 값이 채워졌으면 답 끝에 밝힌다(2026-10-24 bf69599d) — 조사 답에 붙는 글과 판 기록이 바뀐다.
+        "unopened_places.py",
+        # 답 끝 대조 덩어리를 받는 쪽(창 · 바깥 AI)에 맞게 나눈다(2026-10-24) — 조사 답에 보이는 글이 바뀐다.
+        "check_notes.py",
         # 모델이 보는 도구 목록을 갈래·단계·요청으로 고르는 쪽 — agent.py 에서 분리(2026-10-09). 조사 갈래 좁히기·산출물 차례 손·플랫폼 쓰기 관문이 바뀐다.
         "tool_roster.py",
         # 상세 첫머리에서 판매가·적립을 도구가 읽어 표 칸을 채운다(2026-09-28 T1, 동결 예외 A) — 표의 값을 직접 바꾼다.
@@ -164,6 +168,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "structured_data.py", "site_traits.py", "page_data.py", "site_sources.py",
         # 요약 비율이 답의 표와 맞는가 · 읽은 자료에 없는 비율(2026-10-01 밤). 조사 답에 붙는 경고를 바꾼다 — evidence 와 같은 자리.
         "number_checks.py",
+        # 모델 없는 루틴(2026-10-23 · §55-39) — 레시피 주소로 브라우저 없이 목록을 받아 칸을 읽는다. 읽어 오는 값을 바꾼다.
+        "routine.py",
     ),
     # 바깥을 실제로 바꾸는 길
     "write": (
@@ -191,16 +197,24 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         # 권한 모드와 쓰기 도구 목록(2026-09-21). 무엇을 **바꿀 수 있나**를 정한다 —
         # 읽기만 모드가 여기서 쓰기를 막고, 눈금도 이 목록으로 쓰기를 센다.
         "permissions.py",
+        # 디자인된 장표(2026-10-25) — 장 HTML 을 다듬고 PPTX 로 굽는 쪽과 그 스타일 예시. 만든 파일의 모양을 바꾼다.
+        "slides.py", "slides_style.py", "pptx_fonts.py", "slide_catalog.py", "slide_inbox.py", "slide_parts.py", "slide_frames.py", "doc_checks.py", "near_typos.py",
     ),
     # 사람 개입 없이 끝까지 가는 길
     "delegate": (
         "agent.py", "plan.py", "task_contract.py", "quantities.py", "evidence.py", "grounding_scout.py", "runtime.py", "tool_gateway.py", "mission.py",
+        # 판 카드(2026-10-24 · 전략안 §55-41) — 확실한 요구만 밀고 완료를 가른다. 위임 판의 끝(완료 · 일부)을 바꾼다.
+        "run_card.py",
         # 답글 말초 정리 — commit 사슬(_COMMIT_CHAINS)과 산출물 판정이 위임의 결과를 바꾼다.
         "answer_hygiene.py",
         # 영어 요청을 읽는 규칙(2026-09-23 밤) — plan·runtime 과 같이 계획·갈래를 정한다.
         "english.py",
         "human_gate.py", "gate_watcher.py", "proof.py", "attention.py",
         "claude_code.py", "code_runtime.py", "code_scout.py", "project_discovery.py",
+        # 막힌 자리에서만 내 API 키로 클로드에게 한 번 묻는다(2026-10-26) — 조언이 루프에 끼어 판의 끝을 바꾼다. 넘기기와 같은 축.
+        "api_escalation.py",
+        # 앱 안의 Claude Agent(2026-10-26) — 클로드에게 끼워 주는 「앱 안」 지침이 무엇을 손자리에게 맡길지를 바꾼다. 넘기기 · 승급과 같은 축.
+        "claude_agent.py",
         # 이어받기 — 채팅 갈래를 정하기 전에 가로채고, 가지에서 코드 잡을 올린다. 판의 길을 바꾼다.
         "takeover.py",
         # 손자리 자신에 대한 말(2026-10-20) — 이어받기와 같은 자리에서 채팅 갈래 전에 가로채 답하고 · 그림 읽기를 바꾸고 ·
@@ -214,6 +228,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "tool_roster.py",
         # 바깥 AI 에게 나가는 답의 정제 · 돌려받아야 할 것 · 영수증(2026-10-15 · §55-32) — 위임 결과로 무엇이 나가는지를 바꾼다.
         "outbound.py",
+        # 바깥 AI 가 받는 답에 대조 덩어리를 싣는 쪽(2026-10-24) — 위임 결과로 무엇이 나가는지를 바꾼다.
+        "check_notes.py",
         # 답이 기댄 페이지 사진(대표사진)을 고르고 거르는 쪽(2026-10-18) — 판 결과와 바깥으로 나가는 것을 바꾼다.
         "showcase.py",
         # 모델 별명(2026-10-18) — `@별명` · `/모델` 로 판 하나를 어느 모델이 돌지 정한다.
@@ -1148,6 +1164,12 @@ class JarvisConfig:
     claude_code_enabled: bool = False
     # 관리자 잠금(`JARVIS_CLAUDE_CODE_LOCKED`). 참이면 화면에서 켤 수 없고(「관리자가 꺼 둠」) 켜 둔 값도 일하지 않는다.
     claude_code_locked: bool = False
+    # ★ 2026-10-26 「막히면 내 API 키로 클로드에게 한 번 묻기」(`api_escalation.py` · `docs/설계_혼합_로컬API승급_2026-10-26.ko.md`).
+    #   넘기기(위 claude_code_*)와 다른 길이다 — 구독 로그인이 아니라 사용자가 손자리에 넣은 API 키. 기본 꺼짐 · 측정 판은 늘 꺼짐.
+    #   키는 여기 두지 않는다(DPAPI · `data/secrets/`). 달 상한은 달러 정수.
+    api_escalation_enabled: bool = False
+    api_escalation_model: str = "claude-opus-5-5"
+    api_escalation_monthly_usd: int = 3
     claude_code_command: str = "claude"
     claude_code_lease_sec: int = 90
     claude_code_result_max_chars: int = 16_000
@@ -1689,6 +1711,9 @@ class JarvisConfig:
             ),
             claude_code_enabled=_bool("JARVIS_CLAUDE_CODE_ENABLED", False),
             claude_code_locked=_bool("JARVIS_CLAUDE_CODE_LOCKED", False),
+            api_escalation_enabled=_bool("JARVIS_API_ESCALATION_ENABLED", False),
+            api_escalation_model=os.getenv("JARVIS_API_ESCALATION_MODEL", "claude-opus-5-5").strip() or "claude-opus-5-5",
+            api_escalation_monthly_usd=_int("JARVIS_API_ESCALATION_MONTHLY_USD", 3),
             claude_code_command=_env("JARVIS_CLAUDE_CODE_COMMAND", "claude"),
             claude_code_lease_sec=_int("JARVIS_CLAUDE_CODE_LEASE_SEC", 90),
             claude_code_result_max_chars=_int(

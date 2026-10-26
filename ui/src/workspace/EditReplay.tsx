@@ -31,6 +31,7 @@ export function EditReplay({
 }) {
   const added = preview.added ?? [];
   const removed = preview.removed ?? [];
+  // 0 = 몇 번째 줄인지 모른다(앱 안 Claude Agent 가 고친 자리를 파일에서 못 찾음) — 번호를 지어내지 않고 비운다.
   const startLine = preview.start_line ?? 1;
 
   // 움직임을 줄여 달라고 한 사람에게는 처음부터 다 그려 둔다.
@@ -69,13 +70,13 @@ export function EditReplay({
       <pre className="edit-replay-body">
         {removed.map((line, index) => (
           <span key={`r${index}`} className="edit-line removed">
-            <em>{startLine + index}</em>
+            <em>{startLine > 0 ? startLine + index : ""}</em>
             <span>{line || " "}</span>
           </span>
         ))}
         {added.slice(0, shown).map((line, index) => (
           <span key={`a${index}`} className="edit-line added">
-            <em>{startLine + index}</em>
+            <em>{startLine > 0 ? startLine + index : ""}</em>
             <span>{line || " "}</span>
             {!done && index === shown - 1 && <i className="edit-caret" />}
           </span>

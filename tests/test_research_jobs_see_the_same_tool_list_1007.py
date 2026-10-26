@@ -79,8 +79,9 @@ def test_the_run_loop_sends_the_whole_list_only_when_the_route_allows_it() -> No
     source = inspect.getsource(agent_module.BrowserAgent.run)
     scope = source.index("route_scoped_tools = _route_scoped_tool_definitions(")
     decide = source.index("route_hands = None if compact_surface else _route_hands(")
-    narrow = source.index("if route_hands is None:\n                    available_model_tools = route_scoped_tools")
-    assert scope < decide < narrow
+    narrow = source.index("if route_hands is None:")
+    assign = source.index("available_model_tools = route_scoped_tools", narrow)
+    assert scope < decide < narrow < assign
 
 
 def test_a_hand_outside_the_route_is_bounced_before_it_runs() -> None:
@@ -142,3 +143,81 @@ def test_the_rule_has_room_for_the_tool_list_to_grow_at_128k() -> None:
     today_tokens = _REAL_OUTSIDE_CHARS / agent_module._TOOL_SCHEMA_CHARS_PER_TOKEN
 
     assert today_tokens * 1.2 <= limit_tokens
+
+
+# ── 2026-10-24: the same disease came back, and the order made every switch a full re-read ──────────────────────
+#
+# 도구가 늘어 128K 에서도 조사 판이 다시 좁힌 목록(79개)을 받았다 — 판 첫 걸음 30.6초(133개 · 30,154토큰). 위 시험은 10-10 날의
+# 크기를 숫자로 박아 둬서 못 잡았다. 그리고 등록부 순서로는 갈래 밖의 손이 목록 맨 앞에 끼어 있어, 좁힌 목록과 넓은 목록이
+# **첫 도구부터** 달랐다. 아래는 실제 앱의 목록으로 잰다(시험용 앱은 운영보다 도구가 적다 — 크기 대신 모양을 붙든다).
+
+def _real_app_tools(tmp_path) -> list[dict[str, Any]]:  # noqa: ANN001
+    from alture_jarvis.api import create_app
+    from alture_jarvis.config import JarvisConfig
+
+    config = JarvisConfig(
+        runtime_root=tmp_path, data_dir=tmp_path / "data", output_dir=tmp_path / "outputs", control_token="test-token",
+        camera_enabled=False, vision_enabled=False, voice_enabled=False, tts_enabled=False, camera_control_enabled=False,
+        google_oauth_client_id="test.apps.googleusercontent.com", google_write_enabled=True,
+    )
+    return create_app(config, start_services=False).state.jarvis.agent_tools.ollama_tools
+
+
+def _names(tools: list[dict[str, Any]]) -> list[str]:
+    return [str(tool["function"]["name"]) for tool in tools]
+
+
+def test_the_narrow_research_list_is_the_head_of_the_wide_list(tmp_path) -> None:  # noqa: ANN001
+    """좁힌 목록이 넓은 목록의 앞부분과 같아야, 판 종류가 바뀌어도 늘어난 뒤쪽만 다시 읽는다."""
+    from alture_jarvis.tool_roster import _platform_scoped_tool_definitions, _stable_tool_order
+
+    ordered = _stable_tool_order(_real_app_tools(tmp_path))
+    for said in ("깃허브 저장소 셋을 조사해 엑셀로 정리해 줘", "조사해서 메일로 보내고 일정도 잡아 줘"):
+        wide = _platform_scoped_tool_definitions(ordered, said)
+        narrow = _platform_scoped_tool_definitions(_route_scoped_tool_definitions(ordered, web_only=True), said)
+        assert len(narrow) < len(wide)
+        assert _names(wide)[: len(narrow)] == _names(narrow), said
+
+
+def test_the_raw_registry_order_would_have_broken_the_head(tmp_path) -> None:  # noqa: ANN001
+    """이 시험이 보려는 빈칸 — 등록부 순서 그대로면 갈래 밖의 손이 앞에 끼어 앞부분이 갈린다."""
+    raw = _real_app_tools(tmp_path)
+    narrow = _route_scoped_tool_definitions(raw, web_only=True)
+    assert _names(raw)[: len(narrow)] != _names(narrow)
+
+
+def test_ordering_keeps_every_tool_and_the_order_inside_each_group(tmp_path) -> None:  # noqa: ANN001
+    from alture_jarvis.tool_roster import _in_web_route, _is_platform_write, _stable_tool_order
+
+    raw = _real_app_tools(tmp_path)
+    ordered = _stable_tool_order(raw)
+    assert sorted(_names(ordered)) == sorted(_names(raw))
+    group = lambda name: 2 if _is_platform_write(name) else 0 if _in_web_route(name) else 1  # noqa: E731
+    groups = [group(name) for name in _names(ordered)]
+    assert groups == sorted(groups)
+    for g in (0, 1, 2):
+        assert [n for n in _names(ordered) if group(n) == g] == [n for n in _names(raw) if group(n) == g]
+    assert any(group(n) == 2 for n in _names(raw)), "올리기 손이 하나도 없으면 맨 뒤로 보내는 것을 못 본다"
+
+
+def test_the_extra_is_measured_on_what_is_actually_sent() -> None:
+    """올리기 손은 바로 다음에 빠진다 — 그것까지 세어 128K 조사 판을 좁히지 않는다(10-24: 11,434 대 실제 9,397토큰)."""
+    from alture_jarvis.tool_roster import _platform_scoped_tool_definitions
+
+    inside = [_tool(f"browser_tool_{i}") for i in range(80)]
+    outside = [_tool(f"camera_tool_{i}", "x" * 400) for i in range(50)]          # 보내는 차 ≈ 8,600토큰 · 128K 의 6.6%
+    posting = [_tool(f"naver_blog_step_{i}", "x" * 1500) for i in range(10)]     # 말 안 하면 빠지는 손 ≈ 5,300토큰
+    whole = inside + outside + posting
+    scoped = _route_scoped_tool_definitions(whole, web_only=True)
+    said = "책 세 권 쪽수 조사해 줘"
+    sent_whole = _platform_scoped_tool_definitions(whole, said)
+    sent_scoped = _platform_scoped_tool_definitions(scoped, said)
+    assert _route_hands(sent_whole, sent_scoped, window=131_072, refused=0) is not None
+    assert _route_hands(whole, scoped, window=131_072, refused=0) is None, "옛 재기로는 좁혔다 — 이 시험이 보려는 빈칸"
+
+
+def test_the_run_loop_orders_the_list_and_measures_the_sent_lists() -> None:
+    source = inspect.getsource(agent_module.BrowserAgent)
+    assert "_stable_tool_order(self.tools.ollama_tools)" in source
+    assert "_platform_scoped_tool_definitions(available_model_tools, platform_request_text, planned=planned_action_tools)" in source
+    assert '"agent_route_list_narrowed"' in source

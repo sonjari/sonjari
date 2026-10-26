@@ -1,0 +1,45 @@
+/* 「붙인 종이」 문법 — 색 쪽지 · 그림자 · 살짝 기운 종이 (scatterbrain).
+   ★ 글은 기울이지 않는다 — 기운 것은 뒤의 종이(::before)뿐이다. PPTX 는 글을 반듯한 글 상자로 얹기 때문에 글까지 기울이면 어긋난다. */
+.pz-slide .pz-col + .pz-col { border-left: 0; padding-left: 0; margin-left: 0; }
+.pz-slide .pz-grid { gap: 26px; }
+.pz-slide .ir-rule { background: transparent; height: 0; margin: 12px 0 22px; }
+.pz-slide .ir-rule::before { width: 90px; height: 10px; top: -5px; background: var(--pz-hi); transform: rotate(-1.5deg); }
+.pz-slide .ir-src { border-top: 0; }
+.pz-slide .cap-title { border-bottom: 0; }
+
+.pz-slide .pz-text, .pz-slide .pz-steps, .pz-slide .pz-calc, .pz-slide .pz-kv, .pz-slide .pz-table, .pz-slide .pz-bars, .pz-slide .pz-stat:not(.navy),
+.pz-slide .pz-metric, .pz-slide .pz-point, .pz-slide .pz-person, .pz-slide .pz-node, .pz-slide .pz-state .ours, .pz-slide .pz-panel,
+.pz-slide .pz-stat.navy, .pz-slide .pz-bottom {
+  position: relative; isolation: isolate; background: transparent; border: 0; padding: 18px 20px; color: var(--pz-card-ink); }
+.pz-slide .pz-text::before, .pz-slide .pz-steps::before, .pz-slide .pz-calc::before, .pz-slide .pz-kv::before, .pz-slide .pz-table::before,
+.pz-slide .pz-bars::before, .pz-slide .pz-stat::before, .pz-slide .pz-metric::before, .pz-slide .pz-point::before, .pz-slide .pz-person::before,
+.pz-slide .pz-node::before, .pz-slide .pz-state .ours::before, .pz-slide .pz-panel::before, .pz-slide .pz-bottom::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; background: var(--pz-card); border-radius: 2px;
+  box-shadow: 0 6px 14px var(--pz-shadow), 0 1px 2px var(--pz-shadow); transform: rotate(var(--tilt, -0.8deg)); }
+.pz-slide .pz-col:nth-child(2n) > :nth-child(odd), .pz-slide .pz-col:nth-child(2n+1) > :nth-child(even),
+.pz-slide .pz-row > :nth-child(even), .pz-slide .pz-flow-row > :nth-child(4n+3) { --tilt: 0.9deg; }
+.pz-slide .pz-row { gap: 18px; }
+.pz-slide .pz-row > :nth-child(4n+1)::before { background: var(--pz-c1, var(--pz-card)); }
+.pz-slide .pz-row > :nth-child(4n+2)::before { background: var(--pz-c2, var(--pz-card)); }
+.pz-slide .pz-row > :nth-child(4n+3)::before { background: var(--pz-c3, var(--pz-card)); }
+.pz-slide .pz-row > :nth-child(4n+4)::before { background: var(--pz-c4, var(--pz-card)); }
+.pz-slide .pz-node.on::before, .pz-slide .pz-state.on .ours::before, .pz-slide .pz-panel::before, .pz-slide .pz-stat.navy::before,
+.pz-slide .pz-bottom::before { background: var(--pz-accent); }
+.pz-slide .pz-node.on, .pz-slide .pz-state.on .ours, .pz-slide .pz-panel, .pz-slide .pz-stat.navy, .pz-slide .pz-bottom { color: var(--pz-on-accent); }
+/* 테이프 한 조각 — 요점 · 숫자 쪽지 위 */
+.pz-slide .pz-row > *::after { content: ""; position: absolute; top: -9px; left: 50%; width: 64px; height: 18px; margin-left: -32px;
+  background: var(--pz-tape); transform: rotate(-2deg); z-index: 1; }
+.pz-slide .pz-metric:first-child, .pz-slide .pz-point:first-child, .pz-slide .pz-person:first-child { padding-left: 20px; }
+.pz-slide .pz-metric, .pz-slide .pz-point, .pz-slide .pz-person { border-left: 0; }
+.pz-slide .pz-row .label, .pz-slide .pz-row .pz-note, .pz-slide .pz-row .sub, .pz-slide .pz-row .role, .pz-slide .pz-row .n, .pz-slide .pz-row .n small { color: inherit; }
+.pz-slide .pz-row .pz-note, .pz-slide .pz-row .sub { opacity: .8; }
+.pz-slide .pz-arrow::before, .pz-slide .pz-arrow::after { opacity: .7; }
+.pz-slide .pz-shot, .pz-slide .pz-photo-box { background: rgba(255,255,255,.55); }
+
+/* 카드 안 글 색 — 카드 글자색에서 다시 뽑는다(공통 뼈대 끝 설명). 팔레트를 도는 카드는 강조색도 그 글자색을 따른다. */
+.pz-slide :is(.pz-metric, .pz-point, .pz-person, .pz-stat:not(.navy), .pz-text, .pz-steps, .pz-calc, .pz-kv, .pz-table, .pz-bars) {
+  --pz-ink: currentColor; --pz-sub: color-mix(in srgb, currentColor 74%, transparent);
+  --pz-faint: color-mix(in srgb, currentColor 55%, transparent); --pz-line: color-mix(in srgb, currentColor 22%, transparent);
+  --pz-line-strong: currentColor; --pz-key: var(--pz-card-key); }
+.pz-slide .pz-row > :nth-child(4n+2), .pz-slide .pz-row > :nth-child(4n+3), .pz-slide .pz-row > :nth-child(4n+4) { --pz-key: currentColor; }
+.pz-slide .pz-row .n { font-size: 40px; }

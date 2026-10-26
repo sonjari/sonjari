@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>medical_pulse · 医疗专用 · World-Class Mock</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #ffffff;
+    --card-bg: #f0fdfa;
+    --card-border: #4ecdc4;
+    --accent-1: #00b4d8;
+    --accent-2: #4ecdc4;
+    --accent-3: #95e1d3;
+    --cross-red: #e63946;
+    --text-primary: #0a2540;
+    --text-secondary: #5a7a96;
+    --hairline: #e3edf3;
+    --display-font: 'Inter Tight', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --body-font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --mono-font: 'IBM Plex Mono', 'JetBrains Mono', 'Courier New', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 720px; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--body-font);
+    font-feature-settings: 'kern', 'liga', 'ss01', 'cv11', 'calt', 'ccmp';
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    position: relative;
+  }
+
+  .top-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #00b4d8 0%, #4ecdc4 50%, #95e1d3 100%);
+    z-index: 10;
+  }
+
+  .micro-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(10, 37, 64, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(10, 37, 64, 0.025) 1px, transparent 1px);
+    background-size: 64px 64px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .ambient-glow {
+    position: absolute;
+    top: 80px; right: -120px;
+    width: 520px; height: 520px;
+    background: radial-gradient(circle, rgba(78, 205, 196, 0.18) 0%, rgba(149, 225, 211, 0.06) 40%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .stage {
+    position: relative;
+    width: 100%; height: 100%;
+    padding: 56px 80px 40px;
+    display: flex; flex-direction: column;
+    z-index: 2;
+  }
+
+  .top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 38px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .brand-mark {
+    width: 26px; height: 26px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #00b4d8 0%, #4ecdc4 100%);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 14px rgba(0, 180, 216, 0.28);
+  }
+  .brand-mark svg { width: 14px; height: 14px; }
+  .brand-name {
+    font-family: var(--display-font);
+    font-size: 14px; font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--text-primary);
+  }
+  .brand-name span {
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-left: 8px;
+    letter-spacing: 0.02em;
+  }
+
+  .meta-row {
+    display: flex; align-items: center; gap: 22px;
+    font-family: var(--mono-font);
+    font-size: 10.5px;
+    color: var(--text-secondary);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  .meta-row .dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--accent-2);
+  }
+  .cross-badge {
+    width: 28px; height: 28px;
+    background: var(--accent-2);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(78, 205, 196, 0.32);
+    margin-left: 6px;
+  }
+  .cross-badge::before {
+    content: '';
+    position: absolute;
+    width: 14px; height: 3px;
+    background: #ffffff;
+    border-radius: 1px;
+  }
+  .cross-badge::after {
+    content: '';
+    position: absolute;
+    width: 3px; height: 14px;
+    background: #ffffff;
+    border-radius: 1px;
+  }
+  .cross-badge { position: relative; }
+
+  .label {
+    font-family: var(--body-font);
+    font-size: 11px;
+    color: var(--accent-1);
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 10px;
+    margin-bottom: 18px;
+  }
+  .label .pulse {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent-1);
+    box-shadow:
+      0 0 0 4px rgba(0, 180, 216, 0.16),
+      0 0 12px rgba(0, 180, 216, 0.5);
+  }
+  .label .sep {
+    width: 18px; height: 1px;
+    background: var(--accent-2);
+    opacity: 0.6;
+  }
+
+  .headline {
+    font-family: var(--display-font);
+    font-size: 44px; font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.04;
+    color: var(--text-primary);
+    margin-bottom: 18px;
+  }
+  .headline .accent {
+    color: var(--accent-1);
+  }
+
+  .deck {
+    font-family: var(--body-font);
+    font-size: 15.5px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    max-width: 640px;
+    letter-spacing: -0.005em;
+    font-weight: 400;
+  }
+
+  .ecg-zone {
+    position: relative;
+    margin-top: 40px;
+    height: 92px;
+    display: flex; align-items: center;
+  }
+  .ecg-zone .ecg-baseline {
+    position: absolute;
+    left: 0; right: 0; top: 50%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(0, 180, 216, 0.18) 12%, rgba(0, 180, 216, 0.18) 88%, transparent 100%);
+  }
+  .ecg-zone svg.ecg {
+    position: relative;
+    width: 100%;
+    height: 80px;
+    display: block;
+  }
+  .ecg-zone .bpm-tag {
+    position: absolute;
+    right: 4px; top: 4px;
+    display: flex; align-items: baseline; gap: 6px;
+    font-family: var(--mono-font);
+    color: var(--text-secondary);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  .ecg-zone .bpm-tag .v {
+    font-family: var(--display-font);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent-1);
+    letter-spacing: -0.02em;
+  }
+  .ecg-zone .lead-tag {
+    position: absolute;
+    left: 4px; top: 4px;
+    font-family: var(--mono-font);
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .stat-card {
+    position: relative;
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 18px 18px 16px 22px;
+    border-left: 3px solid var(--accent-2);
+    box-shadow: 0 1px 0 rgba(10, 37, 64, 0.04), 0 6px 18px rgba(78, 205, 196, 0.08);
+  }
+  .stat-card .stat-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .stat-card .stat-tag {
+    font-family: var(--mono-font);
+    font-size: 9.5px;
+    color: var(--text-secondary);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-card .stat-icon {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent-1);
+    box-shadow: 0 0 0 3px rgba(0, 180, 216, 0.14);
+  }
+  .stat-card .num-row {
+    display: flex; align-items: baseline; gap: 4px;
+    margin-bottom: 8px;
+  }
+  .stat-card .num {
+    font-family: var(--display-font);
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-card .unit {
+    font-family: var(--display-font);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-1);
+    letter-spacing: -0.01em;
+  }
+  .stat-card .desc {
+    font-family: var(--body-font);
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    line-height: 1.45;
+    letter-spacing: -0.003em;
+  }
+  .stat-card .desc strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .footer {
+    position: absolute;
+    bottom: 18px; left: 80px; right: 80px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--body-font);
+    font-size: 10px;
+    color: var(--text-secondary);
+    opacity: 0.65;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    z-index: 3;
+  }
+  .footer .right {
+    font-family: var(--mono-font);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.14em;
+  }
+
+  .corner-marker {
+    position: absolute;
+    bottom: 44px; right: 80px;
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono-font);
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  .corner-marker .live {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--cross-red);
+    box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.18);
+  }
+</style>
+</head>
+<body>
+  <div class="top-bar"></div>
+  <div class="micro-grid"></div>
+  <div class="ambient-glow"></div>
+
+  <div class="stage">
+    <div class="top">
+      <div class="brand">
+        <div class="brand-mark">
+          <svg viewBox="0 0 14 14" fill="none">
+            <path d="M2 7 L5 7 L6 4 L8 10 L9 7 L12 7" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="brand-name">
+          PulseMed AI<span>Cardiac Intelligence Platform</span>
+        </div>
+      </div>
+      <div class="meta-row">
+        <span>HIPAA · CE · NMPA</span>
+        <span class="dot"></span>
+        <span>R 2026.05</span>
+        <div class="cross-badge"></div>
+      </div>
+    </div>
+
+    <div class="label">
+      <span class="pulse"></span>
+      CARDIO
+      <span class="sep"></span>
+      CARE
+    </div>
+
+    <h1 class="headline">
+      精准数字心血管<br>
+      <span class="accent">预警系统</span>
+    </h1>
+
+    <p class="deck">
+      基于 AI 的早期筛查与个性化干预，把风险拦截在发病之前 —— 单导联 ECG 12 秒完成<br>
+      心律失常、心肌缺血、传导阻滞等 47 类异常的实时分级与可解释报告。
+    </p>
+
+    <div class="ecg-zone">
+      <div class="ecg-baseline"></div>
+      <span class="lead-tag">Lead II · 25 mm/s</span>
+      <div class="bpm-tag">
+        <span class="v">72</span>
+        <span>BPM</span>
+      </div>
+      <svg class="ecg" viewBox="0 0 1120 80" preserveAspectRatio="none">
+        <polyline
+          points="0,40 80,40 92,40 100,34 108,46 116,40 180,40 188,38 196,42 204,40 230,40 238,18 246,62 254,22 262,40 340,40 348,40 356,34 364,46 372,40 440,40 448,38 456,42 464,40 490,40 498,14 506,68 514,18 522,40 600,40 608,40 616,34 624,46 632,40 700,40 708,38 716,42 724,40 750,40 758,16 766,64 774,20 782,40 860,40 868,40 876,34 884,46 892,40 960,40 968,38 976,42 984,40 1010,40 1018,18 1026,62 1034,22 1042,40 1120,40"
+          fill="none" stroke="#00b4d8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline
+          points="0,40 1120,40"
+          fill="none" stroke="rgba(0,180,216,0.06)" stroke-width="0.5"/>
+      </svg>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-head">
+          <span class="stat-tag">DIAGNOSTIC</span>
+          <span class="stat-icon"></span>
+        </div>
+        <div class="num-row">
+          <span class="num">98.4</span>
+          <span class="unit">%</span>
+        </div>
+        <div class="desc"><strong>检出准确率</strong>，对标三甲心内科主任医师双盲读图</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-head">
+          <span class="stat-tag">SCAN TIME</span>
+          <span class="stat-icon"></span>
+        </div>
+        <div class="num-row">
+          <span class="num">12</span>
+          <span class="unit">s</span>
+        </div>
+        <div class="desc"><strong>平均扫描时长</strong>，单导联 ECG 端到端推理 + 可解释报告</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-head">
+          <span class="stat-tag">EVIDENCE</span>
+          <span class="stat-icon"></span>
+        </div>
+        <div class="num-row">
+          <span class="num">2,400</span>
+          <span class="unit">+</span>
+        </div>
+        <div class="desc"><strong>临床案例</strong>，覆盖 36 家三甲医院多中心前瞻性研究</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-head">
+          <span class="stat-tag">REGULATORY</span>
+          <span class="stat-icon"></span>
+        </div>
+        <div class="num-row">
+          <span class="num">47</span>
+          <span class="unit">国</span>
+        </div>
+        <div class="desc"><strong>FDA / CE 认证</strong>，符合 IEC 62304 医疗软件生命周期标准</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="corner-marker">
+    <span class="live"></span>
+    LIVE · SR 250 Hz
+  </div>
+
+  <div class="footer">
+    <span>PART 02 — CARDIAC AI · MMXXVI</span>
+    <span class="right">03 / 14  ·  PULSEMED</span>
+  </div>
+</body>
+</html>

@@ -19,6 +19,9 @@ dependencies = [
   "python-docx>=1.2.0",
   "openpyxl>=3.1.5",
   "python-pptx>=1.0.2",
+  # ★ 장표 글꼴(2026-10-26 대표 허락): woff2 글꼴을 풀어 PPTX 에 심고, 무거운 ttf 를 woff2 로 줄인다. requirements.txt 에도 같이.
+  "brotli>=1.1.0",
+  "fonttools>=4.50",
   "charset-normalizer>=3.4.0",
   # ★ 한글(HWPX) 읽기·쓰기. **여기 없으면 갱신으로는 영영 안 깔린다**
   #   (2026-09-12). `apply_update.ps1` 은 `pip install -e .` 만 돌리므로

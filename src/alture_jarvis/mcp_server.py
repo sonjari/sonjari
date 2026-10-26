@@ -584,6 +584,8 @@ class JarvisMcpBridge:
                                 ("원격 연결로는 아직 코드 일(repo · check)을 받지 않습니다. 집 PC 에서 맡기거나, "
                                  "조사 · 문서 일로 바꿔 맡겨 주세요.")), True
                     body["via"] = "remote"
+                elif self.via == "app":
+                    body["via"] = "app"
                 # 코드 일의 칸 둘 — 저장소와 확인 명령. 서버가 가지를 만들고 그 명령으로 끝을 가른다(`delegated_branch`).
                 if str(arguments.get("repo") or "").strip() or str(arguments.get("check") or "").strip():
                     body["delegated_repo"] = str(arguments.get("repo") or "").strip()[:1000]
@@ -815,6 +817,8 @@ async def _run() -> None:
         tool_filter=ToolFilter.from_env(),
         # 연결을 켤 때 한 번 정한다 — 앱에서 고른 화면 언어, 손자리가 아직 안 떴으면 윈도우 언어(`mcp_language`).
         lang=pick_language(base_url, token),
+        # 앱 안 Claude Agent 가 띄운 연결이면 "app" — 그 판은 사람이 손자리 창을 보고 있다(결 · 이야기판을 기다린다, 2026-10-26).
+        via="app" if os.environ.get("JARVIS_MCP_VIA", "").strip().lower() == "app" else "",
     )
     if not bridge.token:
         # stderr 로 낸다. stdout 은 JSON-RPC 전용이라 한 글자라도 섞이면 프로토콜이 깨진다.

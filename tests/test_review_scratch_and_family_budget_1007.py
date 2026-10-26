@@ -82,7 +82,7 @@ def test_a_new_module_the_review_fix_depends_on_is_kept(tmp_path: Path) -> None:
 def test_the_run_loop_removes_them_through_the_delete_tool_and_says_so() -> None:
     source = inspect.getsource(agent_module.BrowserAgent.run)
     clean = source.index("for scratch_path in _review_scratch_files(steps, code_review_requested_step, asked):")
-    paint = source.index('if origin == "workspace":\n            paint_answer_apart(self.events, job_id, answer)')
+    paint = source.index('if origin == "workspace":\n            paint_answer_apart(self.events, job_id, painted)')
     assert clean < paint, "답을 내놓기 전에 치우고, 치웠다는 말이 그 답에 실린다"
     block = source[clean: clean + 1100]
     assert 'self.gateway.execute("local_delete_file", {"path": scratch_path}, job_id=job_id)' in block, "도구로 지운다 — 백업이 남는다"

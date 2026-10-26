@@ -1,0 +1,145 @@
+/* 장표 배치 뼈대 — 모든 결이 같이 쓴다 (2026-10-25).
+ * 1280×720 한 장. 글자 크기는 전부 em(장 기본 20px) — 넘치면 굽기 전에 장 기본 크기 하나만 줄여 맞춘다(slides.FIT_JS).
+ * 색 · 글꼴 · 면은 결 파일이 정한다. 여기는 자리 · 크기 · 간격만.
+ * 배치 문법(큰 색 면 · 크기 다른 칸 · 가는 선 · 아주 큰 숫자)은 beautiful-html-templates(MIT · Zara Zhang)를 보고 우리 말로 새로 썼다.
+ */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; width: 1280px; height: 720px; overflow: hidden; background: var(--paper); }
+body { font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; }
+section {
+  position: relative; width: 1280px; height: 720px; overflow: hidden;
+  padding: 64px 76px 70px; font-size: 20px; line-height: 1.5;
+  background: var(--paper); color: var(--ink);
+  word-break: keep-all; overflow-wrap: break-word;
+  display: flex; flex-direction: column;
+}
+h1, h2, h3, p, ul, ol, blockquote, table, figure { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+b, strong { font-weight: 700; }
+h1, h2, h3, blockquote { text-wrap: balance; }
+
+/* 공통 글자 사다리 — 꼬리말 0.8 · 본문 1 · 소제목 1.4 · 장 제목 2.6 · 표지 5 · 주인공 숫자 9 */
+.kicker { font-size: 0.8em; font-weight: 700; letter-spacing: 0.02em; color: var(--accent-text); margin-bottom: 14px; }
+h2 { font-family: var(--display); font-weight: var(--display-weight); font-size: 2.6em; line-height: 1.12; letter-spacing: -0.025em; color: var(--title); max-width: 1000px; }
+h3 { font-size: 1.3em; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
+.lede { font-size: 1.15em; line-height: 1.55; color: var(--ink-soft); max-width: 760px; }
+.note { font-size: 0.75em; color: var(--ink-faint); margin-top: auto; padding-top: 14px; }
+em.hi, .hi { font-style: normal; color: var(--accent-text); }
+
+/* 쪽 표시 — 굽기 전에 우리가 넣는다(모델은 쓰지 않는다) */
+.folio { position: absolute; left: 76px; right: 76px; bottom: 26px; display: flex; justify-content: space-between;
+  font-size: 13px; color: var(--folio, var(--ink-faint)); letter-spacing: 0.02em; }
+
+/* ── 1. 표지 cover ─────────────────────────────── */
+section.cover { justify-content: flex-end; padding-bottom: 88px; }
+.cover h1 { font-family: var(--display); font-weight: var(--display-weight); font-size: 5em; line-height: 1.04; letter-spacing: -0.035em; max-width: 1050px; color: var(--title); }
+.cover .lede { margin-top: 26px; }
+.cover .meta { display: flex; gap: 56px; margin-top: 44px; padding-top: 20px; border-top: 2px solid var(--rule-strong); }
+.meta > div { display: flex; flex-direction: column; gap: 2px; }
+.meta b { font-size: 1.1em; }
+.meta span { font-size: 0.75em; color: var(--ink-faint); }
+
+/* ── 2. 장 넘김 section ─────────────────────────── */
+section.section { flex-direction: row; align-items: stretch; padding: 0; }
+.section .big { width: 46%; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: var(--display-weight);
+  font-size: 13em; line-height: 0.9; letter-spacing: -0.05em; background: var(--field); color: var(--field-ink); }
+.section .side { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 64px 76px; }
+.section .side h2 { font-size: 3em; }
+.section .side .lede { margin-top: 22px; }
+
+/* ── 3. 한 문장 statement ───────────────────────── */
+section.statement { justify-content: center; padding: 80px 110px; }
+.statement blockquote { font-family: var(--quote); font-weight: var(--quote-weight); font-size: 3.6em; line-height: 1.3; letter-spacing: -0.02em; max-width: 1040px; }
+.statement .by { margin-top: 34px; font-size: 0.9em; opacity: 0.8; }
+
+/* ── 4. 큰 숫자 bignum ─────────────────────────── */
+section.bignum h2 { font-size: 2.2em; max-width: 900px; }
+.bignum .hero { flex: 1; display: flex; align-items: flex-end; gap: 48px; }
+.bignum .num { font-family: var(--figure); font-weight: var(--figure-weight); font-size: 10em; line-height: 0.86; letter-spacing: -0.05em; color: var(--accent-text); white-space: nowrap; }
+.bignum .num small { font-size: 0.3em; letter-spacing: 0; margin-left: 8px; }
+.bignum .was { font-family: var(--figure); font-size: 3.4em; line-height: 1; color: var(--ink-faint); white-space: nowrap; padding-bottom: 14px; text-decoration: line-through; text-decoration-thickness: 3px; }
+.bignum .desc { max-width: 380px; font-size: 1.05em; color: var(--ink-soft); padding-bottom: 14px; }
+
+/* ── 5. 숫자 띠 stats ─────────────────────────── */
+.stats .row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin-top: auto; border-top: 2px solid var(--rule-strong); }
+.stat { padding: 30px 28px 6px 0; display: flex; flex-direction: column; border-right: 1px solid var(--rule); margin-right: 28px; }
+.stat:last-child { border-right: 0; margin-right: 0; }
+.stat .v { font-family: var(--figure); font-weight: var(--figure-weight); font-size: 6.4em; line-height: 1; letter-spacing: -0.035em; white-space: nowrap; }
+.stat .k { margin-top: 18px; font-weight: 700; font-size: 1.15em; }
+.stat .d { margin-top: 6px; font-size: 0.95em; color: var(--ink-soft); }
+.stat.on .v { color: var(--accent-text); }
+
+/* ── 6. 맞대기 compare ─────────────────────────── */
+.compare .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: auto; min-height: 360px; }
+.compare .col { padding: 32px 36px 36px; background: var(--surface); color: var(--ink); display: flex; flex-direction: column; justify-content: space-between; gap: 18px; }
+.compare .col.on { background: var(--field); color: var(--field-ink); }
+.compare .col h3 { font-size: 2.1em; line-height: 1.2; }
+.compare ul { display: flex; flex-direction: column; gap: 10px; }
+.compare li { position: relative; padding-left: 24px; font-size: 1.2em; line-height: 1.45; }
+.compare li::before { content: ""; position: absolute; left: 0; top: 0.62em; width: 10px; height: 2px; background: currentColor; opacity: 0.7; }
+
+/* ── 7. 흐름 steps ─────────────────────────────── */
+.steps ol { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; margin-top: auto; counter-reset: step; }
+.steps li { counter-increment: step; position: relative; padding: 0 26px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.steps li::before { content: counter(step); font-family: var(--figure); font-weight: var(--figure-weight); font-size: 6em; line-height: 0.9; letter-spacing: -0.04em; color: var(--accent-text); padding-bottom: 20px; margin-bottom: 10px; border-bottom: 2px solid var(--rule-strong); }
+.steps li.on::before { color: var(--field-ink); background: var(--field); padding: 16px 18px 20px; margin: -16px 8px 10px -18px; border-bottom-color: transparent; }
+.steps li b { font-size: 1.4em; line-height: 1.3; }
+.steps li span { font-size: 1em; color: var(--ink-soft); min-height: 4.5em; }
+
+/* ── 8. 막대 bars ─────────────────────────────── */
+.bars .chart { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 18px; margin-top: 26px; }
+.bar { display: grid; grid-template-columns: 230px 1fr 150px; align-items: center; gap: 22px; }
+.bar .name { font-weight: 700; text-align: right; line-height: 1.25; }
+.bar .name small { display: block; font-weight: 400; font-size: 0.72em; color: var(--ink-faint); }
+.bar i { display: block; height: 40px; background: var(--track); position: relative; }
+.bar i::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--v, 50%); min-width: 4px; background: var(--bar); }
+.bar.on i::after { background: var(--accent); }
+.bar .val { font-family: var(--figure); font-weight: var(--figure-weight); font-size: 1.6em; letter-spacing: -0.02em; white-space: nowrap; }
+.bar.on .val { color: var(--accent-text); }
+
+/* ── 9. 표 table ─────────────────────────────── */
+.table table { margin: auto 0; width: 100%; border-collapse: collapse; font-size: 1.12em; }
+.table th { text-align: left; font-size: 0.8em; font-weight: 700; padding: 14px 20px; background: var(--field); color: var(--field-ink); }
+.table td { padding: 20px 20px; border-bottom: 1px solid var(--rule); line-height: 1.35; }
+.table tr.on td { background: var(--surface); font-weight: 700; }
+.table td:first-child { font-weight: 700; }
+
+/* ── 10. 반반 split ─────────────────────────────── */
+section.split { flex-direction: row; padding: 0; }
+.split .lead { width: 42%; padding: 64px 52px 70px 76px; background: var(--field); color: var(--field-ink); display: flex; flex-direction: column; justify-content: flex-end; }
+.split .lead .kicker { color: var(--field-kicker); }
+.split .lead h2 { color: var(--field-ink); font-size: 2.7em; }
+.split .body { flex: 1; padding: 64px 76px 70px 56px; display: flex; flex-direction: column; justify-content: center; gap: 22px; }
+.split .body li { padding: 20px 0; font-size: 1.08em; border-bottom: 1px solid var(--rule); line-height: 1.5; }
+.split .body li:first-child { border-top: 2px solid var(--rule-strong); }
+.split .body li b { display: block; font-size: 1.3em; margin-bottom: 4px; }
+
+/* ── 11. 크기 다른 칸 tiles ─────────────────────── */
+.tiles .grid { flex: 1; display: grid; grid-template-columns: 1.45fr 1fr 1fr; grid-auto-rows: 1fr; gap: 16px; margin-top: 28px; }
+.tile { padding: 24px 26px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; background: var(--surface); color: var(--ink); min-height: 0; }
+.tile b { font-size: 1.3em; line-height: 1.25; }
+.tile span { font-size: 0.85em; opacity: 0.86; }
+.tile:first-child { grid-row: span 2; background: var(--field); color: var(--field-ink); }
+.tile:first-child b { font-size: 2.1em; line-height: 1.2; }
+.tile:nth-child(3), .tile:nth-child(4) { background: var(--tile-b); color: var(--tile-b-ink); }
+.tiles .grid:has(> .tile:nth-child(2):last-child) { grid-template-columns: 1.3fr 1fr; }
+.tiles .grid:has(> .tile:nth-child(2):last-child) .tile:first-child { grid-row: span 1; }
+
+/* ── 12. 마무리 closing ─────────────────────────── */
+section.closing { justify-content: center; padding: 80px 110px; }
+.closing h2 { font-size: 3.6em; line-height: 1.12; max-width: 1050px; }
+.closing .lede { margin-top: 26px; }
+.closing .meta { display: flex; gap: 56px; margin-top: 54px; padding-top: 20px; border-top: 2px solid var(--rule-strong); }
+
+/* 색 면 장 — 결이 정한 「면」 바탕으로 뒤집는다. 결마다 기본으로 면인 배치가 있고, 모델은 .alt 로 바꿀 수 있다 */
+section.field { background: var(--field); color: var(--field-ink); --title: var(--field-ink); --accent-text: var(--field-accent); --accent: var(--field-accent); --ink-soft: var(--field-soft);
+  --ink-faint: var(--field-faint); --rule: var(--field-rule); --rule-strong: var(--field-ink); --surface: var(--field-surface); --track: var(--field-track);
+  --bar: var(--field-bar); --folio: var(--field-faint); }
+section.field .kicker { color: var(--field-kicker); }
+
+/* 칸 수에 맞춘 짜임 — 셋이면 한 줄, 넷이면 넷째 칸이 아래를 가로로 채운다(빈 칸이 남지 않게) */
+.tiles .grid:has(> .tile:nth-child(3):last-child) { grid-template-columns: 1.4fr 1fr 1fr; }
+.tiles .grid:has(> .tile:nth-child(3):last-child) .tile:first-child { grid-row: span 1; }
+.tiles .grid:has(> .tile:nth-child(4):last-child) .tile:nth-child(4) { grid-column: span 2; }
+.stats .row:has(> .stat:nth-child(4)) .stat .v { font-size: 4.6em; }
+.stats .row:has(> .stat:nth-child(4)) .stat { padding-right: 18px; margin-right: 18px; }

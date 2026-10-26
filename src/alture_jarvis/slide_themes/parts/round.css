@@ -1,0 +1,42 @@
+/* 「둥근 칸」 문법 — 테두리 두른 둥근 카드 · 알약 꼬리표 · 부드러운 칠 (editorial-forest · editorial-tri-tone · daisy-days).
+   선으로 나누지 않고 카드로 담는다. 카드 바탕은 결의 팔레트를 돌고, 테두리 · 그림자는 결 값을 따른다. */
+.pz-slide .pz-col + .pz-col { border-left: 0; padding-left: 0; margin-left: 0; }
+.pz-slide .pz-grid { gap: 20px; }
+.pz-slide .ir-rule { background: transparent; height: 0; margin: 14px 0 20px; }
+.pz-slide .ir-rule::before { width: 64px; height: 6px; top: -3px; border-radius: 3px; background: var(--pz-key); }
+.pz-slide .ir-src { border-top: 0; }
+.pz-slide .cap-title { border-bottom: 0; padding-bottom: 0; }
+.pz-slide .label { display: inline-block; align-self: flex-start; padding: 3px 10px; border-radius: 999px; background: var(--pz-fill-2); color: var(--pz-fill-2-ink); }
+
+/* 카드로 담는 부품 */
+.pz-slide .pz-text, .pz-slide .pz-steps, .pz-slide .pz-calc, .pz-slide .pz-kv, .pz-slide .pz-table, .pz-slide .pz-bars, .pz-slide .pz-stat:not(.navy) {
+  padding: 18px 20px; background: var(--pz-card); color: var(--pz-card-ink); border: var(--pz-card-border); border-radius: var(--pz-radius);
+  box-shadow: var(--pz-card-shadow); }
+.pz-slide .pz-row { gap: 12px; }
+.pz-slide .pz-metric, .pz-slide .pz-point, .pz-slide .pz-person {
+  padding: 18px 18px 16px; background: var(--pz-card); color: var(--pz-card-ink); border: var(--pz-card-border); border-radius: var(--pz-radius);
+  box-shadow: var(--pz-card-shadow); }
+.pz-slide .pz-metric:first-child, .pz-slide .pz-point:first-child, .pz-slide .pz-person:first-child { padding-left: 18px; border-left: var(--pz-card-border); }
+.pz-slide .pz-row > :nth-child(4n+2) { background: var(--pz-c2, var(--pz-card)); color: var(--pz-c2-ink, var(--pz-card-ink)); }
+.pz-slide .pz-row > :nth-child(4n+3) { background: var(--pz-c3, var(--pz-card)); color: var(--pz-c3-ink, var(--pz-card-ink)); }
+.pz-slide .pz-row > :nth-child(4n+4) { background: var(--pz-c4, var(--pz-card)); color: var(--pz-c4-ink, var(--pz-card-ink)); }
+.pz-slide .pz-row .pz-note, .pz-slide .pz-row .sub, .pz-slide .pz-row .role, .pz-slide .pz-row .n, .pz-slide .pz-row .n small,
+.pz-slide .pz-text .pz-note, .pz-slide .pz-stat .pz-note { color: inherit; }
+.pz-slide .pz-row .pz-note, .pz-slide .pz-row .sub { opacity: .78; }
+.pz-slide .pz-stat .n { color: var(--pz-card-key, var(--pz-key)); }
+.pz-slide .pz-node, .pz-slide .pz-state .ours, .pz-slide .pz-stage-grid .stage, .pz-slide .pz-panel, .pz-slide .pz-stat.navy, .pz-slide .pz-bottom {
+  border: var(--pz-card-border); box-shadow: var(--pz-card-shadow); }
+.pz-slide .pz-stage-grid .stage { border-radius: var(--pz-radius); border-top-width: var(--pz-stroke); }
+.pz-slide .pz-table table { border-collapse: separate; border-spacing: 0; }
+.pz-slide .pz-table tr.us td:first-child { border-radius: 10px 0 0 10px; }
+.pz-slide .pz-table tr.us td:last-child { border-radius: 0 10px 10px 0; }
+.pz-slide .pz-shot, .pz-slide .pz-photo-box { border-radius: calc(var(--pz-radius) * .7); }
+.pz-slide .pz-bar i { border-radius: 8px 8px 0 0; }
+
+/* 카드 안 글 색 — 카드 글자색에서 다시 뽑는다(공통 뼈대 끝 설명). 팔레트를 도는 카드는 강조색도 그 글자색을 따른다. */
+.pz-slide :is(.pz-metric, .pz-point, .pz-person, .pz-stat:not(.navy), .pz-text, .pz-steps, .pz-calc, .pz-kv, .pz-table, .pz-bars) {
+  --pz-ink: currentColor; --pz-sub: color-mix(in srgb, currentColor 74%, transparent);
+  --pz-faint: color-mix(in srgb, currentColor 55%, transparent); --pz-line: color-mix(in srgb, currentColor 22%, transparent);
+  --pz-line-strong: currentColor; --pz-key: var(--pz-card-key); }
+.pz-slide .pz-row > :nth-child(4n+2), .pz-slide .pz-row > :nth-child(4n+3), .pz-slide .pz-row > :nth-child(4n+4) { --pz-key: currentColor; }
+.pz-slide .pz-row .n { font-size: 40px; }

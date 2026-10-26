@@ -87,7 +87,7 @@ class ChatRequest(BaseModel):
     caller: str = Field(default="", max_length=80)
     # 어느 문으로 들어왔나 (2026-10-21 원격 첫 판) — "remote" 는 노트북 등에서 테일스케일로 들어온 판(`remote_gateway`).
     #   모르는 칸은 조용히 버려지므로 칸을 둬야 잡 기록(payload)에 남는다. 영수증 · 화면이 원격 판을 가른다.
-    via: Literal["", "remote"] = ""
+    via: Literal["", "remote", "app"] = ""
     # ★ 바깥 AI 가 **코드 일**을 맡길 때의 칸 둘 (2026-10-09). 저장소(또는 그 안의 폴더)와, 끝을 가르는 확인 명령.
     #   서버가 그 저장소의 새 가지를 만들어 거기서 일하게 하고(`delegated_branch.prepare`), 과제 글에서 요구를 뽑는 대신
     #   그 명령으로 끝을 가른다. 폴더는 **이미 허락된 자리**여야 한다 — 바깥 AI 가 넘긴 경로로 범위를 넓히지 않는다.
@@ -179,7 +179,8 @@ class GenericJobRequest(BaseModel):
 
 class ScheduleRequest(BaseModel):
     title: str = Field(default="예약 작업", min_length=1, max_length=200)
-    prompt: str = Field(min_length=1, max_length=12000)
+    # 루틴 예약(아래 `routine`)은 prompt 가 없어도 된다 — 비면 스케줄러가 한 줄 설명을 만든다. 둘 다 없으면 스케줄러가 거절한다.
+    prompt: str = Field(default="", max_length=12000)
     run_at: str | float | None = None
     delay_minutes: float | None = Field(default=None, gt=0, le=525600)
     session_id: str = Field(default="office-main", min_length=1, max_length=80)
@@ -191,6 +192,9 @@ class ScheduleRequest(BaseModel):
     #   갈래가 없음, 분류표에 없음). **새 인자를 만들면 그것을 받는 문을 전부 세어라.**
     repeat_every: str = Field(default="none", max_length=16)
     deliver_to: str | list[str] = Field(default="")
+    # 2026-10-23 「루틴」 종류 — 모델 없이 레시피 주소로 받아 칸만 읽는다(`routine.py` · 전략안 §55-39).
+    #   {recipe, query, region} 만. 주소 칸은 없다(있으면 스케줄러가 거절한다).
+    routine: dict[str, Any] | None = None
 
 
 class PresenceRequest(BaseModel):
@@ -640,6 +644,36 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def conversations(limit: int = 50) -> list[dict[str, Any]]:
         return runtime.memory.list_sessions(limit=limit)
 
+    @app.get("/v1/conversation-titles", dependencies=[Depends(require_token)])
+    def conversation_titles(limit: int = 300) -> dict[str, Any]:
+        """지은 대화 제목 전부 — 화면 저장소에만 있는 Claude 대화도 본체에 저장된 같은 제목을 받는다(2026-10-26)."""
+        return {"items": runtime.memory.titles(limit=limit)}
+
+    @app.post("/v1/conversations/{session_id}/auto-title", dependencies=[Depends(require_token)])
+    def conversation_auto_title(session_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """서버에 글이 없는 대화(Claude Agent)의 첫 답이 끝났다 — 손자리가 쉴 때 내 PC 모델이 제목을 짓는다(`runtime._title_soon`).
+
+        다 지으면 `conversation_titled` 사건이 간다. 이미 제목이 있으면(사람이 바꿨거나 지었으면) 그대로 돌려준다.
+        """
+        existing = runtime.memory.title_of(session_id).get("title", "")
+        if existing:
+            return {"scheduled": False, "title": existing}
+        user = str(body.get("user") or "")[:4000]
+        answer = str(body.get("answer") or "")[:4000]
+        if not user.strip():
+            raise HTTPException(status_code=400, detail="user 가 비어 있습니다.")
+        return {"scheduled": runtime._title_soon(session_id, user, answer, force=True), "title": ""}
+
+    @app.post("/v1/conversations/{session_id}/title", dependencies=[Depends(require_token)])
+    def conversation_rename(session_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """사람이 대화 이름을 바꾼다 — 그 뒤로는 모델이 덮지 않는다(`MemoryStore.set_title` source=person)."""
+        title = str(body.get("title") or "")
+        if not runtime.memory.set_title(session_id, title, source="person"):
+            raise HTTPException(status_code=400, detail="제목이 비어 있습니다.")
+        saved = runtime.memory.title_of(session_id)
+        runtime.events.publish("conversation_titled", {"session_id": session_id, "title": saved.get("title", "")})
+        return {"ok": True, **saved}
+
     @app.delete("/v1/conversations/{session_id}", dependencies=[Depends(require_token)])
     def delete_conversation(session_id: str) -> dict[str, Any]:
         """대화 하나를 지운다(목록에서 사라진다). 사실 서랍은 그대로 둔다 — `MemoryStore.delete_session`."""
@@ -1073,6 +1107,45 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             return view.take_control()
         return view.release_control(str(body.get("reason") or "button")[:40])
 
+    @app.get("/v1/slides/fonts/{rel:path}")
+    def slide_font(rel: str) -> Response:
+        """장표 미리보기 칸이 쓰는 앱 글꼴(2026-10-26). 장 HTML 은 글꼴을 `FONT_ORIGIN` 주소로 적는데, 미리보기 칸(iframe)은 그 주소를
+        모른다 — 화면이 이 주소로 바꿔 넣는다. 목록(`fonts.json`)에 있는 글꼴 파일만 준다(OFL 글꼴 · 비밀 아님 · 토큰 없이).
+        미리보기 칸은 출처 없는 문서(sandbox)라 글꼴 요청이 다른 출처로 보여 CORS 를 연다."""
+        from .slides_style import FONT_ORIGIN, font_file
+
+        path = font_file(f"{FONT_ORIGIN}/{rel}")
+        if path is None:
+            raise HTTPException(status_code=404, detail="font_not_listed")
+        kind = "font/woff2" if path.suffix == ".woff2" else "font/ttf"
+        return Response(content=path.read_bytes(), media_type=kind,
+                        headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "max-age=86400"})
+
+    @app.post("/v1/slides/answer", dependencies=[Depends(require_token)])
+    def slides_answer(body: dict[str, Any]) -> dict[str, Any]:
+        # 장표 같이 만들기(2026-10-25): 사람이 컴퓨터 칸에서 고른 결 · 고친 이야기판 · 남긴 한마디 · 멈춤.
+        from .slides import safe_title
+
+        try:
+            return runtime.local_computer.deck_inbox.post(
+                str(body.get("job_id") or "")[:80], safe_title(str(body.get("title") or "")),
+                str(body.get("kind") or ""), body.get("value"))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/v1/slides/photo", dependencies=[Depends(require_token)])
+    def slides_photo(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        # 장표 사진 넣기(2026-10-25): 사람이 컴퓨터 칸의 사진 자리에 끌어다 놓은 사진. 이 PC 화면에서만 받는다.
+        client = request.client.host if request.client else ""
+        if client not in {"127.0.0.1", "::1", "localhost"}:
+            return {"ok": False, "error": "not_this_pc"}
+        try:
+            return runtime.local_computer.deck_put_photo(
+                str(body.get("job_id") or "")[:80], str(body.get("title") or ""), int(body.get("index") or 0),
+                str(body.get("slot") or "")[:8], str(body.get("data") or ""))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.post("/v1/browser/live/fit", dependencies=[Depends(require_token)])
     def browser_live_fit(body: dict[str, Any]) -> dict[str, Any]:
         return runtime.browser.live_view.fit(body.get("width"), body.get("height"))
@@ -1322,13 +1395,42 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         if _busy():
             return {"ok": False, "error": "busy"}
         def _measure_then_rewatch() -> None:
-            setup_service.measure_context_ceiling(tag, busy=_busy)
+            # 재는 동안 서기 · 앞부분 데우기가 같은 모델을 다른 창으로 부르지 않게 한다(`ollama.hold_background` 머리말 · 10-25).
+            with runtime.ollama.hold_background():
+                setup_service.measure_context_ceiling(tag, busy=_busy)
             context_watch_state["last"] = None  # 새 기준점이 생겼다 — 옛 「바뀌었다」를 들고 있지 않는다
 
         worker = threading.Thread(
             target=_measure_then_rewatch,
             name="ontelic-context-ceiling", daemon=True,
         )
+        context_probe["thread"] = worker
+        worker.start()
+        return {"ok": True, "started": True}
+
+    @app.post("/v1/setup/context/squeeze", dependencies=[Depends(require_token)])
+    def setup_context_squeeze(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        """잰 상한과 그 위 첫 불합격 칸 사이를 두 번 더 올려 본다(`squeeze_context_ceiling` · 10-25)."""
+        from .model_setup import read_ceilings, squeeze_gap
+
+        tag = str((body or {}).get("model") or "") or str(runtime.config.model_for("chat") or "")
+        thread = context_probe["thread"]
+        if thread is not None and thread.is_alive():
+            return {"ok": False, "error": "already_measuring"}
+        if _busy():
+            return {"ok": False, "error": "busy"}
+        record = read_ceilings(Path(runtime.config.data_dir)).get(tag) or {}
+        if not record.get("measured_at"):
+            return {"ok": False, "error": "not_measured"}
+        if squeeze_gap(record) is None:
+            return {"ok": False, "error": "nothing_to_squeeze"}
+
+        def _squeeze() -> None:
+            with runtime.ollama.hold_background():
+                setup_service.squeeze_context_ceiling(tag, busy=_busy)
+            context_watch_state["last"] = None
+
+        worker = threading.Thread(target=_squeeze, name="ontelic-context-squeeze", daemon=True)
         context_probe["thread"] = worker
         worker.start()
         return {"ok": True, "started": True}
@@ -1362,7 +1464,9 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
 
     @app.post("/v1/setup/models/pull", dependencies=[Depends(require_token)])
     def setup_pull(body: dict[str, Any]) -> dict[str, Any]:
-        return setup_service.start_pull(str(body.get("model_key") or ""), int(body.get("apply_ctx") or 0))
+        eyes = body.get("eyes")
+        return setup_service.start_pull(str(body.get("model_key") or ""), int(body.get("apply_ctx") or 0),
+                                        eyes=bool(eyes) if isinstance(eyes, bool) else None)
 
     # ── 첫 실행 판정 (W2) — 앱이 이 파일이 없으면 마법사 창을 연다 ───────────────
     from . import setup_state
@@ -1758,6 +1862,43 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def settings_reset(body: dict[str, Any] | None = None) -> dict[str, Any]:
         keys = (body or {}).get("keys")
         return runtime.settings.reset([str(k) for k in keys] if isinstance(keys, list) else None)
+
+    # ── 막히면 내 API 키로 클로드에게 묻기 (2026-10-26 · `api_escalation.py`) ──────────
+    # 키는 몸통으로 **들어오지도 나가지도 않는다** — 본체가 클립보드를 직접 읽어 DPAPI 에만 둔다(디스코드 토큰과 같은 길).
+    @app.get("/v1/api_escalation/status", dependencies=[Depends(require_token)])
+    def api_escalation_status() -> dict[str, Any]:
+        from .api_escalation import key_status
+
+        return key_status(runtime.config)
+
+    @app.post("/v1/api_escalation/key/from-clipboard", dependencies=[Depends(require_token)])
+    def api_escalation_key_from_clipboard() -> dict[str, Any]:
+        from .api_escalation import key_from_clipboard
+
+        return key_from_clipboard(runtime.config)
+
+    @app.delete("/v1/api_escalation/key", dependencies=[Depends(require_token)])
+    def api_escalation_key_clear() -> dict[str, Any]:
+        from .api_escalation import clear_key
+
+        removed = clear_key(runtime.config)
+        # 키가 없어졌으면 켜 둔 값도 일하지 않는다(`skip_reason` 의 no_key) — 화면은 status 로 다시 그린다.
+        return {"ok": True, "removed": removed}
+
+    # ── 앱 안의 Claude Agent (2026-10-26 · `claude_agent.py`) ─────────────────────
+    # 클로드 코드를 띄울 때 옆에 끼워 넣을 파일(손자리 MCP 한 줄 · 「앱 안」 지침)을 데이터 폴더에 쓴다. 키는 여기로 오가지 않는다 —
+    # `api_escalation` 의 DPAPI 키 하나를 같이 쓰고, 꺼내는 것은 앱(Rust)이 한다.
+    @app.get("/v1/claude_agent/status", dependencies=[Depends(require_token)])
+    def claude_agent_status() -> dict[str, Any]:
+        from .claude_agent import status
+
+        return status(runtime.config)
+
+    @app.post("/v1/claude_agent/prepare", dependencies=[Depends(require_token)])
+    def claude_agent_prepare(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        from .claude_agent import prepare
+
+        return prepare(runtime.config, lang=str((body or {}).get("lang") or "ko"))
 
     # ── 디스코드 연결 (2026-10-18) ──────────────────────────────────────
     # 명령 창 마법사(`python -m alture_jarvis.messaging setup`)의 단계를 화면이 하나씩 부른다. 봇 토큰은 이 문들로
