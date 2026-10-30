@@ -125,3 +125,78 @@
   .wns-human { padding-right: 20px; }
   .wns-thread { display: none; }
 }
+
+/* ── ④ /레시피 — 왼쪽은 앱 대화창(진짜 부품), 오른쪽은 손자리 크롬 ─────────────────── */
+.wns-recipe { position: relative; height: 100%; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+.wns-recipe-chat { min-width: 0; padding: 16px 20px 14px; display: flex; flex-direction: column; gap: 8px; background: rgb(var(--surface-2)); }
+.wns-recipe-chat .wns-you { font-weight: var(--fw-mid); }
+.wns-recipe-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; overflow: hidden; }
+.wns-recipe-panel .recipe-learn { width: 100%; margin: 0; }
+.wns-recipe-saved { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 10px; border-radius: var(--r-2);
+  border: 1px solid rgb(var(--ok) / .45); background: rgb(var(--ok) / .08); color: rgb(var(--text-3)); font-size: var(--fs-1);
+  opacity: 0; transform: translateY(6px); transition: opacity var(--t-enter) var(--ease), transform var(--t-enter) var(--ease); }
+.wns-recipe-saved.is-on { opacity: 1; transform: none; }
+.wns-recipe-saved:not(.is-on) { position: absolute; visibility: hidden; }
+.wns-recipe-saved svg { color: rgb(var(--ok)); }
+.wns-recipe-saved b { color: rgb(var(--text-1)); font-weight: var(--fw-mid); }
+.wns-recipe-composer { position: relative; margin: 0; }
+.wns-recipe-draft { min-height: 34px; padding: 8px 12px; border: 1px solid rgb(var(--line)); border-radius: var(--r-2); background: rgb(var(--surface-3));
+  color: rgb(var(--text-1)); font-size: var(--fs-2); font-weight: var(--fw-mid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wns-recipe-draft span { color: rgb(var(--text-5)); font-weight: 400; }
+.wns-recipe-browser { padding-left: 18px; }
+/* 손자리 크롬 위 띠 — 사람이 보일 때는 빨강(진짜 띠와 같은 색), 손자리가 해 볼 때는 손자리의 색. */
+.wns-band { min-height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: var(--r-1); font-size: var(--fs-1);
+  color: rgb(var(--m-text-3)); background: transparent; opacity: 0; transition: background var(--t-move) var(--ease), color var(--t-move) var(--ease), opacity var(--t-move) var(--ease); }
+.wns-band.is-learning, .wns-band.is-replay { opacity: 1; }
+.wns-band.is-learning { color: #fff; background: rgb(var(--stop-bright) / .9); }
+.wns-band.is-learning i { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: wns-blink 1.2s ease-in-out infinite; }
+.wns-band.is-learning em { margin-left: auto; padding: 1px 8px; border-radius: var(--r-pill); background: rgb(255 255 255 / .2); font-style: normal; }
+.wns-band.is-learning em + em { margin-left: 0; }
+.wns-band.is-replay { color: rgb(var(--m-text-1)); background: rgb(var(--brand) / .28); }
+@keyframes wns-blink { 50% { opacity: .35; } }
+.wns-wiki { display: flex; flex-direction: column; gap: 8px; padding: 6px 2px; }
+.wns-wiki b { color: rgb(var(--m-text-1)); font-size: var(--fs-3, 16px); font-weight: var(--fw-mid); }
+.wns-wiki span { height: 6px; border-radius: 3px; background: rgb(var(--machine-line)); }
+.wns-wiki.is-home { align-items: center; padding-top: 14px; }
+.wns-search { width: 82%; margin: 0 0 6px; display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid rgb(var(--machine-line-strong, var(--machine-line)));
+  border-radius: var(--r-1); color: rgb(var(--m-text-3)); background: rgb(var(--machine-3)); font-size: var(--fs-1); transition: border-color var(--t-move) var(--ease); }
+.wns-search.is-typed { color: rgb(var(--m-text-1)); border-color: rgb(var(--brand-bright)); }
+@media (prefers-reduced-motion: reduce) { .wns-band.is-learning i { animation: none; } }
+
+/* ── ⑤ 똑똑함 · 빠름 ─────────────────────────────────────────────────────────── */
+.wns-models { height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 18px 28px; background: rgb(var(--surface-2)); }
+.wns-models-head { margin: 0; color: rgb(var(--text-3)); font-size: var(--fs-1); }
+.wns-models-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.wns-model { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border: 1px solid rgb(var(--line)); border-radius: var(--r-2);
+  background: rgb(var(--surface-3)); opacity: 0; transform: translateY(8px); transition: opacity var(--t-enter) var(--ease), transform var(--t-enter) var(--ease), border-color var(--t-move) var(--ease); }
+.wns-model.is-on { opacity: 1; transform: none; }
+.wns-model h3 { margin: 0; color: rgb(var(--text-1)); font-size: var(--fs-3, 16px); font-weight: var(--fw-mid); }
+.wns-model-badge { align-self: flex-start; padding: 2px 9px; border-radius: var(--r-pill); font-size: var(--fs-1); font-weight: var(--fw-mid);
+  color: rgb(var(--text-2)); background: rgb(var(--surface-4)); transition: color var(--t-move) var(--ease), background var(--t-move) var(--ease); }
+.wns-model.is-smart.is-badged { border-color: rgb(var(--brand-bright) / .6); }
+.wns-model.is-smart.is-badged .wns-model-badge { color: rgb(var(--ground)); background: rgb(var(--brand-bright)); }
+.wns-model.is-fast.is-badged { border-color: rgb(var(--ok) / .6); }
+.wns-model.is-fast.is-badged .wns-model-badge { color: rgb(var(--ground)); background: rgb(var(--ok)); }
+.wns-model-fact { margin: 0; color: rgb(var(--text-2)); font-size: var(--fs-2); font-variant-numeric: tabular-nums; }
+.wns-model-fit { margin: 0; color: rgb(var(--text-4)); font-size: var(--fs-1); }
+.wns-models-basis { color: rgb(var(--text-5)); font-size: var(--fs-1); }
+
+/* ── ⑥ 윈도우 알림 — 알림 틀은 윈도우의 것이라 앱 색 대신 윈도우 어두운 알림 색 ─────────── */
+.wns-notify { position: relative; height: 100%; overflow: hidden; background: rgb(var(--surface-2)); }
+.wns-desk { position: absolute; inset: 18px 40% 18px 24px; display: flex; flex-direction: column; gap: 10px; }
+.wns-desk-window { flex: 1; display: flex; flex-direction: column; gap: 9px; padding: 14px; border: 1px solid rgb(var(--line)); border-radius: var(--r-2); background: rgb(var(--surface-3)); }
+.wns-desk-window i { width: 30%; height: 10px; border-radius: 3px; background: rgb(var(--line-strong)); }
+.wns-desk-window span { height: 6px; border-radius: 3px; background: rgb(var(--line)); }
+.wns-desk p { margin: 0; color: rgb(var(--text-5)); font-size: var(--fs-1); }
+.wns-toast { position: absolute; right: 18px; bottom: 12px; width: min(260px, 40%); display: flex; flex-direction: column; gap: 6px; padding: 10px 12px 12px;
+  border: 1px solid rgb(255 255 255 / .08); border-radius: 8px; background: #202020; color: #f3f3f3; box-shadow: 0 12px 32px rgb(0 0 0 / .45);
+  animation: wns-toast-in 420ms var(--ease) both; }
+@keyframes wns-toast-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.wns-toast-app { margin: 0; display: flex; align-items: center; gap: 6px; color: #bdbdbd; font-size: 11px; }
+.wns-toast-app i { width: 10px; height: 10px; border-radius: 3px; background: rgb(var(--brand-bright)); }
+.wns-toast img { width: 100%; max-height: 104px; aspect-ratio: 2 / 1; object-fit: cover; border-radius: 4px; }
+.wns-toast b { font-size: 13px; font-weight: 600; }
+.wns-toast-body { margin: 0; color: #d0d0d0; font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wns-toast-buttons { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; margin-top: 2px; }
+.wns-toast-buttons span { padding: 5px 0; border-radius: 4px; background: #2d2d2d; color: #f3f3f3; font-size: 12px; text-align: center; }
+@media (prefers-reduced-motion: reduce) { .wns-toast { animation: none; } }

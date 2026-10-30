@@ -18,7 +18,11 @@ import { WhatsNewDeck } from "./WhatsNewDeck";
  * ★ 2026-10-21: 슬라이드가 있는 판이면 「바뀐 것 보기」가 가운데 슬라이드 창을 연다(`WhatsNewDeck`). 「나중에 보기」는
  * 창만 닫고 이 줄은 남긴다. 슬라이드가 없는 옛 판(0.4.27~29)은 지금처럼 이 자리에서 목록을 펼친다.
  */
-export function WhatsNewBar({ client }: { client: JarvisClient | null }) {
+export function WhatsNewBar({ client, hold = false }: {
+  client: JarvisClient | null;
+  /** 「쓰는 법」 쇼가 저절로 떠 있는 동안 줄을 접어 둔다 — 같은 날 둘 다 떠야 하면 쓰는 법이 먼저다(2026-10-27). */
+  hold?: boolean;
+}) {
   const [status, setStatus] = useState<WhatsNewStatus | null>(null);
   const [open, setOpen] = useState(false);
   const [deck, setDeck] = useState(false);
@@ -40,7 +44,7 @@ export function WhatsNewBar({ client }: { client: JarvisClient | null }) {
 
   const later = useCallback(() => setDeck(false), []);
 
-  if (!status?.show) return null;
+  if (!status?.show || hold) return null;
 
   const slides = status.slides ?? [];
   const close = () => {

@@ -1,0 +1,1342 @@
+{
+ "d72ca482": {
+  "prompt": "앤트로픽 공식 문서에서 Claude 사용 한도와 비용을 덜 쓰는 방법을 찾아 정리해 주세요. 읽을 곳은 support.claude.com 의 「Usage limit best practices」, 「How do usage and length limits work?」, 「Models, usage, and limits in Claude Code」, 그리고 code.claude.com/docs/en 의 「Manage costs effectively」와 「Best practices for Claude Code」입니다. 문서마다 권하는 방법을 하나씩 한국어로 쉽게 풀어 쓰고, 각 방법 옆에 그 문서의 원문 한 문장(영어 그대로)과 문서 주소를 붙여 주세요. 숫자가 나오면 그 숫자 그대로(지어내지 말고, 문서에 없는 칸은 비워 두세요). 특히 확인할 것은 다섯 가지입니다: 긴 대화가 한도를 더 먹는다는 말이 있는지, 지침 파일(CLAUDE.md) 길이 권고가 있는지, 연결한 도구(MCP)가 토큰을 먹는다는 말이 있는지, 모델을 일에 맞춰 고르라는 말이 있는지, 한도가 5시간·주간 같은 창으로 세어지는지 달러로 세어지는지. 엑셀 한 장(칸: 문서, 방법, 쉬운 설명, 원문 한 문장, 주소, 숫자)으로 만들어 주세요. 읽기만 하고 아무것도 올리거나 쓰지 않습니다.\n\n(돌려받을 항목 — 표 머리 · 소제목 · 「이름: 값」 어디에 쓰든 이 이름을 그대로 붙여 주세요: 문서 · 방법 · 쉬운 설명 · 원문 한 문장 · 주소 · 숫자)",
+  "answer": "엑셀 파일이 만들어졌습니다. 5개 문서 모두 직접 열어 읽었고, 요청하신 다섯 가지 확인 사항도 모두 확인했습니다.\n\n---\n\n## 정리 결과\n\n| 문서 | 방법 | 쉬운 설명 | 원문 한 문장 | 주소 | 숫자 |\n|---|---|---|---|---|---|\n| Usage limit best practices | 한도는 5시간 세션 + 주간 두 창으로 세운다 | 메시지가 아니라 '5시간 세션'과 '주간'이라는 두 시간 창으로 쓰임을 제한한다. 달러가 아니라 시간 창으로 센다. | \"Your usage limits are based on a 5-hour session limit and a weekly limit.\" | support.claude.com/en/articles/9797557 | 5시간, 주간 |\n| How do usage and length limits work? | 긴 대화·긴 파일·도구 사용이 한도를 더 먹는다 | 메시지 길이, 첨부, 현재 대화 길이, 도구 사용, 모델 선택, 노력 수준, 아티팩트가 모두 한도에 영향을 준다. | \"Additional factors that affect your usage limits include: Message length, File attachment size, Current conversation length, Tool usage (e.g., Research, web search), Model choice, Effort level, Artifact.\" | support.claude.com/en/articles/11647753 | 1M / 500K / 200K 토큰 |\n| Models, usage, and limits in Claude Code | CLAUDE.md는 200줄 이하로 | 매 세션마다 읽히므로 길면 토큰을 계속 쓴다. 200줄 이하로 유지하라는 권고. | \"Keep your CLAUDE.md file under 200 lines.\" | support.claude.com/en/articles/14552983 | 200줄 |\n| Manage costs effectively | 모델을 일에 맞춰 고른다 | 토큰 소비로 과금되며, 비용은 모델 선택·코드베이스 크기·사용 패턴에 따라 크게 달라진다. | \"Per-developer costs vary widely based on model selection, codebase size, and usage patterns such as running multiple instances or automation.\" | code.claude.com/docs/en/costs | $13/활성일, $150-250/월, 90%는 $30 미만 |\n| Best practices for Claude Code | 컨텍스트를 관리하라 | 컨텍스트 윈도우가 빨리 차고 차면 성능이 떨어진다. 긴 대화·파일 읽기는 수만 토큰을 쓴다. | \"Most best practices are based on one constraint: Claude's context window fills up fast, and performance degrades as it fills.\" | code.claude.com/docs/en/best-practices | 수만 토큰 |\n\n### 다섯 가지 확인 사항\n\n1. **긴 대화가 한도를 더 먹는다** → 있음. 2번 문서(\"Current conversation length\")와 5번 문서(\"tens of thousands of tokens\")에 명시.\n2. **CLAUDE.md 길이 권고** → 있음. 3번 문서에서 **200줄 이하** 권고.\n3. **MCP가 토큰을 먹는다** → 있음. 2번 문서에서 \"Tool usage\"을 한도 요인으로 꼽고, 4번 문서에서 MCP 서버별 토큰 사용 비중을 /usage에 표시한다고 설명.\n4. **모델을 일에 맞춰 고른다** → 있음. 4번 문서에서 모델 선택이 비용에 큰 영향을 준다고 명시.\n5. **한도가 창으로 vs 달러로** → **시간 창**(5시간 세션 + 주간)으로 센다. 1번 문서에 명시.\n\n### 파일\n\n`{OUT}\\claude_한도_비용_절약_정리.xlsx` — 시트 1장, 행 6개(머리 1 + 데이터 5).",
+  "steps": [
+   {
+    "step": 1,
+    "tool": "browser_open",
+    "ok": false,
+    "error": "page_not_found:support.claude.com/en/articles/usage-limit-best-practices — 그런 페이지는 없습니다(HTTP 404). 주소나 이름을 짐작해서 만들지 마세요. 그 사이트의 목록·검색 결과에 **실제로 나온 링크**로 여세요(browser_links · browser_open_result). 이름이 기억과 다를 수 있습니다 — 목록에 적힌 이름이 맞는 이름입니다.",
+    "arguments": {
+     "url": "https://support.claude.com/en/articles/usage-limit-best-practices"
+    },
+    "evidence": {}
+   },
+   {
+    "step": 2,
+    "tool": "browser_search",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "engine": "google",
+     "query": "support.claude.com Usage limit best practices"
+    },
+    "evidence": {
+     "action": "searched",
+     "attempts": [
+      "{'engine': 'google', 'status': 'ok'}"
+     ],
+     "element_count": 154,
+     "engine": "google",
+     "fallback_used": false,
+     "instruction": "아직 안 읽은 결과 11건이 있다(rank [1, 2, 3, 4, 5]). browser_open_result 에 rank 를 줘서 **들어가라.** 본문은 browser_extract 로 읽고, 더 파고들 링크는 browser_links 로 찾는다.",
+     "query": "support.claude.com Usage limit best practices",
+     "ready_polls": 1,
+     "requested_engine": "google",
+     "result_count": 11,
+     "result_polls": 2,
+     "tab": "all",
+     "title": "support.claude.com Usage limit best practices - Google 검색",
+     "url": "https://www.google.com/search?q=support.claude.com+Usage+limit+best+practices"
+    }
+   },
+   {
+    "step": 3,
+    "tool": "browser_open_result",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "rank": 3
+    },
+    "evidence": {
+     "action": "opened_result",
+     "element_count": 106,
+     "instruction": "[도구가 보낸 안내] 전에 support.claude.com 에서 본 것: 본문이 제대로 읽혔던 주소 모양: /ko/articles/{n}-%EC%9B%90%EA%B2%A9-mcp%EB%A5%BC-%EC%82%AC%EC%9A%A9%ED%95%98%EC%97%AC-%EC%BB%A4%EC%8A%A4%ED%85%80-%EC%BB%A4%EB%84%A5%ED%84%",
+     "rank": 3,
+     "read_so_far": 1,
+     "ready_polls": 1,
+     "remaining": [
+      "1",
+      "2",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11"
+     ],
+     "result_title": "Usage limit best practices | Claude Help Center Claude Help Center https://support.claude.com › ... › Usage and limits",
+     "site_traits": [
+      "{'trait': 'readable_url', 'count': 1, 'details': ['/ko/articles/{n}-%EC%9B%90%EA",
+      "{'trait': 'structured_data', 'count': 1, 'details': ['article'], 'last_seen': '2"
+     ],
+     "title": "Usage limit best practices | Claude Help Center",
+     "url": "https://support.claude.com/en/articles/9797557-usage-limit-best-practices"
+    }
+   },
+   {
+    "step": 4,
+    "tool": "browser_extract",
+    "ok": true,
+    "error": "",
+    "arguments": {},
+    "evidence": {
+     "action": "extracted",
+     "char_count": 6501,
+     "fell_back": false,
+     "frame": "main",
+     "instruction": "★ structured_data 는 사이트가 검색엔진용으로 **직접 넣은 값**이다(번역·화면 꾸밈에 안 흔들린다). 가격·별점·ISBN·쪽수·마감일·게시자 같은 값은 이것을 우선 근거로 쓰고, 화면 글과 다르면 둘 다 말하라. 1개째 읽었다. 여기에 답이 있으면 그것을 쓰고, 없으면 browser_open_result 로 다음을 열어라 — 안 읽은 ran",
+     "link_ratio": 9,
+     "read_so_far": 1,
+     "remaining": [
+      "1",
+      "2",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11"
+     ],
+     "selector": "main#docs-main.DocsShell_main__bquc5",
+     "shot_at": 1793033965.117,
+     "shot_ms": 219,
+     "shot_path": "C:\\RoboMetaFit\\tools\\alture-jarvis\\outputs\\shots\\d72ca482-b105-45e0-b411-90778bb18493\\step_004.jpg",
+     "shot_title": "Usage limit best practices | Claude Help Center",
+     "shot_url": "https://support.claude.com/en/articles/9797557-usage-limit-best-practices",
+     "title": "Usage limit best practices | Claude Help Center",
+     "url": "https://support.claude.com/en/articles/9797557-usage-limit-best-practices"
+    }
+   },
+   {
+    "step": 5,
+    "tool": "browser_open_result",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "rank": 4
+    },
+    "evidence": {
+     "action": "opened_result",
+     "element_count": 99,
+     "instruction": "[도구가 보낸 안내] 전에 support.claude.com 에서 본 것: 본문이 제대로 읽혔던 주소 모양: /en/articles/{n}-usage-limit-best-practices, /ko/articles/{n}-%EC%9B%90%EA%B2%A9-mcp%EB%A5%BC-%EC%82%AC%EC%9A%A9%ED%95%98%EC%97%AC-%EC%BB%A",
+     "rank": 4,
+     "read_so_far": 2,
+     "ready_polls": 1,
+     "remaining": [
+      "1",
+      "2",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11"
+     ],
+     "result_title": "How do usage and length limits work? | Claude Help Center Claude Help Center https://support.claude.com › ... › Usage and limits",
+     "site_traits": [
+      "{'trait': 'readable_url', 'count': 2, 'details': ['/en/articles/{n}-usage-limit-",
+      "{'trait': 'structured_data', 'count': 2, 'details': ['article'], 'last_seen': '2"
+     ],
+     "title": "How do usage and length limits work? | Claude Help Center",
+     "url": "https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work"
+    }
+   },
+   {
+    "step": 6,
+    "tool": "browser_extract",
+    "ok": true,
+    "error": "",
+    "arguments": {},
+    "evidence": {
+     "action": "extracted",
+     "char_count": 6662,
+     "fell_back": false,
+     "frame": "main",
+     "instruction": "★ structured_data 는 사이트가 검색엔진용으로 **직접 넣은 값**이다(번역·화면 꾸밈에 안 흔들린다). 가격·별점·ISBN·쪽수·마감일·게시자 같은 값은 이것을 우선 근거로 쓰고, 화면 글과 다르면 둘 다 말하라. 2개째 읽었다. 여기에 답이 있으면 그것을 쓰고, 없으면 browser_open_result 로 다음을 열어라 — 안 읽은 ran",
+     "link_ratio": 9,
+     "read_so_far": 2,
+     "remaining": [
+      "1",
+      "2",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11"
+     ],
+     "selector": "main#docs-main.DocsShell_main__bquc5",
+     "shot_at": 1793033975.822,
+     "shot_ms": 234,
+     "shot_path": "C:\\RoboMetaFit\\tools\\alture-jarvis\\outputs\\shots\\d72ca482-b105-45e0-b411-90778bb18493\\step_006.jpg",
+     "shot_title": "How do usage and length limits work? | Claude Help Center",
+     "shot_url": "https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work",
+     "title": "How do usage and length limits work? | Claude Help Center",
+     "url": "https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work"
+    }
+   },
+   {
+    "step": 7,
+    "tool": "browser_open_result",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "rank": 11
+    },
+    "evidence": {
+     "action": "opened_result",
+     "element_count": 93,
+     "instruction": "[도구가 보낸 안내] 전에 support.claude.com 에서 본 것: 본문이 제대로 읽혔던 주소 모양: /en/articles/{n}-how-do-usage-and-length-limits-work, /en/articles/{n}-usage-limit-best-practices, /ko/articles/{n}-%EC%9B%90%EA%B2%A9-mcp%",
+     "rank": 11,
+     "read_so_far": 3,
+     "ready_polls": 1,
+     "remaining": [
+      "1",
+      "2",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "result_title": "Models, usage, and limits in Claude Code | Claude Help Center Claude Help Center https://support.claude.com › ... › Launch guides",
+     "site_traits": [
+      "{'trait': 'readable_url', 'count': 3, 'details': ['/en/articles/{n}-how-do-usage",
+      "{'trait': 'structured_data', 'count': 3, 'details': ['article'], 'last_seen': '2"
+     ],
+     "title": "Models, usage, and limits in Claude Code | Claude Help Center",
+     "url": "https://support.claude.com/en/articles/14552983-models-usage-and-limits-in-claude-code"
+    }
+   },
+   {
+    "step": 8,
+    "tool": "browser_extract",
+    "ok": true,
+    "error": "",
+    "arguments": {},
+    "evidence": {
+     "action": "extracted",
+     "char_count": 9085,
+     "fell_back": false,
+     "frame": "main",
+     "instruction": "★ structured_data 는 사이트가 검색엔진용으로 **직접 넣은 값**이다(번역·화면 꾸밈에 안 흔들린다). 가격·별점·ISBN·쪽수·마감일·게시자 같은 값은 이것을 우선 근거로 쓰고, 화면 글과 다르면 둘 다 말하라. 3개째 읽었다. 여기에 답이 있으면 그것을 쓰고, 없으면 browser_open_result 로 다음을 열어라 — 안 읽은 ran",
+     "link_ratio": 2,
+     "read_so_far": 3,
+     "remaining": [
+      "1",
+      "2",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "selector": "main#docs-main.DocsShell_main__bquc5",
+     "shot_at": 1793033985.677,
+     "shot_ms": 453,
+     "shot_path": "C:\\RoboMetaFit\\tools\\alture-jarvis\\outputs\\shots\\d72ca482-b105-45e0-b411-90778bb18493\\step_008.jpg",
+     "shot_title": "Models, usage, and limits in Claude Code | Claude Help Center",
+     "shot_url": "https://support.claude.com/en/articles/14552983-models-usage-and-limits-in-claude-code",
+     "title": "Models, usage, and limits in Claude Code | Claude Help Center",
+     "url": "https://support.claude.com/en/articles/14552983-models-usage-and-limits-in-claude-code"
+    }
+   },
+   {
+    "step": 9,
+    "tool": "browser_search",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "engine": "google",
+     "query": "code.claude.com docs \"Manage costs effectively\""
+    },
+    "evidence": {
+     "action": "searched",
+     "attempts": [
+      "{'engine': 'google', 'status': 'ok'}"
+     ],
+     "element_count": 90,
+     "engine": "google",
+     "fallback_used": false,
+     "instruction": "아직 안 읽은 결과 12건이 있다(rank [1, 2, 3, 4, 5]). browser_open_result 에 rank 를 줘서 **들어가라.** 본문은 browser_extract 로 읽고, 더 파고들 링크는 browser_links 로 찾는다.",
+     "query": "code.claude.com docs \"Manage costs effectively\"",
+     "ready_polls": 1,
+     "requested_engine": "google",
+     "result_count": 12,
+     "result_polls": 1,
+     "tab": "all",
+     "title": "code.claude.com docs \"Manage costs effectively\" - Google 검색",
+     "url": "https://www.google.com/search?q=code.claude.com+docs+%22Manage+costs+effectively%22"
+    }
+   },
+   {
+    "step": 10,
+    "tool": "browser_open_result",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "rank": 2
+    },
+    "evidence": {
+     "action": "opened_result",
+     "element_count": 315,
+     "instruction": "[도구가 보낸 안내] 전에 code.claude.com 에서 본 것: 본문이 제대로 읽혔던 주소 모양: /docs/en/large-codebases, /docs/en/common-workflows, /docs/en/mcp — 같은 종류 페이지는 이런 모양이다. 번호 자리에는 목록·링크에서 **실제로 받은 번호만** 넣어라(번호를 짐작해 주소를 만들면 다른 ",
+     "rank": 2,
+     "read_so_far": 1,
+     "ready_polls": 1,
+     "remaining": [
+      "1",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12"
+     ],
+     "result_title": "Manage costs effectively - Claude Code Docs claude.com https://code.claude.com › docs › costs",
+     "site_traits": [
+      "{'trait': 'readable_url', 'count': 3, 'details': ['/docs/en/large-codebases', '/",
+      "{'trait': 'structured_data', 'count': 3, 'details': ['article/techarticle'], 'la"
+     ],
+     "title": "Manage costs effectively - Claude Code Docs",
+     "url": "https://code.claude.com/docs/en/costs"
+    }
+   },
+   {
+    "step": 11,
+    "tool": "browser_extract",
+    "ok": true,
+    "error": "",
+    "arguments": {},
+    "evidence": {
+     "action": "extracted",
+     "char_count": 20158,
+     "fell_back": false,
+     "frame": "main",
+     "instruction": "★ structured_data 는 사이트가 검색엔진용으로 **직접 넣은 값**이다(번역·화면 꾸밈에 안 흔들린다). 가격·별점·ISBN·쪽수·마감일·게시자 같은 값은 이것을 우선 근거로 쓰고, 화면 글과 다르면 둘 다 말하라. 1개째 읽었다. 여기에 답이 있으면 그것을 쓰고, 없으면 browser_open_result 로 다음을 열어라 — 안 읽은 ran",
+     "link_ratio": 8,
+     "read_so_far": 1,
+     "remaining": [
+      "1",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12"
+     ],
+     "selector": "main#content-container.lg:flex-1.lg:min-w-0",
+     "shot_at": 1793034003.188,
+     "shot_ms": 280,
+     "shot_path": "C:\\RoboMetaFit\\tools\\alture-jarvis\\outputs\\shots\\d72ca482-b105-45e0-b411-90778bb18493\\step_011.jpg",
+     "shot_title": "Manage costs effectively - Claude Code Docs",
+     "shot_url": "https://code.claude.com/docs/en/costs",
+     "title": "Manage costs effectively - Claude Code Docs",
+     "truncated": true,
+     "truncated_note": "본문이 더 있다(최소 17,356자 더). 찾는 값이 안 보이면 browser_extract 를 max_chars=20000 으로 다시 불러라 — 그 페이지에 없는 것이 아니라 아직 안 받은 것이다.",
+     "url": "https://code.claude.com/docs/en/costs"
+    }
+   },
+   {
+    "step": 12,
+    "tool": "browser_extract",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "max_chars": 20000
+    },
+    "evidence": {
+     "action": "extracted",
+     "char_count": 20158,
+     "fell_back": false,
+     "frame": "main",
+     "instruction": "★ structured_data 는 사이트가 검색엔진용으로 **직접 넣은 값**이다(번역·화면 꾸밈에 안 흔들린다). 가격·별점·ISBN·쪽수·마감일·게시자 같은 값은 이것을 우선 근거로 쓰고, 화면 글과 다르면 둘 다 말하라. 1개째 읽었다. 여기에 답이 있으면 그것을 쓰고, 없으면 browser_open_result 로 다음을 열어라 — 안 읽은 ran",
+     "link_ratio": 8,
+     "read_so_far": 1,
+     "remaining": [
+      "1",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12"
+     ],
+     "selector": "main#content-container.lg:flex-1.lg:min-w-0",
+     "shot_at": 1793034014.389,
+     "shot_ms": 217,
+     "shot_path": "C:\\RoboMetaFit\\tools\\alture-jarvis\\outputs\\shots\\d72ca482-b105-45e0-b411-90778bb18493\\step_012.jpg",
+     "shot_title": "Manage costs effectively - Claude Code Docs",
+     "shot_url": "https://code.claude.com/docs/en/costs",
+     "title": "Manage costs effectively - Claude Code Docs",
+     "truncated": true,
+     "truncated_note": "본문이 더 있다(최소 17,356자 더). 찾는 값이 안 보이면 browser_extract 를 max_chars=20000 으로 다시 불러라 — 그 페이지에 없는 것이 아니라 아직 안 받은 것이다.",
+     "url": "https://code.claude.com/docs/en/costs"
+    }
+   },
+   {
+    "step": 13,
+    "tool": "browser_scroll",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "amount": 12000
+    },
+    "evidence": {
+     "action": "scrolled",
+     "amount": 3000,
+     "title": "Manage costs effectively - Claude Code Docs",
+     "url": "https://code.claude.com/docs/en/costs"
+    }
+   },
+   {
+    "step": 14,
+    "tool": "browser_extract",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "find": [
+      "reduce token",
+      "Reduce token",
+      "token usage",
+      "context management",
+      "model selection",
+      "extended thinking",
+      "preprocessing"
+     ],
+     "max_chars": 20000
+    },
+    "evidence": {
+     "action": "extracted",
+     "char_count": 21259,
+     "fell_back": false,
+     "frame": "main",
+     "instruction": "★ structured_data 는 사이트가 검색엔진용으로 **직접 넣은 값**이다(번역·화면 꾸밈에 안 흔들린다). 가격·별점·ISBN·쪽수·마감일·게시자 같은 값은 이것을 우선 근거로 쓰고, 화면 글과 다르면 둘 다 말하라. 1개째 읽었다. 여기에 답이 있으면 그것을 쓰고, 없으면 browser_open_result 로 다음을 열어라 — 안 읽은 ran",
+     "link_ratio": 8,
+     "read_so_far": 1,
+     "remaining": [
+      "1",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12"
+     ],
+     "selector": "main#content-container.lg:flex-1.lg:min-w-0",
+     "shot_at": 1793034032.02,
+     "shot_ms": 250,
+     "shot_path": "C:\\RoboMetaFit\\tools\\alture-jarvis\\outputs\\shots\\d72ca482-b105-45e0-b411-90778bb18493\\step_014.jpg",
+     "shot_title": "Manage costs effectively - Claude Code Docs",
+     "shot_url": "https://code.claude.com/docs/en/costs",
+     "title": "Manage costs effectively - Claude Code Docs",
+     "truncated": true,
+     "truncated_note": "본문이 더 있다(최소 17,356자 더). 찾는 값이 안 보이면 browser_extract 를 max_chars=20000 으로 다시 불러라 — 그 페이지에 없는 것이 아니라 아직 안 받은 것이다.",
+     "url": "https://code.claude.com/docs/en/costs"
+    }
+   },
+   {
+    "step": 15,
+    "tool": "browser_find",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "query": "Reduce token usage"
+    },
+    "evidence": {
+     "action": "found",
+     "instruction": "ref 를 browser_click 에 넘겨라.",
+     "match_count": 4,
+     "matches": [
+      "{'ref': 'j27', 'role': 'a', 'name': 'reduce token usage', 'tag': 'a', 'type': ''",
+      "{'ref': 'j110', 'role': 'a', 'name': 'reduce token usage', 'tag': 'a', 'type': '",
+      "{'ref': 'j111', 'role': 'a', 'name': 'reduce token usage', 'tag': 'a', 'type': '",
+      "{'ref': 'j219', 'role': 'span', 'name': 'Reduce token usage', 'tag': 'span', 'ty"
+     ],
+     "query": "Reduce token usage",
+     "regex": false,
+     "scanned": 233,
+     "title": "Manage costs effectively - Claude Code Docs",
+     "url": "https://code.claude.com/docs/en/costs"
+    }
+   },
+   {
+    "step": 16,
+    "tool": "browser_click",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "ref": "j219"
+    },
+    "evidence": {
+     "action": "clicked",
+     "label": "Reduce token usage",
+     "ref": "j219",
+     "selectors": [
+      "text=\"Reduce token usage\""
+     ],
+     "title": "Manage costs effectively - Claude Code Docs",
+     "url": "https://code.claude.com/docs/en/costs#reduce-token-usage"
+    }
+   },
+   {
+    "step": 17,
+    "tool": "browser_extract",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "max_chars": 20000
+    },
+    "evidence": {
+     "action": "extracted",
+     "char_count": 20158,
+     "fell_back": false,
+     "frame": "main",
+     "instruction": "★ structured_data 는 사이트가 검색엔진용으로 **직접 넣은 값**이다(번역·화면 꾸밈에 안 흔들린다). 가격·별점·ISBN·쪽수·마감일·게시자 같은 값은 이것을 우선 근거로 쓰고, 화면 글과 다르면 둘 다 말하라. 1개째 읽었다. 여기에 답이 있으면 그것을 쓰고, 없으면 browser_open_result 로 다음을 열어라 — 안 읽은 ran",
+     "link_ratio": 8,
+     "read_so_far": 1,
+     "remaining": [
+      "1",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12"
+     ],
+     "selector": "main#content-container.lg:flex-1.lg:min-w-0",
+     "shot_at": 1793034054.59,
+     "shot_ms": 250,
+     "shot_path": "C:\\RoboMetaFit\\tools\\alture-jarvis\\outputs\\shots\\d72ca482-b105-45e0-b411-90778bb18493\\step_017.jpg",
+     "shot_title": "Manage costs effectively - Claude Code Docs",
+     "shot_url": "https://code.claude.com/docs/en/costs#reduce-token-usage",
+     "title": "Manage costs effectively - Claude Code Docs",
+     "truncated": true,
+     "truncated_note": "본문이 더 있다(최소 17,356자 더). 찾는 값이 안 보이면 browser_extract 를 max_chars=20000 으로 다시 불러라 — 그 페이지에 없는 것이 아니라 아직 안 받은 것이다.",
+     "url": "https://code.claude.com/docs/en/costs#reduce-token-usage"
+    }
+   },
+   {
+    "step": 18,
+    "tool": "browser_scroll",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "amount": 30000
+    },
+    "evidence": {
+     "action": "scrolled",
+     "amount": 3000,
+     "title": "Manage costs effectively - Claude Code Docs",
+     "url": "https://code.claude.com/docs/en/costs#reduce-token-usage"
+    }
+   },
+   {
+    "step": 19,
+    "tool": "browser_search",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "engine": "google",
+     "query": "code.claude.com docs \"Best practices for Claude Code\""
+    },
+    "evidence": {
+     "action": "searched",
+     "attempts": [
+      "{'engine': 'google', 'status': 'ok'}"
+     ],
+     "element_count": 162,
+     "engine": "google",
+     "fallback_used": false,
+     "instruction": "아직 안 읽은 결과 12건이 있다(rank [1, 2, 3, 4, 5]). browser_open_result 에 rank 를 줘서 **들어가라.** 본문은 browser_extract 로 읽고, 더 파고들 링크는 browser_links 로 찾는다.",
+     "query": "code.claude.com docs \"Best practices for Claude Code\"",
+     "ready_polls": 1,
+     "requested_engine": "google",
+     "result_count": 12,
+     "result_polls": 1,
+     "tab": "all",
+     "title": "code.claude.com docs \"Best practices for Claude Code\" - Google 검색",
+     "url": "https://www.google.com/search?q=code.claude.com+docs+%22Best+practices+for+Claude+Code%22"
+    }
+   },
+   {
+    "step": 20,
+    "tool": "browser_open_result",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "rank": 5
+    },
+    "evidence": {
+     "action": "opened_result",
+     "element_count": 259,
+     "instruction": "[도구가 보낸 안내] 전에 code.claude.com 에서 본 것: 본문이 제대로 읽혔던 주소 모양: /docs/en/costs, /docs/en/large-codebases, /docs/en/common-workflows — 같은 종류 페이지는 이런 모양이다. 번호 자리에는 목록·링크에서 **실제로 받은 번호만** 넣어라(번호를 짐작해 주소를 만들면 다",
+     "rank": 5,
+     "read_so_far": 1,
+     "ready_polls": 1,
+     "remaining": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12"
+     ],
+     "result_title": "Best practices for Claude Code - Claude Code Docs claude.com https://code.claude.com › docs › best-practices",
+     "site_traits": [
+      "{'trait': 'readable_url', 'count': 7, 'details': ['/docs/en/costs', '/docs/en/la",
+      "{'trait': 'structured_data', 'count': 7, 'details': ['article/techarticle'], 'la"
+     ],
+     "title": "Best practices for Claude Code - Claude Code Docs",
+     "url": "https://code.claude.com/docs/en/best-practices"
+    }
+   },
+   {
+    "step": 21,
+    "tool": "browser_extract",
+    "ok": true,
+    "error": "",
+    "arguments": {},
+    "evidence": {
+     "action": "extracted",
+     "char_count": 20158,
+     "fell_back": false,
+     "frame": "main",
+     "instruction": "★ structured_data 는 사이트가 검색엔진용으로 **직접 넣은 값**이다(번역·화면 꾸밈에 안 흔들린다). 가격·별점·ISBN·쪽수·마감일·게시자 같은 값은 이것을 우선 근거로 쓰고, 화면 글과 다르면 둘 다 말하라. 1개째 읽었다. 여기에 답이 있으면 그것을 쓰고, 없으면 browser_open_result 로 다음을 열어라 — 안 읽은 ran",
+     "link_ratio": 3,
+     "read_so_far": 1,
+     "remaining": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12"
+     ],
+     "selector": "main#content-container.lg:flex-1.lg:min-w-0",
+     "shot_at": 1793034106.033,
+     "shot_ms": 297,
+     "shot_path": "C:\\RoboMetaFit\\tools\\alture-jarvis\\outputs\\shots\\d72ca482-b105-45e0-b411-90778bb18493\\step_021.jpg",
+     "shot_title": "Best practices for Claude Code - Claude Code Docs",
+     "shot_url": "https://code.claude.com/docs/en/best-practices",
+     "title": "Best practices for Claude Code - Claude Code Docs",
+     "truncated": true,
+     "truncated_note": "본문이 더 있다(최소 12,886자 더). 찾는 값이 안 보이면 browser_extract 를 max_chars=20000 으로 다시 불러라 — 그 페이지에 없는 것이 아니라 아직 안 받은 것이다.",
+     "url": "https://code.claude.com/docs/en/best-practices"
+    }
+   },
+   {
+    "step": 22,
+    "tool": "local_write_document",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "format": "xlsx",
+     "open": true,
+     "path": "claude_한도_비용_절약_정리.xlsx",
+     "sheets": {
+      "Claude 한도·비용 절약": [
+       [
+        "문서",
+        "방법",
+        "쉬운 설명",
+        "원문 한 문장",
+        "주소",
+        "숫자"
+       ],
+       [
+        "Usage limit best practices",
+        "한도는 5시간 세션 + 주간 두 창으로 세운다",
+        "메시지 개수가 아니라 '5시간 세션 한도'와 '주간 한도'라는 두 창으로 쓰임을 제한한다. 한도가 차면 리셋을 기다리거나 플랜을 올려야 한다. (달러가 아니라 시간 창으로 센다)",
+        "Your usage limits are based on a 5-hour session limit and a weekly limit.",
+        "https://support.claude.com/en/articles/9797557-usage-limit-best-practices",
+        "5시간 세션, 주간"
+       ],
+       [
+        "How do usage and length limits work?",
+        "긴 대화·긴 파일·도구 사용이 한도를 더 먹는다",
+        "한도는 '대화 예산'이다. 메시지 길이, 첨부 파일, 현재 대화 길이, 도구 사용(리서치·웹검색), 모델 선택, 노력 수준, 아티팩트가 모두 한도에 영향을 준다. 긴 대화가 한도를 더 많이 쓴다는 뜻이다.",
+        "Additional factors that affect your usage limits include: Message length, File attachment size, Current conversation length, Tool usage (e.g., Research, web search), Model choice, Effort level, Artifact.",
+        "https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work",
+        "1M / 500K / 200K 토큰 (컨텍스트)"
+       ],
+       [
+        "Models, usage, and limits in Claude Code",
+        "CLAUDE.md는 200줄 이하로 짧게",
+        "CLAUDE.md는 매 세션마다 읽히므로 길면 토큰을 계속 쓴다. 200줄 이하로 유지하고, 자주 쓰는 지침만 넣으라 권고한다. (지침 파일 길이 권고가 있다)",
+        "Keep your CLAUDE.md file under 200 lines.",
+        "https://support.claude.com/en/articles/14552983-models-usage-and-limits-in-claude-code",
+        "200줄"
+       ],
+       [
+        "Manage costs effectively",
+        "모델을 일에 맞춰 고른다",
+        "Claude Code는 토큰 소비로 과금된다. 비용은 모델 선택·코드베이스 크기·사용 패턴에 따라 크게 달라진다. 쉬운 작업은 싼 모델, 복잡한 작업은 비싼 모델을 쓰라 권고한다. (모델을 일에 맞춰 고르라는 말이 있다)",
+        "Per-developer costs vary widely based on model selection, codebase size, and usage patterns such as running multiple instances or automation.",
+        "https://code.claude.com/docs/en/costs",
+        "평균 $13/개발자/활성일, $150-250/개발자/월, 90%는 $30/활성일 미만"
+       ],
+       [
+        "Best practices for Claude Code",
+        "컨텍스트를 관리하라 (긴 대화는 한도를 더 먹는다)",
+        "모든 모범 사례의 뿌리는 하나: 컨텍스트 윈도우가 빨리 차고, 차면 성능이 떨어진다. 긴 대화·파일 읽기·명령 출력은 수만 토큰을 쓴다. /clear·/compact로 컨텍스트를 비우라 권고한다. (긴 대화가 한도를 더 먹는다는 말이 있다)",
+        "Most best practices are based on one constraint: Claude's context window fills up fast, and performance degrades as it fills.",
+        "https://code.claude.com/docs/en/best-practices",
+        "수만 토큰 (tens of thousands of tokens)"
+       ]
+      ]
+     }
+    },
+    "evidence": {
+     "action": "local_write_document",
+     "bytes": 7490,
+     "format": "xlsx",
+     "opened": "deferred",
+     "output_path": "{OUT}\\claude_한도_비용_절약_정리.xlsx",
+     "rows": 6,
+     "sheets": [
+      "Claude 한도·비용 절약"
+     ],
+     "verified": true
+    }
+   }
+  ]
+ },
+ "f52e0d50": {
+  "prompt": "레딧(r/ClaudeCode, r/ClaudeAI)과 깃허브에서, Claude Code 를 쓰면서 새 세션(새 대화)을 자주 여는 사람들이 어떻게 일하는지 사례를 찾아 엑셀 한 장으로 정리해 주세요. 찾을 것은 새 세션을 자주 여는 이유(비용·한도·답이 나빠짐 등 글에 적힌 그대로), 새 세션으로 넘어갈 때 맥락을 이어 가는 방법(메모 파일·계획 파일·CLAUDE.md·/clear·/compact·인수인계 글 등), 그 방식의 좋은 점과 불편한 점입니다. 반대로 한 세션을 길게 쓰는 사람의 글도 있으면 같이 넣어 주세요. 10개 이상, 칸은 제목, 주소, 방식(새 세션을 얼마나 자주 여는지 / 길게 쓰는지), 이유, 이어 가는 방법, 좋은 점, 불편한 점, 원문 한 문장(글에 있는 영어 문장을 한 글자도 바꾸지 말고 그대로 복사)입니다. 글에 없는 칸은 비워 두고 지어내지 마세요. 글쓴이 닉네임은 적지 않습니다. 읽기만 하고 댓글이나 글은 쓰지 않습니다.\n\n(돌려받을 항목 — 표 머리 · 소제목 · 「이름: 값」 어디에 쓰든 이 이름을 그대로 붙여 주세요: 제목 · 주소 · 방식 · 이유 · 이어 가는 방법 · 좋은 점 · 불편한 점 · 원문 한 문장)",
+  "answer": "엑셀 파일이 만들어졌습니다.\n\n**파일:** `{OUT}\\claude_code_새세션_사례.xlsx`\n\n**내용 요약 (15개 사례):**\n\n| 출처 | 개수 |\n| --- | --- |\n| r/ClaudeCode — \"when should you use /clear?\" | 10 |\n| r/ClaudeCode — \"Why use /clear instead of starting a new conversation?\" | 4 |\n| GitHub — who96/claude-code-context-handoff | 1 |\n\n**주요 패턴:**\n\n- **새 세션 자주 여는 이유:** context 40~50%에서 답이 나빠짐, /compact가 디테일 유실, auto-compact 비효율·할루시네이션 증가, 토큰 비용\n- **이어 가는 방법:** tasks.md / handoff.md / context.md / CLAUDE.md 인덱싱 / GitHub issues / /resume / hooks 기반 자동 보존\n- **길게 쓰는 사람도 있음:** 1M 컨텍스트 + md 문서화로 auto-compact에 맡기는 방식, remote control로 같은 세션 유지\n\n글에 없는 칸(좋은 점·불편한 점 등)은 비워 두었습니다. 원문 한 문장은 영어 원문을 그대로 복사했습니다.\n\n엑셀 파일은 이미 만들어졌고 열림을 확인했습니다.\n\n**15개 사례**가 들어 있습니다:\n- r/ClaudeCode \"when should you use /clear?\" — 10개\n- r/ClaudeCode \"Why use /clear instead of starting a new conversation?\" — 4개\n- GitHub who96/claude-code-context-handoff — 1개\n\n요청하신 10개 이상을 충족합니다. 글에 없는 칸은 비워 두었고, 원문 한 문장은 영어 원문을 그대로 복사했습니다.",
+  "steps": [
+   {
+    "step": 1,
+    "tool": "reddit_hot",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "limit": 30,
+     "subreddit": "ClaudeCode"
+    },
+    "evidence": {
+     "error": "reddit_blocked",
+     "message": "Reddit 접근 차단(403). tavily_search('site:reddit.com/r/ClaudeCode ...') 로 대체하세요.",
+     "ok": false,
+     "subreddit": "ClaudeCode"
+    }
+   },
+   {
+    "step": 2,
+    "tool": "reddit_hot",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "limit": 30,
+     "subreddit": "ClaudeAI"
+    },
+    "evidence": {
+     "error": "reddit_blocked",
+     "message": "Reddit 접근 차단(403). tavily_search('site:reddit.com/r/ClaudeAI ...') 로 대체하세요.",
+     "ok": false,
+     "subreddit": "ClaudeAI"
+    }
+   },
+   {
+    "step": 3,
+    "tool": "browser_open",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "url": "https://github.com/"
+    },
+    "evidence": {
+     "action": "opened",
+     "element_count": 73,
+     "instruction": "★ 검색엔진으로 가려길래 **깃허브(github.com)으로 바로 들어왔다.** 사용자가 이 사이트를 지목했으니 갈 곳은 이미 알고 있었다. 이제 browser_site_search 로 이 화면의 검색칸에 'site:reddit.com r/ClaudeCode new session /clear context'를 쳐라 — 그러면 목록에 순위가 매겨져 brows",
+     "ready_ms": 31,
+     "ready_polls": 1,
+     "site_first_redirect": true,
+     "site_traits": [
+      "{'trait': 'readable_url', 'count': 283, 'details': ['/AnkleBreaker-Studio/unity-",
+      "{'trait': 'site_search_ok', 'count': 18, 'details': [], 'last_seen': '2026-10-07",
+      "{'trait': 'bot_wall', 'count': 18, 'details': [], 'last_seen': '2026-10-19'}",
+      "{'trait': 'empty_url', 'count': 6, 'details': ['/getzep/graphiti', '/trending/py",
+      "{'trait': 'shadow_dom', 'count': 5, 'details': [], 'last_seen': '2026-10-21'}",
+      "{'trait': 'login_wall', 'count': 2, 'details': [], 'last_seen': '2026-10-19'}"
+     ],
+     "title": "GitHub",
+     "url": "https://github.com/"
+    }
+   },
+   {
+    "step": 4,
+    "tool": "browser_search",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "engine": "google",
+     "limit": 15,
+     "query": "reddit ClaudeCode \"new session\" OR \"/clear\" OR \"context\" workflow"
+    },
+    "evidence": {
+     "action": "searched",
+     "attempts": [
+      "{'engine': 'google', 'status': 'ok'}"
+     ],
+     "element_count": 137,
+     "engine": "google",
+     "fallback_used": false,
+     "instruction": "아직 안 읽은 결과 10건이 있다(rank [1, 2, 3, 4, 5]). browser_open_result 에 rank 를 줘서 **들어가라.** 본문은 browser_extract 로 읽고, 더 파고들 링크는 browser_links 로 찾는다.",
+     "query": "reddit ClaudeCode \"new session\" OR \"/clear\" OR \"context\" workflow",
+     "ready_polls": 1,
+     "requested_engine": "google",
+     "result_count": 10,
+     "result_polls": 2,
+     "tab": "all",
+     "title": "reddit ClaudeCode \"new session\" OR \"/clear\" OR \"context\" workflow - Google 검색",
+     "url": "https://www.google.com/search?q=reddit+ClaudeCode+%22new+session%22+OR+%22%2Fclear%22+OR+%22context%22+workflow"
+    }
+   },
+   {
+    "step": 5,
+    "tool": "browser_open_result",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "rank": 1
+    },
+    "evidence": {
+     "action": "opened_result",
+     "element_count": 94,
+     "instruction": "[도구가 보낸 안내] 전에 reddit.com 에서 본 것: 본문이 제대로 읽혔던 주소 모양: /r/LocalLLM/comments/1xdgu57/qwen38_27b_swift_15_iq3_s_128k_ctx_rtx_{n}_i/, /user/Stunning-Sherbet{n}/submitted/, /mod/ClaudeAI/rules/ — 같은 종류 페이지는",
+     "rank": 1,
+     "read_so_far": 1,
+     "ready_polls": 1,
+     "remaining": [
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "result_title": "when should you use /clear? : r/ClaudeCode\n\nReddit · r/ClaudeCode\n댓글 30개 이상 · 1개월 전",
+     "site_traits": [
+      "{'trait': 'readable_url', 'count': 217, 'details': ['/r/LocalLLM/comments/1xdgu5",
+      "{'trait': 'site_search_fails', 'count': 57, 'details': [], 'last_seen': '2026-10",
+      "{'trait': 'shadow_dom', 'count': 36, 'details': [], 'last_seen': '2026-10-27'}",
+      "{'trait': 'empty_url', 'count': 13, 'details': ['/r/ClaudeAI/comments/1x{n}l/cla"
+     ],
+     "title": "when should you use /clear? : r/ClaudeCode",
+     "url": "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/"
+    }
+   },
+   {
+    "step": 6,
+    "tool": "browser_extract",
+    "ok": true,
+    "error": "",
+    "arguments": {},
+    "evidence": {
+     "action": "extracted",
+     "char_count": 10620,
+     "fell_back": false,
+     "frame": "main",
+     "instruction": "1개째 읽었다. 여기에 답이 있으면 그것을 쓰고, 없으면 browser_open_result 로 다음을 열어라 — 안 읽은 rank [2, 3, 4, 5, 6]. 새로 검색하지 마라.",
+     "link_ratio": 7,
+     "post_comments": [
+      "{'author': 'No_Job_9995', 'score': 3, 'depth': 0, 'gist': 'I never use /compact.",
+      "{'author': 'ILikeCutePuppies', 'score': 1, 'depth': 1, 'gist': \"When? Like with ",
+      "{'author': 'No_Job_9995', 'score': 1, 'depth': 2, 'gist': 'Early on, before 4.5 ",
+      "{'author': 'coldpizza', 'score': 1, 'depth': 1, 'gist': 'but `/compact` triggers",
+      "{'author': 'ILikeCutePuppies', 'score': 1, 'depth': 2, 'gist': \"Maybe but it doe",
+      "{'author': 'Sir-douche-a-lot', 'score': 1, 'depth': 2, 'gist': \"You should never",
+      "{'author': 'Xyver', 'score': 1, 'depth': 0, 'gist': \"Why dont you start a new ch",
+      "{'author': 'coldpizza', 'score': 1, 'depth': 1, 'gist': \"That's exactly why the ",
+      "{'author': 'Xyver', 'score': 1, 'depth': 2, 'gist': 'Do you understand the docs?",
+      "{'author': 'coldpizza', 'score': 1, 'depth': 3, 'gist': 'very interesting, have ",
+      "{'author': 'Xyver', 'score': 1, 'depth': 4, 'gist': 'Yes. I dont think theres mu",
+      "{'author': 'coldpizza', 'score': 1, 'depth': 5, 'gist': 'human optimization tend",
+      "{'author': '[deleted]', 'score': 1, 'depth': 0, 'gist': '[deleted]'}",
+      "{'author': 'coldpizza', 'score': 1, 'depth': 1, 'gist': 'saw there is `/desktop ",
+      "{'author': 'nathan_jamesDDG151', 'score': 1, 'depth': 0, 'gist': 'Clear is same ",
+      "{'author': 'coldpizza', 'score': 1, 'depth': 1, 'gist': \"hmm, very useful concep",
+      "{'author': 'nathan_jamesDDG151', 'score': 1, 'depth': 2, 'gist': 'Planner asks m",
+      "{'author': 'coldpizza', 'score': 1, 'depth': 3, 'gist': 'tried the three compart",
+      "{'author': 'nathan_jamesDDG151', 'score': 1, 'depth': 4, 'gist': \"In my workflow",
+      "{'author': 'coldpizza', 'score': 1, 'depth': 5, 'gist': 'the concept is from dec",
+      "…외 14개"
+     ],
+     "read_so_far": 1,
+     "remaining": [
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "selector": "main#main-content.main.w-full",
+     "shot_at": 1793035852.763,
+     "shot_ms": 344,
+     "shot_path": "C:\\RoboMetaFit\\tools\\alture-jarvis\\outputs\\shots\\f52e0d50-f0e7-4d73-8dab-048fc1829cde\\step_006.jpg",
+     "shot_title": "when should you use /clear? : r/ClaudeCode",
+     "shot_url": "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/",
+     "title": "when should you use /clear? : r/ClaudeCode",
+     "url": "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/"
+    }
+   },
+   {
+    "step": 7,
+    "tool": "browser_open_result",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "rank": 5
+    },
+    "evidence": {
+     "action": "opened_result",
+     "element_count": 282,
+     "instruction": "[도구가 보낸 안내] 전에 reddit.com 에서 본 것: 본문이 제대로 읽혔던 주소 모양: /r/LocalLLM/comments/1xdgu57/qwen38_27b_swift_15_iq3_s_128k_ctx_rtx_{n}_i/, /user/Stunning-Sherbet{n}/submitted/, /mod/ClaudeAI/rules/ — 같은 종류 페이지는",
+     "rank": 5,
+     "read_so_far": 2,
+     "ready_polls": 1,
+     "remaining": [
+      "2",
+      "3",
+      "4",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "result_title": "Why use /clear instead of starting a new conversation?\n\nReddit · r/ClaudeCode\n댓글 90개 이상 · 4개월 전",
+     "site_traits": [
+      "{'trait': 'readable_url', 'count': 217, 'details': ['/r/LocalLLM/comments/1xdgu5",
+      "{'trait': 'site_search_fails', 'count': 57, 'details': [], 'last_seen': '2026-10",
+      "{'trait': 'shadow_dom', 'count': 36, 'details': [], 'last_seen': '2026-10-27'}",
+      "{'trait': 'empty_url', 'count': 13, 'details': ['/r/ClaudeAI/comments/1x{n}l/cla"
+     ],
+     "title": "Why use /clear instead of starting a new conversation? : r/ClaudeCode",
+     "url": "https://www.reddit.com/r/ClaudeCode/comments/1u8f21o/why_use_clear_instead_of_starting_a_new/"
+    }
+   },
+   {
+    "step": 8,
+    "tool": "browser_extract",
+    "ok": true,
+    "error": "",
+    "arguments": {},
+    "evidence": {
+     "action": "extracted",
+     "big_images": 1,
+     "char_count": 20760,
+     "fell_back": false,
+     "frame": "main",
+     "image_body": true,
+     "image_body_note": "★ 이 페이지의 상세 내용은 그림 안에 있어, 그림 1장을 읽어 글 끝에 붙였다(「그림에서 읽은 글」). 그 값은 답에 써도 되지만 **「그림에서 읽음」이라고 밝혀라** — 그림 글자는 한두 자가 틀릴 수 있다. 그림에서 읽은 글에도 없는 값은 「확인 못 함」이다.",
+     "image_text_chars": 7,
+     "image_tiles": 1,
+     "images_read": 1,
+     "instruction": "★ 이 페이지의 상세 내용은 그림 안에 있어, 그림 1장을 읽어 글 끝에 붙였다(「그림에서 읽은 글」). 그 값은 답에 써도 되지만 **「그림에서 읽음」이라고 밝혀라** — 그림 글자는 한두 자가 틀릴 수 있다. 그림에서 읽은 글에도 없는 값은 「확인 못 함」이다. 2개째 읽었다. 여기에 답이 있으면 그것을 쓰고, 없으면 browser_open_result",
+     "link_ratio": 7,
+     "post_comments": [
+      "{'author': 'checkwithanthony', 'score': 155, 'depth': 0, 'gist': 'I use remote c",
+      "{'author': 'Sasquatchjc45', 'score': 38, 'depth': 1, 'gist': 'I use remote contr",
+      "{'author': 'Murky_Candy6342', 'score': 14, 'depth': 2, 'gist': 'It’s weird it wa",
+      "{'author': 'Sasquatchjc45', 'score': 8, 'depth': 3, 'gist': 'I noticed this too,",
+      "{'author': 'minimalcation', 'score': 1, 'depth': 3, 'gist': \"It'll just type tha",
+      "{'author': 'bluesphere', 'score': 4, 'depth': 2, 'gist': 'This was a bug, when I",
+      "{'author': 'Garak', 'score': 2, 'depth': 3, 'gist': 'Oh man, thanks for the head",
+      "{'author': 'NewPointOfView', 'score': 2, 'depth': 2, 'gist': 'Same lol at one po",
+      "{'author': 'checkwithanthony', 'score': 2, 'depth': 2, 'gist': 'For me.. i just ",
+      "{'author': 'macbig273', 'score': 3, 'depth': 3, 'gist': \"tips, don't run auto co",
+      "{'author': 'checkwithanthony', 'score': 2, 'depth': 4, 'gist': 'Very good tip, b",
+      "{'author': 'Pitiful-Look-6014', 'score': 1, 'depth': 5, 'gist': 'Don’t believe i",
+      "{'author': 'Sasquatchjc45', 'score': 3, 'depth': 3, 'gist': 'Thats the thing, to",
+      "{'author': 'checkwithanthony', 'score': 1, 'depth': 4, 'gist': 'Agreed in concep",
+      "{'author': 'DLuke2', 'score': 1, 'depth': 2, 'gist': 'That was a bug. Slash comm",
+      "{'author': 'finch5', 'score': 10, 'depth': 1, 'gist': 'Oh shit, that’s a good us",
+      "{'author': 'halflucids', 'score': 3, 'depth': 1, 'gist': 'I made a (sorry, windo",
+      "{'author': 'Brahma04', 'score': 2, 'depth': 2, 'gist': 'I was beginning to wonde",
+      "{'author': 'Wihamo', 'score': 1, 'depth': 2, 'gist': \"I'm puzzled as to why no o",
+      "{'author': 'Artistic_Pineapple_7', 'score': 2, 'depth': 1, 'gist': 'You can also",
+      "…외 60개"
+     ],
+     "read_so_far": 2,
+     "remaining": [
+      "2",
+      "3",
+      "4",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "selector": "main#main-content.main.w-full",
+     "shot_at": 1793035912.141,
+     "shot_ms": 280,
+     "shot_path": "C:\\RoboMetaFit\\tools\\alture-jarvis\\outputs\\shots\\f52e0d50-f0e7-4d73-8dab-048fc1829cde\\step_008.jpg",
+     "shot_title": "Why use /clear instead of starting a new conversation? : r/ClaudeCode",
+     "shot_url": "https://www.reddit.com/r/ClaudeCode/comments/1u8f21o/why_use_clear_instead_of_starting_a_new/",
+     "tall_images": 1,
+     "title": "Why use /clear instead of starting a new conversation? : r/ClaudeCode",
+     "url": "https://www.reddit.com/r/ClaudeCode/comments/1u8f21o/why_use_clear_instead_of_starting_a_new/"
+    }
+   },
+   {
+    "step": 9,
+    "tool": "browser_search",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "engine": "google",
+     "limit": 10,
+     "query": "github Claude Code handoff.md new session workflow CLAUDE.md context"
+    },
+    "evidence": {
+     "action": "searched",
+     "attempts": [
+      "{'engine': 'google', 'status': 'ok'}"
+     ],
+     "element_count": 131,
+     "engine": "google",
+     "fallback_used": false,
+     "instruction": "아직 안 읽은 결과 10건이 있다(rank [1, 2, 3, 4, 5]). browser_open_result 에 rank 를 줘서 **들어가라.** 본문은 browser_extract 로 읽고, 더 파고들 링크는 browser_links 로 찾는다.",
+     "query": "github Claude Code handoff.md new session workflow CLAUDE.md context",
+     "ready_polls": 1,
+     "requested_engine": "google",
+     "result_count": 10,
+     "result_polls": 1,
+     "tab": "all",
+     "title": "github Claude Code handoff.md new session workflow CLAUDE.md context - Google 검색",
+     "url": "https://www.google.com/search?q=github+Claude+Code+handoff.md+new+session+workflow+CLAUDE.md+context"
+    }
+   },
+   {
+    "step": 10,
+    "tool": "browser_open_result",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "rank": 4
+    },
+    "evidence": {
+     "action": "opened_result",
+     "element_count": 130,
+     "instruction": "[도구가 보낸 안내] 전에 github.com 에서 본 것: 본문이 제대로 읽혔던 주소 모양: /AnkleBreaker-Studio/unity-mcp-server, /HurtzDonutStudios/ai-forge-mcp, /sonjari/sonjari/blob/main/CONTRIBUTING.md — 같은 종류 페이지는 이런 모양이다. 번호 자리에는 목록",
+     "rank": 4,
+     "read_so_far": 1,
+     "ready_polls": 1,
+     "remaining": [
+      "1",
+      "2",
+      "3",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "result_title": "who96/claude-code-context-handoff: Automatic ... GitHub https://github.com › who96 › claude-code-context-handoff",
+     "site_traits": [
+      "{'trait': 'readable_url', 'count': 283, 'details': ['/AnkleBreaker-Studio/unity-",
+      "{'trait': 'site_search_ok', 'count': 18, 'details': [], 'last_seen': '2026-10-07",
+      "{'trait': 'bot_wall', 'count': 18, 'details': [], 'last_seen': '2026-10-19'}",
+      "{'trait': 'empty_url', 'count': 6, 'details': ['/getzep/graphiti', '/trending/py",
+      "{'trait': 'shadow_dom', 'count': 5, 'details': [], 'last_seen': '2026-10-21'}",
+      "{'trait': 'login_wall', 'count': 2, 'details': [], 'last_seen': '2026-10-19'}"
+     ],
+     "title": "who96/claude-code-context-handoff: Automatic context preservation for Claude Code. Prevents intelligence degradation after auto-compaction using hooks.",
+     "url": "https://github.com/who96/claude-code-context-handoff"
+    }
+   },
+   {
+    "step": 11,
+    "tool": "browser_extract",
+    "ok": true,
+    "error": "",
+    "arguments": {},
+    "evidence": {
+     "action": "extracted",
+     "char_count": 5889,
+     "fell_back": false,
+     "frame": "main",
+     "instruction": "1개째 읽었다. 여기에 답이 있으면 그것을 쓰고, 없으면 browser_open_result 로 다음을 열어라 — 안 읽은 rank [1, 2, 3, 5, 6]. 새로 검색하지 마라.",
+     "link_ratio": 29,
+     "read_so_far": 1,
+     "remaining": [
+      "1",
+      "2",
+      "3",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "selector": "main#ui-service-main-content",
+     "shot_at": 1793035977.817,
+     "shot_ms": 265,
+     "shot_path": "C:\\RoboMetaFit\\tools\\alture-jarvis\\outputs\\shots\\f52e0d50-f0e7-4d73-8dab-048fc1829cde\\step_011.jpg",
+     "shot_title": "who96/claude-code-context-handoff: Automatic context preservation for Claude Code. Prevents intelligence degradation after auto-compaction using hooks.",
+     "shot_url": "https://github.com/who96/claude-code-context-handoff",
+     "title": "who96/claude-code-context-handoff: Automatic context preservation for Claude Code. Prevents intelligence degradation after auto-compaction using hooks.",
+     "url": "https://github.com/who96/claude-code-context-handoff"
+    }
+   },
+   {
+    "step": 12,
+    "tool": "local_write_document",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "format": "xlsx",
+     "path": "claude_code_새세션_사례.xlsx",
+     "sheets": {
+      "새 세션 사례": [
+       [
+        "제목",
+        "주소",
+        "방식",
+        "이유",
+        "이어 가는 방법",
+        "좋은 점",
+        "불편한 점",
+        "원문 한 문장"
+       ],
+       [
+        "when should you use /clear?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/",
+        "context 50% 되기 전에 새 세션 시작",
+        "/compact를 쓰면 중요한 디테일이 빠짐",
+        "tasks.md 또는 GitHub issues에 상태 저장, 내장 메모리는 최소한만 사용",
+        "새 세션 시작 비용이 거의 없음",
+        "",
+        "I never use /compact. When I tried it early on, it dropped important details, so I stopped trusting it. Instead I start a new session, usually before the context reaches about 50%."
+       ],
+       [
+        "when should you use /clear?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/",
+        "context 40% 넘으면 새 스레드",
+        "context가 자동으로 compact되는 것을 원하지 않음",
+        ".md 파일에 context 작성 후 새 스레드 시작",
+        "",
+        "",
+        "You should never get to the point where context gets compacted by itself. Anything past 40% context and I'm using a new thread. Use an .md file to write the context and just start fresh thread"
+       ],
+       [
+        "when should you use /clear?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/",
+        "새 채팅을 시작하고 문서로 재지향",
+        "외부 문서가 있으면 새 채팅을 빠르게 재지향할 수 있음",
+        "context.md(라우터 파일) 만들고 다른 문서들 서서히 구축",
+        "",
+        "",
+        "I always make a context.md, which is like a router file, and then slowly build up other docs."
+       ],
+       [
+        "when should you use /clear?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/",
+        "기능별로 /clear 사용",
+        "세션 목록에 100개 이상의 세션이 쌓이는 것을 방지",
+        "Planner/Implementor/Reviewer 3단계 워크플로",
+        "",
+        "",
+        "Clear is same with creating a new session. You just lose message history. Instead of having 100x of sessions on my list i use it many many times. Per feature i use /clear."
+       ],
+       [
+        "when should you use /clear?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/",
+        "모든 새로운 무관한 기능에 새 세션 또는 /clear",
+        "Claude가 코드베이스를 파고 현재 상태에 맞게 계획할 수 있음",
+        "",
+        "",
+        "",
+        "Every new unrelated feature gets a fresh session or a /clear. Claude is able to dig into your codebase and plan according to the current state."
+       ],
+       [
+        "when should you use /clear?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/",
+        "작업 끝나고 새 작업 시작할 때 /clear",
+        "같은 창에서 시작 가능",
+        "Matt Pocock /handoff 스킬 사용",
+        "",
+        "",
+        "If you know you're about to end a task and begin a new one /clear lets you start in same window. I use it with Matt Pocock /handoff skill."
+       ],
+       [
+        "when should you use /clear?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/",
+        "자주 새로 시작, 수 시간 세션 안 함",
+        "",
+        "handover.md 선호, compact 안 사용. 먼저 계획하고 분할 정복",
+        "",
+        "",
+        "Start fresh often. Don't do multi hour sessions. Don't use compact, prefer handover.md. Plan first with opus/fable. Divide and conquer the plan. Then implement."
+       ],
+       [
+        "when should you use /clear?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/",
+        "context 40~50%에서 새 세션",
+        "",
+        "Handoff 스킬 만들고 새 세션에서 handoff 읽기 요청",
+        "",
+        "",
+        "Create skill Handoff and 40/50% of the context windows close and open new one and ask to read handoff"
+       ],
+       [
+        "when should you use /clear?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/",
+        "모든 작업 또는 버그 수정 후 /clear",
+        "",
+        "",
+        "",
+        "",
+        "You should be using /clear after every task or bug fix you're working on."
+       ],
+       [
+        "when should you use /clear?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/",
+        "여러 프로젝트를 며칠간 세션 유지, /compact 사용",
+        "/clear가 가치 있는 캐시 컨텍스트를 삭제할 수 있다는 우려",
+        "~/.claude/projects/<project-id> 메타데이터에 의존",
+        "",
+        "/clear의 정확한 효과를 모름",
+        "I only do /compact whenever I move to the next task, guided by some sort of invented urban legend that /clear will delete valuable cached context, and might (?) cause extra token burn to onboard claude to the next task"
+       ],
+       [
+        "Why use /clear instead of starting a new conversation?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1u8f21o/why_use_clear_instead_of_starting_a_new/",
+        "자주 clear 안 함, auto-compact에 맡김",
+        "1M 컨텍스트 윈도우에서 md 파일 + auto-compact로 충분",
+        "md 파일에 문서화, claude.md에 인덱싱",
+        "",
+        "",
+        "I am very on top of documenting things in md files which I index in claude.md and I let the session handle itself."
+       ],
+       [
+        "Why use /clear instead of starting a new conversation?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1u8f21o/why_use_clear_instead_of_starting_a_new/",
+        "context ~60%에서 handoff.md 정리 후 Dispatch로 새 세션",
+        "auto-compact는 비효율적이고 세션이 부풀어남",
+        "handoff.md 자동 정리, Dispatch로 /handoff 또는 resume 스킬로 새 세션 시작",
+        "",
+        "auto-compact는 비효율적이고 할루시네이션 증가",
+        "Thats the thing, tokens are an issue lmao. And autocompaction is incredibly inefficient, and still causes the session to be bloated and use more context while simultaneously hallucinating more"
+       ],
+       [
+        "Why use /clear instead of starting a new conversation?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1u8f21o/why_use_clear_instead_of_starting_a_new/",
+        "200k에서 새 세션 시작",
+        "1M 토큰 컨텍스트를 믿지 않음",
+        "",
+        "",
+        "",
+        "Don't believe in 1m token context. Just try to start new session around 200k and you will see the difference"
+       ],
+       [
+        "Why use /clear instead of starting a new conversation?",
+        "https://www.reddit.com/r/ClaudeCode/comments/1u8f21o/why_use_clear_instead_of_starting_a_new/",
+        "/clear로 새 세션 만들고 /resume으로 돌아감",
+        "",
+        "/resume",
+        "",
+        "",
+        "I use /clear to create new sessions and /resume to hop back to sessions I just cleared all of the time."
+       ],
+       [
+        "claude-code-context-handoff",
+        "https://github.com/who96/claude-code-context-handoff",
+        "/clear 전환 시 자동 컨텍스트 보존 (hooks)",
+        "장기간 세션이 반복 compact 후 성능 저하",
+        "PreCompact/SessionEnd/SessionStart hooks로 handoff.md 자동 생성·복원",
+        "",
+        "hooks는 슬래시 명령을 직접 재작성할 수 없어 supervisor 필요",
+        "Long-running sessions degrade after repeated context compactions. This plugin preserves critical context and restores it after both compact and clear lifecycle transitions."
+       ]
+      ]
+     }
+    },
+    "evidence": {
+     "action": "local_write_document",
+     "bytes": 9186,
+     "format": "xlsx",
+     "opened": "deferred",
+     "output_path": "{OUT}\\claude_code_새세션_사례.xlsx",
+     "rows": 16,
+     "sheets": [
+      "새 세션 사례"
+     ],
+     "verified": true
+    }
+   },
+   {
+    "step": 13,
+    "tool": "local_read_document",
+    "ok": true,
+    "error": "",
+    "arguments": {
+     "path": "{OUT}\\claude_code_새세션_사례.xlsx"
+    },
+    "evidence": {
+     "action": "local_read_document",
+     "char_count": 5264,
+     "content": "[시트: 새 세션 사례]\n제목 주소 방식 이유 이어 가는 방법 좋은 점 불편한 점 원문 한 문장\nwhen should you use /clear? https://www.reddit.com/r/ClaudeCode/comments/1w4zdwu/when_should_you_use_clear/ context 50% 되기 전에 새 세션 시작 /compact를 쓰면",
+     "format": "xlsx",
+     "pages": 0,
+     "sheets": 1,
+     "slides": 0,
+     "truncated": false
+    }
+   }
+  ]
+ }
+}

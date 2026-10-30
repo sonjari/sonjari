@@ -752,7 +752,11 @@ _QWEN_DESCRIPTIONS = {
         "reading a whole file floods the transcript."
     ),
     "local_write_file": "Create or replace one text file inside the selected workspace.",
-    "local_apply_edit": "Replace one exact old block with new text. The old block must occur once.",
+    "local_apply_edit": (
+        "Replace one exact old block with new text. The old block must occur once. "
+        "If the text will not match (mixed quotes/backslashes), omit old and give line_start, line_end and first_line "
+        "(the current text of line_start) to replace those lines with new."
+    ),
     "local_delete_file": (
         "Delete one file inside the selected workspace, mainly to clean up a temporary probe. The deletion is backed up. "
         "A folder is deleted only if this task created it (e.g. a node_modules that just appeared) or it is a cache "

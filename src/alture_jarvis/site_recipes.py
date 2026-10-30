@@ -29,7 +29,7 @@ import json
 import time
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlparse
 
 from .browser import BrowserWorker
@@ -104,6 +104,11 @@ class SiteRecipe:
             if isinstance(table, dict)
         }
         self.param_joins = {str(k): str(v) for k, v in (data.get("param_joins") or {}).items()}
+        # ★ 사람이 보여 준 레시피의 **검증 상태**와 쓴 횟수 (2026-10-28). 상태는 저장하기 전 「한 번 해 보기」가 남긴다 —
+        #   `verified`(걸음마다 확인이 맞았다) · `unverified`(안 해 봤거나 틀렸다). 쓴 횟수는 `site_run` 이 돌 때마다 센다.
+        #   손자리에 든(사람이 검토한) 레시피에는 이 칸이 없고, 없으면 믿을 만한 쪽으로 친다(순서는 `rank`).
+        self.verification = dict(data.get("verification") or {})
+        self.usage = dict(data.get("usage") or {})
         # ★ **이 사이트 상세 화면에서 읽을 자리** — 경로 앞머리 → 선택자들 (2026-10-04 실전 판 e055235f).
         #   사람인 공고 편집기 템플릿이 본문을 `<main>` 으로 감싸, 본문 고르기가 그 안만 읽고 「핵심 정보」(근무형태·급여)를 버렸다.
         #   어디가 사이트가 채운 칸이고 어디가 올린 사람의 글인지는 사이트를 본 사람이 안다 — 레시피에 적는다.
@@ -161,6 +166,11 @@ class SiteRecipe:
                 # 되돌리기의 되돌리기는 되돌리기가 아니라 다시 하기다. 사슬을 허용하면
                 # 되돌리다가 원래 자리로 돌아오는 고리가 생긴다.
                 raise RecipeError(f"{where}: 되돌리기('{undo_name}')가 또 되돌리기를 갖는다")
+
+    @property
+    def rank(self) -> int:
+        """레시피를 고를 때의 순서 — **검증된 것이 먼저**(0), 미검증이 뒤(1). 칸이 없는 레시피(손자리에 든 것)는 0."""
+        return 1 if str(self.verification.get("state") or "") == "unverified" else 0
 
     def undo_action_of(self, action_name: str) -> str:
         return str((self.actions.get(action_name) or {}).get("undo") or "")
@@ -270,6 +280,82 @@ class SiteRecipeTools:
         self._tell_browser_about_search_recipes()
         return {"saved": True, "name": name, "path": str(path)}
 
+    def replay_unsaved(
+        self,
+        recipe_data: dict[str, Any],
+        action_name: str = "from_demo",
+        progress: Callable[[dict[str, Any]], None] | None = None,
+        lang: str = "ko",
+    ) -> dict[str, Any]:
+        """저장하기 **전의** 레시피를 그대로 한 번 돌려 본다 — 걸음마다 확인(`expect`)이 맞았는지 돌려준다(2026-10-28 대표).
+
+        `{"ok", "total", "failed_at", "reason", "rows"}`. `ok` 는 **모든 걸음이 끝까지 돌고, 누르기 · 키 누르기의 확인이 전부 맞았을 때만**
+        참이다 — 확인 결과를 못 읽은 것도 맞다고 치지 않는다(`verified is True` 만). 첫 틀린 걸음에서 멈춘다(뒤를 돌려 봐야 다른 화면 위다).
+
+        사람이 [한 번 해 볼게요]를 눌러 시킨 일이라 게이트웨이의 승인 카드를 거치지 않는다 — 그 단추가 승인이다. 열 수 있는 주소는 저장했을
+        때와 같게 레시피의 `hosts` 안으로 막힌다. 입력 값은 **보여 주신 그 말**(`_slots`)로 채운다.
+        """
+        from .recipe_from_run import step_lines
+
+        recipe = SiteRecipe(Path("demo-unsaved.json"), recipe_data)  # 저장 때와 같은 규칙을 먼저 통과시킨다
+        action = recipe.actions.get(action_name)
+        if action is None:
+            raise RecipeError(f"{recipe.name}에 '{action_name}' 절차가 없다")
+        params = {str(k): str(v) for k, v in (recipe_data.get("_slots") or {}).items()}
+        shown = step_lines(recipe_data, action_name, lang)
+        steps = list(action["steps"])
+        total = sum(1 for step in steps if step.get("do") != "dismiss")
+        refs: dict[str, str] = {}
+        rows: list[dict[str, Any]] = []
+        number = 0
+
+        def say(row: dict[str, Any]) -> None:
+            if progress is not None:
+                try:
+                    progress(row)
+                except Exception:  # noqa: BLE001 — 화면 알림이 틀어져도 돌려 보기는 간다
+                    pass
+
+        def fail(reason: str) -> dict[str, Any]:
+            return {"ok": False, "total": total, "failed_at": number, "reason": reason[:200], "rows": rows}
+
+        for step in steps:
+            if step.get("do") == "dismiss":
+                try:
+                    self._run_step(recipe, step, params, refs)
+                except Exception:  # noqa: BLE001 — 가로막는 창이 없어서 못 닫은 것은 틀린 것이 아니다
+                    pass
+                continue
+            number += 1
+            what, check = shown[number - 1] if number - 1 < len(shown) else (str(step.get("do")), "")
+            text = (what + check).strip()
+            say({"n": number, "total": total, "text": text, "ok": None, "note": ""})
+            try:
+                outcome = self._run_step(recipe, step, params, refs)
+            except Exception as exc:  # noqa: BLE001 — 어디서 왜 틀렸는지를 사람에게 말해야 한다
+                note = f"{type(exc).__name__}: {exc}"[:160]
+                rows.append({"n": number, "text": text, "ok": False, "note": note})
+                say(rows[-1])
+                return fail(note)
+            if step.get("do") in {"click", "press"} and outcome.get("verified") is not True:
+                evidence = str(outcome.get("evidence") or "").strip()
+                if outcome.get("verified") is False:
+                    note = (f"the expected change did not show up{f' ({evidence})' if evidence else ''}" if lang == "en"
+                            else f"기대한 변화가 화면에 나타나지 않았습니다{f' ({evidence})' if evidence else ''}")
+                else:
+                    note = "could not read the check result" if lang == "en" else "확인 결과를 읽지 못했습니다"
+                rows.append({"n": number, "text": text, "ok": False, "note": note})
+                say(rows[-1])
+                return fail(note)
+            if step.get("do") == "verify" and outcome.get("verified") is not True:
+                note = "the check did not pass" if lang == "en" else "확인이 맞지 않았습니다"
+                rows.append({"n": number, "text": text, "ok": False, "note": note})
+                say(rows[-1])
+                return fail(note)
+            rows.append({"n": number, "text": text, "ok": True, "note": ""})
+            say(rows[-1])
+        return {"ok": True, "total": total, "failed_at": None, "reason": "", "rows": rows}
+
     def forget_learned(self, name: str) -> dict[str, Any]:
         """배운 레시피를 지운다(「되돌려」). 손자리에 든 레시피는 여기서 못 지운다 — 사람 폴더 안의 것만."""
         path = Path(self.config.user_recipes_dir) / f"{name}.json"
@@ -291,7 +377,8 @@ class SiteRecipeTools:
     @property
     def ollama_tools(self) -> list[dict[str, Any]]:
         listing = ", ".join(
-            f"{name}({'/'.join(recipe.actions)})" for name, recipe in sorted(self.recipes.items())
+            f"{name}({'/'.join(recipe.actions)}){' [미검증]' if recipe.rank else ''}"
+            for name, recipe in sorted(self.recipes.items(), key=lambda item: (item[1].rank, item[0]))
         ) or "(등록된 사이트 없음)"
         return [
             {
@@ -759,6 +846,10 @@ class SiteRecipeTools:
                     "site": name,
                     "description": recipe.description,
                     "hosts": recipe.hosts,
+                    # 검증된 것이 먼저 나온다(위 정렬) — 미검증은 모델이 그렇게 알 수 있게 칸을 둔다.
+                    **({"verification": str(recipe.verification.get("state") or ""),
+                        "usage": {"runs": int(recipe.usage.get("runs") or 0), "succeeded": int(recipe.usage.get("succeeded") or 0)}}
+                       if recipe.verification else {}),
                     "actions": [
                         {
                             "action": action_name,
@@ -779,7 +870,7 @@ class SiteRecipeTools:
                         for action_name, action in recipe.actions.items()
                     ],
                 }
-                for name, recipe in sorted(self.recipes.items())
+                for name, recipe in sorted(self.recipes.items(), key=lambda item: (item[1].rank, item[0]))
             ]
         }
 
@@ -791,6 +882,33 @@ class SiteRecipeTools:
         recipe = self.recipes.get(site)
         if recipe is None:
             raise RecipeError(f"모르는 사이트: {site or '(없음)'} — 등록된 것: {sorted(self.recipes)}")
+        ok = False
+        try:
+            result = self._run_recipe(recipe, site, action_name, arguments, params)
+            ok = result.get("status") == "done"
+            return result
+        finally:
+            self._record_use(recipe, ok)
+
+    def _record_use(self, recipe: SiteRecipe, ok: bool) -> None:
+        """쓴 횟수 · 성공 수를 **사람 폴더의 레시피 파일**에 센다(2026-10-28). 손자리에 든 레시피는 건드리지 않는다. 못 써도 일은 간다."""
+        try:
+            user_dir = getattr(self.config, "user_recipes_dir", None)
+            path = Path(recipe.path)
+            if user_dir is None or path.parent != Path(user_dir) or not path.exists():
+                return
+            data = json.loads(path.read_text(encoding="utf-8"))
+            usage = dict(data.get("usage") or {})
+            usage["runs"] = int(usage.get("runs") or 0) + 1
+            usage["succeeded"] = int(usage.get("succeeded") or 0) + (1 if ok else 0)
+            usage["last_at"] = time.time()
+            data["usage"] = usage
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            recipe.usage = usage
+        except Exception:  # noqa: BLE001 — 세기가 틀어져도 레시피는 돈다
+            pass
+
+    def _run_recipe(self, recipe: SiteRecipe, site: str, action_name: str, arguments: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
         action = recipe.actions.get(action_name)
         if action is None:
             raise RecipeError(f"{site}에 '{action_name}' 절차가 없다 — 있는 것: {sorted(recipe.actions)}")

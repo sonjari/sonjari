@@ -282,6 +282,81 @@ def _into_asked_folder(name: str, arguments: dict[str, Any], prompt: str) -> dic
     return {**arguments, "path": f"{folder}/{raw}"}
 
 
+#: 「찾던 파일이나 폴더가 없다」류 — 사람이 그 자리를 확인해 주면 풀리는 것만. (소문자로 견준다)
+_FILE_MISSING_WORDS = (
+    "path_not_found", "folder_not_found", "code_workspace_not_found", "python_script_not_found", "node_script_not_found",
+    "file_required", "directory_required", "no such file", "winerror 2]", "winerror 3]", "지정된 파일", "지정된 경로",
+)
+
+#: 「이 작업이 건드릴 수 없는 자리 · 허용 안 된 명령」류 — 규칙이 막은 것이라 파일이 있는지 봐 달라는 부탁이 아니다.
+_BLOCKED_WORDS = (
+    "path_outside_allowed_roots", "sensitive_path_blocked", "path_too_broad", "system_folder_blocked", "_blocked", "not_allowed",
+    "needs_workspace", "needs_source", "outside_workspace", "code_workspace_too_broad", "read_only_mode", "folder_is_a_link",
+    "folder_holds_git_history", "folder_existed_before_this_job", "access is denied", "winerror 5]", "permission",
+)
+
+#: 도구에 넘긴 값이 모자라거나 틀린 것 — 사람이 할 일이 아니다(모델이 고쳐 다시 부르면 된다).
+_BAD_INPUT = re.compile(
+    r"^(?:\w*_required|\w*_must_be_\w+|bad_pattern|command_(?:too_long|quotes_unbalanced|array_required)|invalid_job_id|job_context_required)\b"
+)
+
+_ASK_FILE_MISSING = "찾던 파일이나 폴더가 그 자리에 있는지 봐 주시고, 다른 곳에 있으면 경로를 알려 주세요."
+_ASK_EDIT_TEXT_MISS = "고칠 글자를 파일에서 못 맞췄습니다. 「이어서」를 누르면 줄 번호로 다시 해 봅니다."
+_ASK_EDIT_NOT_UNIQUE = "고칠 글자가 파일에 여러 곳 있어 어디인지 못 정했습니다. 「이어서」를 누르면 앞뒤 줄을 더하거나 줄 번호로 다시 해 봅니다."
+_ASK_EDIT_LINES = "고칠 자리의 줄 번호가 맞지 않았습니다. 「이어서」를 누르면 그 부분을 다시 읽고 줄 번호를 새로 잡아 해 봅니다."
+_ASK_DOCUMENT_TEXT_MISS = "고칠 글자를 문서에서 못 맞췄습니다. 「이어서」를 누르면 문서를 다시 읽고 해 봅니다."
+_ASK_BLOCKED = "이 작업이 건드릴 수 없는 자리거나 허용되지 않은 명령이라 막혔습니다. 해도 되는 일이면 허용할 폴더를 알려 주세요."
+_ASK_BAD_INPUT = "도구에 넘긴 값이 잘못돼 있었습니다. 사람이 할 일은 없습니다 — 「이어서」를 누르면 다시 해 봅니다."
+_ASK_NO_PROGRAM = "실행하려던 프로그램이나 프로젝트 가상환경이 이 PC 에 없습니다. 설치돼 있는지 한 번 봐 주세요."
+_ASK_LOCAL_OTHER = "이 PC 쪽 도구가 같은 오류로 막혔습니다. 오류 내용을 한 번 봐 주시고, 풀리면 「이어서」를 눌러 주세요."
+
+#: 편집이 막혀 멈춘 뒤 이어질 때 모델에게 주는 한 줄 — 「화면을 새로 보라」는 말은 파일 편집에는 맞지 않는다.
+_RETRY_EDIT_BY_LINES = (
+    "local_apply_edit 가 글자를 못 맞춰 멈췄다. 이어지면 **같은 old 를 또 맞추려 하지 말고**, local_read_text_file 로 그 줄을 읽은 뒤 "
+    "local_apply_edit 에 old 를 빼고 line_start · line_end · first_line(line_start 줄의 지금 글자) · new 를 줘서 줄 번호로 고쳐라."
+)
+
+
+def _local_stuck_ask(tool: str, error: str) -> tuple[str, str]:
+    """막힌 `local_`/`hwp_` 도구의 **오류 종류**에 맞는 부탁과, 이어질 때 모델에게 줄 한 줄(없으면 빈 글자).
+
+    ★ 2026-10-28 코딩 재생 2판: `local_apply_edit` 가 글자 맞추기 실패(`old_text_not_found`)를 5번 연속해 멈췄는데 부탁은 「찾던 파일이나
+      폴더가 그 자리에 있는지 봐 주세요」였다 — 파일은 멀쩡했다. 도구 이름이 `local_` 로 시작하면 오류와 상관없이 같은 부탁을 했다.
+      파일 없음류만 그 문장을 남기고, 나머지는 오류 종류로 가른다.
+
+    분류표(오류 글은 `str(exc)` 라 앞머리가 오류 이름이다):
+
+        old_text_not_found (local_apply_edit)       → 사람 몫 아님, 줄 범위 모드로 잇는다 + 모델에게 줄 번호 길 안내
+        old_text_not_found (hwp 등 다른 도구)         → 사람 몫 아님, 다시 읽고 잇는다
+        old_text_not_unique · line_* · first_line_required · old_required → 편집 자리 정하기, 다시 읽고 잇는다
+        path_not_found · folder_not_found · no such file 류                 → 지금 문장(파일 · 폴더 확인)
+        path_outside_allowed_roots · *_blocked · *_not_allowed · 권한 거부  → 규칙이 막음, 허용할 폴더를 묻는다
+        *_required · bad_pattern · command_* 입력 오류                      → 사람 몫 아님
+        command_not_found · project_venv_missing                            → 프로그램 · 가상환경 확인
+        그 밖                                                               → 오류 내용을 보고 풀리면 이어서 (파일 없음이라 단정하지 않는다)
+    """
+    raw = " ".join((error or "").split())
+    lowered = raw.lower()
+    if lowered.startswith("old_text_not_found") or lowered.startswith("hwp_old_text_not_found"):
+        if tool == "local_apply_edit":
+            return _ASK_EDIT_TEXT_MISS, _RETRY_EDIT_BY_LINES
+        return _ASK_DOCUMENT_TEXT_MISS, ""
+    if lowered.startswith("old_text_not_unique") or lowered.startswith("hwp_old_text_not_unique"):
+        return _ASK_EDIT_NOT_UNIQUE, _RETRY_EDIT_BY_LINES if tool == "local_apply_edit" else ""
+    if lowered.startswith(("line_text_changed", "line_range_", "first_line_required", "old_required", "syntax_broken")):
+        # syntax_broken(2026-10-29): 편집이 파이썬 문법을 깨서 쓰지 않았다 — 사람 몫이 아니라 모델이 new 를 고쳐 다시 부를 일.
+        return _ASK_EDIT_LINES, _RETRY_EDIT_BY_LINES if tool == "local_apply_edit" else ""
+    if lowered.startswith(("command_not_found", "project_venv_missing")):
+        return _ASK_NO_PROGRAM, ""
+    if any(word in lowered for word in _BLOCKED_WORDS):
+        return _ASK_BLOCKED, ""
+    if any(word in lowered for word in _FILE_MISSING_WORDS):
+        return _ASK_FILE_MISSING, ""
+    if _BAD_INPUT.match(lowered):
+        return _ASK_BAD_INPUT, ""
+    return _ASK_LOCAL_OTHER, ""
+
+
 def _stuck_report(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
     """같은 자리에서 헛돌고 있으면 사람에게 넘길 보고, 아니면 None. 모델을 부르지 않는다(이미 센 것만 쓴다)."""
     # ★ 사람이 같은 탭을 쓰고 있다(2026-10-19 잡 51f35b07 · `BrowserWorker._hold_if_human_on_tab`). 헛돈 것이 아니라 **사람의 차례**다 —
@@ -349,6 +424,7 @@ def _stuck_report(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
         ask = "크롬 창에서 그 화면을 한 번 봐 주세요. 찾던 단추나 칸이 보이면 한 번 눌러 두시거나, 어디 있는지 말씀해 주세요."
     else:
         blocked = f"같은 자리에서 {failures}번 연속 실패했습니다" + (f" — {tool}: {error}" if tool else "")
+        retry_hint = ""
         timeout = any(word in error.lower() for word in ("timeout", "time out", "시간 초과"))
         # ★ 부탁은 **막힌 도구의 종류**에 맞춘다(2026-09-27 게임 팩 벤치). 로컬 파일 찾기가 5번 실패했는데
         #   「크롬 창에서 이 화면을 맞춰 주세요」라고 했다 — 크롬은 그 판에 열린 적도 없었다.
@@ -356,7 +432,7 @@ def _stuck_report(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
             ask = "사이트가 제때 응답하지 않습니다. 잠시 뒤 「이어서」를 눌러 주세요." if tool.startswith("browser_") else \
                 "작업이 제한 시간 안에 안 끝났습니다. 잠시 뒤 「이어서」를 눌러 주세요."
         elif tool.startswith(("local_", "hwp_")):
-            ask = "찾던 파일이나 폴더가 그 자리에 있는지 봐 주시고, 다른 곳에 있으면 경로를 알려 주세요."
+            ask, retry_hint = _local_stuck_ask(tool, str(last.get("error") or ""))
         elif tool.startswith("unity_"):
             ask = "유니티 에디터가 그 프로젝트를 열고 있으면 닫아 주시고, 오류 내용을 한 번 봐 주세요."
         else:
@@ -366,7 +442,10 @@ def _stuck_report(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
         + (f"\n그 화면: {url[:200]}" if url else "")
         + f"\n이것만 해 주세요: {ask}\n다 하시면 「이어서」를 눌러 주세요 — 처음부터 하지 않고 이 자리에서 이어 갑니다."
     )
-    return {"kind": kind, "done": done, "blocked": blocked, "ask": ask, "url": url, "message": message}
+    report = {"kind": kind, "done": done, "blocked": blocked, "ask": ask, "url": url, "message": message}
+    if kind == "keeps_failing" and retry_hint:
+        report["retry_hint"] = retry_hint
+    return report
 
 
 #: 「오늘 것」·「이번 주 것」이 허락하는 글의 나이(일). 오늘 새벽에는 어제 저녁 기사가 가장 최신이라 「오늘」도 하루를 봐준다.

@@ -605,7 +605,8 @@ class OllamaClient:
                     budget = table[family]
                     break
         # 설정 「생각 깊이 › 보통」 — 생각하는 걸음에서도 짧게 끊는다(2026-09-24, 「너무 느리다」).
-        if str(getattr(self.config, "agent_thinking_policy", "always") or "always") == "adaptive" and budget > 0:
+        # `auto`(자동)는 일부러 안 자른다: 칩 「자동」도 설정이 `always` 일 때 안 잘랐고, 10-27 측정의 「보통」 칩도 그랬다.
+        if str(getattr(self.config, "agent_thinking_policy", "auto") or "auto") == "adaptive" and budget > 0:
             budget = min(budget, 2500)
         return budget
 
@@ -736,6 +737,8 @@ class OllamaClient:
                                 "last": self.__dict__.get("_front_last")},
                 "context_length": int((resident or {}).get("context_length") or 0),
                 "size_vram": int((resident or {}).get("size_vram") or 0),
+                # 올라간 모델의 전체 크기(`size_vram` 과 견주면 그래픽카드에 얼마나 들어갔는지 — 2026-10-27 · agent 의 넘침 경고).
+                "size": int((resident or {}).get("size") or 0),
                 # ★ 2026-09-30: 손자리가 **쓸** 창 크기. 워치독이 모델을 깨울 때 이 값으로 깨워야 다음 질문이 러너를
                 #   갈아 끼우지 않는다 — 전엔 OS 환경변수의 옛 값(65536)으로 깨웠고 손자리는 32768 이었다.
                 "num_ctx": {role: int(self.config.num_ctx_for(role)) for role in ("chat", "code")},
@@ -2144,6 +2147,24 @@ class OllamaClient:
                 ])
                 started = time.monotonic()
                 continue
+            except httpx.TimeoutException as exc:
+                # ★ 2026-10-27 그룹장 실사용: 「제한 시간 안에 답하지 못해」 한 줄뿐이라 **무엇이 몇 초 안 왔는지** 몰랐다.
+                #   어디서 멈췄는지를 예외에 달아 그대로 올린다(던지는 쪽은 그대로 — 위에서 읽는 쪽이 문장을 만든다).
+                #   첫 글자(생각 · 글 · 도구 조각)가 한 번도 안 왔으면 「첫 글자 없음」, 온 뒤에 끊겼으면 「중간에 끊김」.
+                try:
+                    exc.jarvis_wait = {
+                        "phase": (
+                            "connect" if isinstance(exc, httpx.ConnectTimeout)
+                            else "no_first_token" if not first_token else "mid_stream"
+                        ),
+                        "limit_sec": float(
+                            10.0 if isinstance(exc, httpx.ConnectTimeout) else self.config.ollama_stall_timeout_sec
+                        ),
+                        "waited_sec": round(time.monotonic() - started, 1),
+                    }
+                except Exception:  # noqa: BLE001 — 달기에 실패해도 원래 예외가 간다
+                    pass
+                raise
             break
         # Some runtimes may repeat a completed tool call in the final chunk.
         unique_calls: list[dict[str, Any]] = []

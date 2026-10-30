@@ -547,6 +547,11 @@ _LADDER: tuple[tuple[str, int, float], ...] = (
 )
 
 
+#: 「똑똑함 · 빠름」 둘로 나눠 보여 줄 때의 두 모델(2026-10-28 밤 대표 결정 · `recommend` 안 주석).
+SMART_FAMILY = "swift-27b"
+FAST_PICK_KEY = "qwen3.6-35b-iq2m"
+
+
 #: 사다리의 이 칸은 **그림 부속을 뗀 채**(「글만 읽기」) 올리는 칸이다 — (모델, 창). 메모리는 `text_only_need` 로 본다.
 _TEXT_ONLY_RUNGS: frozenset[tuple[str, int]] = frozenset({("qwen3.8-27b-swift-iq3xxs", 65536), ("qwen3.6-35b-iq2m", 65536),
                                                           ("qwen3.5-9b-q3", 49152), ("qwen3.5-9b-q3", 32768),
@@ -773,7 +778,27 @@ def recommend(profile: dict[str, Any], bench: dict[str, Any] | None = None) -> d
                       "chain": ({"ok": model.chain[0], "total": model.chain[1], "ctx": model.chain_ctx}
                                 if model.chain else None)})
         primary_key, primary_tag, primary_ctx, download = model.key, model.ollama_tag, ctx, model.download_gb
-        if not is_open_license(model.license):
+        # ★ 2026-10-28 밤 대표 결정: 첫 추천이 Swift 27B 면 둘째 카드는 늘 Qwen3.6 35B 2비트 — 「3.8 은 똑똑하다 · 3.6 은 빠르다」로
+        #   나눠 보여 준다(24GB 급의 예전 둘째 칸은 같은 바탕의 일반 압축판이었다). 근거: 같은 바깥 코드 과제 12개에서 Swift 12/12 ·
+        #   2비트 10/12, 속도는 2비트가 이 PC(3090)에서 초당 116토큰(`model_catalog.py` 그 항목 주석). 2비트는 Apache 2.0 이라
+        #   라이선스 조건 없는 대안 몫도 그대로 한다. 2비트가 이 카드에 안 들어가면 예전처럼 조건 없는 다음 칸을 준다.
+        fast = next(((alt, alt_ctx, alt_need) for alt, alt_ctx, alt_need, _h in fits[1:]
+                     if alt.key == FAST_PICK_KEY), None) if model.family == SMART_FAMILY else None
+        if fast is not None:
+            alt, alt_ctx, alt_need = fast
+            picks[-1]["role"] = "smart"
+            reasons.append(f"똑똑함은 {model.family_name or model.name}, 빠름은 {alt.name} 입니다 — 둘 다 이 PC 에 들어갑니다. "
+                           "어려운 일은 똑똑한 쪽, 빨리 끝낼 일은 빠른 쪽이 맞습니다.")
+            if not is_open_license(model.license):
+                reasons.append(f"{model.name} 의 라이선스에는 사용 조건이 있습니다 — {alt.name} 은 조건이 없습니다(Apache 2.0).")
+            picks.append({"kind": "open_alternative", "role": "fast", "model_key": alt.key, "name": alt.name,
+                          "ollama_tag": alt.ollama_tag, "num_ctx": alt_ctx, "vram_gb": alt_need, "download_gb": alt.download_gb,
+                          "installed": alt.ollama_tag in installed,
+                          "confidence": "measured" if alt.chain and alt.chain_ctx == alt_ctx else "memory_only",
+                          "text_only": (alt.key, alt_ctx) in _TEXT_ONLY_RUNGS,
+                          "license": alt.license, "license_open": is_open_license(alt.license), "license_url": alt.license_url,
+                          "chain": ({"ok": alt.chain[0], "total": alt.chain[1], "ctx": alt.chain_ctx} if alt.chain else None)})
+        elif not is_open_license(model.license):
             # 첫 추천의 라이선스에 조건이 있으면 **조건 없는 대안**을 같이 준다 — 우리가 잰 모델 가운데 이 카드에 들어가는 다음 것.
             # 고르는 것은 사용자다. 매출을 묻지도 막지도 않는다(조건의 내용은 원문 링크가 말한다).
             for alt, alt_ctx, alt_need, _alt_headroom in fits[1:]:

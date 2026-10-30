@@ -283,6 +283,7 @@ class TabletScreenCapture:
                 capture_output=True,
                 timeout=10.0,
                 check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except Exception:
             # Nothing to kill, or the tablet is gone -- neither is worth failing
@@ -346,6 +347,7 @@ class TabletScreenCapture:
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             bufsize=0,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         self._process = process
         deadline = time.monotonic() + SCREENRECORD_LIMIT_SEC - RESTART_MARGIN_SEC

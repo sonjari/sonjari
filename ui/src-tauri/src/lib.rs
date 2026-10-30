@@ -20,6 +20,7 @@ use tauri::{
 use std::os::windows::process::CommandExt;
 
 mod claude_agent;
+mod notify;
 mod package;
 mod tray_status;
 mod webview_check;
@@ -1881,6 +1882,62 @@ fn focus_workspace_window(app: AppHandle) -> Result<(), String> {
     open_workspace(&app)
 }
 
+/// 작업 화면 창이 **앞에서 사용자가 보는 중인가** (2026-10-27 · 윈도우 알림). 보이고 · 안 접히고 · 포커스가 있을 때만 참.
+/// 화면(JS)이 알림을 띄울지 정할 때 부른다 — 보는 중이면 알림이 방해일 뿐이다. 창이 없으면(닫힘) 거짓이다.
+#[tauri::command]
+fn window_in_front(app: AppHandle) -> bool {
+    app.get_webview_window("workspace")
+        .map(|window| {
+            window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(true) && window.is_focused().unwrap_or(false)
+        })
+        .unwrap_or(false)
+}
+
+/// 윈도우 알림(오른쪽 아래)을 띄운다. 알림을 누르면 `notification-clicked`(session_id · job_id · action)를 창에 알린다:
+/// 본문 · 「열기」(`open`)는 앱 창을 앞으로 가져온 뒤 그 대화를 열게 하고, 「결과 폴더」(`folder`)는 창을 건드리지 않고 알리기만 한다
+/// (폴더는 화면이 백엔드의 만든 것 목록으로 연다 — 경로를 여기서 받지 않는다). 띄울지 말지의 판단은 화면(`ui/src/notify.ts`)이 하고,
+/// 여기는 띄우기만 한다. `tone`(done · waiting · stuck)과 `lang`(ko · en)이 위쪽 큰 그림을 고른다 — 그림이 없으면 글만으로 뜬다.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+async fn notify_user(
+    app: AppHandle,
+    title: String,
+    body: String,
+    session_id: Option<String>,
+    job_id: Option<String>,
+    tone: Option<String>,
+    lang: Option<String>,
+    attribution: Option<String>,
+    open_label: Option<String>,
+    folder_label: Option<String>,
+) -> Result<(), String> {
+    let handle = app.clone();
+    let session_id = session_id.unwrap_or_default();
+    let job_id = job_id.unwrap_or_default();
+    let (hero, logo) = notify::art_for(
+        notify::Tone::parse(tone.as_deref().unwrap_or("")),
+        lang.as_deref() == Some("en"),
+    );
+    notify::show(
+        &notify::Toast {
+            title,
+            body,
+            attribution: attribution.unwrap_or_default(),
+            hero,
+            logo,
+            open_label: open_label.unwrap_or_default(),
+            folder_label: folder_label.filter(|label| !label.trim().is_empty()),
+        },
+        std::sync::Arc::new(move |action: &str| {
+            if action != "folder" {
+                let _ = focus_workspace_window(handle.clone());
+            }
+            let payload = serde_json::json!({ "session_id": session_id, "job_id": job_id, "action": action });
+            let _ = handle.emit_to("workspace", "notification-clicked", payload);
+        }),
+    )
+}
+
 /// 브라우저 무대 작은 창 (2026-09-24). 바깥 AI(Claude·Codex 가 MCP 로)가 맡긴 일이 브라우저를 쓰는 동안,
 /// 화면 오른쪽 아래에 온텔릭 크롬 화면을 작게 띄운다. 크롬 창을 띄우지 않고도 「보인다」.
 ///
@@ -2143,6 +2200,8 @@ pub fn run() {
             hide_hud,
             minimize_workspace,
             focus_workspace,
+            window_in_front,
+            notify_user,
             open_stage_mini,
             close_stage_mini,
             open_external_url,

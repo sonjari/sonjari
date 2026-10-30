@@ -144,3 +144,17 @@ it('기본값 복원 실패도 한국어로 해당 칸에서 알린다', async (
   await click(input('user_label').closest('li')!.querySelector('button')!);
   expect(input('user_label').closest('li')!.textContent).toContain('연결'); expect(container.textContent).not.toContain('Failed to fetch');
 });
+
+it('일반 구역에 「윈도우 알림 받기」 스위치가 있고 기본은 켬이며, 끄면 이 PC 에 기억한다(2026-10-27)', async () => {
+  window.localStorage.removeItem('sonjari.notify_enabled');
+  await render();
+  const sw = container.querySelector<HTMLButtonElement>('#setting-notify-enabled')!;
+  expect(sw.getAttribute('aria-checked')).toBe('true');
+  await click(sw);
+  expect(sw.getAttribute('aria-checked')).toBe('false');
+  expect(window.localStorage.getItem('sonjari.notify_enabled')).toBe('off');
+  await click(sw);
+  expect(sw.getAttribute('aria-checked')).toBe('true');
+  window.localStorage.removeItem('sonjari.notify_enabled');
+});
+

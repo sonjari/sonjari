@@ -404,8 +404,117 @@ _UNFINISHED_LEAD = {
 }
 
 
+#: 이 값(0~1) 아래로 그래픽카드에 올라갔으면 「일부가 CPU 로 넘쳤다」고 말한다. Ollama 는 작은 몫이 밖에 남는 일이 흔해(실측 전)
+#: 2~3% 어긋남은 넘침으로 세지 않는다. 판 시작 경고(`agent._SPILL_WARN_BELOW`)와 같은 값이어야 한다.
+SPILL_WARN_BELOW = 0.97
+
+
+def timeout_detail(wait: dict[str, Any] | None, *, english: bool = False) -> str:
+    """제한 시간으로 끝난 판이 **무엇이 몇 초 안 왔는지 · 할 수 있는 것**을 사람 말로 (2026-10-27 그룹장 실사용).
+
+    ## 왜
+    예전 끝맺음은 「모델이 제한 시간 안에 답하지 못해」 한 줄뿐이었다. 그 시간이 무엇이고(첫 글자가 안 오는 300초) 왜 걸렸는지(모델 일부가
+    그래픽카드 밖으로 넘치면 CPU 로 돌아 첫 글자가 늦다) 모르니 사용자는 「끄는 법」을 물었다 — 이 값은 화면 설정에 없다.
+    여기 적는 것은 예외에 달린 사실(`ollama.py` 의 `jarvis_wait`)과 `/api/ps` 로 본 그래픽카드 비율뿐이다. 모르는 것은 「~일 수 있습니다」.
+    """
+    wait = wait if isinstance(wait, dict) else {}
+    phase = str(wait.get("phase") or "")
+    try:
+        limit = int(round(float(wait.get("limit_sec") or 0)))
+    except (TypeError, ValueError):
+        limit = 0
+    share = wait.get("gpu_share")
+    share = float(share) if isinstance(share, (int, float)) else None
+    resumed = bool(wait.get("auto_resumed"))
+    # 카드가 가득이라 자동으로 다시 이어 가지 않은 판(2026-10-27) — 할 일(다른 프로그램 닫기)을 먼저 말한다.
+    skipped_full = wait.get("resume_skipped") == "card_full" and not resumed
+    parts: list[str] = []
+    if english:
+        if phase == "no_first_token" and limit:
+            parts.append(f"The model produced no first character for {limit} seconds.")
+        elif phase == "mid_stream" and limit:
+            parts.append(f"While writing its reply, no new characters arrived for {limit} seconds.")
+        elif phase == "connect" and limit:
+            parts.append(f"Could not connect to the model program (Ollama) within {limit} seconds.")
+        elif limit:
+            parts.append(f"The model gave no response for {limit} seconds.")
+        if skipped_full and phase != "connect":
+            parts.append(
+                "The graphics card is full, so trying again would likely stall at the same place. Close the other programs that hold "
+                "graphics card memory (3ds Max, Unity, and so on) first, then send \"continue\" - I did not retry automatically."
+            )
+        if phase != "connect":
+            parts.append("This limit is a safety stop that is not in the settings screen, so I cannot turn it off.")
+        if resumed:
+            parts.append("I picked the task up once automatically, but it stalled at the same place again.")
+        if phase == "connect":
+            parts.append("Check that Ollama is running.")
+            return " ".join(parts)
+        full, used, total = wait.get("card_full"), wait.get("card_used_gb"), wait.get("card_total_gb")
+        if share is not None and share < SPILL_WARN_BELOW:
+            parts.append(
+                f"At that moment about {round((1 - share) * 100)}% of the model was outside the graphics card (running on the CPU), which makes it very slow."
+            )
+        elif full:
+            parts.append(
+                f"At that moment graphics card memory was nearly full ({used}/{total}GB). If another program holds memory there, Windows quietly "
+                "pushes the part that does not fit into system memory, and the model can become very slow with no error."
+            )
+        elif full is False:
+            parts.append(f"At that moment the graphics card had room to spare ({used}/{total}GB in use).")
+        else:
+            parts.append("Part of the model may not fit on the graphics card (or another program may hold its memory), or it may still be loading for the first time.")
+        parts.append(
+            "What you can do: (1) close other programs that use the graphics card (3ds Max, Unity, and so on) - I do not close them for you; "
+            "(2) press the model name button at the top, then \"Measure limit\" (\"Measure again\" if already measured) in the Context row "
+            "to pick a window size that fits this PC; (3) pick a smaller model in the same list."
+        )
+        return " ".join(parts)
+    if phase == "no_first_token" and limit:
+        parts.append(f"모델이 첫 글자를 {limit}초 동안 내놓지 못했습니다.")
+    elif phase == "mid_stream" and limit:
+        parts.append(f"답을 쓰던 도중 {limit}초 동안 새 글자가 오지 않았습니다.")
+    elif phase == "connect" and limit:
+        parts.append(f"모델 프로그램(Ollama)에 {limit}초 안에 연결하지 못했습니다.")
+    elif limit:
+        parts.append(f"모델의 응답이 {limit}초 동안 없었습니다.")
+    if skipped_full and phase != "connect":
+        parts.append(
+            "그래픽카드가 가득 차 있어 다시 불러도 같은 자리에서 멈출 가능성이 큽니다 — 그래픽카드 메모리를 쥔 다른 프로그램"
+            "(3ds Max · 유니티 등)을 먼저 닫은 뒤 「이어서 해줘」라고 보내 주세요. 그래서 자동으로 다시 이어 가지 않았습니다."
+        )
+    if phase != "connect":
+        parts.append("이 제한 시간은 화면 설정에 없는 안전장치라 손자리가 끌 수 없습니다.")
+    if resumed:
+        parts.append("자동으로 한 번 다시 이어 갔지만 같은 자리에서 또 멈췄습니다.")
+    if phase == "connect":
+        parts.append("Ollama 가 실행 중인지 확인해 주세요.")
+        return " ".join(parts)
+    full, used, total = wait.get("card_full"), wait.get("card_used_gb"), wait.get("card_total_gb")
+    if share is not None and share < SPILL_WARN_BELOW:
+        parts.append(
+            f"그때 모델의 약 {round((1 - share) * 100)}%가 그래픽카드 밖(CPU)에 있었습니다 — 이러면 매우 느려집니다."
+        )
+    elif full:
+        parts.append(
+            f"그때 그래픽카드 메모리가 거의 가득 차 있었습니다({used}/{total}GB). 다른 프로그램이 쥔 메모리가 있으면 윈도우가 모자란 몫을 "
+            "시스템 메모리로 조용히 밀어, 오류 없이 모델이 아주 느려질 수 있습니다."
+        )
+    elif full is False:
+        parts.append(f"그때 그래픽카드에는 여유가 있었습니다(사용 {used}/{total}GB).")
+    else:
+        parts.append("모델 일부가 그래픽카드에 안 들어갔거나(다른 프로그램이 카드를 쥐고 있을 수 있습니다), 처음 올리는 중일 수 있습니다.")
+    parts.append(
+        "해 볼 것: ① 그래픽카드를 쓰는 다른 프로그램(3ds Max · 유니티 등)을 닫기 — 손자리는 다른 프로그램을 끄지 않습니다 "
+        "② 위쪽 모델 이름 버튼 → 컨텍스트 칸의 「상한 재기」(이미 쟀으면 「다시 재기」)로 이 PC 에 맞는 창 크기 고르기 "
+        "③ 같은 목록에서 더 작은 모델 고르기."
+    )
+    return " ".join(parts)
+
+
 def unfinished_turn_note(
-    error: str, *, cancelled: bool, files: list[str], sources: list[str], last_failure: str = "", english: bool = False
+    error: str, *, cancelled: bool, files: list[str], sources: list[str], last_failure: str = "", english: bool = False,
+    wait: dict[str, Any] | None = None,
 ) -> str:
     """끝내지 못한 판(실패·멈춤)이 **대화에 남기는 한 줄**. 모델을 부르지 않는다 — 걸음 기록에 있는 것만 적는다.
 
@@ -424,11 +533,14 @@ def unfinished_turn_note(
         key = "cancelled"
     elif name in _UNFINISHED_LEAD:
         key = name
-    elif name.startswith("timed out") or "timeout" in name.lower():
+    elif name.startswith("timed out") or "timed out" in name.lower() or "timeout" in name.lower():
         key = "timeout"
     else:
         key = "other"
     parts = [_UNFINISHED_LEAD[key][lang]]
+    detail = timeout_detail(wait, english=english) if key == "timeout" and not cancelled and wait else ""
+    if detail:
+        parts.append(detail)
     shown = [str(path) for path in files if str(path).strip()][:6]
     if shown:
         more = len([path for path in files if str(path).strip()]) - len(shown)
@@ -441,7 +553,18 @@ def unfinished_turn_note(
     stuck = " ".join(str(last_failure or "").split())[:160]
     if stuck and not cancelled:
         parts.append(f"Last thing that failed: {stuck}" if english else f"마지막으로 걸린 것: {stuck}")
-    parts.append('Send "continue" to pick up from here.' if english else "「이어서 해줘」라고 보내면 여기서 이어갑니다.")
+    # 「이어서」 안내는 자동으로 한 번 이어 간 **뒤에도** 막혔을 때의 마지막 길이다(2026-10-27) — 위 「해 볼 것」을 먼저 하고 보내게 한다.
+    after_fix = (
+        bool(detail)
+        and (bool((wait or {}).get("auto_resumed")) or (wait or {}).get("resume_skipped") == "card_full")
+        and str((wait or {}).get("phase") or "") != "connect"
+    )
+    if english:
+        parts.append('After trying the above, send "continue" to pick up from here.' if after_fix else 'Send "continue" to pick up from here.')
+    else:
+        parts.append(
+            "위를 해 본 뒤 「이어서 해줘」라고 보내면 여기서 이어갑니다." if after_fix else "「이어서 해줘」라고 보내면 여기서 이어갑니다."
+        )
     return "(" + " ".join(parts) + ")"
 
 
@@ -485,6 +608,13 @@ def _failure_report(job: dict[str, Any], result: dict[str, Any], steps: list[dic
             notes.append("검증할 결과를 만들지 못한 채 멈췄습니다(만든 파일 없음).")
     elif error in _STOPPED_WHY:
         notes.append(_STOPPED_WHY[error])
+    elif "timed out" in error.lower() or "timeout" in error.lower():
+        # 모델이 제한 시간 안에 답하지 못했다(2026-10-27) — 무엇이 몇 초 안 왔는지 · 할 수 있는 것을 호스트도 같은 말로 받는다.
+        notes.append(
+            "손자리의 모델이 제한 시간 안에 답하지 못해 멈췄습니다"
+            + (" — files·sources 는 그때까지 한 일입니다. " if files or sources else ". ")
+            + timeout_detail(diagnosis.get("model_wait") if isinstance(diagnosis.get("model_wait"), dict) else None)
+        )
     elif files or sources:
         notes.append(f"{NAME_KO}가 실패했습니다({error or '이유 미상'}). files·sources 는 실패하기 전까지 한 일입니다.")
 

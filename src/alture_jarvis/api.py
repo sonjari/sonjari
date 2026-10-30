@@ -1001,6 +1001,12 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def browser_status() -> dict[str, Any]:
         return runtime.browser.status()
 
+    # 지금 「배우는 중」인가 (2026-10-28 · `/레시피`) — 화면이 사건을 놓쳤어도(앱을 다시 켬) 칸이 맞게 뜨게 처음 붙을 때 묻는다.
+    #   입력한 글은 없다(칸 이름 · 곳만).
+    @app.get("/v1/demo/state", dependencies=[Depends(require_token)])
+    def demo_state() -> dict[str, Any]:
+        return runtime.demo_state()
+
     # 자비스가 보는 화면 한 장 (R2). **읽기 전용이고, 브라우저를 띄우지 않는다.**
     #
     # 화면이 당겨 간다 — 미는 쪽이 되면 아무도 안 볼 때도 프레임을 만들게 된다.
@@ -1277,7 +1283,9 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def _whats_new_version() -> str:
         from . import msix as _msix_for_notes
 
-        return _msix_for_notes.package_version()
+        # 스토어 패키지면 그 판 번호. 패키지 밖(이 PC 같은 개발 · 운영 PC)은 판 번호가 없어 「바뀐 것」이 한 번도 안 떴다
+        # (2026-10-27 대표) → 글이 있는 가장 높은 판을 쓴다. 새 판 글이 들어오면 다음 시작 때 한 번 뜬다.
+        return _msix_for_notes.package_version() or _whats_new.newest_version()
 
     @app.get("/v1/whats-new", dependencies=[Depends(require_token)])
     def whats_new_status(lang: str = "ko") -> dict[str, Any]:
@@ -1294,6 +1302,23 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def whats_new_seen(body: dict[str, Any]) -> dict[str, Any]:
         version = str(body.get("version") or "") or _whats_new_version()
         return _whats_new.mark_seen(runtime.config.data_dir, version)
+
+    # ── 「쓰는 법」 쇼 (2026-10-27 대표 · `usage_show`) — 아직 안 본 사람에게 한 번 ──────────────────
+    from . import usage_show as _usage_show
+
+    @app.get("/v1/usage-show", dependencies=[Depends(require_token)])
+    def usage_show_status() -> dict[str, Any]:
+        from . import setup_state as _setup_state
+
+        try:
+            done = bool((_setup_state.read(runtime.config.data_dir) or {}).get("completed"))
+        except Exception:  # noqa: BLE001 — 못 읽으면 마법사를 마친 사람으로 본다(소개를 한 번 더 보는 쪽이 낫다)
+            done = True
+        return _usage_show.status(runtime.config.data_dir, setup_done=done)
+
+    @app.post("/v1/usage-show/seen", dependencies=[Depends(require_token)])
+    def usage_show_seen() -> dict[str, Any]:
+        return _usage_show.mark_seen(runtime.config.data_dir)
 
     @app.get("/v1/setup/profile", dependencies=[Depends(require_token)])
     def setup_profile(fresh: bool = False) -> dict[str, Any]:

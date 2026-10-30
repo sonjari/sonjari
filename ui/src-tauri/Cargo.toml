@@ -27,8 +27,8 @@ ureq = { version = "2.12", features = ["json"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Dwm", "Win32_UI_Input_KeyboardAndMouse"] }
-# MSIX: 패키지 신원 확인 + StartupTask(자동 시작). tauri 가 이미 끌어오는 0.61 과 같은 판.
-windows = { version = "0.61", features = ["ApplicationModel", "Foundation", "Win32_Foundation", "Win32_Storage_Packaging_Appx"] }
+# MSIX: 패키지 신원 확인 + StartupTask(자동 시작) + 윈도우 알림(토스트 · notify.rs). tauri 가 이미 끌어오는 0.61 과 같은 판.
+windows = { version = "0.61", features = ["ApplicationModel", "Foundation", "Data_Xml_Dom", "UI_Notifications", "Win32_Foundation", "Win32_Storage_Packaging_Appx"] }
 
 [profile.release]
 panic = "abort"

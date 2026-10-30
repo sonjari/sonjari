@@ -116,6 +116,11 @@ def _decode(value: str | None, default: Any) -> Any:
 #: 바깥 AI(MCP)가 맡긴 과제의 방 이름 머리 — `mcp_server` 가 과제마다 `mcp-…` 방을 준다.
 DELEGATED_ROOM_PREFIX = "mcp-"
 
+#: 「관련 기록 찾아 붙이기」로 **다른 대화**에서 가져온 글 묶음의 첫머리. 모델에게는 참고로 주되, 근거 없는 숫자를 가리는
+#: 검사들은 이 묶음을 「알려진 값」으로 치지 않는다(`runtime._grounding_texts` · 2026-10-30 판 58761894).
+#: 글자를 바꾸면 지시문 앞부분 캐시가 깨진다 — 이 상수로만 쓴다.
+RECALLED_MEMORY_HEADER = "현재 질문과 관련되어 로컬 대화 기록에서 검색한 과거 기억이다. "
+
 
 def normalize_session_id(value: str) -> str:
     cleaned = "".join(character for character in str(value or "office-main") if character.isalnum() or character in "._:-")
@@ -752,8 +757,8 @@ class ConversationMemory:
                 {
                     "role": "system",
                     "content": (
-                        "현재 질문과 관련되어 로컬 대화 기록에서 검색한 과거 기억이다. "
-                        "현재 질문과 충돌하면 사용자의 최신 말을 우선하고, 기억에 없는 사실은 만들지 마라.\n"
+                        RECALLED_MEMORY_HEADER
+                        + "현재 질문과 충돌하면 사용자의 최신 말을 우선하고, 기억에 없는 사실은 만들지 마라.\n"
                         + "\n".join(lines)
                     ),
                 }

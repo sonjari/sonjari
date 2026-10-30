@@ -25,6 +25,33 @@ def _rotate_if_huge(path: Path) -> None:
         pass
 
 
+def _mark_life(stream) -> None:
+    """이 백엔드가 **언제 떴고 · 어떻게 끝났는지** 로그에 남긴다 (2026-10-30 · 10-29 07:16 판 도중 꺼짐).
+
+    그날 백엔드가 판 도중 말없이 사라졌는데 원인을 못 가렸다 — 이 로그(uvicorn 줄)에는 시각이 없고, 끝나는 줄도 없고,
+    재시작 직전에 오류 줄이 하나도 없었다. 그래서 세 가지를 남긴다:
+    시작 시각 · PID / 정상으로 끝나면 「정상 종료」 한 줄(이 줄이 없으면 밖에서 죽인 것) / C 수준에서 터지면 모든 스레드의 스택(`faulthandler`).
+    """
+    import atexit
+    import faulthandler
+    import os
+    import time
+
+    def stamp(what: str) -> None:
+        try:
+            stream.write(f"[life] {time.strftime('%Y-%m-%d %H:%M:%S')} pid={os.getpid()} {what}\n")
+            stream.flush()
+        except Exception:
+            pass
+
+    stamp("시작")
+    atexit.register(stamp, "정상 종료")
+    try:
+        faulthandler.enable(file=stream, all_threads=True)
+    except Exception:
+        pass
+
+
 def main() -> None:
     project_root = Path(__file__).resolve().parent.parent
     output_dir = project_root / "outputs"
@@ -77,6 +104,7 @@ def main() -> None:
     stderr = (output_dir / "jarvis.stderr.log").open("a", encoding="utf-8", buffering=1)
     sys.stdout = stdout
     sys.stderr = stderr
+    _mark_life(stderr)
 
     from alture_jarvis.__main__ import main as run_jarvis
 

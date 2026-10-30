@@ -356,6 +356,7 @@ class SelfCare:
             out = subprocess.run(
                 ["nvidia-smi", "--query-gpu=index,name,memory.total,memory.used", "--format=csv,noheader,nounits"],
                 capture_output=True, text=True, timeout=20, check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except Exception as exc:
             return self._organ("gpu", "unknown", f"nvidia-smi 를 못 돌렸습니다: {str(exc)[:100]}", {})
@@ -623,6 +624,7 @@ class SelfCare:
         out = subprocess.run(
             ["schtasks", "/Run", "/TN", self.config.supertonic_task_name],
             capture_output=True, text=True, timeout=60, check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         result: dict[str, Any] = {"returncode": out.returncode, "stdout": out.stdout[:200].strip()}
         if out.returncode == 0:

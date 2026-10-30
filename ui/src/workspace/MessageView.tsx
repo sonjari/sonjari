@@ -19,12 +19,15 @@ export const MessageView = memo(function MessageView({
   message,
   onObserveAgain,
   onContinue,
+  onSay,
   showcase,
 }: {
   message: ConversationMessage;
   onObserveAgain?: (message: ConversationMessage) => void;
   /** 끝내지 못한 판의 메모 아래 「이어서 하기」 — 대화의 마지막 말일 때만 넘어온다. */
   onContinue?: () => void;
+  /** 답 아래 단추(「보여 주기」 · 「한 번 해 볼게요」 …)가 누르면 보내는 말 — 대화의 마지막 말일 때만 넘어온다. 사람이 그 말을 친 것과 같은 문이다. */
+  onSay?: (text: string) => void;
   /** 답이 기댄 페이지의 사진을 가져오는 손(2026-10-18). 고정된 것이어야 한다 — memo 가 깨진다. */
   showcase?: ShowcaseSource;
 }) {
@@ -72,6 +75,12 @@ export const MessageView = memo(function MessageView({
         cacheReadTokens > 0 ? t("캐시 {0}토큰 재사용", cacheReadTokens.toLocaleString()) : "",
       ].filter(Boolean).join(" · ")
     : "";
+  // ★ 답 아래 단추 (2026-10-28 · `/레시피`). 백엔드가 대화 기록(`quick_replies`)에 남긴 `{label, say}` 를 그대로 그린다 — 화면은 말을 해석하지 않는다.
+  const quickReplies = message.role === "assistant" && onSay && Array.isArray(message.metadata?.quick_replies)
+    ? (message.metadata.quick_replies as { label?: unknown; say?: unknown }[])
+        .filter((item) => typeof item?.label === "string" && typeof item?.say === "string" && item.label && item.say)
+        .slice(0, 4) as { label: string; say: string }[]
+    : [];
   return (
     <article className={`workspace-message message-${message.role}${delegated ? ` message-delegated origin-${originTone(caller)}` : ""}`}>
       <div className="message-avatar">
@@ -92,6 +101,13 @@ export const MessageView = memo(function MessageView({
             {onContinue && <button type="button" onClick={onContinue}>{t("이어서 하기")}</button>}
           </p>
         ) : message.role === "assistant" ? <MarkdownView className="workspace-markdown">{answer.body}</MarkdownView> : <p>{shownContent}</p>}
+        {quickReplies.length > 0 && (
+          <div className="message-quick-replies" role="group" aria-label={t("바로 답하기")}>
+            {quickReplies.map((item) => (
+              <button type="button" key={`${item.label}:${item.say}`} onClick={() => onSay?.(item.say)}>{item.label}</button>
+            ))}
+          </div>
+        )}
         {showcase && showcaseJob && <ShowcaseStrip jobId={showcaseJob} source={showcase} />}
         {answer.checks.length > 0 && (
           <details className="message-checks">

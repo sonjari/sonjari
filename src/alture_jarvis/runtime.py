@@ -68,7 +68,7 @@ from .project_discovery import ProjectDiscovery
 from . import fact_extract, intent_shadow, updater
 from .media import MediaSessionController
 from . import check_notes, delegated_branch
-from .memory import DELEGATED_ROOM_PREFIX, ConversationMemory, normalize_session_id
+from .memory import DELEGATED_ROOM_PREFIX, RECALLED_MEMORY_HEADER, ConversationMemory, normalize_session_id
 from .outbound import outbound_record
 from .face_identity import FaceIdentity
 from .mimo_control import MimoController, MimoTools
@@ -607,6 +607,25 @@ def _claimed_files(answer: str, *known: str) -> list[str]:
             tails.add(tail)
             out.append(name)
     return out
+
+
+def _grounding_texts(history: Any) -> list[str]:
+    """앞 대화 가운데 **숫자의 근거로 칠 글**. 다른 대화에서 찾아 붙인 기억 묶음(`RECALLED_MEMORY_HEADER`)은 뺀다.
+
+    ★ 2026-10-30 판 58761894: 「Continue: … Confirm and pay 에서 멈춰」에 도구 0번 · 16초로 「결제 화면 도착 · ₩456,581」을
+      지어냈다. 그 금액은 20분 앞 **다른 대화**에서 **다른 숙소**의 값이었는데, 「관련 기록 찾아 붙이기」가 그 글을 이번 판에
+      붙였고 이 검사도 그것을 「알려진 값」으로 쳐서 근거 없는 숫자를 5개가 아니라 3개(문턱 4 미만)로 셌다.
+      붙인 기억은 모델에게 참고로는 그대로 준다 — 다만 「이번에 본 값」의 근거는 아니다. 같은 대화의 앞 판 · 배운 사실 · 지시문은 그대로 근거다.
+      운영 직답 362판(대화 기록에 판 번호가 남은 10-01~10-30)에 옛 · 새를 대 봄(`bench/recalled_not_grounds`):
+      새로 걸림 14 · 풀림 0 — 열어 보니 12판이 「방금 읽은 수치」 · 「열어 읽어라」에 기억으로 답한 판.
+    """
+    texts: list[str] = []
+    for message in history or []:
+        text = str(message.get("content") or "") if isinstance(message, dict) else str(message)
+        if text.startswith(RECALLED_MEMORY_HEADER):
+            continue
+        texts.append(text)
+    return texts
 
 
 def _unsourced_particulars(answer: str, *known: str) -> list[str]:
@@ -1813,6 +1832,8 @@ class JarvisRuntime:
                 sources=[str(item) for item in (partial.get("sources") or [])],
                 last_failure=last_failure,
                 english=_english.english_dominant(" ".join(display_prompt.split())),
+                # 모델이 제한 시간에 걸렸으면 무엇이 몇 초 안 왔는지 · 자동으로 이어 갔는지 · 그래픽카드 비율(agent 가 예외에 단다).
+                wait=getattr(exc, "jarvis_wait", None) if not cancelled else None,
             )
             self.memory.add_exchange(
                 self._session_id(payload),
@@ -4502,8 +4523,7 @@ class JarvisRuntime:
         #   사람이 「아는 대로만」·「검색하지 말고」라고 했으면 따른다.
         if not any(word in prompt for word in WEB_RESEARCH_REFUSALS):
             unsourced = _unsourced_particulars(
-                answer, prompt, str(kwargs.get("system") or ""),
-                *(str(m.get("content") or "") if isinstance(m, dict) else str(m) for m in history or []),
+                answer, prompt, str(kwargs.get("system") or ""), *_grounding_texts(history),
             )
             # ★ 2026-10-12 **아는 사이트 이름을 댄 요청**에서는 그런 숫자가 하나만 있어도 찾아보게 보낸다.
             #   이어지는 질문을 재다 나왔다(공식 9B · 같은 대화의 둘째 질문): 「아까 그거 11번가 값도 알려줘」가 도구 0번 · 5초로
@@ -4538,8 +4558,7 @@ class JarvisRuntime:
         #   대화 · 지시문을 같이 보는 여기서는 더 적다). 손이 있는 길로 올리면 거기서 「상식이면 상식, 예측이면 짐작」으로 다시 쓴다.
         #   찾으러 보내는 것(`unsourced_particulars`)이 아니다 — 의견 질문에는 찾을 사실이 없다.
         invented = _invented_ratios(
-            answer, prompt, str(kwargs.get("system") or ""),
-            *(str(m.get("content") or "") if isinstance(m, dict) else str(m) for m in history or []),
+            answer, prompt, str(kwargs.get("system") or ""), *_grounding_texts(history),
         )
         if len(invented) >= 2:
             discard_draft()
@@ -4898,6 +4917,8 @@ class JarvisRuntime:
             decline_recipe=self._decline_recipe_offer,
             start_demo=self._start_demo if getattr(self, "browser", None) is not None else None,
             stop_demo=self._stop_demo if getattr(self, "browser", None) is not None else None,
+            replay_demo=self._replay_demo if (getattr(self, "browser", None) is not None and recipes is not None) else None,
+            notify=self._demo_notify,
         )
 
     def _learn_value_cells(self, job_id: str, answer: str, agent_trace: dict[str, Any], lang: str = "ko") -> str:
@@ -4978,16 +4999,49 @@ class JarvisRuntime:
         return demo_offer_text(host, lang), host
 
     # ── 사람 시연 「배우기」 (2026-10-20 확장 설계 T8) ─────────────────────────────
+    def _demo_notify(self, event: str, payload: dict[str, Any]) -> None:
+        """「배우는 중」 칸이 듣는 사건 — `demo_started` · `demo_step` · `demo_ended` · `demo_replay_*` (2026-10-28)."""
+        self.events.publish(event, payload)
+
+    def _wire_demo_recorder(self) -> None:
+        """기록기에 이 본체의 손을 단다 — 걸음이 적힐 때 화면에 알리고, 손자리 크롬 띠의 단추가 눌리면 말을 보낸다. 가짜 브라우저(시험)는 건너뛴다."""
+        from . import ui_i18n
+
+        recorder = getattr(getattr(self, "browser", None), "_demo", None)
+        if recorder is None:
+            return
+        recorder.listener = lambda item: self._demo_notify("demo_step", item)
+        recorder.control_handler = self._on_demo_control
+        recorder.lang = ui_i18n.lang()
+
+    def _on_demo_control(self, action: str) -> None:
+        """손자리 크롬 띠의 [다 했어] · [취소] — 사람이 대화창에 그 말을 친 것과 **같은 문**으로 보낸다(대화에 그대로 남는다)."""
+        session_id = self.self_talk.demo_session()
+        words = {"stop": "다 했어", "cancel": "배우기 취소"}.get(str(action))
+        if not session_id or words is None:
+            return
+        try:
+            from .api import ChatRequest
+
+            payload = ChatRequest(prompt=words, session_id=session_id, origin="workspace", delivery="screen").model_dump()
+        except Exception:  # noqa: BLE001
+            payload = {"prompt": words, "session_id": session_id, "origin": "workspace", "delivery": "screen"}
+        payload["session_id"] = self.resolve_session_id(session_id)
+        self.enqueue("chat", words, payload)
+
     def _start_demo(self) -> dict[str, Any]:
         browser = self.browser
+        wire = getattr(self, "_wire_demo_recorder", None)  # 가짜 본체(시험)에는 없다
+        if wire is not None:
+            wire()
         try:
-            browser.start_demo()
+            started = browser.start_demo() or {}
         except Exception as exc:  # noqa: BLE001 — 크롬이 아직 안 떴으면 띄우고 한 번 더
             if "browser_not_started" not in str(exc):
                 return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:160]}
             browser.start()
-            browser.start_demo()
-        return {"ok": True}
+            started = browser.start_demo() or {}
+        return {"ok": True, "url": str(started.get("url") or "")}
 
     def _stop_demo(self, label: str) -> dict[str, Any]:
         from .demo_recorder import steps_from_demo
@@ -4998,13 +5052,56 @@ class JarvisRuntime:
         events = list(stopped.get("events") or [])
         if not events:
             return {"refused": "기록된 걸음이 없습니다"}
+        # 멈출 때 **어떤 사건이 몇 개 있었는지**를 남긴다 — 값은 없이 종류만(2026-10-28 · 운영에서 press 뒤 이동 사건이 안 적힌 까닭을 다음 시험에서 보려고).
         try:
-            draft = draft_from_run(label, steps_from_demo(events, str(stopped.get("start_url") or "")))
+            kinds: dict[str, int] = {}
+            for event in events:
+                kinds[str(event.get("kind"))] = kinds.get(str(event.get("kind")), 0) + 1
+            self.store.add_audit("demo_stopped", "", {"kinds": kinds, "secrets_skipped": int(stopped.get("secrets_skipped") or 0),
+                                                     "order": [str(event.get("kind")) for event in events][:40]})
+        except Exception:  # noqa: BLE001 — 기록이 틀어져도 레시피는 만든다
+            pass
+        allow_local = bool(getattr(getattr(self, "config", None), "demo_allow_local", False))
+        try:
+            draft = draft_from_run(label, steps_from_demo(events, str(stopped.get("start_url") or "")), allow_local=allow_local)
         except DraftRefused as exc:
             return {"refused": str(exc)}
-        recipe = demo_recipe(draft, label)
+        recipes = getattr(self, "site_recipes", None)
+        taken = {
+            name: str(((recipe.actions.get("from_demo") or {}).get("description")) or "")
+            for name, recipe in (getattr(recipes, "recipes", None) or {}).items()
+            if name.endswith("_demo")
+        }
+        recipe = demo_recipe(draft, label, taken)
         return {"recipe": recipe, "read_out": read_out_steps(recipe, "from_demo", ui_i18n.lang()),
                 "secrets_skipped": int(stopped.get("secrets_skipped") or 0)}
+
+    def _replay_demo(self, recipe: dict[str, Any]) -> dict[str, Any]:
+        """방금 배운 걸음을 저장하기 전에 한 번 그대로 돌려 본다 — 걸음마다 화면에 알리고, 결과를 돌려준다(`site_recipes.replay_unsaved`)."""
+        from . import ui_i18n
+
+        lang = ui_i18n.lang()
+        steps = ((recipe.get("actions") or {}).get("from_demo") or {}).get("steps") or []
+        total = sum(1 for step in steps if step.get("do") != "dismiss")
+        self._demo_notify("demo_replay_started", {"total": total})
+        result: dict[str, Any] = {"ok": False, "total": total, "failed_at": 1, "reason": "", "rows": []}
+        try:
+            result = self.site_recipes.replay_unsaved(
+                recipe, "from_demo", progress=lambda row: self._demo_notify("demo_replay_step", row), lang=lang)
+        except Exception as exc:  # noqa: BLE001 — 못 돌린 것도 「틀림」으로 말한다
+            result["reason"] = f"{type(exc).__name__}: {exc}"[:160]
+            raise
+        finally:
+            self._demo_notify("demo_replay_done", {"ok": bool(result.get("ok"))})
+        return result
+
+    def demo_state(self) -> dict[str, Any]:
+        """화면이 처음 붙을 때 묻는 지금의 「배우는 중」 — 사건을 놓쳐도(앱을 다시 켬) 칸이 맞게 뜨도록."""
+        recorder = getattr(getattr(self, "browser", None), "_demo", None)
+        session_id = self.self_talk.demo_session()
+        if recorder is None or not session_id:
+            return {"on": False, "label": "", "steps": []}
+        return {"on": True, "label": self.self_talk.demo_label(session_id), "session_id": session_id, "steps": recorder.recent_steps()}
 
     # ── 배운 레시피 (2026-10-20 확장 설계 P1 · T5) ───────────────────────────────
     def _recipe_offers_path(self) -> Path:
@@ -5215,6 +5312,7 @@ class JarvisRuntime:
         # ★ 손자리 자신에 대한 말(「뭐가 바뀌었어?」 · 「그림 읽기 켜 줘」 · 제안에 대한 「응」 · 「되돌려」) — 모델에게 묻지 않는다
         #   (2026-10-20 대표 · `self_talk`). 사람이 화면 · 디스코드로 친 말만 본다 — 바깥 AI 가 맡긴 판 · 코드 탭 · 첨부는 지나간다.
         self_reply = None
+        quick_replies: list[dict[str, str]] = []
         if (not code_mode and not attachment_metadata and not payload.get("delegated")
                 and str(payload.get("origin") or "") != "mcp" and not payload.get("handoff_direction")):
             try:
@@ -5223,6 +5321,7 @@ class JarvisRuntime:
                 self.events.publish("self_talk_error", {"error": f"{type(exc).__name__}: {exc}"[:200]})
                 self_reply = None
             if self_reply:
+                quick_replies = [dict(item) for item in (self_reply.get("buttons") or []) if isinstance(item, dict)]
                 self.events.publish("self_talk_answered", {"job_id": str(job["id"]), "kind": self_reply.get("kind")})
                 self.store.add_audit("self_talk_answered", str(job["id"]), {k: v for k, v in self_reply.items() if k != "answer"})
         # ★ 측정 판은 「막히면 내 클로드에게 넘기기」를 켜 둬도 넘기지 않는다(2026-10-19). 2026-08-27 측정에서 24판 중
@@ -5630,6 +5729,9 @@ class JarvisRuntime:
                         if show_offer:
                             answer = answer.rstrip() + show_offer
                             self.self_talk.offer_demo(session_id, host)
+                            # 「응」을 치는 대신 누르는 단추 — 같은 문(`/레시피`)으로 들어간다. 이름은 「응」 길과 같다.
+                            quick_replies = [{"label": "Show me" if ui_i18n.lang() == "en" else "보여 주기",
+                                              "say": f"/레시피 {host} 에서 막혔던 일"}]
                             self.events.publish("self_talk_offered", {"job_id": str(job["id"]), "kind": "show_me", "host": host})
             except Exception as exc:  # noqa: BLE001 — 권유가 틀어져도 답은 나간다
                 self.events.publish("self_talk_error", {"error": f"recipe_offer {type(exc).__name__}: {exc}"[:200]})
@@ -5671,6 +5773,8 @@ class JarvisRuntime:
             },
             assistant_metadata={
                 "job_id": str(job["id"]),
+                # 답 아래 단추 — 누르면 `say` 를 사람이 친 말처럼 같은 문으로 보낸다(화면은 마지막 말에만 보인다).
+                **({"quick_replies": quick_replies} if quick_replies else {}),
                 "camera_observation": observation or {},
                 "agent_verification": (agent_trace or {}).get("verification", {}),
                 "created_outputs": created_outputs,

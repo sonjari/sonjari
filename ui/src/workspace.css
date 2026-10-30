@@ -219,6 +219,11 @@
 .code-welcome > p { font-family: var(--font-ui); }
 .workspace-welcome h1 { margin: 5px 0 11px; font-size: clamp(27px,3vw,38px); font-weight: var(--fw-mid); letter-spacing: -.035em; color: rgb(var(--text-1)); }
 .workspace-welcome > p { max-width: 570px; margin: 0; color: rgb(var(--text-5)); font-size: var(--fs-2); line-height: 1.7; }
+/* 첫 화면 슬로건(2026-10-27) — 영문을 한글 화면에서도 어색하지 않게: 굵게 · 자간을 조이고 · 줄바꿈은 균형 있게. 밑줄(Runs on your PC.)은 손자리의 색, 앞에 실 한 가닥. */
+.workspace-welcome h1.welcome-slogan { margin: 5px 0 12px; font-size: clamp(30px,3.6vw,46px); font-weight: var(--fw-bold); letter-spacing: -.032em; line-height: 1.12; text-wrap: balance; }
+.workspace-welcome > p.welcome-local { max-width: none; margin: 0 0 14px; display: inline-flex; align-items: center; gap: 12px; color: rgb(var(--brand-bright)); font-size: var(--fs-4); font-weight: var(--fw-mid); letter-spacing: .01em; line-height: 1.3; }
+.workspace-welcome > p.welcome-local::before { content: ""; width: 34px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, rgb(var(--origin-claude)), rgb(var(--brand-bright))); }
+.workspace-welcome > p.welcome-note { color: rgb(var(--text-4)); word-break: keep-all; text-wrap: balance; }
 .suggestion-grid { width: 100%; margin-top: 40px; display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
 .suggestion-grid button { min-height: 104px; padding: 15px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; border: 1px solid rgb(var(--line) / .8); border-radius: var(--r-3); color: rgb(var(--text-3)); background: rgb(var(--surface-3)); cursor: pointer; text-align: left; font-size: var(--fs-2); line-height: 1.55; transition: transform var(--t-move) var(--ease), border-color var(--t-move) var(--ease), background var(--t-move) var(--ease); }
 .suggestion-grid button:hover { transform: translateY(-2px); border-color: rgb(var(--line-strong)); color: rgb(var(--text-1)); background: rgb(var(--surface-4)); }
@@ -1741,6 +1746,29 @@ button.output-name { color: rgb(var(--brand)); cursor: pointer; text-decoration:
 .code-think-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 0; color: rgb(var(--text-5)); font-size: var(--fs-1); }
 button.code-think-raw { background: transparent; font: inherit; }
 button.code-think-raw:disabled { cursor: default; opacity: .6; }
+/* 코드 모드(2026-10-27): 생각 상자는 펼친 채 시작하고, 본문은 7줄 높이로 고정한다(다른 칸을 밀지 않는다). 높이 = 7줄 + 위아래 여백 */
+.code-think.fixed .code-think-body { box-sizing: border-box; height: calc(var(--fs-1) * 1.62 * 7 + 21px); max-height: none; }
+/* 이 PC 의 모델이 생각하는 중임을 머리줄에서 말한다 */
+.code-think > button > span.code-think-local { color: rgb(var(--brand-bright)); font-weight: var(--fw-body); letter-spacing: 0; }
+
+/* 처음에 나눈 일 — 코드 칸 맨 위의 짧은 체크 목록 (2026-10-27) */
+.code-plan-check { margin: 1px 2px 10px; padding: 0 2px 10px; border-bottom: 1px solid rgb(var(--machine-line)); }
+.code-plan-check-head { margin: 0 0 6px; color: rgb(var(--m-text-3)); font-family: var(--font-mono); font-size: var(--fs-1); letter-spacing: .06em; }
+.code-plan-check ul { margin: 0; padding: 0; list-style: none; }
+.code-plan-check li { display: flex; align-items: flex-start; gap: 8px; padding: 2px 0; color: rgb(var(--m-text-2)); font-size: var(--fs-1); line-height: 1.5; }
+.code-plan-check-box { flex: 0 0 auto; width: 13px; height: 13px; margin-top: 1px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgb(var(--machine-line-strong)); border-radius: var(--r-0); }
+.code-plan-check li.met .code-plan-check-box { border-color: rgb(var(--ok-bright)); color: rgb(var(--ok-bright)); }
+.code-plan-check li.met .code-plan-check-label { color: rgb(var(--m-text-3)); }
+.code-plan-check-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.code-plan-check-saw { flex: 0 1 auto; max-width: 45%; color: rgb(var(--m-text-3)); font-style: normal; font-size: var(--fs-1); text-align: right; overflow-wrap: anywhere; }
+
+/* 작업 근거를 넓게 (2026-10-30 대표: 파일 보기가 몇 줄만 보이고 답답하다).
+   코드 칸은 위 블록(체크 목록 · 진행 · 생각 상자 · 눈금자 · 탭)이 높이를 먼저 나눠 가져 본문에 몇 줄만 남았다.
+   위 블록은 제 크기를 지키고, 본문은 화면 높이의 60% 이상을 갖는다 — 넘치면 칸 전체가 스크롤된다(코워크 칸은 그대로). */
+.code-pane .computer-inner { overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: rgb(var(--machine-line-strong)) transparent; }
+.code-pane .computer-inner > * { flex-shrink: 0; }
+.code-pane .computer-inner > .computer-body { flex: 1 0 auto; min-height: max(60vh, 360px); max-height: 85vh; }
+.code-plan-check-more { margin: 4px 0 0 21px; color: rgb(var(--m-text-3)); font-size: var(--fs-1); }
 
 /* ── 사용량 한도 이어오기 · Relay Capsule ────────────────────────────── */
 .takeover-relay { position: relative; z-index: 8; min-width: 0; min-height: 0; overflow: hidden; background: rgb(var(--machine-1)); border-left: 1px solid rgb(var(--machine-line)); --origin: var(--brand); }
@@ -2294,3 +2322,35 @@ button.code-think-raw:disabled { cursor: default; opacity: .6; }
 .claude-receipt i { display: inline-flex; align-items: center; gap: 5px; font-style: normal; }
 .message-claude-mark { width: 10px; height: 10px; }
 .scrub-legend, .scrub-legend span { letter-spacing: 0; font-family: var(--font-ui); }
+
+/* ── 「/레시피」 — 해 보여서 가르치기 (2026-10-28) ─────────────────────────────────────────────────
+   배우는 중 칸은 입력창 바로 위(승인 · 알림 띠와 같은 자리) · 명령 목록은 입력창 위로 뜨는 작은 상자. */
+.workspace-composer { position: relative; }
+.slash-menu { position: absolute; left: 10px; bottom: calc(100% + 6px); z-index: 20; min-width: 260px; max-width: calc(100% - 20px); margin: 0; padding: 4px; list-style: none; border: 1px solid rgb(var(--line)); border-radius: var(--r-2); background: rgb(var(--surface-2)); box-shadow: var(--lift-2); }
+.slash-menu li { margin: 0; }
+.slash-menu button { width: 100%; display: flex; align-items: baseline; gap: 10px; padding: 7px 10px; border: 0; border-radius: var(--r-1); background: transparent; color: rgb(var(--text-3)); font: inherit; font-size: var(--fs-1); text-align: left; cursor: pointer; }
+.slash-menu button code { color: rgb(var(--text-1)); font: 600 var(--fs-1) var(--font-mono); }
+.slash-menu button.is-on, .slash-menu button:hover { background: rgb(var(--agent-a) / .14); color: rgb(var(--text-1)); }
+.recipe-learn { width: min(820px,100%); margin: 0 auto 7px; padding: 10px 12px; border: 1px solid rgb(var(--stop-bright) / .45); border-left-width: 3px; border-radius: var(--r-2); background: rgb(var(--surface-3)); color: rgb(var(--text-3)); font-size: var(--fs-1); }
+.recipe-learn.is-replay { border-color: rgb(var(--line)); border-left-color: rgb(var(--brand-bright)); }
+.recipe-learn > header { display: flex; align-items: center; gap: 8px; color: rgb(var(--text-2)); }
+.recipe-learn > header svg { color: rgb(var(--stop-bright)); }
+.recipe-learn.is-replay > header svg { color: rgb(var(--brand-bright)); }
+.recipe-learn > header span { margin-left: auto; color: rgb(var(--text-4)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55%; }
+.recipe-learn .recipe-learn-hint, .recipe-learn .recipe-learn-empty { margin: 6px 0 0; color: rgb(var(--text-4)); }
+.recipe-learn ol { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; max-height: 168px; overflow-y: auto; }
+.recipe-learn li { display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; }
+.recipe-learn li.is-ok { color: rgb(var(--text-2)); }
+.recipe-learn li.is-bad { color: rgb(var(--stop-bright)); }
+.recipe-learn li em { font-style: normal; color: rgb(var(--text-4)); }
+.recipe-learn-mark { flex: 0 0 auto; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: rgb(var(--text-1) / .08); color: rgb(var(--text-3)); font: 600 10px/1 var(--font-mono); }
+.recipe-learn li.is-ok .recipe-learn-mark { background: rgb(var(--ok-bright, var(--brand-bright)) / .2); color: rgb(var(--ok-bright, var(--brand-bright))); }
+.recipe-learn li.is-bad .recipe-learn-mark { background: rgb(var(--stop-bright) / .2); color: rgb(var(--stop-bright)); }
+.recipe-learn-actions { margin-top: 10px; display: flex; gap: 8px; }
+.recipe-learn-actions button { padding: 5px 14px; border: 1px solid rgb(var(--line)); border-radius: var(--r-2); background: transparent; color: rgb(var(--text-2)); font: inherit; font-size: var(--fs-1); cursor: pointer; }
+.recipe-learn-actions button.is-primary { border-color: transparent; background: rgb(var(--stop-bright)); color: #fff; }
+.recipe-learn-actions button:hover { filter: brightness(1.1); }
+.recipe-learn-actions button:focus-visible, .slash-menu button:focus-visible, .message-quick-replies button:focus-visible { outline: 2px solid rgb(var(--brand) / .6); outline-offset: 2px; }
+.message-quick-replies { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+.message-quick-replies button { padding: 5px 14px; border: 1px solid rgb(var(--agent-a) / .5); border-radius: 999px; background: rgb(var(--agent-a) / .1); color: rgb(var(--text-1)); font: inherit; font-size: var(--fs-1); cursor: pointer; }
+.message-quick-replies button:hover { background: rgb(var(--agent-a) / .22); }

@@ -720,6 +720,12 @@
 .model-license a { color: rgb(var(--m-text-1)); text-underline-offset: 3px; }
 
 /* 대안 배지 — 외부 평가 배지(호박색 테두리)와 갈리되 차분한 중립. */
+.model-badge.is-fast {
+  color: rgb(var(--m-text-1));
+  background: rgb(var(--machine-3));
+  box-shadow: inset 0 0 0 1px rgb(var(--signal, var(--machine-line-strong)));
+}
+
 .model-badge.is-open {
   color: rgb(var(--m-text-1));
   background: rgb(var(--machine-3));

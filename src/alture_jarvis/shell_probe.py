@@ -177,6 +177,7 @@ class ShellProbe:
                 [resolved, *args],
                 capture_output=True, text=True, timeout=TIMEOUT_SEC,
                 shell=False, check=False, encoding="utf-8", errors="replace",
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except subprocess.TimeoutExpired:
             return {

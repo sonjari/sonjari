@@ -19,12 +19,14 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { isTauri, loadBootstrap, type JarvisClient } from "../backend";
+import { readNotifyEnabled, writeNotifyEnabled } from "../notify";
 import { ConnectPanel } from "../setup/ConnectPanel";
 import { ImportPanel } from "../setup/ImportPanel";
 import { ImportPreview } from "../setup/ImportPreview";
 import { SkillDomainPicker } from "../setup/SkillDomainPicker";
 import { createSetupApi, type SetupApi } from "../setup/setupApi";
 import { ModelSection } from "./ModelSection";
+import { REASONING_OPTIONS } from "./ReasoningPicker";
 import { useInstructionImport } from "../setup/useInstructionImport";
 import "../setup/setup.css";
 import type { BackupSummary, SettingRow, SettingValue, SettingsView } from "../types";
@@ -282,6 +284,7 @@ export function SettingsScreen({ client, open, onClose, initialSection = "genera
           )}
           {/* 언어는 맨 위 「일반」에 — 「앱」 구역은 영어로 「Diagnostics · restart」라 거기서 찾지 않는다. */}
           {section === "general" && <LanguageBlock />}
+          {section === "general" && <NotifyBlock />}
           {/* 연결 묶음의 칸(「막히면 내 클로드에게 넘기기」)은 아래 이음 카드 옆에 그린다. */}
           {view && rows.length > 0 && section !== "model" && section !== "connect" && section !== "scribe" && (
             <ul className="settings-rows">
@@ -423,6 +426,7 @@ function SettingControl({ row, status, draft, onDraft, onSaveDraft, onSave, onRe
       <div className="settings-row-text">
         <label htmlFor={id}>{row.label}{row.lab && <em className="settings-lab">{t("실험실")}</em>}</label>
         {row.help && <small>{row.help}</small>}
+        {row.key === "agent_thinking_policy" && thinkingHelp(String(row.value)) && <small className="settings-choice-help">{thinkingHelp(String(row.value))}</small>}
         {unavailable && <small className="settings-unavailable">{unavailable}</small>}
         <span className="settings-source">
           {unavailable ? (row.unavailable_short || t("이 판에서는 못 씁니다")) : describeSource(row)}
@@ -477,7 +481,16 @@ function choiceLabel(key: string, choice: string): string {
   return choice;
 }
 
-const THINKING_LABELS: Record<string, string> = {
+// 고른 깊이의 한 줄 설명 — 입력창 칩(REASONING_OPTIONS)과 같은 글을 그대로 쓴다(설정 값 이름 → 칩 이름).
+const THINKING_CHIP_ID: Record<string, string> = { auto: "auto", off: "fast", adaptive: "normal", always: "deep" };
+
+export function thinkingHelp(choice: string): string {
+  return REASONING_OPTIONS.find((row) => row.id === THINKING_CHIP_ID[choice])?.help ?? "";
+}
+
+// 입력창 「추론」 칩(ReasoningPicker)과 같은 말이다. 자동 = 보통으로 시작해 막히면 깊게.
+export const THINKING_LABELS: Record<string, string> = {
+  auto: t("자동"),
   off: t("빠르게"),
   adaptive: t("보통"),
   always: t("깊게"),
@@ -690,5 +703,27 @@ function LanguageBlock() {
         </button>
       ))}
     </div>
+  </div>;
+}
+
+/** 윈도우 알림 받기(2026-10-27) — 끝났을 때 · 사람을 기다릴 때 · 막혔을 때 오른쪽 아래에 알림. 이 PC 의 화면 값이라 화면 언어와 같은 자리에 둔다(켬이 기본). */
+function NotifyBlock() {
+  const [on, setOn] = useState(readNotifyEnabled);
+  const toggle = () => {
+    writeNotifyEnabled(!on);
+    setOn(!on);
+  };
+  return <div className="settings-block">
+    <h3>{t("알림 받기")}</h3>
+    <p className="settings-note">{t("일이 끝났을 때, 손자리가 사람을 기다릴 때(승인 · 질문 · 로그인), 막혔을 때 윈도우 오른쪽 아래에 알림을 띄웁니다. 손자리 창이 앞에서 보이는 중에는 띄우지 않습니다. 클로드 같은 바깥 AI 가 맡긴 일은 막혔을 때만 알립니다.")}</p>
+    <ul className="settings-rows">
+      <li className="settings-row">
+        <div className="settings-row-text"><label htmlFor="setting-notify-enabled">{t("윈도우 알림 받기")}</label></div>
+        <div className="settings-row-control">
+          <button id="setting-notify-enabled" type="button" role="switch" aria-checked={on}
+            className={`settings-switch${on ? " is-on" : ""}`} onClick={toggle}><span /></button>
+        </div>
+      </li>
+    </ul>
   </div>;
 }

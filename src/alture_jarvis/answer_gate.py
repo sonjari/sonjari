@@ -477,7 +477,10 @@ _ADMITS_NOT_DONE_EN = re.compile(
     #   운영 영어 답 52개 역검증: 걸린 13개 전부 실제로 못 한 판(하나는 「폭 필터는 못 걸었다」고 밝힌 판 — 일부가 정직).
     r"(?i)\b(?:i\s+(?:was|am|['’]m)\s+(?:unable|not\s+able)\s+to\s+[a-z]+"
     r"|i\s+(?:could\s*not|couldn['’]t|wasn['’]t\s+able\s+to)\s+[a-z]+"
-    r"|i\s+have\s+to\s+stop\s+here|i['’]ve\s+hit\s+a\s+wall|i\s+(?:was|am)\s+blocked)\b"
+    r"|i\s+have\s+to\s+stop\s+here|i['’]ve\s+hit\s+a\s+wall|i\s+(?:was|am)\s+blocked"
+    # ★ 「아직 안 했다」도 자백이다 (2026-10-30 · 판 eba156fb 「I have not set the dates, guests, filter … yet」가 answered 로 나감).
+    #   「yet」이 붙은 꼴만 — 「I have not logged in or paid」(시킨 대로 안 한 것)는 자백이 아니다. 운영 영어 답 3,543개: 새로 걸림 2 · 둘 다 실제로 못 한 판.
+    r"|i\s+(?:have\s+not|haven['’]t)\s+[^.!?\n]{1,80}?\byet)\b"
 )
 #: 우리가 붙이는 두 경고의 머리 — 「N개 중 M개만 실제로 열어 읽었습니다」 · 「성공했다고 확인하지 못했습니다」.
 #: 이 둘은 답의 자백이 아니라 **우리가 센 것**이라 `harness_shortfall` 로 따로 적는다(문구는 `_goal_shortfall_check` ·

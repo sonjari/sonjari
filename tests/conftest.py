@@ -248,6 +248,16 @@ def _tests_never_unload_the_real_gpu(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _tests_never_ask_the_real_graphics_card(monkeypatch):
+    """판이 시작될 때 그래픽카드 사정을 보는 `nvidia-smi`(`agent._gpu_facts`)가 시험에서 **이 PC 의 진짜 카드를 묻지 않게** (2026-10-27).
+
+    시험 수백 개가 판을 돌린다 — 그때마다 진짜 `nvidia-smi` 를 부르면 느려지고, 이 PC 의 결과가 시험 결과에 섞인다. 카드를 보는 시험은
+    `agent.read_card` 를 되돌리고 `agent._nvidia_run` 에 가짜 실행기를 넣는다(`tests/test_model_stall_auto_resume_1027.py`).
+    """
+    monkeypatch.setattr("alture_jarvis.agent.read_card", lambda run=None: None)
+
+
+@pytest.fixture(autouse=True)
 def _tests_never_start_the_real_ollama_app(monkeypatch):
     """꺼진 Ollama 를 켜는 관리자가 **이 PC 에 공식 설치된 트레이 앱**을 찾아 띄우지 않게 (2026-10-01).
 

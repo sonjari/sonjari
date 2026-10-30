@@ -175,7 +175,8 @@ _PLAN_STAGE_ORDER: tuple[tuple[str, frozenset[str]], ...] = (
     ("read", frozenset({"count", "observe", "site", "filter"})),
     ("artifact", frozenset({"artifact", "footnote"})),
     ("verify", frozenset({"verify"})),
-    ("action", frozenset({"action", "count_action"})),
+    # 「그 화면까지 가기」(reach · 2026-10-30)는 읽기를 마친 뒤 누르고 넘어가는 일이라 행위 단계다.
+    ("action", frozenset({"action", "count_action", "reach"})),
 )
 
 

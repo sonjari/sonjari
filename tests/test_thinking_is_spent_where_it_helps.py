@@ -56,7 +56,7 @@ def _step(tool: str, ok: bool = True) -> dict:
 
 
 def test_the_default_still_thinks_every_step() -> None:
-    """기본을 바꾸지 않는다 — 아직 통제 실험을 안 했다."""
+    """`always`(깊게)는 걸음마다 생각한다. (설정 기본값은 10-28 부터 `auto` — `test_thinking_auto_default_1028`.)"""
     config = _config()
     assert _should_think(config, [])
     assert _should_think(config, [_step("browser_extract")])
