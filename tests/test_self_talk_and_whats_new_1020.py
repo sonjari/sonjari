@@ -341,3 +341,35 @@ def test_the_whats_new_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert first["show"] is True and first["version"] == VERSION
     assert client.post("/v1/whats-new/seen", headers=headers, json={"version": VERSION}).json()["ok"] is True
     assert client.get("/v1/whats-new", headers=headers).json()["show"] is False
+
+
+# ── 패키지 밖(운영 PC)에서도 새 판 글이 한 번 뜬다 (2026-10-27 대표) ──────────────────────────────────────────
+
+def test_outside_a_package_the_newest_notes_show_once_then_again_for_the_next_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from alture_jarvis import msix
+
+    monkeypatch.setattr(msix, "package_version", lambda: "")
+    app = create_app(JarvisConfig(
+        runtime_root=tmp_path, data_dir=tmp_path / "data", output_dir=tmp_path / "outputs",
+        control_token="test-token", camera_enabled=False, vision_enabled=False, voice_enabled=False,
+        tts_enabled=False, camera_control_enabled=False, google_enabled=False, naver_blog_enabled=False,
+    ), start_services=False)
+    from fastapi.testclient import TestClient
+
+    client = TestClient(app)
+    headers = {"X-Jarvis-Token": "test-token"}
+    newest = whats_new.newest_version()
+    assert newest
+    # 설정을 끝낸 PC 로 만든다(막 깐 사람은 마법사가 먼저라 안 띄운다).
+    (tmp_path / "data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "data" / "setup_state.json").write_text(json.dumps({"completed": True}), encoding="utf-8")
+    first = client.get("/v1/whats-new?lang=ko", headers=headers).json()
+    # 장(slides)은 판마다 있을 수도 없을 수도 있다(0.4.35 는 쓰는 법 쇼가 따로 있어 목록만) — 여기서 보는 것은 「한 번 뜬다」.
+    assert first["show"] is True and first["version"] == newest
+    client.post("/v1/whats-new/seen", json={"version": first["version"]}, headers=headers)
+    assert client.get("/v1/whats-new?lang=ko", headers=headers).json()["show"] is False
+    # 다음 판 글이 들어오면(= 더 높은 번호가 newest 가 되면) 다시 뜬다.
+    monkeypatch.setattr(whats_new, "newest_version", lambda: "9.9.9.0")
+    monkeypatch.setattr(whats_new, "notes_for", lambda version, lang="ko": {"changes": "새 글", "tour": "", "slides": []})
+    again = client.get("/v1/whats-new?lang=ko", headers=headers).json()
+    assert again["show"] is True and again["version"] == "9.9.9.0"

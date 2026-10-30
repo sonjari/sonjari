@@ -677,7 +677,29 @@ def _rescue_edit(text: str, old: str, new: str) -> tuple[str, str, str]:
 _NEAR_MISS_RATIO = 0.6
 
 
-def _old_text_not_found_message(text: str, old: str) -> str:
+def _line_mode_hint(where: "int | None", last: "int | None", misses: int) -> str:
+    """글자 맞추기가 안 될 때 가는 길 — **줄 범위 모드**(`local_apply_edit` 의 선택 칸)를 짚어 준다.
+
+    ★ 2026-10-28 코딩 재생 2판(f02daa26): plan.py 3629줄 근처의 정규식 줄(역슬래시 · 곧은 따옴표 · 굽은 따옴표가 섞임)을
+      `old_text_not_found` 로 **5번 연속** 못 맞춰 멈췄다. 「97% 비슷한 원문은 이렇다」를 보여 줬는데도 모델은 그 글자를 인자로
+      옮기다 또 어긋났다 — 이런 줄은 글자로 맞추는 길 자체가 막힌 것이다. 줄 번호로 가는 길을 같이 댄다.
+    """
+    # 가까운 자리를 못 찾았으면 줄 번호를 짚어 줄 수 없다 — 읽은 번호를 넣게 한다.
+    rows = "line_start=(읽은 줄 번호), line_end=(끝 줄 번호)" if where is None else f"line_start={where}, line_end={last}"
+    call = f"{rows}, first_line=(line_start 줄의 지금 글자), new=(그 줄들을 대신할 글자) — old 는 빼라"
+    if misses >= 2:
+        return (
+            f"\n★ 같은 파일에서 글자 맞추기가 {misses}번째 실패다. old 를 또 맞추려 하지 마라 — 역슬래시 · 따옴표가 섞인 줄은 "
+            f"글자로 옮기다 어긋난다. **지금 줄 범위 모드로 해라:** local_apply_edit 에 {call}. "
+            "first_line 은 줄이 아직 그 자리인지 확인하는 안전장치라 따옴표 · 공백이 조금 달라도 받는다."
+        )
+    return (
+        f"\n글자가 계속 안 맞으면 줄 범위 모드로 바꿀 수 있다: {call}. "
+        "줄 번호가 의심되면 local_read_text_file 로 그 줄을 먼저 읽어라."
+    )
+
+
+def _old_text_not_found_message(text: str, old: str, *, misses: int = 1) -> str:
     """「없다」로 끝내지 않고 **가장 가까운 자리**를 짚어 준다.
 
     예전 문구는 `old_text_not_found` 여섯 글자였다. 실측에서 모델은 그걸 받고
@@ -685,6 +707,7 @@ def _old_text_not_found_message(text: str, old: str) -> str:
     어디가 어긋났는지 모르니 눈 감고 되풀이할 수밖에 없다.
 
     고치지는 않는다 — 짐작으로 고치면 안 되는 자리다. **보여만 준다.**
+    `misses` 는 같은 판 · 같은 파일에서 이번이 몇 번째 실패인가 — 둘째부터는 줄 범위 모드를 더 분명히 권한다.
     """
     import difflib
 
@@ -710,6 +733,7 @@ def _old_text_not_found_message(text: str, old: str) -> str:
             f"{base} — 그 글자가 파일에 없다. 비슷한 자리도 못 찾았다. "
             "local_read_text_file 로 **고칠 곳을 다시 읽고** 원문을 그대로 복사해 와라. "
             "기억이나 짐작으로 old 를 적지 마라."
+            + (_line_mode_hint(None, None, misses) if misses >= 2 else "")
         )
     where = best_at + 1
     sample = "\n".join(lines[best_at : best_at + min(span, 6)])
@@ -718,7 +742,156 @@ def _old_text_not_found_message(text: str, old: str) -> str:
         f"거기 실제 원문은 이렇다:\n{sample[:600]}\n"
         "이 원문을 **그대로 복사해서** old 에 넣어라(들여쓰기·공백까지). "
         "다시 읽을 필요 없이 위 글자를 쓰면 된다."
+        + _line_mode_hint(where, where + span - 1, misses)
     )
+
+
+#: 줄을 끊는 글자 — `str.splitlines()` 와 같은 집합. 읽기 도구(`_slice_lines`)가 줄 번호를 이 규칙으로 매기므로 편집도 같아야 번호가 맞는다.
+_LINE_END = re.compile(r"(?:\r\n|[\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029])$")
+_NOT_WORD = re.compile(r"[\W_]+")
+
+
+def _line_ending_of(line: str) -> str:
+    match = _LINE_END.search(line)
+    return match.group(0) if match else ""
+
+
+def _first_line_matches(actual: str, claimed: str) -> str:
+    """`first_line` 이 파일의 그 줄과 같은 줄인가. 같으면 `exact`/`loose`, 아니면 빈 글자.
+
+    이 확인은 **파일이 그 사이 바뀌어 줄 번호가 어긋났는지** 보는 안전장치다 — 자리를 정하는 건 줄 번호다. 그래서 글자 맞추기가
+    막힌 바로 그 줄(역슬래시 · 곧은/굽은 따옴표가 섞인 정규식)을 되적다 또 어긋나도 막히지 않게, 글자 · 숫자 · 한글만 남겨 견준다
+    (`loose`). 다른 줄이 우연히 같은 낱말 뼈대를 가질 일은 거의 없다. 낱말이 하나도 없는 줄(`}` · `)` · `\"\"\"`)은 뼈대로 못 견주니
+    **글자 그대로**만 받는다.
+    """
+    first = claimed.replace("\r\n", "\n").replace("\r", "\n").lstrip("\n").split("\n")[0]
+    if actual.strip() == first.strip():
+        return "exact"
+    skeleton = _NOT_WORD.sub("", first)
+    if skeleton and skeleton == _NOT_WORD.sub("", actual):
+        return "loose"
+    return ""
+
+
+def _lines_around(lines: list[str], at: int, radius: int = 2) -> str:
+    """`lines[at]` 앞뒤 몇 줄을 줄 번호와 함께(한 줄 200자까지) — 거절할 때 다시 읽지 않고 고칠 수 있게 보여 준다."""
+    low, high = max(0, at - radius), min(len(lines), at + radius + 1)
+    return "\n".join(f"{index + 1}: {lines[index].rstrip(chr(13) + chr(10))[:200]}" for index in range(low, high))
+
+
+def _as_line_number(value: Any, name: str) -> "int | None":
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"line_range_invalid — {name} 은 줄 번호(1부터 세는 정수)여야 한다.")
+    try:
+        return int(str(value).strip())
+    except ValueError as exc:
+        raise ValueError(f"line_range_invalid — {name} 은 줄 번호(1부터 세는 정수)여야 한다.") from exc
+
+
+def _as_preview_lines(value: str) -> list[str]:
+    """되짚기 화면에 보일 줄들 — 줄바꿈 방식은 LF 로 통일하고, 끝의 줄바꿈 하나는 뗀다. 빈 글자면 줄이 없다."""
+    if not value:
+        return []
+    return value.replace("\r\n", "\n").replace("\r", "\n").rstrip("\n").split("\n")
+
+
+def _python_syntax_break(path: Path, before: str, after: str) -> "str | None":
+    """`.py` 를 고친 결과가 **새로** 문법을 깨면 거절 글, 아니면 None.
+
+    ★ 2026-10-29 손자리 코드 판 1093e4a1: 편집이 「성공」했는데 새 줄에 `lstrip("-*•>|\\")`처럼 닫는 따옴표 앞에 역슬래시가 끼어
+      파일이 깨졌다. 도구는 그대로 저장했고, 모델은 자기가 깨뜨린 줄을 글자로 5번 · 줄 번호로 1번 못 고쳐 13분을 헛돌다 멈췄다.
+      깨지는 순간에 막으면 그 뒤의 헛돌기가 생기지 않는다. 원래부터 깨진 파일은 막지 않는다 — 그걸 고치는 중일 수 있다.
+    """
+    if path.suffix.lower() not in {".py", ".pyw"}:
+        return None
+    try:
+        compile(before, path.name, "exec")
+    except (SyntaxError, ValueError):
+        return None
+    try:
+        compile(after, path.name, "exec")
+        return None
+    except ValueError:
+        return None
+    except SyntaxError as exc:
+        lines = after.splitlines()
+        number = int(exc.lineno or 0)
+        broken = lines[number - 1] if 0 < number <= len(lines) else ""
+        return (
+            f"syntax_broken — 이 편집을 쓰면 {path.name} {number}번째 줄이 파이썬 문법을 깬다({exc.msg}). 파일은 그대로 두었다.\n"
+            f"이 편집이 만든 그 줄: {broken[:200]}\n"
+            "닫는 따옴표 앞의 역슬래시 · 괄호 짝 · 들여쓰기를 확인해 new 를 고쳐 다시 불러라. "
+            "블록을 여러 번에 나눠 쓰는 중이면(앞 편집만으로는 문법이 안 맞는 경우) 한 번의 편집으로 합쳐라."
+        )
+
+
+def _replace_line_range(
+    text: str, line_start: int, line_end: "int | None", first_line: "str | None", new: str
+) -> tuple[str, dict[str, Any]]:
+    """`line_start`~`line_end`(1부터, 끝 줄 포함) 줄을 `new` 로 바꾼 글과 알림. **줄 범위 모드**다.
+
+    ## 왜 (2026-10-28 코딩 재생 2판 f02daa26)
+
+    plan.py 3629줄 근처의 정규식 줄을 글자로 5번 연속 못 맞춰(`old_text_not_found`) 판이 멈췄다. 읽기는 줄 번호가 되는데 편집은 글자 맞추기뿐이었다.
+
+    ## 짐작하지 않는 이유 (`_heal_old_text` 와 같은 「모르면 안전쪽」)
+
+    · 범위가 파일 밖이면 **줄이지 않고 거절**한다 · `first_line`(그 범위 첫 줄의 지금 글자)이 없거나 파일의 그 줄과 다르면 거절한다 —
+      파일이 읽은 뒤 바뀌어 번호가 밀렸을 수 있다. 거절할 때 그 앞뒤 줄을 번호와 함께 보여 준다(다시 읽지 않고 번호를 바로잡게).
+    · 줄바꿈 방식(CRLF/LF)은 **파일의 것**이다 — `new` 의 `\\n` 을 첫 바뀌는 줄의 끝으로 바꾸고, 범위 끝 줄이 가졌던 줄끝(없으면 없음)을 그대로 남긴다.
+    · `new` 의 들여쓰기는 **고치지 않는다.** 첫 줄 들여쓰기가 바뀌면 알림만 붙인다.
+    · `new` 가 빈 글자면 그 줄들을 **지운다.** 빈 줄 하나로 바꾸려면 `new` 를 `"\\n"` 으로 준다.
+    """
+    lines = text.splitlines(keepends=True)
+    total = len(lines)
+    end = line_start if line_end is None else line_end
+    if line_start < 1 or end < line_start:
+        raise ValueError(f"line_range_invalid — line_start={line_start}, line_end={end}: 1 이상이고 끝 줄이 시작 줄 이상이어야 한다.")
+    if end > total:
+        raise ValueError(
+            f"line_range_out_of_file — 이 파일은 {total}줄인데 {line_start}~{end}줄을 지목했다. 줄 번호를 local_read_text_file 로 다시 확인해라."
+        )
+    low = line_start - 1
+    actual = lines[low].rstrip("\r\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029")
+    if first_line is None:
+        raise ValueError(
+            f"first_line_required — first_line 에 {line_start}번째 줄의 지금 글자를 적어라(줄 번호가 밀리지 않았는지 확인하는 안전장치다). "
+            f"지금 그 앞뒤는 이렇다:\n{_lines_around(lines, low)}"
+        )
+    how = _first_line_matches(actual, first_line)
+    if not how:
+        raise ValueError(
+            f"line_text_changed — {line_start}번째 줄이 first_line 과 다르다(읽은 뒤 파일이 바뀌었거나 줄 번호가 어긋났다). "
+            f"지금 그 앞뒤는 이렇다:\n{_lines_around(lines, low)}\n맞는 줄 번호를 정해 다시 불러라."
+        )
+    first_ending = _line_ending_of(lines[low])
+    last_ending = _line_ending_of(lines[end - 1])
+    removed = "".join(lines[low:end])
+    body = new.replace("\r\n", "\n").replace("\r", "\n")
+    if body == "":
+        replacement = ""
+    else:
+        eol = first_ending if first_ending in ("\r\n", "\n", "\r") else ("\r\n" if "\r\n" in text else "\n")
+        if body.endswith("\n"):
+            body = body[:-1]
+        replacement = body.replace("\n", eol) + last_ending
+    edited = "".join(lines[:low]) + replacement + "".join(lines[end:])
+    info: dict[str, Any] = {
+        "line_start": line_start,
+        "line_end": end,
+        "first_line_match": how,
+        "removed": removed,
+        "added": replacement,
+    }
+    indent_before = _leading_whitespace(actual)
+    indent_after = _leading_whitespace(body.split("\n")[0]) if body.strip() else indent_before
+    if indent_before != indent_after:
+        info["indent_note"] = (
+            f"첫 줄 들여쓰기가 바뀌었다({len(indent_before)}칸 → {len(indent_after)}칸). 의도한 것이 아니면 new 의 첫 줄 앞 공백을 파일 것에 맞춰 다시 고쳐라."
+        )
+    return edited, info
 
 
 #: 지워도 다시 생기는 캐시 폴더 — 원래 있던 것이어도 잃을 것이 없다. `node_modules`·`.venv`·`dist` 는 넣지 않는다
@@ -1363,6 +1536,8 @@ class LocalComputerTools:
         self._code_workspaces: dict[str, Path] = {}
         #: 판이 시작될 때 작업 폴더에 **이미 있던** 폴더(루트 기준 상대 경로). 「이 판이 만든 폴더」를 가리는 근거다.
         self._folders_at_start: dict[str, frozenset[str] | None] = {}
+        #: (판, 파일) 마다 **글자 맞추기 편집이 연달아 못 맞춘 횟수**. 둘째부터 줄 범위 모드를 분명히 권한다. 맞으면 지운다.
+        self._edit_misses: dict[tuple[str, str], int] = {}
         #: 판이 끝나면 띄울 파일(잡별 하나). `remember_to_open` / `open_pending`.
         self._pending_opens: dict[str, Path] = {}
         #: 사람이 자리와 이름까지 댄 산출물(잡별 하나) — 「바탕화면에 x.png 로 저장」. `expect_delivery`.
@@ -1659,13 +1834,17 @@ class LocalComputerTools:
             self._function(
                 "local_apply_edit",
                 "텍스트 파일에서 정확히 한 번 나오는 old를 new로 바꾼다. 상대 경로는 현재 작업폴더 기준이다. "
-                "old가 없거나 두 번 이상이면 추측해서 고치지 않고 멈춘다.",
+                "old가 없거나 두 번 이상이면 추측해서 고치지 않고 멈춘다. "
+                "글자가 안 맞는 줄(따옴표·역슬래시가 섞임)은 old 대신 line_start·line_end(읽은 줄 번호)와 그 첫 줄 first_line 을 주면 그 줄들을 new로 바꾼다.",
                 {
                     "path": {"type": "string", "description": "상대 경로면 현재 작업폴더 기준"},
-                    "old": {"type": "string", "description": "파일에 정확히 한 번 있는 원문"},
-                    "new": {"type": "string", "description": "바꿀 새 원문"},
+                    "old": {"type": "string", "description": "파일에 정확히 한 번 있는 원문. 줄 범위 모드에서는 뺀다"},
+                    "new": {"type": "string", "description": "바꿀 새 원문. 줄 범위 모드에서는 그 줄들을 대신할 글자(빈 글자면 그 줄들을 지움)"},
+                    "line_start": {"type": "integer", "minimum": 1, "description": "줄 범위 모드: 바꿀 첫 줄 번호(읽기 도구의 번호)"},
+                    "line_end": {"type": "integer", "minimum": 1, "description": "줄 범위 모드: 바꿀 끝 줄 번호(포함). 비우면 한 줄"},
+                    "first_line": {"type": "string", "description": "줄 범위 모드: line_start 줄의 지금 글자. 파일이 바뀌어 번호가 밀렸는지 확인한다"},
                 },
-                ["path", "old", "new"],
+                ["path", "new"],
             ),
             self._function(
                 "local_delete_file",
@@ -2721,6 +2900,16 @@ class LocalComputerTools:
         text, encoding = self._decode_edit_text(raw)
         old = str(arguments.get("old") or "")
         new = str(arguments.get("new") or "")
+        # ★ 줄 범위 모드 (2026-10-28). `old` 가 없고 `line_start` 가 있으면 글자 맞추기를 건너뛰고 줄 번호로 바꾼다.
+        #   `old` 가 **있으면** 먼저 글자로 간다 — 읽기 도구의 버릇으로 `line_start` 를 덤으로 끼워 보내는 모델이 있어서, 멀쩡한
+        #   글자 편집이 줄 모드의 확인(first_line)에 걸려 새로 깨지면 안 된다. 글자가 끝내 안 맞을 때만 줄 번호로 넘어간다.
+        line_start = _as_line_number(arguments.get("line_start"), "line_start")
+        line_end = _as_line_number(arguments.get("line_end"), "line_end")
+        first_line = arguments.get("first_line")
+        first_line = None if first_line is None else str(first_line)
+        miss_key = (self._job_id(arguments), str(path))
+        if not old and line_start is not None:
+            return self._apply_line_edit(path, text, encoding, arguments, line_start, line_end, first_line, new)
         if not old:
             # ★ 거절은 **갈 곳을 같이 댄다** (2026-09-21 재측정: 이걸로 두 걸음을 버렸다).
             #   인자 이름만 던지면 모델은 같은 자리에서 다시 튕긴다 — 오늘 세 번째 자리다.
@@ -2728,6 +2917,7 @@ class LocalComputerTools:
                 "old_required — `old` 에 **파일에 지금 있는 글자 그대로**를 넣고 `new` 에 바꿀 글자를 넣어라. "
                 '예: {"path": "index.html", "old": "<h1>옛 제목</h1>", "new": "<h1>새 제목</h1>"} · '
                 "고칠 자리를 모르면 local_read_text_file 로 그 줄을 먼저 읽어라. "
+                "글자 대신 줄 번호로 바꾸려면 old 를 빼고 line_start · line_end · first_line 을 줘라. "
                 "파일을 통째로 새로 쓰는 것이면 local_write_file 을 써라."
             )
         occurrences = text.count(old)
@@ -2759,13 +2949,27 @@ class LocalComputerTools:
                 else:
                     old = wanted
         if occurrences == 0:
-            raise ValueError(_old_text_not_found_message(text, str(arguments.get("old") or "")))
+            misses = self._edit_misses[miss_key] = self._edit_misses.get(miss_key, 0) + 1
+            message = _old_text_not_found_message(text, str(arguments.get("old") or ""), misses=misses)
+            if line_start is not None:
+                # 글자는 끝내 안 맞았고 줄 번호를 줬다 — 줄 모드로 넘어간다. 그것도 거절이면 두 까닭을 같이 돌려준다
+                # (앞머리는 `old_text_not_found` 그대로 — 관문 · 되풀이 판정이 그 낱말로 가른다).
+                try:
+                    return self._apply_line_edit(path, text, encoding, arguments, line_start, line_end, first_line, new)
+                except ValueError as exc:
+                    raise ValueError(f"{message}\n줄 범위 모드도 안 됐다: {exc}") from exc
+            raise ValueError(message)
         if occurrences > 1:
             raise ValueError(f"old_text_not_unique:{occurrences}")
-        edited = text.replace(old, new, 1).encode(encoding)
+        edited_text = text.replace(old, new, 1)
+        broken = _python_syntax_break(path, text, edited_text)
+        if broken:
+            raise ValueError(broken)
+        edited = edited_text.encode(encoding)
         result = self._commit_bytes(
             path, edited, job_id=self._job_id(arguments), action="local_apply_edit"
         )
+        self._edit_misses.pop(miss_key, None)
         result["replacements"] = 1
         result["encoding"] = encoding
         # 치유해서 고쳤으면 **그렇다고 적는다.** 조용히 고치면 모델은 자기가 준
@@ -2773,6 +2977,47 @@ class LocalComputerTools:
         if healed_by:
             result["healed"] = healed_by
         result["edit_preview"] = _edit_preview(text, old, new)
+        return result
+
+    def _apply_line_edit(
+        self,
+        path: Path,
+        text: str,
+        encoding: str,
+        arguments: dict[str, Any],
+        line_start: int,
+        line_end: "int | None",
+        first_line: "str | None",
+        new: str,
+    ) -> dict[str, Any]:
+        """줄 범위 모드로 편집한다(`_replace_line_range`). 거절은 ValueError 로 — 아무것도 쓰지 않는다."""
+        edited_text, info = _replace_line_range(text, line_start, line_end, first_line, new)
+        broken = _python_syntax_break(path, text, edited_text)
+        if broken:
+            raise ValueError(broken)
+        result = self._commit_bytes(
+            path, edited_text.encode(encoding), job_id=self._job_id(arguments), action="local_apply_edit"
+        )
+        self._edit_misses.pop((self._job_id(arguments), str(path)), None)
+        result["replacements"] = 1
+        result["encoding"] = encoding
+        result["healed"] = "line_range"
+        removed = _as_preview_lines(info["removed"])
+        added = _as_preview_lines(info["added"])
+        clipped = len(removed) > EDIT_PREVIEW_LINES or len(added) > EDIT_PREVIEW_LINES
+        result["edit_preview"] = {
+            "start_line": info["line_start"],
+            "removed": removed[:EDIT_PREVIEW_LINES],
+            "added": added[:EDIT_PREVIEW_LINES],
+            "truncated": clipped,
+            "removed_count": len(removed),
+            "added_count": len(added),
+        }
+        result["line_range"] = {
+            "line_start": info["line_start"], "line_end": info["line_end"], "first_line_match": info["first_line_match"],
+        }
+        if info.get("indent_note"):
+            result["indent_note"] = info["indent_note"]
         return result
 
     def delete_file(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -3199,6 +3444,7 @@ class LocalComputerTools:
                 capture_output=True,
                 text=True,
                 timeout=15,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except Exception:
             return "main"
@@ -4812,8 +5058,9 @@ class LocalComputerTools:
         try:
             # 1분 안에 끝까지 훑었고 그 뒤 손자리가 아무것도 안 바꿨으면 다시 훑지 않는다(이어 묻는 질문 · `CodeIndex._reused_backlog`).
             if self.code_index._reused_backlog(resolved) is None:
+                # 모델을 부르기 전 앞단이라 상한이 더 짧다(`CodeIndex.CARD_BUDGET_SEC` — 잰 값과 까닭은 거기).
                 self.code_index.refresh(resolved, on_progress=on_progress,
-                                        budget_sec=self.code_index.REFRESH_BUDGET_SEC)
+                                        budget_sec=self.code_index.CARD_BUDGET_SEC)
             return self.code_index.repo_card(resolved, query)
         except Exception:
             # 지도가 없어도 판은 돌아야 한다.

@@ -34,7 +34,7 @@ from typing import Any
 
 NOTES_DIR = Path(__file__).with_name("whats_new")
 #: 화면이 그릴 줄 아는 쇼 장면(`ui/src/workspace/WhatsNewShow.tsx` 와 같은 이름).
-SHOW_SCENES = frozenset({"claude-hands", "deck-build", "pptx-fonts"})
+SHOW_SCENES = frozenset({"claude-hands", "deck-build", "pptx-fonts", "recipe-learn", "smart-fast", "notify"})
 SEEN_NAME = "whats_new_seen.json"
 
 

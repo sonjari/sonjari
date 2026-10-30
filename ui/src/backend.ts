@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Observation, StepRow } from "./workspace/observation";
 import type { HealthOllama } from "./workspace/readiness";
 import type { ModelLoading } from "./workspace/ModelLoadLine";
-import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, WhatsNewStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, ScribeStatus, BackupSummary, PackInfo, PacksView, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem, SavingsReceipt, WeeklyReceipt, ReceiptImageSaved } from "./types";
+import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, UsageShowStatus, WhatsNewStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, ScribeStatus, BackupSummary, PackInfo, PacksView, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem, SavingsReceipt, WeeklyReceipt, ReceiptImageSaved } from "./types";
 
 declare global {
   interface Window {
@@ -217,6 +217,11 @@ export class JarvisClient {
 
   async getState(): Promise<{ state: string }> {
     return this.request("/v1/state", { method: "GET" }, false);
+  }
+
+  /** 지금 「배우는 중」인가(`/레시피`) — 사건을 놓쳤어도(앱을 다시 켬) 칸이 맞게 뜨도록 처음 붙을 때 묻는다. */
+  demoState(): Promise<{ on: boolean; label: string; steps: { n: number; kind: string; name: string; where: string }[] }> {
+    return this.request("/v1/demo/state", { method: "GET" });
   }
 
   getConfig(): Promise<JarvisPublicConfig> {
@@ -799,6 +804,15 @@ eceipts` 에 저장한다 — 경로는 백엔드가 정한다. */
 
   markWhatsNewSeen(version: string): Promise<{ ok: boolean }> {
     return this.request("/v1/whats-new/seen", { method: "POST", body: JSON.stringify({ version }) }, true);
+  }
+
+  /** 「쓰는 법」 쇼를 띄울지(2026-10-27). 마법사를 마쳤고 아직 안 봤으면 `show: true`. */
+  getUsageShow(): Promise<UsageShowStatus> {
+    return this.request("/v1/usage-show", { method: "GET" }, true);
+  }
+
+  markUsageShowSeen(): Promise<{ ok: boolean }> {
+    return this.request("/v1/usage-show/seen", { method: "POST" }, true);
   }
 
   /**

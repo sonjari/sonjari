@@ -109,6 +109,13 @@ if (-not (Get-ChildItem $msixAssets -Filter "Square44x44Logo.targetsize-24_altfo
     throw "msix logo set missing in $msixAssets - scripts\make_brand_icons.py did not run"
 }
 Copy-Item (Join-Path $msixAssets "*.png") (Join-Path $App "Assets")
+# 2026-10-27: Windows toast hero art (done / waiting / stuck x ko / en, 728x364). The app resolves them as ms-appx:///Assets/notify/hero_*.png
+# (src-tauri/src/notify.rs). Tracked art made by ui/scripts/make_notify_heroes.py. A missing folder only means text-only toasts.
+$notifyArt = Join-Path $Ui "src-tauri\icons\notify"
+if (Test-Path $notifyArt) {
+    New-Item -ItemType Directory -Force (Join-Path $App "Assets\notify") | Out-Null
+    Copy-Item (Join-Path $notifyArt "hero_*.png") (Join-Path $App "Assets\notify")
+}
 $base = (& $VenvPython -c "import sys; print(sys.base_prefix)").Trim()
 $py = Join-Path $App "backend\python"
 & robocopy $base $py /E /XD "$base\Doc" "$base\Tools" "$base\tcl" "$base\include" "$base\Scripts" "$base\libs" "$base\share" "$base\Lib\site-packages" "$base\Lib\test" "$base\Lib\idlelib" "$base\Lib\tkinter" "$base\Lib\turtledemo" /NFL /NDL /NJH /NJS /NP | Out-Null

@@ -40,6 +40,7 @@ import { Welcome } from "./workspace/Welcome";
 import { ReceiptCard } from "./workspace/ReceiptCard";
 import { UpdateBar } from "./workspace/UpdateBar";
 import { WhatsNewBar } from "./workspace/WhatsNewBar";
+import { UsageShowGate } from "./workspace/UsageShowGate";
 import { HealthBar } from "./workspace/HealthBar";
 import { ReadinessBanner } from "./workspace/ReadinessBanner";
 import { modelCaution, type AgentGrade } from "./workspace/readiness";
@@ -53,12 +54,16 @@ import { createClaudeLane } from "./claudeAgent/setup";
 import { withClaudeLane } from "./claudeAgent/withClaudeLane";
 import { brainFor, claudeButtonLabel, isClaudeBrain, setBrain as saveBrain, type Brain as BrainChoice } from "./claudeAgent/brain";
 import { PermissionModePicker } from "./workspace/PermissionModePicker";
+import { RecipeLearnPanel, SlashMenu } from "./workspace/RecipeLearnPanel";
+import { applyLearnEvent, idleLearn, slashKey, slashMenu, type LearnState } from "./recipeLearn";
 import { ReasoningPicker, loadReasoningChoice, saveReasoningChoice, type ReasoningChoice } from "./workspace/ReasoningPicker";
 import { createSetupApi, type CodeUpgrade, type SetupApi } from "./setup/setupApi";
 import { CodeUpgradeCard } from "./workspace/CodeUpgradeCard";
 import { applyPlan, applyStep, applyVerification, buildTimeline, finishTrajectory, startTrajectory, toolLabel, type PlanItem, type Trajectory } from "./trajectory";
 import { isLive, jobShownHere, jobToFollow, paneContext, whereAQueuedJobLands, withRunningFirst, withYieldedLast } from "./workspace/jobs";
+import { chooseStage, stageChoiceFor, type StageChoice } from "./workspace/stageChoice";
 import { GATE_TITLES, HUMAN_GATE_CODES, gateCodeOf, gateSiteLabel } from "./workspace/humanGate";
+import { createNotifier, readNotifyEnabled, showToast, windowInFront } from "./notify";
 import { ProblemReportDialog } from "./workspace/ProblemReportDialog";
 import type {
   AgentProgress, Approval, AttentionNotice,
@@ -264,6 +269,9 @@ export function WorkspaceApp() {
   const [activeJobId, setActiveJobId] = useState("");
   const [pending, setPending] = useState<PendingSend[]>([]);
   const [attention, setAttention] = useState<AttentionNotice | null>(null);
+  // 「/레시피」 — 해 보여서 가르치기: 손자리 크롬에서 적히는 걸음과 저장 전 「한 번 해 보기」(백엔드 `demo_*` 사건, 2026-10-28).
+  const [learn, setLearn] = useState<LearnState>(idleLearn);
+  const [slashIndex, setSlashIndex] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
   const [autoApproved, setAutoApproved] = useState<AutoApprovedNotice | null>(null);
   // 승인·계속진행은 작은 팝업에만 있었다. 팝업을 없애면서 여기로 옮긴다 — 이게
@@ -319,6 +327,12 @@ export function WorkspaceApp() {
   const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
   // 설정(W3). 사이드바 버튼과 트레이 「설정」(Tauri 이벤트 open-settings)이 연다.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // 설정을 어느 칸으로 열지 — 「쓰는 법」 4장 · 첫 안내 카드의 「Claude 에 잇기」가 연결 · 디스코드 칸을 바로 연다(2026-10-27).
+  const [settingsSection, setSettingsSection] = useState("general");
+  const openSettingsAt = useCallback((section: string) => { setSettingsSection(section); setSettingsOpen(true); }, []);
+  // 「쓰는 법」 쇼(2026-10-27) — 처음 쓰는 사람에게 저절로 한 번, 사이드바 「쓰는 법」으로 언제든. 저절로 떠 있는 동안은 「바뀐 것」 줄을 접어 둔다.
+  const [usageShowOpen, setUsageShowOpen] = useState(false);
+  const [usageShowActive, setUsageShowActive] = useState(false);
   useEffect(() => {
     if (!isTauri()) return;
     let stop: (() => void) | undefined;
@@ -646,6 +660,39 @@ export function WorkspaceApp() {
     }
   }, [withQueuedMessages]);
 
+  // 윈도우 알림을 눌렀다 — Rust 가 창을 앞으로 가져온 뒤 그 판의 대화를 열라고 알린다(`notify.rs` · `notification-clicked`).
+  useEffect(() => {
+    if (!isTauri()) return;
+    let stop: (() => void) | undefined;
+    let alive = true;
+    void import("@tauri-apps/api/event").then(({ listen }) => listen<{ session_id?: string; job_id?: string; action?: string }>("notification-clicked", (event) => {
+      // 「결과 폴더」 — 창은 앞으로 오지 않는다. 백엔드의 「만든 것」 목록에서 첫 파일을 탐색기로 짚는다(경로를 알림이 들고 다니지 않는다).
+      if (event.payload?.action === "folder") {
+        const jobId = String(event.payload?.job_id ?? "");
+        const client = clientRef.current;
+        if (jobId && client) {
+          void client.listOutputs(jobId)
+            .then((listed) => {
+              const first = listed.items.find((item) => item.exists);
+              if (first) return client.openOutputOnPc(jobId, first.path, true);
+              return undefined;
+            })
+            .catch(() => undefined);
+        }
+        return;
+      }
+      const room = String(event.payload?.session_id ?? "");
+      if (room && room !== sessionRef.current) void loadConversation(room);
+      refreshJobs();
+    }))
+      .then((unlisten) => { if (alive) stop = unlisten; else unlisten(); })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+      stop?.();
+    };
+  }, [loadConversation, refreshJobs]);
+
   // 바깥 AI 가 맡긴 판의 방을 연다 — `whereAQueuedJobLands` 의 설명.
   //
   // `loadConversation` 과 다른 점 둘:
@@ -759,6 +806,18 @@ export function WorkspaceApp() {
       },
       () => { if (isTauri()) void invoke("close_stage_mini").catch(() => undefined); },
     );
+    // 윈도우 알림(2026-10-27) — 끝났을 때 · 사람을 기다릴 때 · 막혔을 때. 창이 앞에서 보이는 중이면 안 띄운다(`notify.ts`).
+    const notifier = createNotifier({
+      enabled: readNotifyEnabled,
+      inFront: windowInFront,
+      show: showToast,
+      loadJob: async (jobId) => (clientRef.current ? clientRef.current.getJob(jobId) : null),
+      // 「결과 폴더」 단추는 만든 파일이 디스크에 있을 때만 둔다.
+      hasOutputs: async (jobId) => {
+        const listed = await clientRef.current?.listOutputs(jobId);
+        return Boolean(listed?.items.some((item) => item.exists));
+      },
+    });
     loadBootstrap().then(async (bootstrap) => {
       if (!alive) return;
       setPilotMode(bootstrap.mode === "pilot");
@@ -769,8 +828,14 @@ export function WorkspaceApp() {
       else if (bootstrap.controlToken) setSetupApi(createSetupApi(bootstrap));
       const onEvent = (event: JarvisEvent) => {
         stageMini.onEvent(event);
+        void notifier.onEvent(event);
         const payload = event.payload ?? {};
         const jobId = String(payload.job_id ?? "");
+        // 배우는 중 칸 — 어느 판의 사건도 아니다(판 번호가 없다). 판 걸러내기보다 먼저 받는다.
+        if (event.event.startsWith("demo_")) {
+          setLearn((current) => applyLearnEvent(current, event.event, payload));
+          return;
+        }
         // 클로드가 손자리에게 맡긴 판의 상태 — 지금 보는 판이 아니어도 적어 둔다(돌아와 열면 카드가 그대로 있게).
         if (event.event === "claude_handoff") {
           if (jobId) setHandoffs((rows) => ({ ...rows, [jobId]: (payload.handoffs ?? []) as ClaudeHandoff[] }));
@@ -1250,6 +1315,12 @@ export function WorkspaceApp() {
         // leave the header showing whatever the last event said.
         if (value) {
           void client.getState().then((snapshot) => setState(snapshot.state as JarvisState)).catch(() => undefined);
+          // 앱을 다시 켰을 때 이미 배우는 중이면 칸을 맞춰 띄운다(사건은 놓쳤다).
+          void client.demoState().then((snap) => {
+            if (!snap.on) return;
+            setLearn((current) => current.phase === "idle"
+              ? { phase: "learning", label: snap.label, steps: snap.steps, replay: [], total: 0 } : current);
+          }).catch(() => undefined);
           void reloadModel();
           void reloadPermissions();
           if (bootFailedRef.current) void recoverBoot();
@@ -1435,7 +1506,14 @@ export function WorkspaceApp() {
     [progress, activeJobId],
   );
   const [stageHold, setStageHold] = useState(false);
-  const [stageOverride, setStageOverride] = useState<boolean | null>(null);
+  // 사람이 누른 「크게/작게」는 **그 판에 대한 뜻**이다(`workspace/stageChoice.ts` · 2026-10-30). 따라가는 판 번호가 잠깐 비었다 같은 판으로
+  // 돌아와도 지워지지 않고, 다른 판이면 자동으로 둔다.
+  const [stageChoice, setStageChoice] = useState<StageChoice | null>(null);
+  const stageOverride = stageChoiceFor(stageChoice, computerJobId);
+  const setStageOverride = useCallback(
+    (on: boolean | null) => setStageChoice(chooseStage(computerJobId, on)),
+    [computerJobId],
+  );
   // ★ 튜토리얼(퀘스트 판 · 2026-10-16 · docs/설계_튜토리얼_퀘스트판_2026-10-16.ko.md). 첫 화면의 「처음 해 볼 것」과 화면을 짚는 말풍선.
   const tutorial = useTutorial({
     english: lang() === "en",
@@ -1462,9 +1540,9 @@ export function WorkspaceApp() {
   // ★ 2026-09-30: 새 일이 시작되면 앞 일이 켜 둔 무대를 **먼저 내린다.** 아래 5초 타이머는 「일이 없을 때」만 돌아서,
   //   앞 일이 끝나고 5초 안에 다음 일이 시작되면(줄 선 일·연달아 보낸 말) 타이머가 취소된 채 무대가 켜진 채로 남았다 —
   //   브라우저를 한 번도 안 쓰는 일까지 무대로 보였다(대표 지적). 이 일이 브라우저를 쓰면 바로 아래 효과가 다시 켠다.
+  //   (사람이 누른 「크게/작게」는 여기서 지우지 않는다 — 판에 묶여 있어 다른 판이면 저절로 안 먹는다. `stageChoice` 위 주석.)
   useEffect(() => {
     if (!activeJobId) return;
-    setStageOverride(null);
     setStageHold(false);
   }, [activeJobId]);
   useEffect(() => {
@@ -1529,8 +1607,9 @@ export function WorkspaceApp() {
   const stickToBottom = useCallback(() => {
     const element = scrollRef.current;
     if (!element || !followOutputRef.current) return;
-    element.scrollTo({ top: element.scrollHeight, behavior: "instant" });
-  }, []);
+    // 빈 대화(첫 화면)는 위에서 시작한다 — 아래로 따라가면 창이 낮을 때 슬로건이 위로 잘려 나간다(2026-10-27: 첫 10초가 우리 소개다).
+    element.scrollTo({ top: hasMessages ? element.scrollHeight : 0, behavior: "instant" });
+  }, [hasMessages]);
 
   const markUserScrolling = useCallback(() => {
     userScrollUntilRef.current = performance.now() + USER_SCROLL_GRACE_MS;
@@ -2078,6 +2157,14 @@ export function WorkspaceApp() {
   //   입력 한 글자·답 한 토큰·1초 시계마다 통째로 다시 그려졌다(메시지 80개에서 글자 하나에 135ms). 부르면 늘 최신 것을 부른다.
   const observeAgainStable = useStableCallback(observeAgain);
   const continueUnfinishedStable = useStableCallback(continueUnfinished);
+  // 답 아래 단추 — 눌러서 보내는 말은 사람이 친 말과 같은 문으로 들어간다(백엔드가 `say` 를 정한다).
+  const sayStable = useStableCallback((text: string) => { void send(undefined, text); });
+  // 배우는 중 칸의 단추도 같은 문 — 영어판은 영어 말로.
+  const sayDone = () => { void send(undefined, lang() === "en" ? "done" : "다 했어"); };
+  const sayCancel = () => { void send(undefined, lang() === "en" ? "cancel learning" : "배우기 취소"); };
+  // 입력창의 `/` 명령 목록 — 코드 탭에서는 없다(백엔드가 코드 탭 말은 손자리 자신에 대한 말로 받지 않는다).
+  const slashItems = workspaceMode === "code" ? [] : slashMenu(draft, lang());
+  const slashAt = Math.min(slashIndex, Math.max(slashItems.length - 1, 0));
   // 답이 기댄 페이지의 사진(2026-10-18). 한 번만 만든다 — 판 결과 · 사진을 안에서 잡아 두고, 말 칸(memo)이 다시 그려지지 않게.
   const showcaseSource = useMemo(() => createShowcaseSource(() => clientRef.current, (url) => void openExternalUrl(url)), []);
 
@@ -2102,7 +2189,8 @@ export function WorkspaceApp() {
         onDeleteConversation={pilotMode ? undefined : (id) => void deleteConversation(id)}
         onCancelSchedule={(id) => void cancelSchedule(id)}
         onOpenCapabilities={() => setCapabilitiesOpen(true)}
-        onOpenSettings={pilotMode ? undefined : () => setSettingsOpen(true)}
+        onOpenSettings={pilotMode ? undefined : () => openSettingsAt("general")}
+        onOpenUsageShow={pilotMode ? undefined : () => setUsageShowOpen(true)}
         privacyText={pilotMode ? t("요청한 내용은 Claude API로 전송됩니다") : undefined}
         handoffOrigins={handoffOrigins}
       />
@@ -2110,7 +2198,7 @@ export function WorkspaceApp() {
       <section className={`workspace-main${takeoverStage === "transfer" && takeoverOffer ? " relay-transition" : ""}`}>
         <HealthBar client={clientRef.current} />
         <UpdateBar client={clientRef.current} />
-        <WhatsNewBar client={clientRef.current} />
+        <WhatsNewBar client={clientRef.current} hold={usageShowActive} />
         <PilotAuthBar enabled={pilotMode} />
         <header className="workspace-header">
           <div className="workspace-heading">
@@ -2202,7 +2290,8 @@ export function WorkspaceApp() {
             <Welcome onSuggestion={setDraft} mode={workspaceMode} codeWorkspace={codeWorkspace} codeModel={activeModel}
               quests={workspaceMode === "cowork" && tutorial.showBoard ? (
                 <QuestBoard state={tutorial.quests} tierGb={tierGb} english={lang() === "en"} claudeConnected={claudeConnected}
-                  onStart={tutorial.start} onDismiss={tutorial.dismiss} onCardSeen={tutorial.cardSeen} />
+                  onStart={tutorial.start} onDismiss={tutorial.dismiss} onCardSeen={tutorial.cardSeen}
+                  onConnectClaude={() => openSettingsAt("connect")} />
               ) : null}
               receipt={workspaceMode === "cowork" && !pilotMode ? <ReceiptCard client={clientRef.current} connected={connected} /> : null} />
           ) : (
@@ -2210,6 +2299,7 @@ export function WorkspaceApp() {
               {timeline.map((entry) => (entry.kind === "message"
                 ? <MessageView key={`m${entry.message.id}`} message={entry.message} onObserveAgain={observeAgainStable}
                     onContinue={entry.message.id === lastMessageId && pending.length === 0 ? continueUnfinishedStable : undefined}
+                    onSay={entry.message.id === lastMessageId && pending.length === 0 ? sayStable : undefined}
                     showcase={showcaseSource} />
                 : (
                   <TrajectoryNode
@@ -2352,6 +2442,7 @@ export function WorkspaceApp() {
               <button type="button" onClick={() => setAutoApproved(null)} aria-label={t("확인했습니다")}><X size={14} /></button>
             </div>
           )}
+          <RecipeLearnPanel state={learn} onDone={sayDone} onCancel={sayCancel} />
           {attachments.length > 0 && (
             <div className="attachment-row">
               {attachments.map((file, index) => (
@@ -2371,7 +2462,14 @@ export function WorkspaceApp() {
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop} onSubmit={send}>
             {/* 맞춤법 밑줄을 끈다(2026-10-13) — 가게 이름 · 제품 이름 · 조사마다 빨간 줄이 그어져 시킨 말이 틀린 글처럼 보였다. */}
+            <SlashMenu items={slashItems} index={slashAt} onPick={(item) => { setDraft(`${item.command} `); setSlashIndex(0); draftRef.current?.focus(); }} />
             <textarea ref={draftRef} value={draft} spellCheck={false} onPaste={onPaste} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+              // `/` 명령 목록이 열려 있으면 화살표 · Tab · Enter 는 목록을 고른다. 완성된 명령(`/레시피`)에서 Enter 는 그대로 보낸다.
+              if (slashItems.length && !event.shiftKey && !event.nativeEvent.isComposing) {
+                const picked = slashKey(draft, slashItems, slashAt, event.key);
+                if (picked.kind === "move") { event.preventDefault(); setSlashIndex(picked.index); return; }
+                if (picked.kind === "fill") { event.preventDefault(); setDraft(picked.text); setSlashIndex(0); return; }
+              }
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
                 void send();
@@ -2540,7 +2638,10 @@ export function WorkspaceApp() {
         googleBusy={googleBusy}
         onConnectGoogle={() => void connectGoogle()}
       />
-      <SettingsScreen client={clientRef.current} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsScreen client={clientRef.current} open={settingsOpen} onClose={() => { setSettingsOpen(false); setSettingsSection("general"); }}
+        initialSection={settingsSection} />
+      <UsageShowGate client={clientRef.current} enabled={!pilotMode} manualOpen={usageShowOpen} onManualClose={() => setUsageShowOpen(false)}
+        onActiveChange={setUsageShowActive} onOpenSettings={openSettingsAt} />
       {FixtureBar && <Suspense fallback={null}><FixtureBar /></Suspense>}
       {tutorial.bubble && <CoachBubble step={tutorial.bubble} onSkip={tutorial.stop} />}
     </main>

@@ -136,8 +136,9 @@ def test_it_does_not_run_away() -> None:
 def test_it_is_on_because_it_was_measured() -> None:
     """재고 켰다 - 시간 -23%, 품질 동일.
 
-    사고 정책은 재고 **안 켰다**(+2%). 둘을 나란히 두는 이유는, 다음 사람이
-    「둘 다 최적화니까 둘 다 켜자」로 뭉뚱그리지 않게 하기 위해서다.
+    사고 정책은 09-03 에 재고 **안 켰다**(+2%) - 그때 기본은 깊게(always)였다. 10-28 에 10-27 측정(24판 전부 통과, 보통이 코드에서
+    크게 빠름)을 근거로 기본을 자동(auto: 보통으로 시작해 막히면 깊게)으로 바꿨다 (`test_thinking_auto_default_1028`).
+    둘을 나란히 두는 이유는, 다음 사람이 「둘 다 최적화니까 둘 다 켜자」로 뭉뚱그리지 않게 하기 위해서다.
     """
     from alture_jarvis.config import JarvisConfig  # noqa: PLC0415
 
@@ -147,7 +148,7 @@ def test_it_is_on_because_it_was_measured() -> None:
         documents_dir=root / "docs",
     )
     assert config.agent_fuse_open_and_read is True
-    assert config.agent_thinking_policy == "always"
+    assert config.agent_thinking_policy == "auto"
 
 
 def test_the_fused_read_takes_no_arguments() -> None:

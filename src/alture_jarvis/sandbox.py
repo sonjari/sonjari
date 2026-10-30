@@ -326,6 +326,7 @@ class SandboxBox:
                 timeout=timeout,
                 env={"WSL_UTF8": "1", "SystemRoot": r"C:\Windows", "PATH": r"C:\Windows\System32"},
                 check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except subprocess.TimeoutExpired:
             raise SandboxError(f"상자가 {timeout}초 안에 안 끝났다") from None

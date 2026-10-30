@@ -652,7 +652,12 @@ class JarvisConfig:
     #: 걸음마다 생각할 것인가. `always`(기본) · `adaptive` · `off`.
     #: 기본을 안 바꾸는 이유는 `agent._should_think` 주석에 있다 — 사고가 비싸다는
     #: 것만 쟀지, 값을 못 한다는 것은 아직 안 쟀다.
-    agent_thinking_policy: str = "always"
+    #: ★ 2026-10-28: 기본을 `always` 에서 `auto`(보통으로 시작해 막히면 깊게)로 바꿨다. 10-27 측정(24판 전부 통과)에서
+    #:   보통이 깊게보다 코드 과제에서 크게 빨랐고 나머지는 엇갈렸다 — 막힌 판만 깊게 가는 자동이 기본이다.
+    #:   입력창 칩이 있는 길은 칩이 이기고, 칩이 없는 길(클로드 연결 · 디스코드 · 예약)은 이 값을 따른다.
+    #:   값이 사는 자리: 여기 · 아래 `_env("JARVIS_AGENT_THINKING_POLICY", …)` · `transcript_policy` 의 읽는 쪽 기본값 · `ollama.py` 생각 상한.
+    #: 선택지는 `auto` · `always` · `adaptive` · `off` (`settings.py` 의 choices 가 화면과 검증의 기준).
+    agent_thinking_policy: str = "auto"
     #: 열었으면 **같은 걸음에서** 읽는다.
     #:
     #: ★ 재고 켰다(2026-09-03). 같은 빌드에서 켬/끔만 바꿔 같은 프롬프트 4개:
@@ -662,6 +667,10 @@ class JarvisConfig:
     #: 줄어드는 것은 걸음이 아니라 **모델 호출**이다. 추출은 그대로 걸음으로 남고,
     #: 그 사이의 모델 턴이 사라진다 — 그 턴은 아무것도 정하지 않았다.
     agent_fuse_open_and_read: bool = True
+    #: 맡긴 코드 판의 끝내기 문 — 확인 명령이 통과해도, **시작점에서 통과하던 시험이 지금 깨진 게 있으면** 끝을 받지 않고 돌려준다
+    #: (판 시작 때 시작점에서 전체 시험을 백그라운드로 돌려 실패 목록을 적고, 끝낼 때 지금 것과 견준다 — `regression_vs_start.py`).
+    #: 파이썬 · pytest 저장소만 다루고, 견줄 수 없으면 막지 않는다. 재생 측정 261fbfe2(2026-10-28)에서 세 판이 모두 확인 명령만 통과시키고 끝났다.
+    agent_regression_vs_start: bool = True
     agent_stream_enabled: bool = True
     agent_time_warning_sec: int = 30
     #: 「문제 보내기」 받는 곳(2026-09-29 결정: 손자리 개발팀 서버). 보여 주고 동의받은 내용만 간다 — problem_report.py.
@@ -979,6 +988,9 @@ class JarvisConfig:
     # 남긴다 — 조용히 갈아타지 않는다). "off": 예전 방식만.
     browser_attach_mode: str = "auto"
     browser_cdp_port: int = 9222
+    # 사람 시연(「/레시피」)을 이 PC · 시험 주소에서 해도 레시피로 받는다. 기본은 거절 — 시험 앱 판이 레시피로 굳으면 안 된다.
+    # 시험 사이트로 끝에서 끝까지 재 볼 때만 JARVIS_DEMO_ALLOW_LOCAL=1.
+    demo_allow_local: bool = False
     # 빈 값이면 찾아 쓴다(`_find_chrome`).
     browser_chrome_path: str = ""
     # 만든 화면(이 PC 안 페이지)을 열 때 화면 없는 크롬으로 따로 찍어 모델의 눈으로 본다(`page_look`). 열 때마다 몇 초가 든다
@@ -1497,8 +1509,9 @@ class JarvisConfig:
             ),
             agent_routing_enabled=_bool("JARVIS_AGENT_ROUTING_ENABLED", True),
             agent_thinking_enabled=_bool("JARVIS_AGENT_THINKING_ENABLED", True),
-            agent_thinking_policy=_env("JARVIS_AGENT_THINKING_POLICY", "always"),
+            agent_thinking_policy=_env("JARVIS_AGENT_THINKING_POLICY", "auto"),
             agent_fuse_open_and_read=_bool("JARVIS_AGENT_FUSE_OPEN_READ", True),
+            agent_regression_vs_start=_bool("JARVIS_AGENT_REGRESSION_VS_START", True),
             agent_stream_enabled=_bool("JARVIS_AGENT_STREAM_ENABLED", True),
             agent_time_warning_sec=_int("JARVIS_AGENT_TIME_WARNING_SEC", 30),
             problem_report_url=_env("JARVIS_PROBLEM_REPORT_URL", "https://api.robometafit.com/sonjari/reports"),
@@ -1648,6 +1661,7 @@ class JarvisConfig:
             browser_visual_overlay=_bool("JARVIS_BROWSER_VISUAL_OVERLAY", True),
             browser_attach_mode=_env("JARVIS_BROWSER_ATTACH", "auto").strip().lower() or "auto",
             browser_cdp_port=_int("JARVIS_BROWSER_CDP_PORT", 9222),
+            demo_allow_local=_bool("JARVIS_DEMO_ALLOW_LOCAL", False),
             browser_chrome_path=_env("JARVIS_BROWSER_CHROME_PATH"),
             page_eye_enabled=_bool("JARVIS_PAGE_EYE_ENABLED", True),
             browser_attach_launch_timeout_sec=_int(

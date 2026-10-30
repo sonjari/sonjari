@@ -100,8 +100,16 @@ class FirstTokenWatch:
 
     def __init__(self, *, last: dict[str, Any] | None, tokens: int, english: bool,
                  publish: Callable[[dict[str, Any]], None],
-                 delay: float | None = None, every: float | None = None, reason: str = "") -> None:
+                 delay: float | None = None, every: float | None = None, reason: str = "",
+                 late_after: "float | Callable[[], float] | None" = None,
+                 late_hint: "Callable[[], str] | None" = None) -> None:
         self._last = dict(last) if last else None
+        # 평소보다 **크게** 늦으면(`late_after` 초 — 숫자 또는 감시 줄기 안에서 한 번 셈하는 함수) `late_hint()` 를 한 번 부르고, 돌려준 글을
+        # 기다림 줄 끝에 붙인다(2026-10-27 · 그래픽카드 메모리가 모자라 느려진 것 같을 때). 부르는 일은 감시 줄기에서 하므로 판을 안 붙잡는다.
+        self._late_after = late_after
+        self._late_hint = late_hint
+        self._hint = ""
+        self._hint_asked = False
         self._tokens = tokens
         self._english = english
         self._reason = reason
@@ -127,14 +135,32 @@ class FirstTokenWatch:
         except Exception:  # noqa: BLE001 — 진행 표시는 판을 막지 않는다
             pass
 
+    def _ask_late_hint(self, elapsed: float) -> None:
+        """평소보다 크게 늦었으면 힌트를 한 번 묻는다. 락 밖에서 부른다(느린 질문이 `seen()` 을 막지 않게). 실패해도 판은 간다."""
+        if self._hint_asked or self._late_hint is None or self._late_after is None:
+            return
+        try:
+            threshold = self._late_after() if callable(self._late_after) else float(self._late_after)
+            if elapsed < threshold:
+                return
+            self._hint_asked = True
+            self._hint = str(self._late_hint() or "").strip()
+        except Exception:  # noqa: BLE001 — 힌트는 덤이다
+            self._hint_asked = True
+            self._hint = ""
+
     def _run(self) -> None:
         wait = self._delay
         while not self._stop.wait(wait):
+            self._ask_late_hint(time.monotonic() - self._started)
             with self._lock:
                 if self._stop.is_set() or self._last is None:
                     return
                 elapsed = time.monotonic() - self._started
-                self._send({**self._last, "message": wait_message(self._tokens, elapsed, self._english, self._reason),
+                message = wait_message(self._tokens, elapsed, self._english, self._reason)
+                if self._hint:
+                    message += " · " + self._hint
+                self._send({**self._last, "message": message,
                             "waiting_first_token": True, "reread_reason": self._reason})
                 self._shown = True
             wait = self._every

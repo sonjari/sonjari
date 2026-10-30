@@ -214,6 +214,10 @@ def _counts_something_to_produce(compact: str, match: "re.Match[str]") -> bool:
 
 def _has_explicit_input_count(compact: str) -> bool:
     """자료·문서처럼 실제 입력 대상을 세는 수량이 하나라도 있는가."""
+    # 「대상마다 N개씩」 + 늘어놓은 목록은 **모아 올 개수**다 — 만들 표의 모양이 아니다(2026-10-30 판 6e539bf2 · `_count_choice`).
+    #   운영 요청 2,786개 중 이 꼴은 둘(391ca5ca · 6e539bf2)뿐이었다.
+    if _per_item_count(compact) and len(inline_list_items(compact)) >= 2:
+        return True
     if _en.english_dominant(compact):
         return any(role == _en.ROLE_INPUT for _v, _q, role, _s, _e in _en.counts(compact))
     for match in _COUNT.finditer(compact):
@@ -348,6 +352,81 @@ def says_list_only(prompt: str) -> bool:
     return bool(_LIST_ONLY.search(compact) or _DETAIL_DECLINED.search(compact) or _asks_only_listing_fields(compact))
 
 
+# ★ **「목록 × ~씩」은 곱한 만큼이 할 일이다** (2026-10-30 · 판 391ca5ca · 6e539bf2).
+#   「…제품마다 조회수 높은 순으로 2개씩 찾아 … 제품: Claude in Chrome, Claude Cowork, ChatGPT agent(OpenAI), … Dia 브라우저」— 일곱 제품 × 2 =
+#   영상 14개인데 계획은 「2개 이상 읽기」로 서서 걸음 예산이 24였다. 조사가 상한 몇 걸음 전 「파일 쓸 차례」로 막혀 일곱 중 몇 개만 담고 끝났다.
+#   번호 줄 목록(`enumerated_items`)만 알아보던 것을 **한 줄에 늘어놓은 목록**(「제품: A, B, C」)까지 넓히고, 「~마다 · 각각 · 각」에 붙은
+#   「N개씩」(영어 「N per · N each · N for each」)이 있을 때만 곱한다. 곱이 개수 범위(30)를 넘으면 30 에서 멈춘다.
+_INLINE_LIST_LABEL = re.compile(
+    r"(?:제품|대상|후보|목록|사이트|회사|기업|브랜드|채널|서비스|모델|도구|앱|products?|targets?|companies|sites|brands|tools|models|apps)"
+    r"\s*(?:들|목록)?\s*[:：]\s*"
+)
+_INLINE_LIST_END = re.compile(r"(?:[.。](?=\s|$)|\n|$)")
+_PER_ITEM_KO = re.compile(
+    r"(?:마다|각각|(?:^|(?<=\s))각\s)[^.。\n]{0,40}?"
+    r"(\d{1,2}|하나|둘|셋|넷|[한두세네]|다섯|여섯|일곱|여덟|아홉|열)\s*(?:개|건|편|곳|권|명)?\s*씩"
+)
+_PER_ITEM_EN = re.compile(
+    r"(?i)\b(\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)\s+(?:[a-z-]+\s+){0,3}?(?:per|for\s+each|from\s+each)\s+[a-z]+"
+    r"|\b(?:per|for\s+each)\s+[a-z]+\s*,?\s+(?:find|get|pick|list|open|read)\s+(?:the\s+)?(?:top\s+)?(\d{1,2}|two|three|four|five)\b"
+    r"|\b(\d{1,2}|two|three|four|five)\s+(?:[a-z-]+\s+){0,3}?each\b"
+)
+_EN_NUMBER = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+
+
+def inline_list_items(compact: str) -> tuple[str, ...]:
+    """「제품: A, B(C), D」처럼 **이름표 뒤 한 줄에 늘어놓은** 항목(둘 이상). 괄호 안의 쉼표 · 가운뎃점은 나누지 않는다."""
+    text = str(compact or "")
+    label = _INLINE_LIST_LABEL.search(text)
+    if not label:
+        return ()
+    body_start = label.end()
+    end = _INLINE_LIST_END.search(text, body_start)
+    body = text[body_start: end.start() if end else len(text)]
+    items: list[str] = []
+    depth = 0
+    current = ""
+    for char in body:
+        if char in "([（「":
+            depth += 1
+        elif char in ")]）」" and depth:
+            depth -= 1
+        if depth == 0 and char in ",，·、;":
+            items.append(current)
+            current = ""
+            continue
+        current += char
+    items.append(current)
+    items = [item.strip(" -—:") for item in items]
+    items = [item for item in items if item and len(item) <= 60]
+    return tuple(items) if len(items) >= 2 else ()
+
+
+def _per_item_count(compact: str) -> int:
+    """「~마다 · 각각 N개씩」(영어 N per · N each)의 N. 없으면 0."""
+    match = _PER_ITEM_KO.search(compact)
+    if match:
+        return _as_number(match.group(1))
+    match = _PER_ITEM_EN.search(compact)
+    if match:
+        word = next(group for group in match.groups() if group)
+        return int(word) if word.isdigit() else _EN_NUMBER.get(word.casefold(), 0)
+    return 0
+
+
+def _count_choice(compact: str) -> tuple[int, str]:
+    """`_count_choice_single` 에 「목록 × ~씩」 곱을 얹는다(위 `_INLINE_LIST_LABEL` 주석)."""
+    value, noun = _count_choice_single(compact)
+    per = _per_item_count(compact)
+    # 「하나씩」은 혼자서는 개수 요구가 아니다(1 은 범위 밖) — 목록과 함께일 때만 목록 길이가 개수다(판 6e539bf2 「각각 … 대표 영상 하나씩」).
+    if per < 1 or (value and per != value) or (not value and per != 1):
+        return value, noun
+    listed = inline_list_items(compact) or enumerated_items(compact)
+    if len(listed) < 2:
+        return value, noun
+    return min(per * len(listed), 30), noun
+
+
 def _count_target(compact: str) -> int:
     """프롬프트가 **몇 개를 요구하는가.** 판정은 `_count_choice` 한 곳 — 여기는 개수만 꺼낸다."""
     return _count_choice(compact)[0]
@@ -365,7 +444,7 @@ def _counts_entries_inside_a_page(compact: str) -> bool:
     return lives_inside_a_page(_count_choice(compact)[1])
 
 
-def _count_choice(compact: str) -> tuple[int, str]:
+def _count_choice_single(compact: str) -> tuple[int, str]:
     """프롬프트가 **몇 개를 요구하는가** 와 그 숫자가 **세는 낱말**(모르면 빈 값).
 
     맨 앞 숫자를 그냥 집으면 안 된다. 2026-08-18 라이브에서 "리뷰 0개 신규 판매자가
@@ -621,6 +700,12 @@ def _only_in_example_lists(folded: str, name: str) -> bool:
 
 #: 요청이 **웹의 어디서** 찾으라고 이름을 댔나 — 주소(`WEB_DOMAIN`)가 없어도 검색 엔진·「검색」·「인터넷」이면 웹이다.
 _WEB_PLACE_NAMED = re.compile(r"구글|네이버|유튜브|깃허브|레딧|인터넷|검색(?:해|하|엔진|어|으로)|웹에서|google|naver|bing", re.IGNORECASE)
+#: 「폴더」가 **이 PC 의 장소**로 쓰인 자리 — 앞뒤에 경로 · 드라이브 · 내 문서 · 바탕화면 같은
+#: 자리 이름이 붙은 것만. 「에셋 이름 · 폴더 점검」의 폴더는 작업 대상 낱말이지 장소가 아니다
+#: (2026-10-27 판 871ed607 — 「레딧 · 깃허브에서 … 10개 이상」이 로컬 읽기로 읽힌 자리).
+_LOCAL_FOLDER = re.compile(
+    r"(?:[A-Za-z]:\\[^\s,]{0,30}\s*|내\s*(?:문서|PC|컴퓨터)|이\s*|컴퓨터|노트북|로컬\s*|바탕화면[^\s]{0,4}\s*|다운로드\s*)폴더"
+)
 #: 「파일」이 **읽을 자료**로 쓰인 자리: 앞에 내 PC·로컬·첨부·폴더가 붙었거나, 바로 읽다·열다·분석하다가 따라온다.
 #: 「파일을 다룬다」(제품 설명)·「그 파일은 머리줄만 있다」(만들 파일)·「파일로 정리」는 여기에 안 걸린다.
 _FILE_AS_SOURCE = re.compile(
@@ -634,6 +719,19 @@ def _last_file_as_source(text: str) -> int:
     at = -1
     for match in _FILE_AS_SOURCE.finditer(text):
         at = max(at, match.start() + match.group(0).find("파일"))
+    return at
+
+
+def _last_local_folder(text: str) -> int:
+    """`text` 에서 이 PC 의 장소로 쓰인 마지막 「폴더」의 자리(없으면 -1).
+
+    경로가 붙으면(`D: 자료`) 그 **시작** 자리가 아니라 「폴더」 낱말의 자리를
+    돌려야 `local_at` 이 web_at(낱말 자리)과 같은 자리에 비교된다.
+    """
+    at = -1
+    for match in _LOCAL_FOLDER.finditer(text):
+        word = match.end() - 2  # 「폴더」 두 글자
+        at = max(at, word)
     return at
 
 
@@ -654,7 +752,7 @@ def _scoped_count_targets(compact: str) -> list[tuple[str, int]]:
     #   개수 앞 180자 안에 「구글·네이버」가 없어도(문장이 길면 창 밖이다) 요청 전체가 웹을 가리키면 같은 규칙이다.
     #   그때 「파일」은 **읽을 자료로 쓰인 자리**(`_FILE_AS_SOURCE`)만 센다.
     named_web = bool(WEB_DOMAIN.search(compact)) or bool(_WEB_PLACE_NAMED.search(compact))
-    local_terms = ("로컬", "폴더") if named_web else ("로컬", "파일", "문서", "폴더")
+    local_terms = ("로컬",) if named_web else ("로컬", "파일", "문서", "폴더")
     web_terms = ("공개 웹", "웹", "사이트", "온라인", *(m.group(0) for m in WEB_DOMAIN.finditer(compact)))
     found: dict[str, int] = {}
     if _en.english_dominant(compact):
@@ -696,7 +794,9 @@ def _scoped_count_targets(compact: str) -> list[tuple[str, int]]:
         before = _OUTPUT_FILE.sub(lambda m: " " * len(m.group(0)), before)
         local_at = max((_last_word_head(before, term) for term in local_terms), default=-1)
         if named_web:
-            local_at = max(local_at, _last_file_as_source(before))
+            # 웹을 이름으로 댄 판에서는 「폴더」가 **자리**로 쓰인 것만 로컬 출처다 (2026-10-27 판 871ed607).
+            # 「에셋 이름 · 폴더 점검」의 폴더는 조사 대상 낱말이라 개수 범위가 아니다.
+            local_at = max(local_at, _last_file_as_source(before), _last_local_folder(before))
         web_at = max((before.rfind(term) for term in web_terms), default=-1)
         if max(local_at, web_at) < 0:
             continue
@@ -1068,7 +1168,7 @@ def mutating_google_tools(prompt: str) -> list[str]:
 
 @dataclass(frozen=True)
 class Requirement:
-    kind: str      # count | count_action | observe | site | filter | action | artifact | footnote | verify
+    kind: str      # count | count_action | observe | site | filter | action | artifact | footnote | verify | reach
     label: str     # 사람이 읽을 말
     target: Any    # 개수, 호스트 조각, 도구 이름
     # 같은 count라도 목록 자체가 답인 판과 상세 확인형은 최종 관문이 다르다.
@@ -1490,6 +1590,38 @@ def soft_only(items: list[Any]) -> list[Any]:
     return [item for item in items or [] if getattr(item[0] if isinstance(item, tuple) else item, "grade", GRADE_FIRM) == GRADE_SOFT]
 
 
+#: 「이 화면까지 가라 · 거기서 멈춰라」 — 이름을 댄 화면만(대명사 · 일반 이름은 어느 화면인지 못 가른다).
+_REACH_EN = re.compile(
+    r"\b(?:take\s+(?:it|them|me|this|that|the\s+[\w-]+(?:\s+[\w-]+)?)\s+(?:all\s+the\s+way\s+)?to|get\s+(?:it\s+)?to|"
+    r"go\s+(?:all\s+the\s+way\s+)?to|proceed\s+to|continue\s+to|stop\s+(?:at|on))\s+(?:the\s+)?"
+    r"(?P<quote>[\"“'])?(?P<page>[\w&'/-]+(?:\s+[\w&'/-]+){0,5}?)(?(quote)[\"”'])\s+(?:page|screen|step)\b",
+    re.IGNORECASE,
+)
+_REACH_KO = re.compile(r"[「\"“'](?P<page>[^」\"”'\n]{2,30})[」\"”']\s*(?:화면|페이지|단계)\s*(?:까지|에서\s*멈|직전)")
+#: 이름이 아닌 말 — 「that page」 · 「the next page」 · 「the detail page」 는 어느 화면인지 모른다.
+_REACH_NOT_A_NAME = frozenset({
+    "that", "this", "the", "next", "previous", "same", "last", "first", "detail", "details", "listing", "listings",
+    "home", "main", "results", "search results", "product", "item", "landing", "web", "final", "following",
+})
+
+
+def reach_target(text: str, *, english: bool) -> str:
+    """사람이 「여기까지 가라」고 이름을 댄 화면. 없으면 빈 글. 하지 말라는 말(「don't go to the Checkout page」)은 뺀다."""
+    compact = " ".join(str(text or "").split())
+    if english:
+        for match in _REACH_EN.finditer(compact):
+            page = match.group("page").strip(" '\"")
+            if _en.negated_before(compact, match.start()) or page.casefold() in _REACH_NOT_A_NAME:
+                continue
+            # 따옴표가 없으면 이름답게 대문자로 시작해야 한다 — 「go to the checkout page」 같은 일반 이름은 어느 화면 제목과도 맞출 수 없다.
+            if not match.group("quote") and not page[:1].isupper():
+                continue
+            return page
+        return ""
+    match = _REACH_KO.search(compact)
+    return match.group("page").strip() if match else ""
+
+
 def _extract_all(
     prompt: str,
     *,
@@ -1704,6 +1836,13 @@ def _extract_all(
     if asks_for_site_filter(compact):
         found.append(Requirement("filter", "사이트 정렬·필터로 보기", site_filter_needs(compact)))
 
+    # ★ **이 화면까지 가라**도 요구다 (2026-10-30 · 10-29 앱 판 cae8f0fe).
+    #   「…pick the best, and take it to the Confirm and pay page」— 계획에 「3개 이상 읽기」 한 칸만 서서, 넷째 숙소를 읽은 38걸음에서
+    #   `wrapped_up:goal_met`(다 했다)으로 접었다. 답에는 스스로 「결제 화면까지 못 갔다」고 썼다. 「도착할 화면」을 담을 종류가 없었다.
+    #   채움은 모델 말이 아니라 **실제로 서 본 화면의 제목**으로 잰다(`check` 의 reach) — 결제 화면에 간 운영 판 여섯은 모두 제목이 그 이름이었다.
+    page = reach_target(compact, english=english)
+    if page:
+        found.append(Requirement("reach", f"「{page}」 화면까지 가기", page))
     picked: set[str] = set()
     for pattern, tool, label in (_en.ACTIONS if english else _ACTIONS):
         # 영어는 부정이 동사 **앞**에 온다(「Don't publish」) — 매치 앞을 본다. 부정된 매치 말고 긍정 매치가
@@ -2761,10 +2900,13 @@ def check(
     #   같은 문장 둘째 판은 기사 둘이 `n.news.naver.com` 에 걸려 통과했다 — 운이 판정을 갈랐다.
     #   `agent.site_first_target` 은 이미 「"네이버에서 찾아줘"는 검색엔진으로 가라는 뜻」으로 다룬다. 바탕 주소(`naver.com`)
     #   그대로일 때만 푼다 — 「네이버 블로그」(`blog.naver.com`)처럼 서비스를 지목한 것은 그대로 그 주소만 센다.
+    # ★ **흐린 장소 요구로 셈을 좁히지 않는다** (2026-10-30 · 판 391ca5ca). 배운 이름표의 「ChatGPT → chatgpt.com」이 제품 이름에 걸려
+    #   흐림(learned) 장소 요구가 섰고, 이 자리가 그것까지 「시킨 곳」으로 써서 유튜브 영상 다섯을 「chatgpt.com 밖에서 5개 · 0개 읽음」으로 셌다.
+    #   흐림은 판 기록에만 남는다(§55-41) — 확실한 장소만 센다.
     named_hosts = tuple(
         str(host).lower()
         for req in requirements
-        if req.kind == "site"
+        if req.kind == "site" and getattr(req, "grade", GRADE_FIRM) != GRADE_SOFT
         for host in (req.target if isinstance(req.target, (list, tuple)) else ())
     )
     # 검색 엔진을 하나라도 지목했으면 주소로 가르지 않는다 — 「크몽 후기를 네이버에서 찾아서」의 크몽은 주제다(옛 · 새 대조 edcaf090:
@@ -2948,6 +3090,22 @@ def check(
                 out.append((req, True, f"원본을 열어 {converted}번 변환함"))
                 continue
             out.append((req, read >= 1, f"{read}개 실제로 읽음"))
+        elif req.kind == "reach":
+            # 성공한 화면 걸음이 **실제로 서 본 화면의 제목**에 그 이름이 있으면 도착이다(`reach_target`).
+            wanted = " ".join(str(req.target or "").split()).casefold()
+            titles = [
+                " ".join(str((step.get("evidence") or {}).get("title") or "").split())
+                for step in steps
+                if step.get("ok") and isinstance(step.get("evidence"), dict)
+                and str(step.get("tool") or "").startswith(("browser_", "site_"))
+            ]
+            titles = [title for title in titles if title]
+            reached = next((title for title in titles if wanted and wanted in title.casefold()), "")
+            if reached:
+                out.append((req, True, f"그 화면에 도착(제목 「{reached[:60]}」)"))
+            else:
+                last = titles[-1][:60] if titles else ""
+                out.append((req, False, f"아직 그 화면이 아님 — 마지막 화면 「{last}」" if last else "아직 화면을 하나도 안 봄"))
         elif req.kind == "filter":
             browsed = [step for step in steps if str(step.get("tool") or "").startswith("browser_")]
             if not browsed:
@@ -3607,13 +3765,14 @@ _NAMED_FILE_IS_READ = re.compile(
     # ★ 「…welcome.hwp」 **한글 파일을** 같은 폴더에 … PDF 로 저장해 줘」 (2026-10-17 한글→PDF 3판) — 따옴표와 「파일」 사이의 형식 이름
     #   (한글 · 워드 · 엑셀 · 파워포인트)을 못 넘어 원본 .hwp 가 만들 형식이 됐고, PDF 를 제대로 만든 판마다 「열 수 있는 산출물 없음」 ·
     #   「일부만 끝냄」이 찍혀 모델이 한 번 더 재촉받았다.
-    r"[」』\"'”’)\]]?\s*(?:(?:한글|워드|엑셀|파워\s*포인트|텍스트)\s*)?(?:파일|문서|그림|사진|이미지|표)?\s*(?:을|를)\s*"
+    r"\s*[」』\"'”’)\]]?\s*(?:(?:한글|워드|엑셀|파워\s*포인트|텍스트)\s*)?(?:파일|문서|그림|사진|이미지|표)?\s*(?:을|를)\s*"
     # 「FAQ 문서(docs/faq.md)를 **찾아 읽고**」 (2026-10-19 판 029fae29) — 찾는 말이 끼어도 읽을 재료다.
     r"(?:찾아\s*(?:서\s*)?)?"
     r"(?:읽|열어\s*보|보고|참고|분석"
     # 그 파일을 **다른 형식으로** 저장 · 변환하라는 말이면 그 파일은 재료다(만들 형식은 뒤의 형식 규칙이 잡는다).
     r"|(?:(?!만들|작성|써)[^,.。!?]){0,40}?(?<![A-Za-z])(?i:pdf|jpe?g|png|hwpx|docx|xlsx|pptx|txt|csv)(?![A-Za-z])"
     r"[^,.。!?]{0,12}?(?:로|으로)\s*(?:저장|변환|바꿔|바꾸|내보내)"
+    # 「지침 파일 ( CLAUDE.md ) 를 읽고」 — 닫는 괄호 앞 공백도 넘는다(2026-10-27). 닫는 괄호는 **있을 수도** 있다.
     # ★ 「「…welcome.hwp」 파일을 한글 프로그램으로 **열어서** PDF로 저장해 줘」 (2026-10-17 화면 자동화 측정) — 원본 이름을 만들 형식으로
     #   읽어 「.hwp 산출물」을 찾았고, PDF 를 만들어 열어 읽은 세 판 모두 「❌ 열 수 있는 산출물 없음」이 붙었다. 닫는 따옴표와
     #   「(프로그램으로) 열어」를 재료로 본다. 사이에 만들기 · 저장 말이 끼면 그것은 만들 파일이다(「결과.md 를 만들어서 열어 줘」).
@@ -3640,6 +3799,43 @@ def _format_is_source(compact: str, end: int, *, named_file: bool = False) -> bo
     return bool(_en.NAMED_FILE_IS_READ_BEFORE.search(compact[:start]))
 
 
+#: 파일 이름 **바로 뒤**가 만드는 말인가 — 「합계.xlsx 로 저장해」 · 「결과.md 를 만들어」 · 「(요약.md) 로 정리」 · 「out.md 에 써 줘」.
+#: 이름이 이 자리에 있으면 **만들 파일**이다. 아니면(주제 · 나열 · 부연: 「지침 파일(CLAUDE.md) 길이」) 언급일 뿐이다.
+_NAMED_FILE_IS_MADE = re.compile(
+    r"\s*[」』\"'”’)\]]?\s*(?:파일|문서)?\s*(?:(?:을|를|로|으로)\s*|에\s*)?"
+    r"(?:만들|작성|저장|생성|정리|내보내|뽑아|구워|출력|써\s*줘|써\s*주|적어|기록)"
+)
+
+
+#: 문서 · 설정 이름은 **언급**으로 곧잘 나온다(CLAUDE.md · .mcp.json · llama.cpp). 코드 파일 이름(plan.py)은 고칠 대상이라 여기에 안 넣는다.
+_MENTIONABLE_NAME_EXTENSIONS = frozenset({".md", ".json", ".yaml", ".yml", ".toml", ".csv", ".cpp"})
+#: 형식 낱말이 **만들 형식 자리**에 있나 — 「엑셀로」 · 「엑셀 한 장(칸: …)으로」 · 「워드 문서를 만들어」. 뒤에 한글이 붙으면(워드마크 · 한글파일이) 아니다.
+_FORMAT_AS_OUTPUT = re.compile(
+    r"\s*(?:파일|문서|시트|표)?\s*(?:(?:을|를)\s*)?(?:\d+\s*장|한\s*(?:장|개))?[^.。!?\n()]{0,6}?(?:\([^)\n]{0,60}\))?\s*"
+    r"(?:(?:으?로)(?![가-힣])|만들|작성|저장|정리해|뽑아)"
+)
+
+
+def _format_word_asked_outside_names(compact: str) -> bool:
+    """파일 이름 **밖에서** 만들 형식 낱말(엑셀 · 워드 · 한글 …)을 시켰나.
+
+    이름 안의 낱말(「합계.xlsx」의 xlsx)과 라이브러리 이름(python-docx) · 따옴표 속 예시(「엑셀로 정리해줘」) ·
+    읽을 재료(「엑셀을 읽고」)는 세지 않는다. 낱말 바로 뒤가 한글이면(워드마크 · 한글 이름) 형식이 아니다.
+    """
+    bare = compact
+    for match in _NAMED_FILE_SUFFIX.finditer(compact):
+        start = match.start()
+        while start > 0 and not re.match(r"[\s()\[\]「」『』\"'”’“‘,·、]", compact[start - 1]):
+            start -= 1
+        bare = bare[:start] + " " * (match.end() - start) + bare[match.end():]
+    for found in re.finditer(r"(?<![A-Za-z\-])" + _FORMAT_WORD + r"(?![A-Za-z])", bare, re.I):
+        if found.start() and bare[found.start() - 1] in "「『\"'`“‘":
+            continue
+        if not _format_is_source(bare, found.end()) and _FORMAT_AS_OUTPUT.match(bare, found.end()):
+            return True
+    return False
+
+
 def _artifact_extensions(prompt: str) -> tuple[str, ...]:
     """요청이 형식을 못 박았을 때만 확장자를 제한한다."""
     # 「엑셀은 안 만들어도 되고 … 워드 파일에」 — 거둔 형식은 시킨 형식이 아니다(`_FILE_DECLINED`, 2026-10-19).
@@ -3657,11 +3853,21 @@ def _artifact_extensions(prompt: str) -> tuple[str, ...]:
     #   워드를 제대로 만들었는데 `.cpp` 파일을 찾느라 「열 수 있는 산출물 없음」이 찍히고 산출물 되받기가 돌았다.
     #   `wants_code` 와 같은 소재 규율로 거른다 — 이름 뒤에 저장소·README·책 같은 말이 오면 소재다.
     topic = _en.CODE_TARGET_IS_TOPIC if _en.english_dominant(compact) else _CODE_TARGET_IS_TOPIC
-    named = [
-        f".{match.group(1).lower()}"
+    named_matches = [
+        match
         for match in _NAMED_FILE_SUFFIX.finditer(compact)
         if not topic.match(compact, match.end()) and not _format_is_source(compact, match.end(), named_file=True)
     ]
+    named = [f".{match.group(1).lower()}" for match in named_matches]
+    # ★ 이름이 **언급**만 됐으면 그 확장자가 만들 형식을 잠그면 안 된다 (2026-10-27 운영 판 d72ca482 · f52e0d50).
+    #   「지침 파일(CLAUDE.md) 길이 권고가 있는지 … 엑셀 한 장으로 정리」 · 「메모 파일·계획 파일·CLAUDE.md·/clear …」에서
+    #   `.md` 가 요구가 돼, 엑셀을 제대로 만들고도 「열 수 있는 산출물 없음」이 됐다. 이름이 **만드는 말 자리**(위 `_NAMED_FILE_IS_MADE`)에
+    #   있거나, 이름 밖에서 만들 형식을 시키지 않았거나, 이름이 코드 파일(plan.py)이면 예전대로 이름을 따르고, 아니면 형식 낱말(아래 규칙)이 이긴다.
+    #   (첫 고침 「형식 낱말이 있으면 이름을 다 버린다」는 「합계.xlsx 로 저장」 · 「보고서.docx 로 만들어」를 깨서 걷었다.)
+    if named and not _en.english_dominant(compact) and set(named) <= _MENTIONABLE_NAME_EXTENSIONS and not any(
+        _NAMED_FILE_IS_MADE.match(compact, match.end()) for match in named_matches
+    ) and _format_word_asked_outside_names(compact):
+        named = []
     if named:
         return tuple(dict.fromkeys(named))
     rules: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] = _en.EXTENSION_RULES if _en.english_dominant(compact) else (
@@ -4418,6 +4624,9 @@ _FILE_DECLINED = re.compile(
     r"(?:(?:만들|작성하|저장하|생성하|쓰|남기)지\s*(?:는|도)?\s*않(?:아도|으셔도)"
     r"|(?:만들|작성할|저장할|생성할|쓸|남길)\s*필요(?:는|가|까지는|도)?\s*없"
     r"|안\s*(?:만들어|작성해|저장해|써|남겨)\s*(?:도|줘도)"
+    # ★ 「엑셀은 안 쓸게요」 — 거두는 말인데 `써` 에만 걸려 `쓸게요` 가 못 잡혔다 (2026-10-27).
+    #   `만들게` 같은 것은 「안 만들게 해야」(만들지 않게)라서 안 넣는다 — 쓰다 동사만 거부로 성립한다.
+    r"|안\s*(?:써|쓸|쓰)\s*게"
     r"|필요\s*(?:는|가|도)?\s*없"
     r"|없이)"
 )

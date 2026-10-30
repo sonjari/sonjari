@@ -47,9 +47,12 @@ def test_a_24gb_desktop_card_gets_the_27b_we_measured_and_an_open_alternative() 
     assert any("아직 안 쟀습니다" in line for line in rec["reasons"])
     picks = {p["kind"]: p for p in rec["picks"]}
     assert picks["verified"]["license_open"] is False and picks["verified"]["license_url"].startswith("https://")
+    # ★ 2026-10-28 밤 대표 결정: 둘째 칸은 같은 바탕의 일반 압축판이 아니라 Qwen3.6 2비트 — 「3.8 똑똑함 · 3.6 빠름」.
     alternative = picks["open_alternative"]
-    assert alternative["model_key"] == "qwen3.8-27b-gsq" and alternative["license_open"] is True
-    assert any("조건 없는 대안" in line for line in rec["reasons"])
+    assert alternative["model_key"] == "qwen3.6-35b-iq2m" and alternative["license_open"] is True
+    assert (picks["verified"]["role"], alternative["role"]) == ("smart", "fast")
+    assert any("똑똑함" in line and "빠름" in line for line in rec["reasons"])
+    assert any("조건이 없습니다" in line for line in rec["reasons"])
 
 
 def test_an_open_licence_first_pick_brings_no_alternative() -> None:
@@ -81,7 +84,16 @@ def test_a_16gb_card_gets_the_small_27b_first_and_9b_as_the_alternative() -> Non
         alt = picks["open_alternative"]
         assert (alt["model_key"], alt["num_ctx"], alt["text_only"]) == ("qwen3.6-35b-iq2m", 65536, True)
         assert alt["vram_gb"] == 12.4 and alt["license_open"] is True
-        assert any("조건 없는 대안" in line for line in rec["reasons"])
+        assert (picks["verified"]["role"], alt["role"]) == ("smart", "fast")
+        assert any("똑똑함" in line and "빠름" in line for line in rec["reasons"])
+
+
+def test_smart_and_fast_only_when_the_first_pick_is_swift() -> None:
+    """양방향: 「똑똑함 · 빠름」은 첫 추천이 Swift 일 때만. 12GB(9B 하나) · 8GB(9B 3비트)에는 역할 칸이 없다."""
+    for name, vram in (("RTX 4070", 12.0), ("RTX 4060", 8.0)):
+        rec = sp.recommend(_profile(name, vram, display=False))
+        assert all("role" not in p for p in rec["picks"]), name
+        assert not any("똑똑함" in line for line in rec["reasons"]), name
 
 
 def test_text_only_is_recommended_only_on_the_rung_that_says_so() -> None:

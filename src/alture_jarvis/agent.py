@@ -9,6 +9,7 @@ import os
 import re
 import threading
 import time
+import httpx
 from pathlib import Path
 from urllib.parse import urlparse
 from dataclasses import dataclass, field
@@ -34,6 +35,8 @@ from .attention import AttentionService
 from .browser import BrowserWorker, clean_find_terms
 from .clock import now_line_ko
 from .claude_code import CLAUDE_CODE_TOOL, DelegationDecision, completion_answer, delegation_decision
+from .delegation import SPILL_WARN_BELOW
+from .gpu_pressure import card_is_full, late_after_sec, read_card, usual_prefill_rate
 from .api_escalation import advice_message, build_brief
 from .unity_editor import EDITOR_TOOL_NAMES
 from .unity_tools import UNITY_TOOL_NAMES
@@ -71,7 +74,7 @@ from .transcript_policy import (
     _OPEN_RESULT_TOOL, _EXTRACT_TOOL, _THINK_ALWAYS, _THINK_ADAPTIVE, _THINK_OFF, _REASONING_POLICY,
     code_transcript_budget, is_small_model, chat_transcript_budget, window_fitted_budget, _model_time_summary,
     _final_answer_thinks,
-    _job_thinking_policy, _reasoning_escalated, _should_think, _bounded_tool_result, _call_position,
+    _job_thinking_policy, _auto_in_effect, _reasoning_escalated, _reasoning_escalation_reason, _should_think, _bounded_tool_result, _call_position,
     _reads_beside_their_opens, _PAGE_OPEN_TOOLS, _PAGE_READ_TOOLS, _read_completes_an_open, _fused_read_call,
     _forced_read_call, _redirect_redundant_extract, _SELF_CHECK_TOOL, _forced_self_check_call, _OPEN_ASK,
     _OPEN_REFUSED, _PROMPT_URL, _forced_open_call, PROMISED_ACTION, _TOOLISH_WORD, _ANSWER_BODY_LINE,
@@ -109,6 +112,7 @@ from .events import EventBus
 from .first_token_wait import FirstTokenWatch, estimate_tokens
 from .jobs import ApprovalRequired, ContinuationRequired, JobStore, YieldToPerson
 from .local_computer import stop_commands_when
+from . import regression_vs_start as _regression
 from .models import ToolResult
 from .answer_audit import contradictions as _answer_contradictions
 from .narration import NARRATION_INSTRUCTION, NARRATION_INSTRUCTION_EN, clean as clean_narration, enabled_for as narration_on
@@ -2125,6 +2129,8 @@ class BrowserAgent:
                     extra += 2
             elif kind == "action":
                 extra += 2          # 준비 → 커밋
+            elif kind == "reach":
+                extra += 6          # 그 화면까지: 열기 · 고르기 · 누르기 · 다음 · 확인 몇 번(10-29 결제 화면 판은 3~9걸음)
         if wanted <= 0:
             return base if not extra else min(base + extra, ceiling)
         # 하나를 제대로 읽는 데 두 걸음(열기 + 본문 추출), 준비·실패 몫으로 여섯.
@@ -3138,6 +3144,12 @@ class BrowserAgent:
             english=_shown_in_english(),
             publish=lambda payload: self.events.publish("agent_progress", payload),
             reason=reason,
+            # 평소 이 PC 에서 같은 모델이 앞부분을 읽는 속도에 견줘 크게 늦으면 그래픽카드 사정을 한 번 본다(2026-10-27).
+            late_after=lambda: late_after_sec(
+                estimate_tokens(transcript_chars(bounded), measured),
+                usual_prefill_rate(self.config.data_dir, str(self.config.model_for(model_role))),
+            ),
+            late_hint=lambda: self._late_gpu_hint(job_id, model_role),
         )
         streamed = bool(self.config.agent_stream_enabled and hasattr(self.ollama, "chat_messages_stream"))
         # ★ 지난번에 보낸 대화와 **앞에서부터 몇 개가 같은가** (2026-10-21 · `docs/측정계획_첫글자대기` 1단계).
@@ -3320,12 +3332,227 @@ class BrowserAgent:
             job_id, state, ttl_sec=int(ttl_sec or self.config.agent_checkpoint_ttl_sec)
         )
 
-    def _model_turn_that_may_step_aside(self, may_step_aside: bool, messages: list[dict[str, Any]], **kwargs: Any) -> tuple[dict[str, Any], int]:
-        """루프의 모델 호출 — 비켜 줄 수 있는 판이면 흘려 받는 도중에도 줄을 보게 한다."""
+    #: 이 값(0~1) 아래로 모델이 그래픽카드에 올라가 있으면 「일부가 CPU 로 넘쳤다」고 말한다(`delegation.SPILL_WARN_BELOW` 와 같은 값).
+    _SPILL_WARN_BELOW = SPILL_WARN_BELOW
+
+    def _gpu_facts(self, model_role: str = "chat") -> dict[str, Any]:
+        """그래픽카드 사정 — 둘을 **따로** 본다(2026-10-27). 못 본 것은 키를 넣지 않는다(모름 ≠ 없음).
+
+        - `gpu_share`: Ollama `/api/ps` 의 `size_vram / size`. 이미 그 응답을 읽는 `OllamaClient.health()` 를 쓴다(새로 묻는 함수를 안 만든다).
+          ★ 윈도우는 다른 프로그램이 쥔 카드 메모리를 llama-server 가 못 봐 **다 올렸다고(1.0) 보고**하고 모자란 몫은 드라이버가 조용히
+          시스템 메모리로 민다 — 그래서 이것만 믿지 않는다.
+        - `card_*`: `nvidia-smi` 로 본 카드 **전체** 사용량(`gpu_pressure.read_card`). 남은 메모리가 바닥이면 `card_full`.
+        못 물으면 조용히 넘어간다 — 경고는 덤이다.
+        """
+        facts: dict[str, Any] = {}
+        health = getattr(self.ollama, "health", None)
+        if callable(health):
+            try:
+                info = health(role=model_role)
+                if isinstance(info, dict):
+                    size = int(info.get("size") or 0)
+                    size_vram = int(info.get("size_vram") or 0)
+                    if size > 0:
+                        facts["gpu_share"] = round(max(0.0, min(1.0, size_vram / size)), 3)
+                        facts["model_gb"] = round(size_vram / 2**30, 2)
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            card = read_card(getattr(self, "_nvidia_run", None))
+        except Exception:  # noqa: BLE001
+            card = None
+        if card:
+            facts.update(card_used_gb=card["used_gb"], card_total_gb=card["total_gb"], card_free_gb=card["free_gb"],
+                         card_full=bool(card_is_full(card)))
+        return facts
+
+    def _remember_gpu_facts(self, job_id: str, facts: dict[str, Any]) -> None:
+        """판 하나의 그래픽카드 사정을 기억한다(다른 판 것은 버린다) — 판 기록과 끝맺음 문장이 읽는다."""
+        spill = self.__dict__.setdefault("_model_spill", {})
+        for other in [key for key in spill if key != job_id]:
+            del spill[other]
+        if facts:
+            spill[job_id] = {**spill.get(job_id, {}), **facts}
+
+    def _gpu_warning(self, facts: dict[str, Any], english: bool) -> str:
+        """진행 줄에 띄울 경고 한 줄. 경고할 것이 없으면 빈 글. 「손자리는 다른 프로그램을 끄지 않습니다」를 늘 지킨다."""
+        share = facts.get("gpu_share")
+        if isinstance(share, (int, float)) and share < self._SPILL_WARN_BELOW:
+            pct = round((1 - share) * 100)
+            if english:
+                return (
+                    f"Part of the model ({pct}%) does not fit on the graphics card, so it may be slow - close other programs that use the "
+                    "graphics card, or use \"Measure limit\" under the model name button, or a smaller model. I do not close other programs"
+                )
+            return (
+                f"모델 일부({pct}%)가 그래픽카드에 안 들어가 느릴 수 있습니다 — 그래픽카드를 쓰는 다른 프로그램을 닫거나, "
+                "모델 이름 버튼의 「상한 재기」 · 더 작은 모델을 써 보세요. 손자리는 다른 프로그램을 끄지 않습니다"
+            )
+        if facts.get("card_full"):
+            used, total = facts.get("card_used_gb"), facts.get("card_total_gb")
+            if english:
+                return (
+                    f"Graphics card memory is nearly full ({used}/{total}GB), so the model may run very slowly - close other programs that "
+                    "use it (3ds Max, Unity, and so on), or pick a smaller model under the model name button. I do not close other programs"
+                )
+            return (
+                f"그래픽카드 메모리가 거의 가득 찼습니다({used}/{total}GB) — 모델이 아주 느려질 수 있습니다. 다른 프로그램(3ds Max · 유니티 등)을 "
+                "닫거나 모델 이름 버튼에서 더 작은 모델을 써 보세요. 손자리는 다른 프로그램을 끄지 않습니다"
+            )
+        return ""
+
+    def _warn_if_model_spills(self, job_id: str, model_role: str) -> None:
+        """판이 시작될 때 모델이 그래픽카드에 안 들어갈 것 같으면 **300초를 기다리지 말고** 곧바로 진행 줄에 알린다 (2026-10-27).
+
+        그룹장 PC(16GB 카드 · 27B · 3ds Max/유니티)에서 첫 글자가 300초 안에 안 와 판이 끝났다. 둘을 본다: `/api/ps` 의 올라간 비율과
+        카드 전체의 남은 메모리(`_gpu_facts`). 모델이 아직 안 올라가 있어도 카드가 이미 가득이면 말한다(올리면 넘칠 것이다).
+        본 사실은 판 기록(`verification.model_spill`)과 끝맺음 문장에 남는다.
+        """
+        facts = self._gpu_facts(model_role)
+        self._remember_gpu_facts(job_id, facts)
+        text = self._gpu_warning(facts, False)
+        if not text:
+            return
+        # 진행 줄은 나가는 순간 화면 언어로 바뀐다(`ui_i18n`) — 한국어로 보낸다.
+        self._progress(job_id, "planning", text)
+        payload = {"job_id": job_id, **facts}
+        self.events.publish("agent_model_spill", payload)
+        self.store.add_audit("agent_model_spill", job_id, payload)
+
+    def _late_gpu_hint(self, job_id: str, model_role: str) -> str:
+        """첫 글자가 평소보다 크게 늦을 때 기다림 줄 끝에 붙일 한 줄 (2026-10-27) — 감시 줄기에서 한 번만 부른다.
+
+        카드를 직접 본다(`_gpu_facts`): 넘쳤거나 카드가 가득이면 「모자라 느려진 것 같습니다」. 카드에 여유가 있으면 그래픽카드 탓이
+        아니니 말하지 않는다. `nvidia-smi` 를 못 읽으면 **결과(늦음)만**으로 「~일 수 있습니다」. 한 판에 한 번 묻고 그 글을 다시 쓴다.
+        """
+        cache = self.__dict__.setdefault("_late_hints", {})
+        for other in [key for key in cache if key != job_id]:
+            del cache[other]
+        if job_id in cache:
+            return cache[job_id]
+        facts = self._gpu_facts(model_role)
+        self._remember_gpu_facts(job_id, {**facts, "late_first_token": True})
+        english = _shown_in_english()
+        share = facts.get("gpu_share")
+        spilled = isinstance(share, (int, float)) and share < self._SPILL_WARN_BELOW
+        if spilled or facts.get("card_full"):
+            text = (
+                "Graphics card memory seems to be short, so it slowed down - close other programs (3ds Max, Unity, and so on) or pick a "
+                "smaller model in the model box. I do not close other programs"
+                if english else
+                "그래픽카드 메모리가 모자라 느려진 것 같습니다 — 다른 프로그램(3ds Max · 유니티 등)을 닫거나 모델 칸에서 더 작은 모델을 "
+                "써 보세요. 손자리는 다른 프로그램을 끄지 않습니다"
+            )
+        elif facts.get("card_full") is False:
+            text = ""  # 카드에 여유가 있다 — 이 늦음의 까닭은 그래픽카드 메모리가 아니다
+        else:
+            text = (
+                "Much slower than usual - graphics card memory may be short (close other programs, or pick a smaller model in the model box). "
+                "I do not close other programs"
+                if english else
+                "평소보다 많이 늦습니다 — 그래픽카드 메모리가 모자랐을 수 있습니다(다른 프로그램을 닫거나 모델 칸에서 더 작은 모델). "
+                "손자리는 다른 프로그램을 끄지 않습니다"
+            )
+        cache[job_id] = text
+        if text:
+            payload = {"job_id": job_id, "late": True, **facts}
+            self.events.publish("agent_model_spill", payload)
+            self.store.add_audit("agent_model_spill", job_id, payload)
+        return text
+
+    def _note_model_stall(self, exc: BaseException, job_id: str, model_role: str, *, resumed: bool) -> dict[str, Any]:
+        """제한 시간에 걸린 예외에 **무엇이 · 몇 초 · 그래픽카드가 어땠나**를 달아 둔다 — 끝맺음 문장과 호스트 요약이 읽는다."""
+        wait = dict(getattr(exc, "jarvis_wait", None) or {})
+        if not wait.get("limit_sec"):
+            wait["limit_sec"] = float(getattr(self.config, "ollama_stall_timeout_sec", 0) or 0)
+        wait.setdefault("phase", "")
+        known = dict(self.__dict__.get("_model_spill", {}).get(job_id) or {})
+        now = self._gpu_facts(model_role)  # 멈춘 지금의 사정이 시작 때보다 믿을 만하다
+        wait.update({**known, **now})
+        wait["auto_resumed"] = bool(resumed)
+        try:
+            exc.jarvis_wait = wait
+            if not isinstance(getattr(exc, "diagnosis", None), dict):
+                exc.diagnosis = {"model_wait": wait}
+        except Exception:  # noqa: BLE001 — 달기에 실패해도 원래 예외가 간다
+            pass
+        return wait
+
+    def _may_resume_after_stall(
+        self, job_id: str, run_started: float | None, limit_sec: float, card_full: bool | None = None
+    ) -> bool:
+        """모델이 멈춘 뒤 **자동으로 한 번** 이어 가도 되는가. 한 판 안에서 딱 한 번 · 판 전체 시간 상한 안에서만 · 취소된 판은 안 한다.
+
+        `card_full is True`(멈춘 그때 `nvidia-smi` 로 본 카드가 가득)면 하지 않는다 — 다른 프로그램(3ds Max · 유니티)이 카드를 쥔 채라
+        윈도우가 넘친 몫을 시스템 메모리로 밀어 둔 상태이니 다시 불러도 또 `limit_sec` 를 기다리기 쉽다(2026-10-23 기록). 사용자가 프로그램을
+        닫는 것이 먼저다. **모르면(None) 지금처럼 한 번 한다** — 카드를 못 본 것이 재시도를 막을 까닭은 아니다.
+        """
+        if self._cancelled(job_id):
+            return False
+        if card_full is True:
+            return False
+        if self.__dict__.get("_stall_resumes", {}).get(job_id):
+            return False
+        if run_started is not None:
+            # 다시 부르면 최악에 `limit_sec` 만큼 더 기다린다 — 자율 이어가기 상한(`agent_autonomous_lease_sec`)을 넘기지 않을 때만.
+            lease = float(getattr(self.config, "agent_autonomous_lease_sec", 0) or 0)
+            if lease > 0 and time.monotonic() - run_started + limit_sec > lease:
+                return False
+        return True
+
+    def _model_turn_that_may_step_aside(
+        self, may_step_aside: bool, messages: list[dict[str, Any]], *, run_started: float | None = None, **kwargs: Any
+    ) -> tuple[dict[str, Any], int]:
+        """루프의 모델 호출 — 비켜 줄 수 있는 판이면 흘려 받는 도중에도 줄을 보게 한다.
+
+        ## 모델이 제한 시간 동안 아무것도 안 내면 (2026-10-27 그룹장 실사용)
+        판이 「제한 시간 안에 답하지 못해」로 끝나고 사용자가 매번 「이어서 해줘」를 보내야 했다. 첫 글자가 늦는 흔한 까닭(처음 올리는 중 ·
+        그래픽카드 밖으로 넘친 모델)은 한 번 더 부르면 풀리는 경우가 많다 — 그래서 **같은 대화 그대로(체크포인트에 저장하는 것과 같은 상태)
+        딱 한 번** 다시 부른다. 두 번째도 막히면 지금처럼 끝내되 까닭을 예외에 달아 둔다(`_note_model_stall`).
+        타임아웃만 잡는다 — 사람 승인 대기(`ApprovalRequired`) · 사람에게 비켜 주기(`YieldToPerson`) · 취소는 그대로 올라간다.
+        """
         if may_step_aside:
             kwargs["may_yield"] = True
-        with tagged_call(purpose="step"):
-            return self._model_message(messages, **kwargs)
+        job_id = str(kwargs.get("job_id") or "")
+        model_role = str(kwargs.get("model_role") or "chat")
+        try:
+            with tagged_call(purpose="step"):
+                return self._model_message(messages, **kwargs)
+        except (httpx.TimeoutException, TimeoutError) as first:
+            wait = self._note_model_stall(first, job_id, model_role, resumed=False)
+            card_full = wait.get("card_full") if isinstance(wait.get("card_full"), bool) else None
+            if not self._may_resume_after_stall(job_id, run_started, float(wait.get("limit_sec") or 0), card_full):
+                if card_full is True:
+                    # 재시도를 안 한 까닭을 남긴다(2026-10-27) — 끝맺음 문장이 「할 일」을 먼저 말하고, 판 실패 기록(diagnosis.model_wait)에 남는다.
+                    wait["resume_skipped"] = "card_full"
+                    skipped = {"job_id": job_id, "reason": "card_full", "phase": wait.get("phase"), "waited_sec": wait.get("waited_sec"),
+                               "card_used_gb": wait.get("card_used_gb"), "card_total_gb": wait.get("card_total_gb")}
+                    kept = self.__dict__.setdefault("_stall_resume_skipped", {})
+                    for other in [key for key in kept if key != job_id]:
+                        del kept[other]
+                    kept[job_id] = skipped
+                    self.events.publish("agent_model_stall_not_resumed", skipped)
+                    self.store.add_audit("agent_model_stall_not_resumed", job_id, skipped)
+                raise
+        resumes = self.__dict__.setdefault("_stall_resumes", {})
+        for other in [key for key in resumes if key != job_id]:
+            del resumes[other]
+        resumes[job_id] = {"after_sec": wait.get("waited_sec"), "phase": wait.get("phase"), "gpu_share": wait.get("gpu_share"),
+                         "card_full": wait.get("card_full")}
+        limit = int(round(float(wait.get("limit_sec") or 0)))
+        self._progress(
+            job_id, "planning",
+            f"모델이 {limit}초 동안 답이 없어 한 번 다시 이어 갑니다" if limit else "모델이 제한 시간 동안 답이 없어 한 번 다시 이어 갑니다",
+        )
+        payload = {"job_id": job_id, **resumes[job_id]}
+        self.events.publish("agent_model_stall_resumed", payload)
+        self.store.add_audit("agent_model_stall_resumed", job_id, payload)
+        try:
+            with tagged_call(purpose="step_resumed"):
+                return self._model_message(messages, **kwargs)
+        except (httpx.TimeoutException, TimeoutError) as second:
+            self._note_model_stall(second, job_id, model_role, resumed=True)
+            raise
 
     def _fold_sheet(self, messages: list[dict[str, Any]], **call: Any) -> tuple[str, float]:
         """접기 전에 모델에게 정리 한 장을 쓰게 한다 — (정리 글, 걸린 초). 꺼져 있거나 못 쓰면 빈 글.
@@ -4533,6 +4760,92 @@ class BrowserAgent:
                 answer,
             )
         return notes
+
+    #: 인용 칸 머리말 — 「원문 한 문장」 · 「인용」 · quote.
+    _QUOTE_HEAD = re.compile(r"(?i)원문|인용|quote")
+    #: 머리말에 이것이 같이 있으면 문장 칸이 아니다 — 「원문 링크」 · 「인용 출처」 · 「원문 횟수」 · 「원문 요지」 · 「설명 (원문 요약)」 ·
+    #: 「인용 및 검증 방식 (Citation)」 (요약 · 요지는 줄인 말이고 방식 · 검증은 방법을 적는 칸이라 원문 문장이 아니다 — 운영 판 10bd9bac · 6570adff · b115a7a5).
+    #: 「수」 한 글자는 **개수를 뜻할 때만**: 앞 낱말에서 끝나는 「수」(뒤가 글자가 아님 — 끝 · 공백 · 괄호 · 쌍점 · 쉼표 · 가운뎃점 · 빗금)만 건다.
+    #: 「인용 수」 · 「원문 수 (개)」 는 빠지고, 「수정한 원문」 · 「원문 수록 문장」 · 「수정 전 원문」 처럼 「수」 뒤에 글자가 이어지는 낱말은 진짜 인용 칸이라 남는다.
+    _QUOTE_HEAD_NOT = re.compile(r"(?i)링크|주소|url|출처|횟수|요약|요지|방식|검증|수(?=$|[\s()\[\]（）:：,/·])")
+    #: 인용을 느슨하게 맞출 때 지우는 것 — 띄어쓰기 · 줄바꿈 · 곧은/굽은 따옴표 · 문장부호. 글자·숫자만 남긴다.
+    _QUOTE_NOISE = re.compile(r"[\W_]+")
+    #: 이보다 짧은 칸(느슨하게 만든 뒤 글자 수)은 인용으로 안 본다 — 「200」 · 「-」.
+    _QUOTE_MIN_CHARS = 8
+
+    def _quote_vs_page_check(self, asked: str, answer: str, steps: list[dict[str, Any]], job_id: str) -> str:
+        """「원문 한 문장」 칸이 **읽은 본문에 정말 있는가** (2026-10-27 운영 판 d72ca482 · f52e0d50).
+
+        「각 방법 옆에 그 문서의 원문 한 문장(영어 그대로)」 요청에 엑셀 칸 20줄이 채워졌는데, 모델이 고쳐 쓴 문장도 「원문」으로 나갔다.
+        금액은 `_row_facts_vs_page_check` 가 그 줄 페이지와 맞추지만 인용은 아무도 안 봤다. 인용 칸 = 머리줄에 원문 · 인용 · quote 가 든 칸.
+        답의 표와 `local_write_document` 의 표를 둘 다 본다. 줄에 연 페이지 주소가 있으면 **그 페이지**에서만(다른 페이지에 있는 문장은
+        이 줄의 근거가 아니다), 없으면 읽은 본문 전체에서 찾는다. 없는 줄의 첫 이름 칸을 최대 셋 말한다.
+        """
+        bodies = self._page_bodies(steps, job_id)
+        if not bodies:
+            return ""
+
+        def loose(text: str) -> str:
+            return self._QUOTE_NOISE.sub("", str(text or "")).lower()
+
+        loose_bodies = {key: loose(body) for key, body in bodies.items()}
+        everything = "\n".join(loose_bodies.values())
+        tables: list[tuple[list[str], list[list[str]]]] = []
+        for step in steps:
+            arguments = step.get("arguments")
+            if step.get("tool") != "local_write_document" or not step.get("ok", True) or not isinstance(arguments, dict):
+                continue
+            for header, rows in self._table_rows_of(arguments):
+                grid = [[str(row.get(name, "")) for name in header] if isinstance(row, dict) else [str(cell) for cell in row]
+                        for row in rows]
+                tables.append((header, grid))
+        lines = answer.split("\n")
+        for index, line in enumerate(lines):
+            if not line.strip().startswith("|") or self._TABLE_RULE_LINE.match(line):
+                continue
+            if index + 1 >= len(lines) or not self._TABLE_RULE_LINE.match(lines[index + 1]):
+                continue
+            header = [cell.strip() for cell in table_cells(line)]
+            grid = []
+            for body_line in lines[index + 2:]:
+                if not body_line.strip().startswith("|"):
+                    break
+                grid.append([cell.strip() for cell in table_cells(body_line)])
+            tables.append((header, grid))
+
+        missing: list[str] = []
+        for header, grid in tables:
+            quote_columns = [i for i, name in enumerate(header)
+                             if self._QUOTE_HEAD.search(str(name)) and not self._QUOTE_HEAD_NOT.search(str(name))]
+            if not quote_columns:
+                continue
+            for cells in grid:
+                url = next((m.group(0) for cell in cells for m in self._ROW_URL.finditer(cell)), "")
+                key = self._opened_key(url, bodies) if url else ""
+                haystack = loose_bodies[key] if key else everything
+                name = next((cell.replace("*", "").strip() for i, cell in enumerate(cells)
+                             if i not in quote_columns and cell.strip() and not self._ROW_URL.search(cell)), "")
+                for column in quote_columns:
+                    if column >= len(cells):
+                        continue
+                    if self._ROW_URL.fullmatch(cells[column].strip()):
+                        continue  # 칸 글자가 주소 하나뿐이면 문장이 아니다
+                    # 「…」 · 「...」 로 줄인 인용은 조각마다 맞춘다.
+                    pieces = [loose(piece) for piece in re.split(r"…|\.{3}", cells[column])]
+                    pieces = [piece for piece in pieces if len(piece) >= self._QUOTE_MIN_CHARS]
+                    if pieces and any(piece not in haystack for piece in pieces) and name and name not in missing:
+                        missing.append(name)
+        if not missing:
+            return ""
+        return _say(
+            "\n\n⚠ **「원문」 칸의 문장이 그 줄의 페이지 본문에 없습니다(원문과 다름): "
+            + " · ".join(f"「{name}」" for name in missing[:3])
+            + ".** 모델이 고쳐 쓰거나 지어낸 문장일 수 있습니다 — 원문 그대로라고 믿지 말고 그 페이지에서 확인하세요.",
+            "\n\n⚠ **The 'original sentence' cell is not in the page text of its row (differs from the source): "
+            + " · ".join(f"\"{name}\"" for name in missing[:3])
+            + ".** The model may have reworded or invented it — do not treat it as a verbatim quote; check that page.",
+            asked or answer,
+        )
 
     def _topic_condition_check(self, asked: str, answer: str, steps: list[dict[str, Any]], job_id: str) -> str:
         """「AI 분야 5개」처럼 조건을 시켰는데 **조건에 맞는다는 근거가 없는 줄** (2026-10-03 K-Startup 5차 9ac405c8).
@@ -7316,6 +7629,28 @@ class BrowserAgent:
             else None
         )
         repo_card = ""
+        # ★ 2026-10-27 그룹장 실사용 「계획 세우기까지 오래 걸린다 — 먼저 빠르게 이렇게 하겠다를 보여 주고 진행하면 좋겠다」.
+        #   요구 목록(화면의 「처음에 나눈 일」)은 문장에서 뽑는 순수 계산인데, 저장소 지도(최대 `CARD_BUDGET_SEC`초)를 만든 **뒤에야** 나갔다.
+        #   같은 함수 · 같은 입력으로 지도보다 먼저 한 번 내보낸다. 뒤에서 다시 뽑은 목록이 같으면 같은 모양이라 다시 안 쏜다(`_publish_plan`).
+        #   이어받은 판 · 확인 명령을 받은 판은 요구를 문장에서 안 뽑는다(아래 `plan`) — 여기서도 안 한다.
+        early_plan_sent = ""
+        if model_role == "code" and required_local_root and not declared_check.strip():
+            try:
+                if not self.store.get_agent_checkpoint(job_id):
+                    early_plan = extract_plan(
+                        plan_text,
+                        has_named_source=bool(named_sources(plan_text)),
+                        must_observe=must_observe,
+                        observe_from=observe_reasons,
+                        code_workspace=code_mode,
+                        known_sites=self._known_sites(),
+                        own_from=str(prompt or ""),
+                    )
+                    early_firm = RunCard.of(early_plan).firm()
+                    if early_firm:
+                        early_plan_sent = self._publish_plan(job_id, check_plan(early_firm, sources=[], steps=[]), "")
+            except Exception:  # noqa: BLE001 — 미리 보이는 것은 덤이다. 뒤에서 평소대로 다시 낸다
+                early_plan_sent = ""
         if model_role == "code" and required_local_root:
             # API가 허용 루트/실재 폴더를 검증한 값이다. 이 잡에서만 상대 경로를
             # 선택 저장소 기준으로 풀고, 그 밖의 절대 경로는 계속 L2 승인을 탄다.
@@ -8073,8 +8408,8 @@ class BrowserAgent:
         last_plan_note = ""
         # 화면으로 마지막에 내보낸 대조표. 바뀐 것이 있을 때만 다시 쏜다(R3).
         # 판이 시작하자마자 한 번 — 아직 아무것도 안 채운 상태가 곧 체크리스트다.
-        last_plan_sent = ""
-        if plan:
+        last_plan_sent = early_plan_sent
+        if plan or early_plan_sent:  # 미리 낸 목록이 있었는데 최종 목록이 비면 비운 것도 알린다
             last_plan_sent = self._publish_plan(
                 job_id, check_plan(firm_plan, sources=[], steps=[]), last_plan_sent
             )
@@ -8088,6 +8423,10 @@ class BrowserAgent:
         # 무한히 되받으면 같은 말을 주고받게 된다 — `nudges` 와 같은 규율이다.
         plan_pushbacks = 0
         plan_pushbacks_by_stage: dict[str, int] = {}
+        # ★ 「자동」이 깊게 생각하기로 올라간 순간 (2026-10-28). 칩이 자동이거나, 칩이 비고 설정이 자동일 때만 센다.
+        #   `{"step": 그때까지 끝낸 걸음 수, "reason": "pushback" | "failures"}` — 한 판에 한 번, 안 올라갔으면 None.
+        #   판 기록(`reasoning_escalated`)에 남기고, 사람에게는 진행 줄 한 번으로 알린다.
+        reasoning_escalated_at: dict[str, Any] | None = None
         # 단계마다 **지난 되받기 때 남아 있던 것** — 같으면 진전이 없어 다시 밀지 않는다.
         pushback_unmet_seen: dict[str, tuple[tuple[str, str], ...]] = {}
         pushback_stall_noted: set[str] = set()
@@ -8161,6 +8500,60 @@ class BrowserAgent:
         if declared_check.strip():
             # 이 판은 창이 차면 계단식으로 접는다(`_model_message`).
             self.__dict__.setdefault("_step_fold_jobs", set()).add(job_id)
+        # ★ 끝내기 문: 「시작점에서 통과하던 시험이 지금 깨진 게 없다」 (2026-10-28 · `regression_vs_start.py`). 확인 명령이 있는 코드 판만.
+        #   판이 시작될 때 시작점(HEAD)을 임시 폴더에 풀어 전체 시험을 백그라운드로 돌려 둔다 — 모델이 읽고 고치는 동안 돈다.
+        #   견줄 수 없는 저장소(파이썬이 아님 · pytest 없음 · 시험 폴더 없음 …)는 까닭만 적고 아무것도 막지 않는다.
+        regression_gate: _regression.RegressionGate | None = None
+        regression_off_reason = ""
+        if declared_check.strip() and required_local_root:
+            if getattr(self.config, "agent_regression_vs_start", True):
+                try:
+                    regression_gate = _regression.RegressionGate(
+                        Path(required_local_root), should_cancel=lambda: self._cancelled(job_id)
+                    )
+                    regression_gate.start()
+                except Exception as exc:  # noqa: BLE001 — 문이 못 서도 판은 평소대로 간다
+                    regression_gate, regression_off_reason = None, f"start_failed:{type(exc).__name__}"
+            else:
+                regression_off_reason = "config_off"
+
+        def _regression_before_end(assistant_message: dict[str, Any] | None = None) -> bool:
+            """확인 명령이 통과해 끝을 받으려는 자리에서 부른다 → 참이면 **끝을 받지 않고 모델에게 돌려보냈다**(부른 쪽은 모델을 다시 부른다).
+
+            새로 깬 시험이 확정되지 않았거나 견줄 수 없으면 거짓(그대로 끝). 사람이 기다리면 시험을 끊고 이 판은 자리를 비켜 준다.
+            """
+            if regression_gate is None:
+                return False
+            listening = bool(declared_check.strip()) and model_role == "code" and len(steps) > steps_when_claimed
+            self._progress(
+                job_id, "tool", "시작점과 견줘 새로 깨진 시험이 없는지 확인합니다", step=len(steps) + 1, tool="local_run_project_command"
+            )
+            verdict = regression_gate.check(
+                should_stop=self.store.person_is_waiting if listening else None,
+                english=_english.english_dominant(" ".join(str(asked).split())),
+                can_send_back=bool(auto_continue_budget or len(steps) < step_limit),
+            )
+            report = regression_gate.record()
+            self.events.publish("agent_regression_vs_start", {"job_id": job_id, "steps": len(steps), **{
+                "status": report["final"].get("status"), "newly_failing": report["final"].get("newly_failing"),
+                "confirmed": report["final"].get("confirmed"), "sent_back": report["sent_back"]}})
+            if verdict.stopped:
+                # 시험이 도는 중에 사람의 요청이 들어왔다 — 이 판을 저장하고 비켜 준다. 돌아오면 이 자리부터 다시 견준다.
+                regression_gate.close()
+                self._step_aside_for_a_person(
+                    job_id=job_id, prompt=prompt, origin=origin, messages=messages, steps=steps,
+                    fingerprints=fingerprints, evidence_urls=evidence_urls,
+                    elapsed_sec=elapsed_before + (time.monotonic() - segment_started),
+                    thinking_chars=thinking_chars, continuation_count=continuation_count,
+                    last_action_ids=last_action_ids, where="regression_gate",
+                )
+                return False
+            if not verdict.send_back:
+                return False
+            if assistant_message is not None:
+                messages.append(self._message_for_model(assistant_message))
+            messages.append({"role": "user", "content": verdict.text})
+            return True
         #: 이번에 돌기 시작했을 때의 걸음 수 — 비켜 주기 전에 한 걸음은 나아갔는지 본다(`YieldToPerson`).
         steps_when_claimed = len(steps)
         forced_commit_pending: str = ""
@@ -8268,6 +8661,12 @@ class BrowserAgent:
             arguments = big_code.question(size, claude_available=bool(helper is not None and helper.available(job_id)))
             return {"function": {"name": ASK_USER_TOOL, "arguments": arguments}}
 
+        # ★ 첫 모델 호출 직전에 한 번: 모델 일부가 그래픽카드 밖(CPU)에 있으면 300초를 기다리기 전에 알린다(2026-10-27 그룹장 PC).
+        #   모델이 아직 안 올라가 있거나 못 물으면 아무 말도 안 한다. 이어받은 판도 한 번 본다(그사이 다른 프로그램이 카드를 쓸 수 있다).
+        try:
+            self._warn_if_model_spills(job_id, model_role)
+        except Exception:  # noqa: BLE001 — 경고는 덤이다. 판을 꺾지 않는다
+            pass
         # Code 모드에서는 모델 한 응답이 여러 tool_calls를 내서 step_limit을 한 번에
         # 넘어도 다음 모델 호출(정리·검증)을 반드시 허용한다. 예산 연장을 루프 안에서만
         # 해 두면 `16 → 24`처럼 경계를 건너뛴 순간 while 조건이 먼저 닫혀 카드가 떴다.
@@ -8294,9 +8693,11 @@ class BrowserAgent:
             #   그 사이 사람이 덧붙인 말이 있으면 끝내지 않는다 — 그 말을 읽고 더 간다.
             if declared_report:
                 if not steered_now and declared_check_is_current(steps, declared_check):
-                    answer = declared_report
-                    stop_reason = "model_answered"
-                    break
+                    # ★ 끝내기 문 — 확인 명령이 통과했어도 시작점에서 통과하던 시험이 깨졌으면 끝을 받지 않는다(`regression_vs_start`).
+                    if not _regression_before_end():
+                        answer = declared_report
+                        stop_reason = "model_answered"
+                        break
                 declared_report = ""
             # ★ 맡긴 코드 판은 **사람에게 자리를 비켜 준다** (2026-10-09). 이 판은 시간 제한 없이 끝까지 간다(아래) — 손자리는
             #   한 번에 한 판이라, 그동안 사람이 창에서 시킨 일은 줄에서 기다린다. 걸음 사이인 여기서 줄을 한 번 보고,
@@ -8898,10 +9299,23 @@ class BrowserAgent:
                 )
                 # 곁가지 부름(`_text_only_message`)이 같은 목록을 보내도록 남긴다 — 한 번에 한 판만 돈다.
                 self._offered_tools = {job_id: (model_tools, shown_code_tools)}
+                # 「자동」이 막혀서 깊게로 올라가는 첫 걸음 — 기록 한 줄 · 진행 줄 한 번. 생각을 끈 설정이면 올라갈 곳이 없다.
+                if (
+                    reasoning_escalated_at is None
+                    and getattr(self.config, "agent_thinking_enabled", True)
+                    and _auto_in_effect(self.config, reasoning)
+                    and _reasoning_escalated(steps, plan_pushbacks + coding_pushbacks)
+                ):
+                    reasoning_escalated_at = {
+                        "step": len(steps),
+                        "reason": _reasoning_escalation_reason(steps, plan_pushbacks + coding_pushbacks),
+                    }
+                    self._progress(job_id, "running", "막혀서 지금부터 깊게 생각합니다", step=len(steps))
                 try:
                     message, used_thinking = self._model_turn_that_may_step_aside(
                             may_step_aside,
                             messages,
+                            run_started=segment_started,
                             job_id=job_id,
                             tools=model_tools,
                         # 산출물 전환에서 8,192 토큰짜리 답 초안 반복이 일어났다. 이
@@ -9912,6 +10326,16 @@ class BrowserAgent:
                     elif forced_artifact:
                         artifact_skip = "gate_passed_but_not_taken"
                     artifact_fallback_note = artifact_skip
+                    # ★ 끝내기 문 — 모델이 확인 명령을 스스로 통과시키고 답한 판도 같은 문을 지난다(`regression_vs_start`).
+                    if (
+                        regression_gate is not None
+                        and declared_check.strip()
+                        and not self._cancelled(job_id)
+                        and declared_check_is_current(steps, declared_check)
+                        and _regression_before_end(message)
+                    ):
+                        answer = ""
+                        continue
                     stop_reason = _model_answer_stop_reason(plan_results)
                     break
 
@@ -10725,9 +11149,11 @@ class BrowserAgent:
                     finish_now = True
                     stop_reason = "stuck:gave_up"
                 else:
+                    # 파일 편집이 글자를 못 맞춰 멈춘 판(`retry_hint`)은 「화면을 새로 보라」가 맞지 않는다 — 줄 번호로 잇게 한다(2026-10-28).
                     messages.append({"role": "user", "content": (
                         f"[시스템] {_STUCK_MARK} 여기서 멈추고 사람에게 넘겼다: {stuck['blocked']}. "
-                        "다시 이어지면 사람이 화면을 손봤을 수 있으니 **먼저 지금 화면을 새로 보고** 시작해라."
+                        + (stuck.get("retry_hint")
+                           or "다시 이어지면 사람이 화면을 손봤을 수 있으니 **먼저 지금 화면을 새로 보고** 시작해라.")
                     )})
                     self._progress(job_id, "waiting", stuck["message"].splitlines()[1] if "\n" in stuck["message"] else stuck["message"])
                     self._checkpoint(
@@ -11333,6 +11759,8 @@ class BrowserAgent:
                 + broken_condition_note(asked, answer)
                 # 답이 형태·금액을 안 적었거나 틀리게 적은 줄 — 그 줄의 **페이지**와 맞춘다(2026-10-04 채용 공고 조사 판).
                 + self._row_facts_vs_page_check(asked, answer, steps, job_id)
+                # 「원문 한 문장」 칸이 그 줄의 페이지 본문에 정말 있나(2026-10-27 d72ca482 · f52e0d50).
+                + self._quote_vs_page_check(asked, answer, steps, job_id)
                 # 반대 방향: 조건에 맞는다는 **근거가 없는** 줄(2026-10-03 K-Startup 「AI/SW」 이름표).
                 + self._topic_condition_check(asked, answer, steps, job_id)
             )
@@ -11398,6 +11826,17 @@ class BrowserAgent:
         if code_unverified_stop is not None:
             answer = _code_unverified_head(
                 code_unverified_stop, self._written_paths(steps), english=_english.english_dominant(asked)) + answer
+        # 끝내기 문(`regression_vs_start`)을 다 쓰고도 시작점에서 통과하던 시험이 깨져 있으면 — 코드가 답 끝에 박는다(모델의 말이 아니다).
+        regression_record: dict[str, Any] | None = None
+        if regression_gate is not None:
+            regression_gate.close()
+            regression_record = regression_gate.record()
+            if regression_gate.leftover:
+                answer += _regression.leftover_note(
+                    regression_gate.leftover, regression_gate.leftover_total, english=_english.english_dominant(asked)
+                )
+        elif regression_off_reason:
+            regression_record = {"enabled": False, "reason": regression_off_reason}
 
         # ★ 검토하며 만든 확인용 파일은 **여기서 치운다** (2026-10-07 — `_review_scratch_files`). 지우기는 도구를 지나므로
         #   백업이 남고 되돌릴 수 있다. 치운 것은 답에 적는다 — 사용자 폴더에서 일어난 일은 사용자가 알아야 한다.
@@ -11468,6 +11907,9 @@ class BrowserAgent:
             completion_state = "partial"
         if code_unverified_stop is not None:
             completion_state = "partial"
+        # 시작점에서 통과하던 시험을 깬 채 끝났다 — 확인 명령이 통과했어도 완료가 아니다.
+        if regression_gate is not None and regression_gate.leftover:
+            completion_state = "partial"
         logical_context_chars = int(
             (inference_observations[-1] if inference_observations else {}).get(
                 "logical_context_chars"
@@ -11503,10 +11945,15 @@ class BrowserAgent:
             "plan_push": bool(plan_push_on or model_role == "code"),
             # 검증 없이 시간을 다 써서 접은 코드 판의 기록(없으면 None). 눈금은 이걸 보고 「완료」로 세지 않는다.
             "code_budget_exhausted": code_budget_stop,
+            # 모델이 제한 시간 동안 아무것도 안 내 **자동으로 한 번 이어 갔나**(없으면 None) · 판 시작 때 본 그래픽카드 비율(2026-10-27).
+            "stall_resume": self.__dict__.get("_stall_resumes", {}).get(job_id),
+            "model_spill": self.__dict__.get("_model_spill", {}).get(job_id),
             # 검증 없이 답을 내려 해 접은 코드 판의 기록(없으면 None) — 고쳤나 · 확인했나 · 되받은 횟수 · 막힌 쓰기.
             "code_unverified": code_unverified_stop,
             # 맡긴 쪽이 정한 확인 명령의 결과(없으면 None) — 통과했나 · 하네스가 몇 번 돌렸나.
             "declared_check": declared_check_result,
+            # 시작점 대비 새로 깨진 시험(없으면 None) — 시작점 · 끝의 전체 시험 결과와 돌려보낸 횟수. `regression_vs_start.py`.
+            "regression_vs_start": regression_record,
             "answer_reconciled": answer_reconciled,
             "answer_conflict": remaining_answer_conflict,
             "reported_shortfall": reported_shortfall,
@@ -11550,6 +11997,8 @@ class BrowserAgent:
             # 되받기가 **들었는가.** 되받은 뒤에 걸음이 늘었으면 들은 것이다.
             # 이 두 줄이 없어서 되받기의 효과를 한 번도 못 쟀다(measure_autonomy 가 읽는다).
             "plan_pushbacks": plan_pushbacks,
+            # 「자동」이 깊게로 올라간 순간(`{"step", "reason"}`) — 안 올라갔거나 자동이 아니면 None.
+            "reasoning_escalated": reasoning_escalated_at,
             "plan_pushback_worked": bool(
                 plan_pushbacks and last_pushback_step >= 0 and len(steps) > last_pushback_step
             ),

@@ -1054,6 +1054,33 @@ def _ensure_message_queue(user32: Any) -> None:
         pass
 
 
+def _raise_for_human(user32: Any, hwnd: int) -> tuple[bool, bool]:
+    """사람이 부른 창을 **정말** 앞으로 올린다. (올라갔나, 입력을 이었나).
+
+    ★ 2026-10-30 · 대표 10-29 00:46 `/레시피`: 배우기를 시작해도 손자리 크롬이 앞으로 안 떴다(97b466fe 의 `SetForegroundWindow` 가 있는데도).
+      윈도우는 사람이 마지막으로 만진 프로그램이 아닌 **뒤쪽 프로세스**의 `SetForegroundWindow` 를 막고 작업 표시줄만 깜빡인다 —
+      백엔드는 예약 작업이 띄운 뒤쪽 프로세스다. 앞창을 돌려줄 때 쓰는 길(`_return_focus`)과 같이 **지금 앞창의 입력 스레드에 잠깐 이으면** 허락된다.
+      사람이 직접 청한 때(`activate=True`)에만 부른다 — 막혔다고 저절로 띄우지 않는 10-20 결정은 그대로다.
+    """
+    import ctypes
+
+    kernel32 = ctypes.windll.kernel32
+    _ensure_message_queue(user32)
+    front = int(user32.GetForegroundWindow() or 0)
+    if front == int(hwnd):
+        return True, False
+    front_thread = int(user32.GetWindowThreadProcessId(front, None) or 0) if front else 0
+    me = int(kernel32.GetCurrentThreadId() or 0)
+    attached = bool(front_thread) and front_thread != me and bool(user32.AttachThreadInput(me, front_thread, True))
+    try:
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+    finally:
+        if attached:
+            user32.AttachThreadInput(me, front_thread, False)
+    return int(user32.GetForegroundWindow() or 0) == int(hwnd), attached
+
+
 def _alt_tab_held(user32: Any) -> bool:
     """사람이 **Alt+Tab** 중인가 — 왼쪽 Alt 를 누른 채 Tab.
 
@@ -3217,6 +3244,7 @@ class BrowserWorker:
         script = RECORDER_JS_TEMPLATE.replace("__DURABLE__", _DURABLE_SELECTORS_JS)
         context.expose_binding("__sonjariDemo", lambda _source, payload: recorder.on_event(payload))
         context.expose_binding("__sonjariDemoState", lambda _source: recorder.state())
+        context.expose_binding("__sonjariDemoControl", lambda _source, action: recorder.on_control(action))
         context.add_init_script(script)
 
         def watch(page: Any) -> None:
@@ -3250,14 +3278,20 @@ class BrowserWorker:
             except Exception:  # noqa: BLE001 — 띠는 알림이다. 못 그려도 기록은 간다
                 pass
         if on:
-            # ★ 사람이 **이 창**에서 해 보여야 한다 — 평소 쓰는 크롬이 아니다(대표 10-20). 사람이 직접 「배우기」를 청했으니
+            # ★ 사람이 **이 창**에서 해 보여야 한다 — 평소 쓰는 크롬이 아니다(대표 10-20). 사람이 직접 「배우기」(`/레시피` · [보여 주기])를 청했으니
             #   「사람이 PC 를 쓰는 중이면 창을 안 올린다」(`_bring_to_front`) 규칙을 거치지 않고 앞으로 올린다.
-            page = self._current_page()
+            # ★ 탭만 고르면(`page.bring_to_front()`) 화면 밖에 치워 둔 손자리 크롬 창은 그대로라 「어디서 해 보이라는 건지」 몰랐다(10-28 실측 ·
+            #   조사 `generated_reports/recipe_learn_1028/지금판_시험.md`). 「크롬 창 보기」 단추와 같은 길(`_present_for_human(activate=True)`)로
+            #   창을 되돌려 놓고 앞으로 올린다 — 그 안에서 탭도 고른다.
             try:
-                if page is not None:
-                    page.bring_to_front()
-            except Exception:  # noqa: BLE001
-                pass
+                self._present_for_human(activate=True)
+            except Exception:  # noqa: BLE001 — 창 모양 때문에 배우기가 죽으면 안 된다
+                page = self._current_page()
+                try:
+                    if page is not None:
+                        page.bring_to_front()
+                except Exception:  # noqa: BLE001
+                    pass
 
     def _stop_demo(self) -> dict[str, Any]:
         if self._context is not None:
@@ -5641,6 +5675,7 @@ class BrowserWorker:
             found = subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
                 capture_output=True, text=True, timeout=15,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except Exception:
             return 0
@@ -5650,6 +5685,7 @@ class BrowserWorker:
                 subprocess.run(
                     ["taskkill", "/F", "/T", "/PID", pid],
                     capture_output=True, timeout=15,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
             except Exception:
                 continue
@@ -5671,6 +5707,7 @@ class BrowserWorker:
                     ["taskkill", "/F", "/T", "/PID", str(process.pid)],
                     capture_output=True,
                     timeout=15,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
             else:
                 process.terminate()
@@ -6263,7 +6300,9 @@ class BrowserWorker:
                             left, top, width, height = placement
                             # HWND_TOP=0 · 화면 밖·너무 작은 창은 사람이 쓰는 모니터 작업 영역으로
                             user32.SetWindowPos(hwnd, 0, left, top, width, height, 0x0040)
-                        user32.SetForegroundWindow(hwnd)
+                        raised_front, attached = _raise_for_human(user32, hwnd)
+                        logging.getLogger(__name__).warning(
+                            "chrome raise for human: raised=%s attached=%s", raised_front, attached)
                         flags = 0x3 | 0xC  # FLASHW_ALL|FLASHW_TIMERNOFG
                     else:
                         if keep and keep not in ours and int(user32.GetForegroundWindow() or 0) == hwnd:
@@ -12422,10 +12461,25 @@ class BrowserWorker:
         # 전체를 다시 훑어 비교하려다 두 번 데였다: 훑는 일이 ref 를 다시 찍어
         # 남의 ref 를 깨뜨렸고(invalid_element_ref), 텍스트로 확인하려니 입력란의
         # 값은 본문 글자가 아니라서 "안 들어갔다"고 오판했다. 방금 누른 그것만 본다.
-        try:
-            settled = not target.is_visible()
-        except Exception:
-            settled = True  # 요소 자체가 사라져 조회가 안 되면 닫힌 것이다
+        # ★ 천천히 닫히는 목록 · 다음 칸으로 넘어가는 화면을 「안 골라짐」으로 읽지 않는다 (2026-10-30 · 판 eba156fb 에어비앤비 행선지).
+        #   0.5초에 한 번만 봤더니 verified=false 가 나왔고, 모델은 3걸음 만에 「화면을 직접 확인해 달라」며 사람에게 넘겼다.
+        #   1.5초까지 몇 번 더 보고, 그래도 보이면 **치던 칸의 값에 고른 이름이 들어갔는가**도 본다(본문 글자가 아니라 칸의 값이다).
+        settled = False
+        for _ in range(4):
+            try:
+                settled = not target.is_visible()
+            except Exception:
+                settled = True  # 요소 자체가 사라져 조회가 안 되면 닫힌 것이다
+            if settled:
+                break
+            page.wait_for_timeout(350)
+        if not settled and text:
+            try:
+                value = str(locator.input_value(timeout=500) or "")
+            except Exception:
+                value = ""
+            core = str(chosen.get("name") or "").split(",")[0].strip()[:40]
+            settled = bool(core) and core.casefold() in value.casefold()
         return self._evidence(
             "suggestion_picked",
             typed=text,
@@ -13253,10 +13307,28 @@ class BrowserWorker:
             if not search_field:
                 raise RuntimeError("read_only_enter_blocked")
         durable = self._durable_selectors(locator)
+        # ★ 키 누르기에도 **확인 조건(expect)** 을 본다 (2026-10-28 · `/레시피`). 레시피의 Enter 걸음은 `expect` 를 달고 오는데 이 길이 그것을
+        #   읽지 않아, 레시피 엔진이 「확인 결과 없음」을 조용히 통과시켰다(`SiteRecipeTools.run` 은 `verified is False` 만 멈춘다).
+        #   누르기(`_click`)와 같은 도구로 누르기 전에 지문을 떠 두고 누른 뒤에 견준다. 모델이 쓰는 도구 목록에는 `expect` 칸이 없다 — 레시피만 쓴다.
+        expect = dict(arguments.get("expect") or {})
+        before = self._observe(page, expect) if expect else None
+        signals_before = self._page_signals(page) if expect else None
         locator.press(key)
         pressed = self._evidence("pressed", ref=ref, key=key)
         if durable:
             pressed["selectors"] = durable
+        if expect:
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=3000)
+            except Exception:  # noqa: BLE001 — 이동이 없는 키 누르기도 많다
+                pass
+            timeout = max(500, min(int(arguments.get("verify_timeout_ms") or 8000), 60000))
+            verification = self._await_change(page, expect, before, timeout, signals_before)
+            pressed["verification"] = verification
+            pressed["verified"] = verification["status"] == "verified"
+            if verification.get("instruction"):
+                pressed["what_changed"] = verification.get("changes") or []
+                pressed["instruction"] = verification["instruction"]
         return pressed
 
     def _scroll(self, page: Any, arguments: dict[str, Any]) -> dict[str, Any]:

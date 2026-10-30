@@ -5,6 +5,7 @@ import type { WhatsNewSlide, WhatsNewStat } from "../types";
 import { MarkdownView } from "../MarkdownView";
 import "./whatsNew.css";
 import { WhatsNewShowStage } from "./WhatsNewShow";
+import { UsageShowStage, type UsageSettingsSection } from "./UsageShow";
 
 /**
  * **업데이트 뒤 「바뀐 것」 슬라이드** (2026-10-21 대표 「그림에 글을 넣어 피피티마냥 한눈에 알아보고 이쁘게」).
@@ -17,15 +18,21 @@ import { WhatsNewShowStage } from "./WhatsNewShow";
  * - 숫자 막대에는 잰 조건(`basis`)이 늘 붙는다 — 백엔드가 조건 없는 숫자는 장에서 뺀다.
  * - 그림이 없는 장은 「이렇게 말해 보세요」를 위쪽 칸에 크게 둔다. 그린 가짜 화면은 넣지 않는다.
  */
-export function WhatsNewDeck({ version, slides, changes, tour, onLater, onDone }: {
+export function WhatsNewDeck({ version, slides, changes, tour, onLater, onDone, eyebrow, onOpenSettings, initialIndex = 0 }: {
   version: string;
   slides: WhatsNewSlide[];
   changes: string;
   tour: string;
   onLater: () => void;
   onDone: () => void;
+  /** 머리 글. 없으면 「Sonjari {판} 에서 바뀐 것」 — 「쓰는 법」 쇼(2026-10-27)는 자기 글을 준다. */
+  eyebrow?: string;
+  /** 「쓰는 법」 4장의 [Claude 에 잇기] · [디스코드 잇기] 가 설정의 그 칸을 연다. */
+  onOpenSettings?: (section: UsageSettingsSection) => void;
+  /** 처음 여는 장(연습 화면 · 시험용). */
+  initialIndex?: number;
 }) {
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => Math.max(0, Math.min(slides.length - 1, initialIndex)));
   const [showAll, setShowAll] = useState(false);
   const primary = useRef<HTMLButtonElement>(null);
   const count = slides.length;
@@ -61,18 +68,19 @@ export function WhatsNewDeck({ version, slides, changes, tour, onLater, onDone }
 
   return (
     <div className="settings-veil wn-veil" role="presentation" onClick={onLater}>
-      <section className={`wn-deck${slides.some((item) => item.visual?.kind === "show") ? " wn-deck-show" : ""}`} role="dialog" aria-modal="true" aria-labelledby="wn-title"
+      <section className={`wn-deck${slides.some((item) => item.visual?.kind === "show" || item.visual?.kind === "usage") ? " wn-deck-show" : ""}${slides.some((item) => item.visual?.kind === "usage") ? " wn-deck-usage" : ""}`} role="dialog" aria-modal="true" aria-labelledby="wn-title"
         onClick={(event) => event.stopPropagation()}>
         <header className="wn-head">
-          <span className="wn-eyebrow"><Sparkles size={13} aria-hidden /> {t("Sonjari {0} 에서 바뀐 것", version)}</span>
+          <span className="wn-eyebrow"><Sparkles size={13} aria-hidden /> {eyebrow ?? t("Sonjari {0} 에서 바뀐 것", version)}</span>
           <button type="button" className="settings-close" onClick={onLater} aria-label={t("나중에 보기")}><X size={16} /></button>
         </header>
 
         {stage && (
-          <div className={`wn-stage ${visual ? `wn-stage-${visual.kind}` : "wn-stage-say"}`} key={`stage-${index}`}>
+          <div className={`wn-stage ${visual ? `wn-stage-${visual.kind}${visual.kind === "usage" ? " wn-stage-show" : ""}` : "wn-stage-say"}`} key={`stage-${index}`}>
             {visual?.kind === "stat" && <StatBars stat={visual} />}
             {visual?.kind === "image" && <img src={`${import.meta.env.BASE_URL}${visual.src}`} alt={visual.alt} />}
             {visual?.kind === "show" && <WhatsNewShowStage visual={visual} />}
+            {visual?.kind === "usage" && <UsageShowStage scene={visual.scene} onOpenSettings={onOpenSettings} />}
             {sayOnStage && <SayStage text={slide.try ?? ""} />}
           </div>
         )}

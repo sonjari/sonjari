@@ -245,6 +245,9 @@ def _under_heading(want: str, answer: str, label: str = "") -> bool | None:
                         # 「**③ 한국어 지원** — 확인 못 함」: 이름 붙은 자리에 「못 찾았다」고 적었다 — 채운 것이 아니라 빈 자리다.
                         seen_empty = True
                         continue
+                    if value and _negative(value):
+                        # 「**reached Confirm and pay:** No — …」: 채움이 아니다 — 「이름: 값」 줄 검사가 그 말을 `negative` 로 넘긴다(2026-10-29).
+                        continue
                     if value and _filled(value):
                         return True
                     for after in lines[index + 1:]:
@@ -350,6 +353,20 @@ def _filled(cell: str) -> bool:
     return str(cell or "").strip().strip("*").strip().casefold() not in _BLANK
 
 
+#: 값의 **첫 낱말**이 부정인가 — 「No — 예약 단추를 안 눌렀다」 · 「아니요, …」 · 「못 했습니다」. 「Notes」 · 「November」 · 값 가운데의
+#: 「no extra fees」는 해당 없음(낱말 경계 · 맨 앞만). ★ 2026-10-29 판 e7bae54b: 「reached Confirm and pay: No — …」가 채움으로 셌다.
+_NEGATIVE = re.compile(
+    r"^(?:no|nope|not|never|none\s+of|아니요|아니오|아닙니다|아니다|못(?=\s|했|함|찾|갔|봤|봄|들|가|해)|안\s?됨|안\s?(?:했|함|갔))(?![a-z])",
+    re.IGNORECASE,
+)
+
+
+def _negative(cell: str) -> str | None:
+    """값이 부정으로 시작하면 그 값 원문(120자까지), 아니면 None — 「채움」이 아니라 「확인 못 함」의 근거로 붙인다."""
+    text = str(cell or "").strip().strip("*`").strip()
+    return text[:120] if text and _NEGATIVE.match(text) else None
+
+
 def _nothing_came_back(answer: str, files: list[str] | tuple[str, ...]) -> bool:
     """답 글이 비었고 이 판이 만든 파일도 하나도 없다 — 그러면 어떤 항목도 돌아오지 않은 것이 확실하다."""
     if str(answer or "").strip():
@@ -390,11 +407,16 @@ def check_needs(needs: list[str], answer: str, *, files: list[str] | tuple[str, 
         want = _norm(label)
         met = False
         saw_empty = False
+        negative: str | None = None  # 이름 붙은 자리에 「No …」로 답했다 — 채움이 아니라 확인 못 함(2026-10-29)
         for head, rows in tables:
             for index, name in enumerate(head):
                 if not _same_column(want, name):
                     continue
-                if any(len(row) > index and _filled(row[index]) for row in rows):
+                cells = [row[index] for row in rows if len(row) > index and _filled(row[index])]
+                if cells and all(_negative(cell) for cell in cells):
+                    negative = negative or _negative(cells[0])
+                    continue
+                if cells:
                     met = True
                     break
                 saw_empty = True
@@ -409,7 +431,11 @@ def check_needs(needs: list[str], answer: str, *, files: list[str] | tuple[str, 
                     # 줄 이름이 항목 이름을 **통째로** 담을 때만 — 거꾸로 보면 「설립」 한 칸이 「회사 국적과 설립」을 채운 것이 된다.
                     if not want or want not in have:
                         continue
-                    if any(_filled(cell) for cell in row[1:]):
+                    values = [cell for cell in row[1:] if _filled(cell)]
+                    if values and _negative(values[0]):
+                        negative = negative or _negative(values[0])
+                        continue
+                    if values:
                         met = True
                         break
                     saw_empty = True
@@ -423,6 +449,9 @@ def check_needs(needs: list[str], answer: str, *, files: list[str] | tuple[str, 
             words = r"\s*".join(re.escape(part) for part in label.split())
             for line in re.finditer(rf"(?im)^\s*(?:[-*•]\s*)?\**{words}\**\s*[:：]\s*\**\s*(.*)$", str(answer or "")):
                 if _filled(line.group(1)):
+                    if _negative(line.group(1)):
+                        negative = negative or _negative(line.group(1))
+                        continue
                     met = True
                     break
                 saw_empty = True
@@ -434,8 +463,15 @@ def check_needs(needs: list[str], answer: str, *, files: list[str] | tuple[str, 
                 if value.startswith("//") or not _a_slot_name(key, label) or not _covers(label, key):
                     continue
                 if _filled(value):
+                    if _negative(value):
+                        negative = negative or _negative(value)
+                        continue
                     met = True
                     break
+        if not met and negative:
+            # 「No …」는 비어 있는 게 아니라 손자리가 「안 됐다」고 답한 것 — 「없다」로 단정하지 않고 그 말을 그대로 넘긴다.
+            checked.append({"label": label, "met": None, "negative": negative})
+            continue
         checked.append({"label": label, "met": True if met else (False if (saw_empty or empty_return) else None)})
     return checked
 

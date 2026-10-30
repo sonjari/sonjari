@@ -444,8 +444,15 @@ def _slot(slots: list[str], label: Any, kind: str) -> str:
     return f'data-slot="s{len(slots)}" data-label="{attr}">[{kind}: {_t(label)}]'
 
 
-def _render_card(card: dict[str, Any], slots: list[str] | None = None) -> str:
+def _render_card(card: dict[str, Any], slots: list[str] | None = None, counters: dict[str, int] | None = None) -> str:
+    """부품 하나를 그린다. `counters` 는 **장 하나** 안에서 번호 붙는 부품이 이어 세는 값이다(`render` 가 장마다 새로 만든다).
+
+    ★ 10-28 장표 재측정(실제 판 a5fb5da7 · grove 결): 요점(points)이 한 장에 셋 쌓이면 부품마다 1부터 다시 세어 「01 01 01」이 됐다.
+      번호는 부품이 아니라 **장**이 센다 — 부품이 무엇이든 번호 붙이는 부품(지금은 points)은 이 값을 받아 이어 센다.
+      CSS 로 번호를 붙이는 단계(steps)도 같은 규칙이다 — 장 단위 `counter-reset`(`slide_themes/parts/common.css`).
+    """
     slots = [] if slots is None else slots
+    counters = {} if counters is None else counters
     name = card["part"]
     role = " anchor" if card.get("role") == "anchor" else ""
     title = f'<h3 class="cap-title">{_t(card["title"])}</h3>' if card.get("title") and name not in {"panel"} else ""
@@ -561,9 +568,12 @@ def _render_card(card: dict[str, Any], slots: list[str] | None = None) -> str:
                          for p in card["items"] if isinstance(p, dict))
         return f'<div class="pz pz-people{role}" style="--k:{len(card["items"])}">{head}<div class="pz-row">{people}</div></div>'
     if name == "points":
+        start = int(counters.get("points", 0)) + 1
+        shown = [p for p in card["items"] if isinstance(p, dict)]
+        counters["points"] = start - 1 + len(shown)
         items = "".join(f'<div class="pz-point"><span class="n">{i:02d}</span><b class="t">{_t(p.get("title", ""))}</b>'
                         f'{("<span class=sub>" + _t(p["sub"]) + "</span>") if p.get("sub") else ""}<p>{_t(p.get("text", ""))}</p></div>'
-                        for i, p in enumerate((p for p in card["items"] if isinstance(p, dict)), 1))
+                        for i, p in enumerate(shown, start))
         return f'<div class="pz pz-points{role}" style="--k:{len(card["items"])}">{title}<div class="pz-row">{items}</div></div>'
     if name == "photo":
         ratio = _RATIOS.get(str(card.get("ratio") or ""), "")
@@ -592,7 +602,8 @@ def render(spec: dict[str, Any]) -> str:
     lede = "<br>".join(_t(line) for line in lines if str(line).strip())
     lede_html = f'<p class="ir-lede">{lede}</p>' if lede else ""
     slots: list[str] = []
-    cols = "".join(f'<div class="pz-col">{"".join(_render_card(card, slots) for card in col)}</div>' for col in spec["cols"])
+    counters: dict[str, int] = {}  # 장 하나 안에서 번호가 이어진다(위 `_render_card` 주석)
+    cols = "".join(f'<div class="pz-col">{"".join(_render_card(card, slots, counters) for card in col)}</div>' for col in spec["cols"])
     grid = f'<div class="pz-grid" style="grid-template-columns:{" ".join(f"minmax(0,{w}fr)" for w in widths)}">{cols}</div>'
     bottom = f'<div class="pz-bottom">{_t(spec["bottom"])}</div>' if spec.get("bottom") else ""
     source = spec.get("source") or ""

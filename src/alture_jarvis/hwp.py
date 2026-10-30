@@ -1114,6 +1114,7 @@ class HwpTools:
                 timeout=timeout,
                 check=False,
                 env={**environment_for_our_own_child(), "PYTHONUTF8": "1"},
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("hwp_com_timeout_do_not_retry_automatically") from exc

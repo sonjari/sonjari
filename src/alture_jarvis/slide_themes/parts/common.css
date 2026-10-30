@@ -103,7 +103,9 @@ section.slide.pz-slide::before, section.slide.pz-slide::after { content: none; }
 .pz-slide .pz-arrow::after { content: ""; position: absolute; right: 7px; top: calc(50% - 4px); border: 5px solid transparent; border-left: 8px solid var(--pz-line-strong); }
 
 /* 단계 */
-.pz-slide .pz-steps ol { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+/* 번호는 부품이 아니라 장이 센다 — 단계 부품이 이어지면 이어서(10-28 실제 판 a5fb5da7). 리셋은 장에 한 번. */
+.pz-slide { counter-reset: s; }
+.pz-slide .pz-steps ol { margin: 0; padding: 0; list-style: none; }
 .pz-slide .pz-steps li { counter-increment: s; position: relative; padding: 10px 0 10px 40px; border-bottom: 1px solid var(--pz-line); font-size: 15px; font-weight: 700; }
 .pz-slide .pz-steps li:last-child { border-bottom: 0; }
 .pz-slide .pz-steps li::before { content: counter(s); position: absolute; left: 0; top: 9px; font-family: var(--pz-num-font); font-weight: var(--pz-num-weight);

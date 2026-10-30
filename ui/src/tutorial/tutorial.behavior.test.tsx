@@ -116,7 +116,7 @@ describe("퀘스트 ① — 크롬이 움직이는 걸 보기", () => {
 });
 
 describe("퀘스트 판", () => {
-  it("할 일 셋 · 끝낸 일의 도장 말은 사람이 한 일 그대로다", () => {
+  it("할 일 넷(클로드 칸은 늘 보인다) · 끝낸 일의 도장 말은 사람이 한 일 그대로다", () => {
     const onStart = vi.fn();
     const onDismiss = vi.fn();
     act(() => root.render(
@@ -124,12 +124,12 @@ describe("퀘스트 판", () => {
         tierGb={8} english={false} onStart={onStart} onDismiss={onDismiss} onCardSeen={() => {}} />,
     ));
     const rows = [...host.querySelectorAll(".quest-row")];
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     expect(rows[0].querySelector(".quest-stamp")?.textContent).toBe("직접 확인함yes24.com");
     expect(rows[1].querySelector(".quest-stamp")?.textContent).toBe("받았어요");
-    expect(host.querySelector(".quest-count")?.textContent).toBe("3개 중 2개");
+    expect(host.querySelector(".quest-count")?.textContent).toBe("4개 중 2개");
 
-    const card = rows[2].querySelector<HTMLButtonElement>(".quest-start")!;
+    const card = rows[3].querySelector<HTMLButtonElement>(".quest-start")!;
     act(() => card.click());
     expect(host.querySelector(".quest-card-facts")?.textContent).toContain("8GB");
     expect(host.querySelector(".quest-card-facts")?.textContent).toContain("9줄 중 가운데 5줄");
@@ -168,12 +168,32 @@ describe("퀘스트 ③ — 클로드에게 맡겨 보기", () => {
     expect(bubble()).toBe("지금 손자리가 크롬에서 찾고 있어요.");
   });
 
-  it("클로드가 이어진 PC 에서만 보인다", () => {
+  it("클로드 칸은 연결 여부와 상관없이 보인다 — 안 이어졌으면 「Claude 에 잇기」, 이어졌으면 「클로드에게 맡겨 보기」", () => {
+    const connect = vi.fn();
     act(() => root.render(
-      <QuestBoard state={{ dismissed: false, done: {} }} english={false} onStart={() => {}} onDismiss={() => {}} onCardSeen={() => {}} />,
+      <QuestBoard state={{ dismissed: false, done: {} }} english={false} onStart={() => {}} onDismiss={() => {}} onCardSeen={() => {}}
+        onConnectClaude={connect} />,
     ));
+    // 안 이어짐: 잇기 단추가 연결 화면으로 보낸다
+    const rows = [...host.querySelectorAll(".quest-row")];
+    expect(rows).toHaveLength(4);
+    expect(rows[2].textContent).toContain("Claude 에 잇기");
     expect(host.textContent).not.toContain("클로드에게 맡겨 보기");
-    expect(host.querySelector(".quest-count")?.textContent).toBe("3개 중 0개");
+    expect(host.querySelector(".quest-count")?.textContent).toBe("4개 중 0개");
+    act(() => rows[2].querySelector<HTMLButtonElement>(".quest-start")!.click());
+    expect(connect).toHaveBeenCalledTimes(1);
+
+    // 이어짐: 지금처럼 「클로드에게 맡겨 보기」(단추 없음 · 클로드가 맡긴 일이 끝나면 체크)
+    act(() => root.render(
+      <QuestBoard state={{ dismissed: false, done: {} }} english={false} claudeConnected onStart={() => {}} onDismiss={() => {}}
+        onCardSeen={() => {}} onConnectClaude={connect} />,
+    ));
+    const connected = [...host.querySelectorAll(".quest-row")][2];
+    expect(connected.textContent).toContain("클로드에게 맡겨 보기");
+    expect(connected.querySelector(".quest-start")).toBeNull();
+    expect(host.textContent).not.toContain("Claude 에 잇기");
+
+    // 맡긴 일이 끝나 체크되면 이어졌는지와 상관없이 「맡겼어요」
     act(() => root.render(
       <QuestBoard state={{ dismissed: false, done: { claude: { at: 1 } } }} english={false} claudeConnected
         onStart={() => {}} onDismiss={() => {}} onCardSeen={() => {}} />,

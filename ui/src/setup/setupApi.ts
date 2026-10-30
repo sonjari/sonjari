@@ -51,6 +51,8 @@ export interface ModelLink {
 export interface ModelPick {
   /** `open_alternative` = 추천 모델의 라이선스에 조건이 있을 때 같이 내미는 **조건 없는** 차선책(§55-24 덧붙임 2). */
   kind: "verified" | "external" | "open_alternative";
+  /** 「똑똑함 · 빠름」 둘로 나눠 권할 때의 역할(2026-10-28 · 첫 추천이 Swift 27B 일 때만 온다). */
+  role?: "smart" | "fast";
   model_key: string;
   name: string;
   ollama_tag: string;

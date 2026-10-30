@@ -1,5 +1,5 @@
 import { t } from "../i18n";
-import { BriefcaseBusiness, ChevronLeft, Code2, Menu, MessageSquareText, Plus, Settings2, Trash2, Wrench } from "lucide-react";
+import { BriefcaseBusiness, ChevronLeft, Code2, CirclePlay, Menu, MessageSquareText, Plus, Settings2, Trash2, Wrench } from "lucide-react";
 import { JarvisMark } from "./JarvisMark";
 import type { JarvisClient } from "../backend";
 import type { ConversationSummary, JarvisState, JobSummary, ScheduleRow, WorkspaceMode } from "../types";
@@ -50,6 +50,8 @@ export function Sidebar(props: {
   onDeleteConversation?: (sessionId: string) => void;
   onCancelSchedule: (scheduleId: string) => void;
   onOpenCapabilities: () => void;
+  /** 「쓰는 법」 쇼를 다시 연다(2026-10-27). 없으면 항목을 안 그린다. */
+  onOpenUsageShow?: () => void;
   onOpenSettings?: () => void;
   privacyText?: string;
   handoffOrigins?: Record<string, HandoffOrigin>;
@@ -166,6 +168,11 @@ export function Sidebar(props: {
       <button className="capabilities-open" onClick={props.onOpenCapabilities} type="button" title={t("할 수 있는 일")} aria-label={t("할 수 있는 일")}>
         <Wrench size={15} />{open && <span>{t("할 수 있는 일")}</span>}
       </button>
+      {props.onOpenUsageShow && (
+        <button className="capabilities-open" onClick={props.onOpenUsageShow} type="button" title={t("쓰는 법")} aria-label={t("쓰는 법")}>
+          <CirclePlay size={15} />{open && <span>{t("쓰는 법")}</span>}
+        </button>
+      )}
       {props.onOpenSettings && (
         <button className="capabilities-open" onClick={props.onOpenSettings} type="button" title={t("설정")} aria-label={t("설정")}>
           <Settings2 size={15} />{open && <span>{t("설정")}</span>}

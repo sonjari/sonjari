@@ -230,6 +230,28 @@ def shape(
             "fields": {k: v for k, v in result.items() if isinstance(v, (str, int, float, bool))},
         }, truncation
 
+    # ── 아는 사이트 목록 ── 날 JSON 이 아니라 사람이 읽는 표로 (2026-10-30 · 10-29 촬영 판 e943efe4).
+    #   판의 첫 걸음이 `site_list` 였는데, 사이트마다 할 일 목록이 중첩돼 아래 「dict 목록이면 표」가 표를 포기하고
+    #   맨 끝 「통째로 보여 준다」로 떨어졌다 — 보낸 직후 칸이 열리며 레시피 JSON 3,386자가 5초 동안 본문을 차지했다.
+    #   숨기지 않는다(이 함수의 원칙) — 사이트 · 할 수 있는 일 · 주소 · 확인됨 네 칸으로 접어 보인다.
+    if tool == "site_list" and isinstance(result.get("sites"), list):
+        sites = [site for site in result["sites"] if isinstance(site, dict)]
+        rows = [
+            {
+                "site": _text_of(site.get("site")),
+                "actions": " · ".join(
+                    _text_of(action.get("action")) for action in (site.get("actions") or [])
+                    if isinstance(action, dict) and action.get("action")
+                ),
+                "hosts": " · ".join(_text_of(host) for host in (site.get("hosts") or []) if host),
+                "verified": _text_of(site.get("verification")),
+            }
+            for site in sites
+        ]
+        table = _rows_from_dicts(rows) if rows else None
+        if table:
+            return "table", f"site_list · {table['row_count']}", {"source": tool, "field": "sites", **table}, truncation
+
     # ── 목록 ── 폴더·검색 결과.
     for key in ("entries", "files", "matches", "items"):
         raw = result.get(key)

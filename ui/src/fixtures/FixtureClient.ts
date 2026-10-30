@@ -17,7 +17,7 @@ import type {
   CoworkTakeoverPrepared, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig,
   Capabilities, JobDetail, JobOutput, JobSummary, PeopleStatus, ScheduleList, ScheduleRow, UndoOffer,
   WorkspaceMode, ChatOrigin, HandoffDirection, SelfCheckStatus, SelfHealResult, UpdateStatus, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, BackupSummary,
-  PermissionModes, PackInfo, PacksView, WhatsNewStatus, WeeklyReceipt, ReceiptImageSaved,
+  PermissionModes, PackInfo, PacksView, UsageShowStatus, WhatsNewStatus, WeeklyReceipt, ReceiptImageSaved,
 } from "../types";
 import type { Scenario, ScriptStep } from "./scenarios";
 import type { Lang } from "../i18n";
@@ -331,6 +331,15 @@ export class FixtureClient extends JarvisClient {
   }
 
   override async markWhatsNewSeen(): Promise<{ ok: boolean }> {
+    return { ok: true };
+  }
+
+  /** 「쓰는 법」 쇼 리허설(2026-10-27) — `?fixture=…&usageshow=1` 일 때만 띄운다. */
+  override async getUsageShow(): Promise<UsageShowStatus> {
+    return { show: new URLSearchParams(window.location.search).get("usageshow") === "1" };
+  }
+
+  override async markUsageShowSeen(): Promise<{ ok: boolean }> {
     return { ok: true };
   }
 

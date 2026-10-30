@@ -12,9 +12,9 @@
   chat_transcript_budget, window_fitted_budget, _SYSTEM_BUDGET_CHARS, _TOOL_SCHEMA_CHARS_PER_TOKEN,
   _PER_JOB_SECTIONS, _THINKING_STREAM_CHARS, _THINKING_EMIT_SEC,
   _FORCED_READ_LIMIT, _FORCED_READ_GRACE_SEC, _OPEN_RESULT_TOOL, _EXTRACT_TOOL,
-  _THINK_ALWAYS, _THINK_ADAPTIVE, _THINK_OFF, _model_time_summary,
-  _final_answer_thinks, _REASONING_POLICY, _job_thinking_policy,
-  _reasoning_escalated, _should_think, _TOOL_RESULT_MAX_CHARS, _bounded_tool_result
+  _THINK_ALWAYS, _THINK_ADAPTIVE, _THINK_OFF, _THINK_AUTO, _model_time_summary,
+  _final_answer_thinks, _REASONING_POLICY, _job_thinking_policy, _auto_in_effect,
+  _reasoning_escalated, _reasoning_escalation_reason, _should_think, _TOOL_RESULT_MAX_CHARS, _bounded_tool_result
 """
 from __future__ import annotations
 
@@ -239,11 +239,13 @@ _EXTRACT_TOOL = "browser_extract"
 #: 그런데 12걸음 중 대부분은 기계적이다 — 「2번 결과 열기」, 「본문 추출」.
 #: 도구 결과가 잘 나온 직후에 8초를 더 생각할 이유가 없다.
 #:
-#: ⚠ 기본은 `always` 다. **사고가 비싸다는 것만 쟀지, 값을 못 한다는 것은 안 쟀다.**
-#:   통제 실험으로 확인한 뒤에 기본값을 바꾼다.
+#: ⚠ (09-03 당시) 기본은 `always` 였다. **사고가 비싸다는 것만 쟀지, 값을 못 한다는 것은 안 쟀다.**
+#: ★ 2026-10-28: 10-27 측정(24판 전부 통과 · 보통이 코드에서 크게 빠름)으로 기본을 `auto`(보통으로 시작해 막히면 깊게)로 바꿨다.
 _THINK_ALWAYS = "always"
 _THINK_ADAPTIVE = "adaptive"
 _THINK_OFF = "off"
+#: 「자동」 — 보통으로 시작해 막히면 깊게 (2026-10-28 기본값). 입력창 칩과 설정 「생각 깊이」가 같은 뜻으로 쓴다.
+_THINK_AUTO = "auto"
 
 
 def _model_time_summary(observations: list[dict[str, Any]]) -> dict[str, Any]:
@@ -289,11 +291,27 @@ def _final_answer_thinks(config: Any, policy: str | None = None) -> bool:
     """
     if not getattr(config, "agent_thinking_enabled", True):
         return False
-    return str(policy or getattr(config, "agent_thinking_policy", _THINK_ALWAYS) or _THINK_ALWAYS) != _THINK_OFF
+    # `auto` 는 보통으로 시작해 막히면 깊게 — 어느 쪽이든 마무리 답은 생각한다(「빠르게」만 끈다).
+    return str(policy or getattr(config, "agent_thinking_policy", _THINK_AUTO) or _THINK_AUTO) != _THINK_OFF
 
 
 #: 입력창의 「추론」 칩 → 걸음마다의 생각 정책 (2026-09-28 사장님 제안 — 헤르메스 입력창의 Med 칩).
 _REASONING_POLICY = {"fast": _THINK_OFF, "normal": _THINK_ADAPTIVE, "deep": _THINK_ALWAYS}
+
+
+def _configured_policy(config: Any) -> str:
+    """설정(「생각 깊이」)에 적힌 정책. 비었거나 없으면 자동."""
+    return str(getattr(config, "agent_thinking_policy", _THINK_AUTO) or _THINK_AUTO).strip().lower()
+
+
+def _auto_in_effect(config: Any, reasoning: str) -> bool:
+    """이 판이 「자동」으로 도는가 — 칩이 자동이거나, 칩이 비고 설정이 자동."""
+    choice = str(reasoning or "").strip().lower()
+    if choice == _THINK_AUTO:
+        return True
+    if choice in _REASONING_POLICY:
+        return False
+    return _configured_policy(config) == _THINK_AUTO
 
 
 def _job_thinking_policy(config: Any, reasoning: str, *, escalated: bool) -> str:
@@ -301,18 +319,29 @@ def _job_thinking_policy(config: Any, reasoning: str, *, escalated: bool) -> str
 
     **자동** = 싼 것부터 → 막히면 올림(전략안 「예측 라우팅 금지 · 실패하면 승급」). 요청 문장으로 난이도를 미리 맞히지 않는다.
     「보통」(막힌 자리에서만 생각)으로 시작하고, 이 판에서 되받기가 나오거나 실패가 두 번 쌓이면(`escalated`) 끝까지 「깊게」로 간다.
+    설정이 `auto` 이고 칩이 비어 있으면(클로드 연결 · 디스코드 · 예약 작업) 칩 「자동」과 똑같이 간다.
+    칩이 있으면 칩이 이긴다. 설정의 옛 값(off · adaptive · always)은 그대로다.
     """
-    choice = str(reasoning or "").strip().lower()
-    if choice == "auto":
+    if _auto_in_effect(config, reasoning):
         return _THINK_ALWAYS if escalated else _THINK_ADAPTIVE
+    choice = str(reasoning or "").strip().lower()
     if choice in _REASONING_POLICY:
         return _REASONING_POLICY[choice]
-    return str(getattr(config, "agent_thinking_policy", _THINK_ALWAYS) or _THINK_ALWAYS)
+    return _configured_policy(config)
 
 
 def _reasoning_escalated(steps: list[dict[str, Any]], pushbacks: int) -> bool:
     """「자동」이 깊게로 올라갈 때인가 — 되받기가 한 번이라도 났거나, 실패한 걸음이 둘 이상."""
     return pushbacks > 0 or sum(1 for step in steps if not step.get("ok")) >= 2
+
+
+def _reasoning_escalation_reason(steps: list[dict[str, Any]], pushbacks: int) -> str:
+    """올라간 까닭 — `pushback`(되받기) 이 먼저, 아니면 `failures`(실패 걸음 둘 이상). 올라갈 때가 아니면 빈 글."""
+    if pushbacks > 0:
+        return "pushback"
+    if sum(1 for step in steps if not step.get("ok")) >= 2:
+        return "failures"
+    return ""
 
 
 def _should_think(
@@ -333,7 +362,10 @@ def _should_think(
     if artifact_focus:
         # 산출물 전환은 추론보다 구조화된 인자가 필요하다(예전부터 껐다).
         return False
-    policy = str(policy or getattr(config, "agent_thinking_policy", _THINK_ALWAYS) or _THINK_ALWAYS)
+    policy = str(policy or _configured_policy(config))
+    if policy == _THINK_AUTO:
+        # 설정 값 그대로 불렀다(정책을 풀어서 넘기지 않았다) — 「깊게」로 잘못 읽지 않는다. 보통으로 시작하고, 실패가 이미 둘이면 깊게.
+        policy = _THINK_ALWAYS if _reasoning_escalated(steps, 0) else _THINK_ADAPTIVE
     if policy == _THINK_OFF:
         return False
     if policy != _THINK_ADAPTIVE:

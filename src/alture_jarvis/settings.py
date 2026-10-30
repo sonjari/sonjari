@@ -95,9 +95,12 @@ SETTINGS: tuple[Setting, ...] = (
             extra={"legacy_digit_string": True}),
     # ★ 2026-09-24: 켜고 끄는 칸(「생각하고 답하기」)을 세 단계로 바꿨다(부산 노트북 「너무 느리다 — 추론 수준을 바꾸는 설정」).
     #   값은 `agent._should_think` 정책 그대로다: always(깊게) · adaptive(보통) · off(빠르게).
+    # ★ 2026-10-28: `auto`(자동) 추가 · 기본값. 보통으로 시작해 막히면(되받기 · 실패 걸음 둘) 깊게 — 입력창 칩 「자동」과 같다.
+    #   화면에서 바꾼 값만 settings.json 에 남으므로(`patch`), 고른 적 없는 사람은 새 기본값을 그대로 받는다.
     Setting("agent_thinking_policy", "model", "생각 깊이", "choice",
-            "깊게: 걸음마다 생각해 꼼꼼하지만 느리다. 보통: 처음과 막혔을 때만 짧게 생각한다. 빠르게: 생각 없이 바로 한다.",
-            live=True, choices=("off", "adaptive", "always")),
+            "자동: 보통으로 시작해 막히면 깊게 생각한다. 깊게: 걸음마다 생각해 꼼꼼하지만 느리다. "
+            "보통: 처음과 막혔을 때만 짧게 생각한다. 빠르게: 생각 없이 바로 한다.",
+            live=True, choices=("auto", "off", "adaptive", "always")),
     Setting("ollama_max_tool_steps", "model", "한 번에 쓸 걸음 수", "int", "작업 한 판에서 도구를 부르는 최대 횟수.",
             live=True, minimum=4, maximum=40),
     # ── 음성 ──────────────────────────────────────────────────────────────

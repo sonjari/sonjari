@@ -136,8 +136,12 @@ def _query_values(url: str) -> list[str]:
     return [unquote_plus(value) for _key, value in parse_qsl(urlparse(url).query) if value.strip()]
 
 
-def draft_from_run(prompt: str, steps: list[dict[str, Any]], *, job_id: str = "", at: float = 0.0) -> dict[str, Any]:
-    """판 기록을 레시피 초안(dict)으로. 못 옮기면 `DraftRefused`(까닭)."""
+def draft_from_run(prompt: str, steps: list[dict[str, Any]], *, job_id: str = "", at: float = 0.0, allow_local: bool = False) -> dict[str, Any]:
+    """판 기록을 레시피 초안(dict)으로. 못 옮기면 `DraftRefused`(까닭).
+
+    `allow_local` 은 이 PC · 시험 주소에서 한 판도 받는다(2026-10-28). 기본은 거절이다 — 벤치 · 시험 앱 판이 사람이 다시 돌릴 레시피로 굳으면 안 된다.
+    사람이 직접 보여 준 시연을 시험 사이트로 끝에서 끝까지 재 볼 때만 켠다(`JARVIS_DEMO_ALLOW_LOCAL=1`).
+    """
     kept = [step for step in steps if isinstance(step, dict) and step.get("ok")]
     recipe_steps: list[dict[str, Any]] = []
     targets: dict[str, list[str]] = {}
@@ -237,7 +241,7 @@ def draft_from_run(prompt: str, steps: list[dict[str, Any]], *, job_id: str = ""
         if entry["do"] == "open" and position + 1 < len(recipe_steps):
             with_dismiss.append({"do": "dismiss"})
     recipe_steps = with_dismiss
-    if any(_is_local(host) for host in hosts):
+    if any(_is_local(host) for host in hosts) and not allow_local:
         raise DraftRefused("이 PC · 시험 주소에서 한 판입니다")
     sites = {site_of(host) for host in hosts}
     if len(sites) != 1:
@@ -255,6 +259,8 @@ def draft_from_run(prompt: str, steps: list[dict[str, Any]], *, job_id: str = ""
 
     mutating = any(entry["do"] in {"click", "fill", "press"} for entry in recipe_steps)
     site = sorted(sites)[0].split(".")[0]
+    if not re.search(r"[A-Za-z]", site):
+        site = "local"  # 127.0.0.1 → 「0」 같은 이름이 되지 않게(이 PC 주소를 받는 시험에서만 나온다)
     return {
         "name": site,
         "description": "",
@@ -343,20 +349,33 @@ def read_out(recipe: dict[str, Any], lang: str = "ko") -> str:
 DEMO_SUFFIX = "_demo"
 
 
-def demo_recipe(draft: dict[str, Any], label: str = "") -> dict[str, Any]:
-    """사람 시연에서 옮긴 초안 → 저장할 레시피. 누르는 걸음이 있으면 L2 그대로(저장에 사람의 「응」이 승인이다)."""
+def demo_recipe(draft: dict[str, Any], label: str = "", taken: dict[str, str] | None = None) -> dict[str, Any]:
+    """사람 시연에서 옮긴 초안 → 저장할 레시피. 누르는 걸음이 있으면 L2 그대로(저장에 사람의 「응」이 승인이다).
+
+    `taken` = 이미 있는 시연 레시피의 {이름: 설명}. 같은 설명(같은 일)이면 그 이름을 그대로 써서 **다시 보여 준 것이 옛것을 대신**하고,
+    다른 일이면 `쿠팡2_demo` 처럼 번호를 붙여 옛것을 덮어쓰지 않는다(2026-10-28 · 같은 사이트의 두 번째 시연이 첫째를 지우던 자리).
+    """
     action = dict((draft.get("actions") or {}).get("from_run") or {})
     site = str(draft.get("name") or "site")
     label = " ".join(str(label or "").split())[:60]
     action["description"] = label or f"{site} 에서 사람이 보여 준 절차"
+    taken = taken or {}
+    name = f"{site}{DEMO_SUFFIX}"
+    if name in taken and taken[name] != action["description"]:
+        number = 2
+        while f"{site}{number}{DEMO_SUFFIX}" in taken and taken[f"{site}{number}{DEMO_SUFFIX}"] != action["description"]:
+            number += 1
+        name = f"{site}{number}{DEMO_SUFFIX}"
     return {
-        "name": f"{site}{DEMO_SUFFIX}",
+        "name": name,
         "description": action["description"],
         "hosts": list(draft.get("hosts") or []),
         "targets": dict(draft.get("targets") or {}),
         "actions": {"from_demo": action},
         "_learned_from": {**dict(draft.get("_learned_from") or {}), "kind": "demo"},
         "_example_query": str((draft.get("_slots") or {}).get("query") or ""),
+        # 다시 돌려 볼 때 쓸 값 — 사람이 보여 준 그 말(칸 이름 → 값). 비밀번호 · 파일 칸은 애초에 기록에 없다.
+        "_slots": {str(k): str(v) for k, v in (draft.get("_slots") or {}).items()},
         "_where": min((str(h) for h in (draft.get("hosts") or [])), key=len, default=site),
     }
 
@@ -372,35 +391,33 @@ _EXPECT_SAYS = {
 }
 
 
-def read_out_steps(recipe: dict[str, Any], action_name: str, lang: str = "ko") -> str:
-    """여러 걸음 레시피의 읽어 주기 — 걸음마다 무엇을 하고 **무엇을 확인하는지**(설계 §3-3 · 이 카드의 핵심은 「확인」 줄)."""
+def _target_name(recipe: dict[str, Any], step: dict[str, Any]) -> str:
+    targets = recipe.get("targets") or {}
+    selectors = targets.get(str(step.get("target") or "")) or []
+    for selector in selectors:
+        found = re.search(r'(?:name|placeholder\^?|aria-label\^?|data-placeholder\^?)=\"([^\"]+)\"|text=\"([^\"]+)\"', selector)
+        if found:
+            return found.group(1) or found.group(2)
+    return selectors[0] if selectors else "?"
+
+
+def step_lines(recipe: dict[str, Any], action_name: str, lang: str = "ko") -> list[tuple[str, str]]:
+    """걸음마다 (무엇을 하나, 무엇을 확인하나). 쿠키 창을 치우는 `dismiss` 는 사람에게 보이지 않는다 — 읽어 주기와 되돌려 보기가 같은 번호를 쓴다."""
     en = lang == "en"
     action = (recipe.get("actions") or {}).get(action_name) or {}
-    steps = [step for step in (action.get("steps") or []) if step.get("do") != "dismiss"]
-    targets = recipe.get("targets") or {}
-    where = str(recipe.get("_where") or ", ".join(recipe.get("hosts") or []))
-
-    def name_of(step: dict[str, Any]) -> str:
-        selectors = targets.get(str(step.get("target") or "")) or []
-        for selector in selectors:
-            found = re.search(r'(?:name|placeholder\^?|aria-label\^?|data-placeholder\^?)=\"([^\"]+)\"|text=\"([^\"]+)\"', selector)
-            if found:
-                return found.group(1) or found.group(2)
-        return selectors[0] if selectors else "?"
-
-    lines = []
-    for number, step in enumerate(steps, 1):
+    out: list[tuple[str, str]] = []
+    for step in (step for step in (action.get("steps") or []) if step.get("do") != "dismiss"):
         do = step.get("do")
         if do == "open":
             what = (f"Open {step.get('url', '').replace('{query}', '{search words}')}" if en
                     else f"{step.get('url', '').replace('{query}', '{찾을 말}')} 을 연다")
         elif do == "fill":
             value = str(step.get("value") or "").replace("{query}", "{search words}" if en else "{찾을 말}")
-            what = f"Type {value} into 「{name_of(step)}」" if en else f"「{name_of(step)}」 칸에 {value} 을 넣는다"
+            what = f"Type {value} into 「{_target_name(recipe, step)}」" if en else f"「{_target_name(recipe, step)}」 칸에 {value} 을 넣는다"
         elif do == "press":
             what = f"Press {step.get('key', 'Enter')}" if en else f"{step.get('key', 'Enter')} 를 누른다"
         elif do == "click":
-            what = f"Click 「{name_of(step)}」" if en else f"「{name_of(step)}」 을 누른다"
+            what = f"Click 「{_target_name(recipe, step)}」" if en else f"「{_target_name(recipe, step)}」 을 누른다"
         else:
             what = str(do)
         expect = step.get("expect") or {}
@@ -409,13 +426,24 @@ def read_out_steps(recipe: dict[str, Any], action_name: str, lang: str = "ko") -
             ko, en_text = _EXPECT_SAYS.get(str(expect["kind"]), (str(expect["kind"]), str(expect["kind"])))
             said = (en_text if en else ko).replace("{value}", str(expect.get("value") or ""))
             check = f"  → check: {said}" if en else f"  → 확인: {said}"
-        lines.append(f" {number}. {what}{check}")
+        out.append((what, check))
+    return out
+
+
+def read_out_steps(recipe: dict[str, Any], action_name: str, lang: str = "ko") -> str:
+    """여러 걸음 레시피의 읽어 주기 — 걸음마다 무엇을 하고 **무엇을 확인하는지**(설계 §3-3 · 이 카드의 핵심은 「확인」 줄)."""
+    en = lang == "en"
+    action = (recipe.get("actions") or {}).get(action_name) or {}
+    steps = [step for step in (action.get("steps") or []) if step.get("do") != "dismiss"]
+    where = str(recipe.get("_where") or ", ".join(recipe.get("hosts") or []))
+    lines = [f" {number}. {what}{check}" for number, (what, check) in enumerate(step_lines(recipe, action_name, lang), 1)]
     changes = any(step.get("do") in {"click", "fill", "press"} for step in steps)
     head = (f"Learned: {action.get('description') or where} · {len(steps)} steps · stays on {where}" if en
             else f"배운 것: {action.get('description') or where} · {len(steps)}걸음 · {where} 안에서만")
     tail = (("Changes: it clicks and types on the page — saving needs your OK" if changes else "Changes: nothing (read only)") if en
             else ("바꾸는 것: 화면에서 누르고 입력합니다 — 저장하려면 확인이 필요합니다" if changes else "바꾸는 것: 없음(읽기만)"))
-    return "\n".join([head, *lines, tail])
+    # 바꾸는 것 줄은 한 줄 비워 둔다 — 대화 화면(마크다운)에서 마지막 걸음 줄에 이어 붙어 보이지 않게(2026-10-28 화면 확인).
+    return "\n".join([head, *lines]) + "\n\n" + tail
 
 
 #: 누르기 · 고르기 계열 — 여기서 거듭 실패했으면 「막혔다」(2026-10-20 실측: 2,632판 중 53판 · 실사용 약 19판).

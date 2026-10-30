@@ -25,7 +25,7 @@
  */
 import { t } from "../i18n";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Brain, ChevronDown, Code2, Loader2, Maximize2, Minimize2, Monitor, Square, TriangleAlert, X } from "lucide-react";
+import { Brain, Check, ChevronDown, Code2, Loader2, Maximize2, Minimize2, Monitor, Square, TriangleAlert, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { JarvisClient } from "../backend";
 import { CLAUDE_EDIT_TOOLS, toolLabel } from "../trajectory";
@@ -40,6 +40,7 @@ import {
 } from "./observation";
 import { agoLabel, screenProblem, screenWarnings, seamLabel, shortUrl, staleLabel } from "./screen";
 import { EditReplay } from "./EditReplay";
+import { advanceThinkingMeter, lastFileNameIn, THINKING_RESUMED_CHARS, thinkingLine, type ThinkingMeter } from "./codeProgress";
 import { CodePreview } from "./CodePreview";
 import { LiveStage } from "./LiveStage";
 import { DeckStage, type DeckState, type DeckAnswer, type DeckPhoto } from "./DeckStage";
@@ -314,6 +315,32 @@ export function ComputerPane(props: {
   const unityEditorJob = rows.some((row) => String(row.tool ?? "").startsWith("unity_editor_"))
     || String(step?.tool ?? "").startsWith("unity_editor_");
   const met = plan.filter((entry) => entry.met).length;
+  // 코드 모드 진행 줄의 재료 (2026-10-27): 도구를 아직 안 부른 동안 보일 「생각 중 · 글자 수 · 보고 있는 파일」.
+  const thinkingChars = (props.thinkingText ?? "").length;
+  const thinkingFile = useMemo(
+    () => (codeMode && live ? lastFileNameIn(props.thinkingText ?? "") : ""),
+    [codeMode, live, props.thinkingText],
+  );
+  // 도구를 쓴 뒤 다시 생각하는 동안 (2026-10-27): 백엔드는 도구를 쓸 때만 진행 알림을 보내므로, 마지막 알림 뒤로 생각 글이 늘었는지로
+  // 「지금은 생각하는 중」을 가른다. 새 알림(= 마지막 걸음 객체가 바뀜)이 오면 그때의 총량을 새 기준으로 삼는다.
+  // 화면의 생각 글은 40,000자에서 잘려 길이만 보면 안 늘어서, 받은 총량을 따로 센다(`advanceThinkingMeter`).
+  const meterRef = useRef<{ jobId: string; meter: ThinkingMeter; notice: AgentProgress | undefined; noticeAt: number } | null>(null);
+  {
+    const text = props.thinkingText ?? "";
+    const held = meterRef.current;
+    if (!held || held.jobId !== jobId) {
+      const meter = advanceThinkingMeter(null, text);
+      meterRef.current = { jobId, meter, notice: step, noticeAt: meter.total };
+    } else {
+      held.meter = advanceThinkingMeter(held.meter, text);
+      if (held.notice !== step || held.meter.total < held.noticeAt) {
+        held.notice = step;
+        held.noticeAt = held.meter.total;
+      }
+    }
+  }
+  const thinkingResumed = codeMode && live && meterRef.current !== null
+    && meterRef.current.meter.total - meterRef.current.noticeAt >= THINKING_RESUMED_CHARS;
   // ★ 무대의 주인공은 **지금 걸음**을 따라간다 (2026-09-30, 대표: 「3걸음까지는 브라우저를 쓰는데 그다음부터는 안 쓸 때는?」).
   //   무대(넓은 칸)는 일이 끝날 때까지 유지한다 — 걸음마다 폭이 튀면 정신없다. 대신 **그 안의 크기**를 바꾼다:
   //   지금 걸음이 브라우저면 브라우저가 크게, 문서·표·코드·파일 걸음이면 브라우저는 위로 작게 접히고 그 걸음이 만진
@@ -389,13 +416,27 @@ export function ComputerPane(props: {
                   끝난 뒤에는 **보관소에 남은 걸음 수**(rows)를 말한다. */}
             {codeMode ? (
               <>
+                <CodePlanChecklist plan={plan} />
                 <CodeOperation
                   live={live}
                   progress={step}
                   item={item}
                   workspace={props.codeWorkspace ?? ""}
+                  thinkingChars={thinkingChars}
+                  thinkingFile={thinkingFile}
+                  thinkingResumed={thinkingResumed}
                 />
-                <ThinkingTrace text={props.thinkingText ?? ""} ko={props.thinkingKo ?? ""} live={live} client={client} mode="code" translate={!jobId.startsWith(CLAUDE_JOB_PREFIX)} />
+                {/* key=판: 새 판이 시작되면 사람이 접어 둔 상자도 다시 펼친 채로 시작한다(접은 것은 그 판 동안만). */}
+                <ThinkingTrace
+                  key={jobId}
+                  text={props.thinkingText ?? ""}
+                  ko={props.thinkingKo ?? ""}
+                  live={live}
+                  client={client}
+                  mode="code"
+                  translate={!jobId.startsWith(CLAUDE_JOB_PREFIX)}
+                  local={!jobId.startsWith(CLAUDE_JOB_PREFIX)}
+                />
               </>
             ) : (
               <motion.div className="computer-now" variants={{ hidden: { opacity: 0, y: 6 }, shown: { opacity: 1, y: 0 } }}>
@@ -572,11 +613,13 @@ export function ComputerPane(props: {
             ))}
 
             {/* 남은 것 — 몇 분씩 걸릴 때 이게 보이는 것과 안 보이는 것의 차이가 크다. */}
-            {(plan.length > 0 || checks.length > 0 || unopened.length > 0) && (
+            {/* ★ 2026-10-30 대표: 코드 칸에서 같은 목록이 위(처음에 나눈 일)와 여기 두 번 보였다 — 10-27 에 위로 올리고 여기를 안 지웠다.
+                코드 칸은 위 체크 목록 하나로(상태 글도 거기 붙인다). 여기는 확인 안 된 것 · 안 연 곳만 남긴다. */}
+            {((!codeMode && plan.length > 0) || checks.length > 0 || unopened.length > 0) && (
               <div className="computer-plan">
-                {plan.length > 0 && <p>{t("시킨 것")} <b>{met}/{plan.length}</b></p>}
+                {!codeMode && plan.length > 0 && <p>{t("시킨 것")} <b>{met}/{plan.length}</b></p>}
                 <ul>
-                  {plan.map((entry) => (
+                  {(codeMode ? [] : plan).map((entry) => (
                     <li key={entry.label} className={entry.met ? "met" : ""}>
                       <span>{entry.label}</span>
                       <em>{entry.saw}</em>
@@ -699,8 +742,9 @@ function railWhere(item: Observation | null, live: string): string {
  *
  * ## 왜 펼쳐 두고, 왜 자동으로 따라가나
  *
- * 코워크에서는 기본으로 펼친다. Code에서는 작업 근거·제품 화면을 먼저 볼 수 있도록
- * 접어 두되, 생각의 길이와 진행 여부는 머리말에 계속 보인다.
+ * 코워크와 Code 모두 기본으로 펼친다. (10-27 전에는 Code 만 접어 두었다 — 작업 근거를 먼저 보이려고.
+ * 그런데 코드 판 시간의 절반이 모델의 생각이라, 접힌 동안 화면은 「…단계를 진행하고 있습니다」 한 줄뿐이었다.)
+ * Code 에서는 본문을 몇 줄 높이로 고정해 다른 칸을 밀지 않는다.
  *
  * 대신 **답이 아니라 과정**이라는 것은 자리와 생김새로 말한다 — 답 자리가 아닌
  * 작업공간 칸, 등폭·낮은 대비·작은 글씨, 그리고 언제든 접을 수 있음.
@@ -731,6 +775,7 @@ export function ThinkingTrace({
   client = null,
   mode = "cowork",
   translate = true,
+  local = false,
 }: {
   text: string;
   ko: string;
@@ -739,8 +784,12 @@ export function ThinkingTrace({
   mode?: WorkspaceMode;
   /** 거짓이면 옮기기 안내 · 단추를 안 그린다 — Claude Agent 의 생각(2026-10-26 대표: 번역은 필요 없다). */
   translate?: boolean;
+  /** 코드 모드에서 판이 도는 동안 머리줄에 「이 PC에서 생각 중」을 보인다. 클로드가 직접 하는 판(생각이 이 PC 것이 아님)에는 거짓이라 끈다. */
+  local?: boolean;
 }) {
-  const [open, setOpen] = useState(mode !== "code");
+  // 코드 모드도 펼친 채 시작한다(2026-10-27 현장: 생각이 접힌 상자에 숨어 「계획 단계를 진행하고 있습니다」 한 줄만 보였다).
+  // 사람이 접으면 이 컴포넌트가 사는 동안(= 그 판 동안, 호출하는 쪽이 판마다 key 를 준다) 접힌 채로 둔다.
+  const [open, setOpen] = useState(true);
   // ★ 그래픽카드 한 장 PC (인수인계 H3): 실시간 번역이 없다. 원문과 안내를 보여 주고, 판이 끝나면
   //   사람이 눌러 주 모델로 옮긴다. 판 중에는 주 모델을 안 건드린다 — 버튼도 판이 끝나야 뜬다.
   const [after, setAfter] = useState(false);
@@ -802,10 +851,11 @@ export function ThinkingTrace({
   const shown = !raw && translated ? koText : text;
   const chars = shown.length;
   return (
-    <div className={`code-think${open ? " open" : ""}`}>
+    <div className={`code-think${open ? " open" : ""}${mode === "code" ? " fixed" : ""}`}>
       <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
         <Brain size={12} />
         <span>{t("생각")}</span>
+        {mode === "code" && local && live && <span className="code-think-local">{t("이 PC에서 생각 중")}</span>}
         <small>{live ? t("이어지는 중") : t("끝")} · {chars.toLocaleString()}{t("자")}</small>
         {translated && (
           <span
@@ -853,11 +903,40 @@ export function ThinkingTrace({
   );
 }
 
+/** 처음에 나눈 일 (2026-10-27) — 「시킨 것 n/m」으로 세는 그 목록을 코드 칸 맨 위에 짧은 체크 목록으로. 모델에게 목록을 쓰게 하지 않는다: 이미 있는 plan 을 그린다. 비면 안 그린다. */
+const PLAN_CHECK_SHOWN = 6;
+
+function CodePlanChecklist({ plan }: { plan: PlanItem[] }) {
+  if (plan.length === 0) return null;
+  const shown = plan.slice(0, PLAN_CHECK_SHOWN);
+  return (
+    <section className="code-plan-check" aria-label={t("처음에 나눈 일")}>
+      <p className="code-plan-check-head">{t("처음에 나눈 일")}</p>
+      <ul>
+        {shown.map((entry) => (
+          <li key={entry.label} className={entry.met ? "met" : ""}>
+            <span className="code-plan-check-box" aria-hidden>{entry.met ? <Check size={10} strokeWidth={3} /> : null}</span>
+            <span className="code-plan-check-label">{entry.label}</span>
+            {entry.saw ? <em className="code-plan-check-saw">{entry.saw}</em> : null}
+          </li>
+        ))}
+      </ul>
+      {plan.length > shown.length && <p className="code-plan-check-more">{t("외 {0}개", plan.length - shown.length)}</p>}
+    </section>
+  );
+}
+
 function CodeOperation(props: {
   live: boolean;
   progress?: AgentProgress;
   item: Observation | null;
   workspace: string;
+  /** 지금까지 흘러온 생각 글의 글자 수. */
+  thinkingChars?: number;
+  /** 생각 끝부분에서 마지막으로 언급된 파일 이름(없으면 빈 문자열). */
+  thinkingFile?: string;
+  /** 마지막 진행 알림을 받은 뒤 생각 글이 충분히 늘었다 — 도구 걸음 알림이 앞 도구의 것이고 지금은 다시 생각하는 중이다. */
+  thinkingResumed?: boolean;
 }) {
   if (!props.live && !props.progress && !props.item) return null;
 
@@ -890,8 +969,19 @@ function CodeOperation(props: {
         ? t("관련 심볼의 실제 파일을 엽니다")
         : t("근거가 모이면 최소 패치를 적용합니다");
   const phase = codePhaseLabel(tool, verified);
-  const message = props.progress?.message
-    || (props.live ? t("{0} 단계를 진행하고 있습니다", phase) : t("{0} 기록", phase));
+  // 판이 돌고 지금 걸음에 도구가 없고 생각 글이 있으면 「…단계를 진행하고 있습니다」 대신 실제로 하는 일을 말한다
+  // (2026-10-27 현장: 생각만 하는 동안 화면이 한 줄로 퉁쳐서 답답하다). 도구가 있는 걸음은 지금 그대로.
+  // 단 백엔드가 도구 없이 **구체적인 말**을 보낸 때(사람 요청에 비켜 주는 중 · 막혀서 기다리는 중 · 답을 정리하는 중)는 그 말이 더 정확하다 —
+  // 덮는 것은 말이 비었거나 계획 단계(planning)의 일반 문구뿐이다.
+  const generic = !props.progress?.message || ["", "plan", "planning"].includes(props.progress?.phase ?? "");
+  // 도구 걸음의 알림은 도구가 시작될 때 한 번뿐이라, 그 뒤 모델이 다시 생각하는 동안에도 앞 도구 문구가 남는다 —
+  // 마지막 알림 뒤로 생각 글이 늘었으면(thinkingResumed) 생각 줄로 바꾼다. 도구 없는 걸음은 위 예외(구체적인 말은 지킨다)가 그대로다.
+  const thinkingNow = props.live && (props.thinkingChars ?? 0) > 0
+    && (progressTool ? Boolean(props.thinkingResumed) : generic);
+  const message = thinkingNow
+    ? thinkingLine(props.thinkingChars ?? 0, props.thinkingFile ?? "")
+    : props.progress?.message
+      || (props.live ? t("{0} 단계를 진행하고 있습니다", phase) : t("{0} 기록", phase));
   // 바꾼 자리를 되짚어 보여 줄 재료. 없으면 안 그린다 — 없는 걸 있는 척하지 않는다.
   const preview = payload.edit_preview as
     | { start_line?: number; removed?: string[]; added?: string[]; truncated?: boolean; added_count?: number }

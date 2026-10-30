@@ -2,7 +2,8 @@
 // 글꼴은 이 PC 에서 도는 본체(127.0.0.1:8091)의 `/v1/slides/fonts/` 에서 받는다 — 본체가 꺼져 있으면 윈도우 글꼴로 그린다.
 import ReactDOM from "react-dom/client";
 import "../styles.css";
-import notes from "../../../src/alture_jarvis/whats_new/0.4.34.0.json";
+import "../workspace.css";
+import notes from "../../../src/alture_jarvis/whats_new/0.4.36.0.json";
 import type { WhatsNewSlide } from "../types";
 import { WhatsNewDeck } from "../workspace/WhatsNewDeck";
 import { setSlideFontBase } from "../workspace/slideFonts";
@@ -14,7 +15,7 @@ const start = Number(new URLSearchParams(location.search).get("at") ?? 0);
 
 function Harness() {
   return (
-    <WhatsNewDeck key={start} version="0.4.34.0" slides={pack.slides as WhatsNewSlide[]} changes={pack.changes} tour={pack.tour}
+    <WhatsNewDeck key={start} version="0.4.36.0" slides={pack.slides as WhatsNewSlide[]} changes={pack.changes} tour={pack.tour}
       onLater={() => undefined} onDone={() => undefined} />
   );
 }

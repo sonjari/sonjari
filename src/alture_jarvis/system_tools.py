@@ -21,6 +21,7 @@ def _gpu_status(_: dict[str, Any]) -> dict[str, Any]:
         text=True,
         timeout=5,
         check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "nvidia_smi_failed")

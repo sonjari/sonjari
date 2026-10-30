@@ -164,6 +164,11 @@ export default function SetupWizard() {
     () => new Map((rec?.picks ?? []).map((pick) => [pick.model_key, pick.kind])),
     [rec],
   );
+  // 「똑똑함 · 빠름」 역할 — 백엔드가 줄 때만(첫 추천이 Swift 27B 일 때). 화면이 스스로 정하지 않는다.
+  const pickRoles = useMemo(
+    () => new Map((rec?.picks ?? []).filter((pick) => pick.role).map((pick) => [pick.model_key, pick.role!])),
+    [rec],
+  );
   // 갤러리 순서: 이 PC 추천(검증→조건 없는 대안→외부) 먼저, 그다음 들어가는 것, 안 들어가는 것.
   // 같은 `family` 는 카드 하나로 합쳐지고(`groupFamilies`), 그 카드는 묶음에서 가장 앞선 변형의 자리에 선다.
   const ordered = useMemo(() => {
@@ -706,6 +711,7 @@ export default function SetupWizard() {
               plain
               models={focusModels}
               pickKinds={pickKinds}
+              pickRoles={pickRoles}
               usable={card?.usable_gb ?? 0}
               asked={asked}
               pulse={pulse}
@@ -749,6 +755,7 @@ export default function SetupWizard() {
               <ModelGallery
                 models={ordered}
                 pickKinds={pickKinds}
+                pickRoles={pickRoles}
                 usable={card?.usable_gb ?? 0}
                 asked={asked}
                 pulse={pulse}
@@ -1320,6 +1327,7 @@ export function recommendedOnly(models: CatalogModel[], rec: Recommendation | nu
 export function ModelGallery({
   models,
   pickKinds,
+  pickRoles,
   usable,
   asked,
   pulse,
@@ -1333,6 +1341,8 @@ export function ModelGallery({
   /** 보일 순서대로. */
   models: CatalogModel[];
   pickKinds: Map<string, ModelPick["kind"]>;
+  /** 「똑똑함 · 빠름」 역할(백엔드가 줄 때만). */
+  pickRoles?: Map<string, NonNullable<ModelPick["role"]>>;
   usable: number;
   /** 추천을 말로 옮긴 뒤에만 배지를 단다. */
   asked: boolean;
@@ -1357,6 +1367,7 @@ export function ModelGallery({
               recommendedKey={keys.find((key) => pickKinds.get(key) === "verified")}
               usable={usable}
               recommended={asked ? kind : null}
+              role={asked ? keys.map((key) => pickRoles?.get(key)).find(Boolean) : undefined}
               pulsing={keys.includes(pulse)}
               onPulseEnd={onPulseEnd}
               pickedKey={mine?.key ?? null}
@@ -1394,6 +1405,7 @@ export function ModelGallery({
                   recommendedKey={keys.find((key) => pickKinds.get(key) === "verified")}
                   usable={usable}
                   recommended={asked ? kind : null}
+                  role={asked ? keys.map((key) => pickRoles?.get(key)).find(Boolean) : undefined}
                   pulsing={keys.includes(pulse)}
                   onPulseEnd={onPulseEnd}
                   pickedKey={mine?.key ?? null}
@@ -1440,6 +1452,7 @@ export function ModelCard({
   recommendedKey,
   usable,
   recommended,
+  role,
   pulsing,
   onPulseEnd,
   pickedKey,
@@ -1454,6 +1467,8 @@ export function ModelCard({
   recommendedKey?: string;
   usable: number;
   recommended: ModelPick["kind"] | null;
+  /** 「똑똑함 · 빠름」으로 나눠 권했을 때 이 카드의 몫. 없으면 예전 배지 그대로. */
+  role?: ModelPick["role"];
   pulsing: boolean;
   onPulseEnd: () => void;
   /** 묶음일 때: 바깥에서 고른 크기의 key(이 묶음 안일 때만). */
@@ -1516,9 +1531,13 @@ export function ModelCard({
         </span>
         <div>
           {/* 배지는 이름 **위** — 옆에 두면 이름이 두 줄로 깨졌다(2026-09-17 첫 실행 캡처 「Gemma 4 / 26B (QAT)」). */}
-          {recommended === "verified" && <span className="model-badge">{t("Sonjari 추천 · 실측")}</span>}
+          {recommended === "verified" && (
+            <span className="model-badge">{role === "smart" ? t("Sonjari 추천 · 똑똑함") : t("Sonjari 추천 · 실측")}</span>
+          )}
           {recommended === "external" && <span className="model-badge is-external">{t("외부 평가 추천")}</span>}
-          {recommended === "open_alternative" && <span className="model-badge is-open">{t("조건 없는 대안")}</span>}
+          {recommended === "open_alternative" && (
+            <span className={`model-badge ${role === "fast" ? "is-fast" : "is-open"}`}>{role === "fast" ? t("빠름") : t("조건 없는 대안")}</span>
+          )}
           <h2>{sizes ? shown.family_name || shown.name : shown.name}</h2>
           <p>
             {shown.vendor} ·{" "}

@@ -666,6 +666,13 @@ export interface SelfHealResult {
   error?: string;
 }
 
+/** 「쓰는 법」 쇼 (2026-10-27 · 백엔드 `usage_show.status`). 마법사를 마친 사람 중 아직 안 본 사람에게만 `show: true`. */
+export interface UsageShowStatus {
+  show: boolean;
+  version?: number;
+  seen?: number;
+}
+
 /** 업데이트 뒤 「바뀐 것 · 이미 되는 것」 (2026-10-20 · 백엔드 `whats_new.status`). */
 export interface WhatsNewStatus {
   show: boolean;
@@ -681,7 +688,7 @@ export interface WhatsNewSlide {
   title: string;
   body: string;
   try?: string;
-  visual?: WhatsNewStat | WhatsNewImage | WhatsNewShow;
+  visual?: WhatsNewStat | WhatsNewImage | WhatsNewShow | UsageShowVisual;
 }
 
 /** 전 · 후 막대. `basis`(잰 조건)는 백엔드가 없으면 장에서 뺀다 — 화면에 오는 숫자에는 늘 있다. */
@@ -704,7 +711,13 @@ export interface WhatsNewImage {
 /** 영상 대신 앱의 진짜 화면 조각을 예시 데이터로 움직이는 장면(2026-10-26). 이름은 백엔드 `whats_new.SHOW_SCENES` 와 같다. */
 export interface WhatsNewShow {
   kind: "show";
-  scene: "claude-hands" | "deck-build" | "pptx-fonts";
+  scene: "claude-hands" | "deck-build" | "pptx-fonts" | "recipe-learn" | "smart-fast" | "notify";
+}
+
+/** 「쓰는 법」 쇼의 장면(2026-10-27). 글은 화면(`UsageShow.tsx`)이 갖고 있어 백엔드의 `SHOW_SCENES` 에는 없다. */
+export interface UsageShowVisual {
+  kind: "usage";
+  scene: "this-pc" | "handoff" | "limit" | "anywhere";
 }
 
 export interface UpdateStatus {

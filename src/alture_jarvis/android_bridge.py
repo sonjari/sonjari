@@ -201,6 +201,7 @@ class AndroidBridge:
             capture_output=True,
             timeout=timeout or self.timeout_sec,
             check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         if result.returncode != 0:
             detail = (result.stderr or b"").decode("utf-8", "replace").strip()
