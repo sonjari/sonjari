@@ -68,6 +68,38 @@ https://github.com/user-attachments/assets/415a77b1-6126-45cb-afd3-88bf71ddbea9
 | **Picks up where Claude Code stopped at a usage limit** | Finds, from the records on this PC, which conversation stopped and how far it got, and asks how to continue. Code changes go to a separate branch. | [How we use it](docs/guide/workflows.md) |
 | **Keeps what you decided, even after compaction** | The scribe reads your Claude Code logs while Sonjari is idle and writes cards — decided, dropped, left to do — each with a line number and a quote. They go back to Claude right after a compaction. Off by default. | [Scribe](docs/guide/scribe.md) |
 
+## What do you use your subagents for?
+
+A subagent, done properly: it takes the tedious part, does it on its own, and brings back only what you need.
+
+Your main agent should do the thinking. A subagent should take the part that is tedious and expensive: clicking through a
+booking site, reading twenty pages, filling in a form. In most setups that part still runs on the same paid model and the
+same usage limit.
+
+**Why an agent, not a set of tools.** We could have shipped Sonjari as browser tools for your AI. But then your AI still
+pays to read every page through its own context — the meter just moves from the agent to the hands. Sonjari is built on
+one premise: cut what you spend on the AI platform you already use. So it does the whole job on your GPU and sends back
+only the result.
+
+**Why we rebuilt the tools.** For the same reason, we took the browser tools apart and wrote our own, so a page comes back
+as the part that matters, not the whole page. We did not wrap an existing agent framework. The browser tools are where most
+of the work went.
+
+Same price task, Claude Code (`claude-sonnet-5`) in charge, 27 rows per way:
+
+| How Claude got the pages | Claude cost per complete row |
+|---|---|
+| A general browser tool (Playwright MCP) | $0.635 |
+| Claude alone (web fetch and search) | $0.246 |
+| Sonjari's browser tools, driven by Claude | $0.074–0.100 |
+| The whole task handed to Sonjari | $0.075–0.090 |
+
+Small numbers, some rows graded by hand, and slower: 6–7 minutes a task against about 1.5 for Claude alone.
+Every caveat: [What we measured](docs/guide/measurements.md#with-claude-code--same-task-clean-setup).
+
+It is not as smart as your main agent, and it is built not to pretend otherwise — every result says where it looked, so
+you or your main agent can check it.
+
 ## Will it run on my PC?
 
 | You need | |
@@ -116,7 +148,7 @@ fiddly page controls (autocomplete, date pickers, cookie overlays) fail often.
 | understand which model I got and what to do if it does not fit | [How Sonjari picks a model](docs/guide/models.md) |
 | add know-how or a whole field — skills, skill packs, domain packs (games, video) | [Skills and packs](docs/guide/packs.md) |
 | see every measurement and its limits | [What we measured](docs/guide/measurements.md) |
-| read why we built it and the rules it keeps | [Why we built it](docs/why.md) |
+| read the rules it keeps — local first, no meter, honest results, you press the irreversible buttons | [Principles](docs/why.md) |
 
 ## Contributing
 
