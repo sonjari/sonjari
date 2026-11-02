@@ -1532,11 +1532,11 @@ export function ModelCard({
         <div>
           {/* 배지는 이름 **위** — 옆에 두면 이름이 두 줄로 깨졌다(2026-09-17 첫 실행 캡처 「Gemma 4 / 26B (QAT)」). */}
           {recommended === "verified" && (
-            <span className="model-badge">{role === "smart" ? t("Sonjari 추천 · 똑똑함") : t("Sonjari 추천 · 실측")}</span>
+            <span className="model-badge">{role === "smart" ? t("Sonjari 추천 · 평소") : t("Sonjari 추천 · 실측")}</span>
           )}
           {recommended === "external" && <span className="model-badge is-external">{t("외부 평가 추천")}</span>}
           {recommended === "open_alternative" && (
-            <span className={`model-badge ${role === "fast" ? "is-fast" : "is-open"}`}>{role === "fast" ? t("빠름") : t("조건 없는 대안")}</span>
+            <span className={`model-badge ${role === "fast" ? "is-fast" : "is-open"}`}>{role === "fast" ? t("무거운 프로그램과 함께") : t("조건 없는 대안")}</span>
           )}
           <h2>{sizes ? shown.family_name || shown.name : shown.name}</h2>
           <p>

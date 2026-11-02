@@ -1534,6 +1534,8 @@ class LocalComputerTools:
         # Code 모드에서 사람이 폴더 선택기로 고른 루트만 잡별 작업공간으로 승격한다.
         # 일반 대화의 상대경로는 계속 outputs/workspace/<job>에 격리된다.
         self._code_workspaces: dict[str, Path] = {}
+        # 코워크 판의 프로젝트 폴더(2026-10-30 대표) — 이름만 준 새 파일이 결과물 폴더 대신 여기로 간다(`set_project_folder`).
+        self._project_folders: dict[str, Path] = {}
         #: 판이 시작될 때 작업 폴더에 **이미 있던** 폴더(루트 기준 상대 경로). 「이 판이 만든 폴더」를 가리는 근거다.
         self._folders_at_start: dict[str, frozenset[str] | None] = {}
         #: (판, 파일) 마다 **글자 맞추기 편집이 연달아 못 맞춘 횟수**. 둘째부터 줄 범위 모드를 분명히 권한다. 맞으면 지운다.
@@ -2475,8 +2477,35 @@ class LocalComputerTools:
 
     def _mutation_workspace(self, arguments: dict[str, Any], *, create: bool) -> Path:
         job_id = self._job_id(arguments)
-        code_root = self._code_workspaces.get(job_id)
+        code_root = self._read_root(job_id)
         return code_root if code_root is not None else self.job_workspace(job_id, create=create)
+
+    def set_project_folder(self, job_id: str, raw: str) -> Path:
+        """코워크 판의 프로젝트 폴더를 정한다 (2026-10-30 대표 「클로드 코워크처럼 폴더를 정해 두고 오가자」).
+
+        그 판에서 이름만 준 파일(문서 · 글 파일)은 결과물 폴더(문서 안 Sonjari) 대신 이 폴더에 생긴다. 폴더 허락은 입구(`admit_code_workspace`,
+        사람이 직접 고른 폴더만)에서 이미 받았다 — 여기서는 허락 범위 안인지만 다시 본다. 최근 50판만 기억한다.
+        """
+        root = self._resolve(raw, must_exist=True, write=True)
+        if not root.is_dir():
+            raise NotADirectoryError(f"project_folder_must_be_directory: {root}")
+        self._job_id({"__job_id": job_id})  # 판 이름 모양 검사
+        self._project_folders[job_id] = root
+        for old in list(self._project_folders)[:-50]:
+            del self._project_folders[old]
+        return root
+
+    def project_folder(self, job_id: str) -> Path | None:
+        return self._project_folders.get(job_id)
+
+    def _read_root(self, job_id: str) -> Path | None:
+        """이 판이 **찾고 · 목록 보고 · 상대 경로를 푸는** 기준 자리 — 코드 저장소, 없으면 코워크 프로젝트 폴더.
+
+        ★ 2026-10-30 대표 스크린샷: 프로젝트 폴더(대표 저장소 폴더)를 골랐는데 「파일 찾기」가 허용된 자리 전부를 훑어 41만 개를 봤다
+          (scanned=410192). 저장 자리만 프로젝트 폴더로 바꾸고 찾기 · 목록 · 상대 경로는 코드 저장소만 보던 것 — 넷이 이 하나를 쓴다.
+          지우기 쪽(`_delete_risk` · `_folder_deletable`)은 일부러 코드 저장소만 본다 — 프로젝트 폴더 안 지우기도 승인을 거친다.
+        """
+        return self._code_workspaces.get(job_id) or self._project_folders.get(job_id)
 
     def _resolve_mutation_path(
         self, arguments: dict[str, Any], *, must_exist: bool, allow_folder: bool = False
@@ -2538,7 +2567,7 @@ class LocalComputerTools:
         expanded = Path(os.path.expandvars(raw)).expanduser()
         if not expanded.is_absolute():
             job_id = self._job_id(arguments)
-            code_root = self._code_workspaces.get(job_id)
+            code_root = self._read_root(job_id)
             if code_root is not None:
                 expanded = code_root / expanded
             elif job_id:
@@ -3766,7 +3795,7 @@ class LocalComputerTools:
         if root_raw:
             roots = [self._resolve_workspace_path({**arguments, "path": root_raw})]
         else:
-            code_root = self._code_workspaces.get(job_id)
+            code_root = self._read_root(job_id)
             roots = [code_root] if code_root is not None else list(self.allowed_roots)
         extension = str(arguments.get("extension") or "").strip().lower()
         if extension and not extension.startswith("."):
@@ -4174,10 +4203,11 @@ class LocalComputerTools:
         if index < total and not fixed:
             result["next"] = f"모든 장이 있다 — 더 고칠 장이 없으면 {total}번 장을 다시 넣으면 PPTX 를 굽는다."
             return result
-        target = self.documents_root / f"{title}.pptx"
+        home = self._project_folders.get(job_id) or self.documents_root   # 프로젝트 폴더가 있으면 거기(2026-10-30)
+        target = home / f"{title}.pptx"
         counter = 2
         while target.exists():
-            target = self.documents_root / f"{title} ({counter}).pptx"
+            target = home / f"{title} ({counter}).pptx"
             counter += 1
         shape = slides.render_in_subprocess(deck_dir, target)
         self._record_built(deck_dir, target)
@@ -4262,10 +4292,11 @@ class LocalComputerTools:
         result: dict[str, Any] = {"ok": True, "index": int(index), "slot": slot, "label": label}
         # 이미 구웠으면 사진이 든 판으로 다시 굽는다 — 앞 파일은 지우지 않는다(사람이 열어 두었을 수 있다).
         if (deck_dir / "built.json").exists() and all(n in have for n in range(1, total + 1)):
-            target = self.documents_root / f"{title} (사진).pptx"
+            home = self._project_folders.get(job_id) or self.documents_root   # 프로젝트 폴더가 있으면 거기(2026-10-30)
+            target = home / f"{title} (사진).pptx"
             counter = 2
             while target.exists():
-                target = self.documents_root / f"{title} (사진 {counter}).pptx"
+                target = home / f"{title} (사진 {counter}).pptx"
                 counter += 1
             shape = slides.render_in_subprocess(deck_dir, target)
             self._record_built(deck_dir, target)
@@ -4510,7 +4541,9 @@ class LocalComputerTools:
             #   보고 모델이 `JARVIS/회의록.docx` 를 넣어 `JARVIS\JARVIS\` 가 생겼다. 같은 이름 폴더를 제 안에 두는 일은 없다.
             if len(relative.parts) > 1 and relative.parts[0].casefold() == self.documents_root.name.casefold():
                 raw = str(Path(*relative.parts[1:]))
-            arguments = {**arguments, "path": str(self.documents_root / raw)}
+            # 코워크 판에 프로젝트 폴더가 정해져 있으면 그 폴더가 결과물 자리다(2026-10-30 · `set_project_folder`).
+            base = self._project_folders.get(self._job_id(arguments)) or self.documents_root
+            arguments = {**arguments, "path": str(base / raw)}
         return arguments
 
     def _document_risk(self, arguments: dict[str, Any]) -> RiskLevel:
@@ -4803,7 +4836,7 @@ class LocalComputerTools:
         """
         if str(arguments.get("path") or "").strip():
             return None
-        code_root = self._code_workspaces.get(self._job_id(arguments))
+        code_root = self._read_root(self._job_id(arguments))
         if code_root is not None:
             return [Path(code_root)]
         return [Path(root) for root in self.allowed_roots if Path(root).is_dir()]
@@ -4960,7 +4993,7 @@ class LocalComputerTools:
         #   작은 모델이 `{}` 로 불러 `path_required` 를 받았다. 작업 폴더는 이미 정해져 있어
         #   물어볼 이유가 없다. 코드 작업이 아니면 어디인지 모르므로 예전처럼 거절한다.
         if not str(arguments.get("path") or "").strip():
-            code_root = self._code_workspaces.get(self._job_id(arguments))
+            code_root = self._read_root(self._job_id(arguments))
             if code_root is not None:
                 arguments = {**arguments, "path": str(code_root)}
         root = self._resolve_workspace_path(arguments)

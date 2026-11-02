@@ -476,6 +476,8 @@ class OllamaClient:
     _STEADY_THINK_LEVEL = "medium"
     #: 생각을 끈 호출과 입력 토큰 수가 이만큼 안쪽이면 앞머리가 같다고 본다(답을 시작하는 자리의 표식 몇 토큰만 다르다).
     _STEADY_FRONT_TOKEN_SLACK = 6
+    #: 조사·대화 판에도 「보통」 세기를 싣는가(2026-11-01 · `_think_value`). 끄면 코드 판에만 싣던 예전 동작.
+    _STEADY_THINK_ALL_ROLES = True
 
     def steady_think_level(self, model: str) -> str:
         """이 모델에 `think: "medium"` 을 줄 수 있고, 그때 프롬프트 앞머리가 생각을 끈 호출과 같은가 — 그러면 "medium", 아니면 "".
@@ -547,11 +549,22 @@ class OllamaClient:
           다시 읽기는 생각 스위치 때문이 아니라 화면 글이 걸음마다 새로 붙는 정상 읽기였다. 항공권 한 판은 본문을 못 읽고
           접혔고 답의 줄 다수가 원문에서 확인되지 않았다(하네스가 partial 로 잡았다). 세 판씩이라 좋아졌다고도 나빠졌다고도
           못 하지만, 얻는 것이 분명하지 않으니 앞에 세우는 일(조사·문서)의 행동은 바꾸지 않는다.
+
+        ★ **2026-11-01 뒤집음 — 조사·대화 판에도 싣는다(대표 승인).** 위 아홉 판 때와 판이 달라졌다. 그 뒤 창을 192K 로 넓히고
+          전사 상한을 창에 맞춰 키워(6dc4d092) 기록이 길어졌고, 걸음마다 생각을 켜고 끄는 일이 그 긴 기록을 통째로 다시 읽게
+          만들었다. `data/model_calls.jsonl` 10-27~10-31 2,990 부르기: 첫 글자 대기 합 16,974초 중 **생각 뒤집힘 547건이
+          4,229초(25%)** — 한 건 평균 7.7초(그대로 이어진 걸음 2.8초), 긴 기록에서는 한 번에 20~60초. 10-27 깊게 대 보통
+          24판은 전부 통과였다(보통 권함). 「깊게」를 고른 판만 예전처럼 틀의 기본(가장 센 것)을 쓴다.
+          되돌리려면 `_STEADY_THINK_ALL_ROLES` 를 False 로.
         """
         if not think:
             return False
         normalized = "medium" if profile == "balanced" else profile
-        if role != "code" or normalized != "medium":
+        if normalized in {"deep", "high"}:
+            return True
+        if role == "code" and normalized != "medium":
+            return True
+        if role != "code" and not self._STEADY_THINK_ALL_ROLES:
             return True
         return self.steady_think_level(model) or True
 
@@ -1149,6 +1162,10 @@ class OllamaClient:
                 "tools_sig": hashlib.sha1("|".join(names).encode("utf-8")).hexdigest()[:10],
                 "system_chars": len(system),
                 "system_head_sig": hashlib.sha1(system[:4000].encode("utf-8")).hexdigest()[:10],
+                # ★ 2026-10-30 21:07 대표 「첫 글자 45초」: 이름 · 앞머리 지문은 같았는데 llama-server 는 앞 65토큰만 같다고 봤다
+                #   (`sim = 0.002 (65/41238)`). 이름만 세는 지문으로는 도구 **설명**이나 지시문 **뒷부분**이 바뀐 것을 못 본다 — 전체 지문도 남긴다.
+                "tools_full_sig": hashlib.sha1(json.dumps(tools, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:10],
+                "system_full_sig": hashlib.sha1(system.encode("utf-8")).hexdigest()[:10],
                 "first_byte_sec": round(float(first_byte or 0.0), 2),
                 "first_token_sec": round(float(first_token or 0.0), 2),
                 "prompt_tokens": int(payload.get("prompt_eval_count") or 0),

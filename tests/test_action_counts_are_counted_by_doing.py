@@ -84,3 +84,31 @@ def test_one_intent_does_not_become_two_requirements() -> None:
 
     assert "드라이브에 올리기" in labels
     assert "발행" not in labels, "블로그 발행 요구로도 잡혔다"
+
+
+# ★ 2026-11-01 (job 39d6a5f5) — 개수 바로 뒤 괄호 목록이 동사를 14자 창 밖으로 밀어 「웹 자료 3개 읽기」가 됐다.
+_UPLOAD_INCIDENT = (
+    r"크롬에서 구글 드라이브 폴더 https://drive.google.com/drive/folders/17BRpRxYL1UT7ywHvx4r6mYBC-oIOmCDM 를 열고, "
+    r"이 PC 의 C:\Users\user\Documents\Sonjari\upload_shorts1 폴더에 있는 파일 3개(shorts1_haejwo_final.mp4, "
+    r"shorts1_haejwo_final_small.mp4, thumb_shorts1.png)를 그 드라이브 폴더에 업로드해 줘. "
+    r"업로드가 끝나면 폴더 안 파일 목록(이름)을 확인해서 알려 줘."
+)
+
+
+def test_parenthetical_file_list_after_count_still_binds_to_the_upload_verb() -> None:
+    reqs = extract(_UPLOAD_INCIDENT)
+    assert not [r for r in reqs if "직접 열어 읽기" in r.label], "업로드 개수가 읽기 개수가 됐다"
+    acts = [r for r in reqs if r.kind == "count_action"]
+    assert acts and acts[0].target == 3
+
+
+def test_parenthetical_list_after_a_read_count_stays_a_read_count() -> None:
+    reqs = extract("사람인에서 공고 3개(마케팅, 영업, 기획)를 열어 읽고 마감일을 알려 줘")
+    assert "count_action" not in [r.kind for r in reqs]
+    assert "count" in [r.kind for r in reqs]
+
+
+def test_short_upload_count_without_brackets_is_unchanged() -> None:
+    reqs = extract("파일 2개를 업로드해 줘")
+    acts = [r for r in reqs if r.kind == "count_action"]
+    assert acts and acts[0].target == 2

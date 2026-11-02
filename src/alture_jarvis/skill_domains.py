@@ -43,6 +43,8 @@ DOMAINS: tuple[Domain, ...] = (
     Domain("game", "게임 개발", "유니티 프로젝트 점검·텍스처 설정·빠진 참조 찾기", (
         "game-unity", "verification-before-completion", "systematic-debugging",
         "thinking-five-whys-plus", "document-craft",
+        "unity-animation", "unity-physics", "unity-navmesh", "unity-input-system", "unity-scriptableobjects",
+        "unity-tilemap-2d", "unity-build-pipeline", "unity-csharp-scripting", "diagnosing-bugs",
     )),
     Domain("dev", "개발", "계획·디버깅·테스트·리뷰, 파이썬·타입스크립트·리액트", (
         "writing-plans", "executing-plans", "systematic-debugging", "test-driven-development",
@@ -52,6 +54,7 @@ DOMAINS: tuple[Domain, ...] = (
         "fastapi-python", "python", "python-testing", "testing", "typescript", "react", "playwright",
         "git-workflow", "ci-cd-best-practices", "security-best-practices", "performance-optimization",
         "logging-best-practices", "webapp-testing", "mcp-builder", "claude-api", "frontend-design",
+        "diagnosing-bugs", "codebase-design",
     )),
     Domain("marketing", "마케팅·영업", "카피·광고·SEO·가격·출시·상담 자료", (
         "copywriting", "copy-editing", "cro", "seo-audit", "ai-seo", "content-strategy",

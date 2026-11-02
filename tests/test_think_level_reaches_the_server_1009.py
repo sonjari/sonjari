@@ -70,8 +70,11 @@ def test_only_a_code_job_at_medium_effort_sends_the_level(monkeypatch: Any) -> N
     assert value("m", role="code", profile="medium", think=True) == "medium"
     assert value("m", role="code", profile="balanced", think=True) == "medium"
     assert value("m", role="code", profile="deep", think=True) is True       # 「깊게」는 틀의 기본(가장 센 것) 그대로
-    assert value("m", role="chat", profile="default", think=True) is True    # 조사·대화 판은 건드리지 않는다
-    assert value("m", role="agent", profile="default", think=True) is True
+    # 2026-11-01: 조사·대화 판도 싣는다 — 생각을 켜고 끌 때 긴 기록을 통째로 다시 읽던 것(대기의 25%)을 막는다.
+    assert value("m", role="chat", profile="default", think=True) == "medium"
+    assert value("m", role="agent", profile="default", think=True) == "medium"
+    assert value("m", role="chat", profile="deep", think=True) is True       # 「깊게」를 고르면 예전처럼 가장 센 것
+    assert value("m", role="code", profile="fast", think=True) is True       # 코드 판의 다른 세기는 예전 그대로
     assert value("m", role="code", profile="medium", think=False) is False
 
 

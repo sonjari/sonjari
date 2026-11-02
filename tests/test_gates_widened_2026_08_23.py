@@ -123,10 +123,14 @@ def _labels(prompt: str) -> list[str]:
 def test_naming_a_source_with_a_count_still_asks_for_reading() -> None:
     """2026-08-13 의 결정이 그대로 살아 있는지. 지우면 일찍 멈추는 병이 돌아온다."""
     for prompt in (
-        "크몽에서 AI 에이전트 개발 서비스 3개의 제목과 가격을 알려줘",
+        "크몽에서 AI 에이전트 개발 서비스 3개의 제목과 설명을 알려줘",
         "무신사에서 남성 반팔티 상위 3개의 제품명과 가격을 알려줘",
     ):
         assert any("열어 읽기" in label for label in _labels(prompt)), _labels(prompt)
+    # 2026-11-01: 목록에 보이는 칸(제목 · 가격)만 달라고 하면 개수 요구는 그대로 서고 이름표가 「목록으로 담기」다 — 일찍 멈추는 병은
+    #   개수 요구가 막는다(답에 3줄). 열어 읽으라고 되받아 상세를 헤매던 것(알라딘 176 · 261초)을 막는다.
+    labels = _labels("크몽에서 AI 에이전트 개발 서비스 3개의 제목과 가격을 알려줘")
+    assert "3개 이상 목록으로 담기" in labels, labels
 
 
 def test_real_reading_tasks_keep_the_count_requirement() -> None:

@@ -299,14 +299,27 @@ def _wants_detail(compact: str) -> bool:
 _LISTING_FIELD = re.compile(
     r"제목|점수|추천|좋아요|댓글\s*수|조회\s*수|순위|등수|게시일|올린\s*날|날짜|작성자|글쓴이|가수|채널"
     r"|주소|링크|URL|종류|분류|유형|플레어"
+    # ★ 2026-11-01 알라딘 「'파이썬' 검색 결과 상위 3권의 제목 · 저자 · 판매가」가 「3개 이상 직접 열어 읽기」가 됐다. 5걸음째에
+    #   목록으로 다 쓴 답(631자)을 되받아 모델이 책 상세를 셋 열었다(176 · 261초 · 같은 과제 빠른 판 40초). 서점 · 장터 · 외주 · 깃허브
+    #   목록에는 저자 · 가격 · 별 수가 보인다. 운영 요청 2,810개에 옛 · 새를 대니 14개가 「목록으로 담기」로 바뀌었고(전부 「…에서 N개의
+    #   제목과 가격/저자」) 거꾸로 간 것은 0. 연봉 · 배송비처럼 상세에만 있는 값은 아래 `_DETAIL_FIELD` 가 그대로 막는다.
+    r"|저자|지은이|출판사|가격|판매가|정가|별\s*수|스타\s*수"
 )
 #: 목록 밖의 칸 — 칸 이름에 이것이 들어 있으면 열어야 한다(「자격 요건」 · 「본문 요약」 · 「댓글 요지」).
 _DETAIL_FIELD = re.compile(r"요건|자격|쪽수|ISBN|배송비|요약|요지|내용|본문|원문|설명|스펙|사양|리뷰|후기|연봉|급여|복지|우대|작성자와")
 #: 개수 — 「10개」 · 「50위」. 그 바로 뒤에 늘어놓은 칸만 본다.
-_COUNTED = re.compile(r"\d+\s*(?:개|위|편|건|곡)")
+_COUNTED = re.compile(r"\d+\s*(?:개|위|편|건|곡|권)")  # 「권」 2026-11-01 — 「상위 3권」을 못 봤다
 #: 칸 목록이 끝나는 자리 — 요청 동사.
 _FIELDS_END = re.compile(r"(?:을|를)?\s*(?:표로|엑셀|정리|알려|적어|적고|써\s*줘|뽑|모아|보여|읽|찾|확인|담아|기록|열어)")
 _FIELD_SPLIT = re.compile(r"\s*(?:[·,、/]|와\s|과\s|및\s)\s*")
+
+
+#: 영어로 같은 꼴 — 「the titles and prices of the top 5」 · 「title, author and price of the first 3」. 늘어놓은 칸이 **전부** 목록 칸이고
+#: 바로 뒤에 「of」가 와야 한다(2026-11-01 · 한국어 `_asks_only_listing_fields` 와 짝 · `tests/test_english_harness.py` 동등성).
+_EN_LISTING_WORD = r"(?:titles?|names?|authors?|prices?|ranks?|stars?|links?|urls?|dates?)"
+_EN_LISTING_FIELDS_OF = re.compile(
+    rf"(?i)\b{_EN_LISTING_WORD}(?:\s*(?:,|and|&)\s*(?:and\s+)?{_EN_LISTING_WORD})+\s+of\s+(?:the\s+)?(?:top|first|\d)"
+)
 
 
 def _asks_only_listing_fields(compact: str) -> bool:
@@ -349,7 +362,10 @@ def says_list_only(prompt: str) -> bool:
         return True
     if _wants_detail(compact):
         return False
-    return bool(_LIST_ONLY.search(compact) or _DETAIL_DECLINED.search(compact) or _asks_only_listing_fields(compact))
+    return bool(
+        _LIST_ONLY.search(compact) or _DETAIL_DECLINED.search(compact) or _asks_only_listing_fields(compact)
+        or _EN_LISTING_FIELDS_OF.search(compact)
+    )
 
 
 # ★ **「목록 × ~씩」은 곱한 만큼이 할 일이다** (2026-10-30 · 판 391ca5ca · 6e539bf2).
@@ -878,6 +894,28 @@ _VERB_WINDOW_BEFORE = 10
 _VERB_WINDOW_AFTER = 14
 
 
+_BRACKET_PAIRS = {"(": ")", "（": "）", "[": "]"}
+
+
+def _skip_bracket_after(text: str, pos: int) -> int:
+    """`pos` 바로 뒤(공백 허용)에 여는 괄호가 있으면 짝 닫는 괄호 다음 위치를, 아니면 `pos` 를 돌려준다."""
+    i = pos
+    while i < len(text) and text[i].isspace():
+        i += 1
+    if i >= len(text) or text[i] not in _BRACKET_PAIRS:
+        return pos
+    close = _BRACKET_PAIRS[text[i]]
+    depth = 0
+    for j in range(i, len(text)):
+        if text[j] == text[i]:
+            depth += 1
+        elif text[j] == close:
+            depth -= 1
+            if depth == 0:
+                return j + 1
+    return pos
+
+
 def _is_action_count(compact: str, target: int) -> bool:
     """개수 요구가 **행위에 붙었는가.**
 
@@ -922,7 +960,13 @@ def _is_action_count(compact: str, target: int) -> bool:
         # ★ **하지 말라는 행위**는 세지 않는다(2026-10-08) — 「2개만 알려줘. 예약은 하지 말고」의 예약은 시킨 일이 아니다.
         # 창 안에서 **시작해 끝나는** 낱말만 세되, 낱말 뒤는 원문으로 본다 — 창을 잘라 넘기면 「올린 날짜」의 「날짜」가
         # 창 밖이라 안 보인다(뒤를 보는 조건이 헛돈다).
-        after_end = match.end() + _VERB_WINDOW_AFTER
+        # ★ 2026-11-01 (job 39d6a5f5) — 개수 바로 뒤의 **괄호 목록**은 거리에 넣지 않는다. 「파일 3개(a.mp4, b.mp4, c.png)를 …
+        #   드라이브 폴더에 업로드해 줘」에서 괄호(약 70자)가 업로드를 14자 창 밖으로 밀어 「웹 자료 3개 읽기」가 됐다.
+        #   괄호는 개수의 **내용물 나열**일 뿐 동사와의 사이를 벌리는 말이 아니다 — 닫는 괄호부터 거리를 잰다.
+        after_start = _skip_bracket_after(compact, match.end())
+        #   괄호 뒤에는 「를 그 드라이브 폴더에」처럼 **목적어 구가 먼저** 오므로(동사 끝이 15자째) 괄호를 건넌 판만 창을 넉넉히 둔다.
+        #   가장 가까운 동사로 가르는 규칙(act < read)은 그대로라 읽기 요청은 읽기로 남는다.
+        after_end = after_start + (_VERB_WINDOW_AFTER + 10 if after_start != match.end() else _VERB_WINDOW_AFTER)
 
         def distance(pattern: re.Pattern[str], skip_negated: bool = False) -> int | None:
             hits = [
@@ -931,8 +975,8 @@ def _is_action_count(compact: str, target: int) -> bool:
                 if not (skip_negated and _NEGATED_RIGHT_AFTER.match(compact, before_at + m.end()))
             ]
             hits += [
-                m.start() - match.end()
-                for m in pattern.finditer(compact, match.end())
+                m.start() - after_start
+                for m in pattern.finditer(compact, after_start)
                 if m.end() <= after_end
                 and not (skip_negated and _NEGATED_RIGHT_AFTER.match(compact, m.end()))
             ]
@@ -1998,7 +2042,11 @@ def _extract_all(
         reasons = frozenset(observe_from or ())
         target = (
             "browser"
-            if (_read_intent(compact) or has_named_source)
+            # ★ 2026-11-01: 「목록으로 담기」 판(`says_list_only`)이고 같은 계획에 「…에서 하기」(사이트 요구)가 있으면 그 사이트가 읽을
+            #   곳이다 — 「크몽에서 … 제목과 가격」이 「아무 데서나」가 되지 않는다(영어 판과 같은 답). 목록 판에만 건다: 모든 사이트 이름에
+            #   걸었더니 운영 요청 2,810개 중 75개가 바뀌었고 「네이버에 로그인돼 있니?」 같은 말까지 브라우저 읽기가 됐다.
+            if (_read_intent(compact) or has_named_source
+                or (says_list_only(compact) and any(item.kind == "site" for item in found)))
             and not wants_code(compact)
             and not wants_an_artifact(compact)
             # ★ 2026-09-30: 라우터가 웹 때문에 켠 것이 아니면 브라우저 읽기를 요구하지 않는다. 「E:\…\CLAUDE.md 파일을

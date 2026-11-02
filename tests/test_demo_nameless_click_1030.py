@@ -151,3 +151,79 @@ def test_a_nameless_click_that_changes_nothing_still_refuses() -> None:
     ]
     with pytest.raises(DraftRefused, match="2번째 걸음"):
         draft_from_run("노트북 칸 열기", steps_from_demo(events, SITE + "/"))
+
+
+# ── 10-30 밤 두 번째 실패: 이름 없는 글 칸(감사 78132 · click · fill · press · nav …) ──────────────
+
+BARE = """<html><head><meta charset="utf-8"><title>bare</title></head><body>
+<form action="/results.html"><input id="x-91234" type="text"></form></body></html>"""
+
+
+def test_a_field_with_no_name_is_found_by_its_shape(browser_page) -> None:
+    """단서(testid · id · name · 안내문 · aria-label)가 하나도 없는 칸 — 페이지에 하나뿐이면 그 모양으로 적는다."""
+    worker, page, shop = browser_page
+    page.set_content(BARE)
+    worker._wire_demo()
+    worker._demo.start(page.url)
+    page.click("input")
+    page.keyboard.type("닌텐도")
+    page.keyboard.press("Tab")
+    page.wait_for_timeout(300)
+    fills = [event for event in worker._demo.stop() if event["kind"] == "fill"]
+    assert fills and fills[0]["selectors"] == ['input[type="text"]'], fills
+
+
+def test_a_nameless_search_field_becomes_opening_the_search_address() -> None:
+    events = [
+        _nameless_click(1.0),
+        {"kind": "fill", "selectors": [], "field": "", "value": "닌텐도", "url": SITE + "/", "at": 2.0},
+        {"kind": "press", "key": "Enter", "selectors": [], "field": "", "url": SITE + "/", "at": 3.0},
+        {"kind": "nav", "url": SITE + "/search?q=%EB%8B%8C%ED%85%90%EB%8F%84", "at": 3.4},
+    ]
+    steps = steps_from_demo(events, SITE + "/")
+    assert [step["tool"] for step in steps] == ["browser_open", "browser_site_search"]
+    draft = draft_from_run("닌텐도 검색", steps)
+    opened = [step for step in draft["actions"]["from_run"]["steps"] if step["do"] == "open"]
+    assert "{query}" in opened[-1]["url"], opened
+
+
+def test_a_nameless_field_that_does_not_search_still_refuses() -> None:
+    """역방향 — 친 글이 주소에 안 들어가면(검색이 아님) 바꾸지 않는다. 예전처럼 거절."""
+    events = [
+        {"kind": "fill", "selectors": [], "field": "", "value": "메모", "url": SITE + "/", "at": 2.0},
+        {"kind": "press", "key": "Enter", "selectors": [], "field": "", "url": SITE + "/", "at": 3.0},
+        {"kind": "nav", "url": SITE + "/saved", "at": 3.4},
+    ]
+    with pytest.raises(DraftRefused, match="fill"):
+        draft_from_run("메모 저장", steps_from_demo(events, SITE + "/"))
+
+
+# ── 10-30 밤: 배우기는 구글에서 시작 — 검색으로 거쳐 온 앞부분은 뗀다 ──────────────
+
+def test_a_demo_that_starts_on_google_begins_at_the_site_reached() -> None:
+    google = "https://www.google.com/"
+    events = [
+        {"kind": "fill", "selectors": ['textarea[name="q"]'], "field": "검색", "value": "알라딘", "url": google, "at": 1.0},
+        {"kind": "press", "key": "Enter", "selectors": ['textarea[name="q"]'], "field": "검색", "url": google, "at": 2.0},
+        {"kind": "nav", "url": "https://www.google.com/search?q=%EC%95%8C%EB%9D%BC%EB%94%98", "at": 2.4},
+        {"kind": "click", "selectors": ['text="알라딘"'], "label": "알라딘", "url": "https://www.google.com/search?q=x", "at": 4.0},
+        {"kind": "nav", "url": "https://www.aladin.co.kr/", "at": 4.5},
+        {"kind": "fill", "selectors": ['[placeholder="검색어"]'], "field": "검색어", "value": "파이썬", "url": "https://www.aladin.co.kr/", "at": 6.0},
+        {"kind": "press", "key": "Enter", "selectors": ['[placeholder="검색어"]'], "field": "검색어", "url": "https://www.aladin.co.kr/", "at": 7.0},
+        {"kind": "nav", "url": "https://www.aladin.co.kr/search?q=%ED%8C%8C%EC%9D%B4%EC%8D%AC", "at": 7.4},
+    ]
+    steps = steps_from_demo(events, google)
+    assert steps[0]["tool"] == "browser_open" and steps[0]["evidence"]["url"] == "https://www.aladin.co.kr/"
+    draft = draft_from_run("알라딘 책 검색", steps)   # 여러 사이트를 오간 판으로 거절되지 않는다
+    assert draft["actions"]["from_run"]["steps"][0]["url"].startswith("https://www.aladin.co.kr")
+
+
+def test_a_demo_that_stays_on_google_is_left_as_it_is() -> None:
+    google = "https://www.google.com/"
+    events = [
+        {"kind": "fill", "selectors": ['textarea[name="q"]'], "field": "검색", "value": "날씨", "url": google, "at": 1.0},
+        {"kind": "press", "key": "Enter", "selectors": ['textarea[name="q"]'], "field": "검색", "url": google, "at": 2.0},
+        {"kind": "nav", "url": "https://www.google.com/search?q=%EB%82%A0%EC%94%A8", "at": 2.4},
+    ]
+    steps = steps_from_demo(events, google)
+    assert steps[0]["evidence"]["url"] == google and len(steps) == 3

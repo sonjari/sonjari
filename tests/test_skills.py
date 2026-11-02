@@ -223,6 +223,9 @@ def test_the_real_harvest_loads(tmp_path) -> None:
         #   코드로 박았지만(`documents._apply_document_theme`) **뼈대는 모델이
         #   준다** — 그 뼈대를 알려 줄 플레이북이 없었다.
         "alture",
+        # ★ 2026-11-01 코드 판 플레이북 보강(대표 승인): mattpocock/skills(MIT · 원인 찾기 · 모듈 설계 둘)과
+        #   gamedev-skills/awesome-gamedev-agent-skills(Apache-2.0 · 유니티 주제 여덟). 고른 것만 들였다 — README 참고.
+        "mattpocock", "gamedev-unity",
         # 2026-09-15 사용자님 승인 — 개발 분야 GitHub 수집(MIT, sha 고정, 실행 파일에 기대는 스킬 제외).
         #   addyosmani/agent-skills 22종 · tech-leads-club/agent-skills 70종. skills/sources.json 참고.
         "addyosmani", "tech-leads-club",

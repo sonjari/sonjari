@@ -189,9 +189,13 @@ TWO_OF_THREE = [
 
 
 def test_a_counter_word_it_did_not_know() -> None:
-    """책은 '권'으로 센다. 그 한 글자가 없어 교보문고 부족분이 통째로 지나갔다."""
+    """책은 '권'으로 센다. 그 한 글자가 없어 교보문고 부족분이 통째로 지나갔다.
+
+    2026-11-01: 「제목과 저자」는 목록에 보이는 칸이라 이제 「목록으로 담기」다(열어 읽기 셈이 아니다 · plan `_LISTING_FIELD`).
+    「권」을 세는지는 상세를 열어야 나오는 칸(쪽수 · ISBN)으로 지킨다.
+    """
     note = BrowserAgent._goal_shortfall_check(
-        "교보문고에서 회계 관련 책 3권의 제목과 저자를 알려줘", TWO_OF_THREE
+        "교보문고에서 회계 관련 책 3권의 쪽수와 ISBN을 알려줘", TWO_OF_THREE
     )
     assert "3개 중 2개" in note
 

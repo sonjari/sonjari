@@ -48,10 +48,11 @@ def test_a_24gb_desktop_card_gets_the_27b_we_measured_and_an_open_alternative() 
     picks = {p["kind"]: p for p in rec["picks"]}
     assert picks["verified"]["license_open"] is False and picks["verified"]["license_url"].startswith("https://")
     # ★ 2026-10-28 밤 대표 결정: 둘째 칸은 같은 바탕의 일반 압축판이 아니라 Qwen3.6 2비트 — 「3.8 똑똑함 · 3.6 빠름」.
+    #   ★ 2026-10-30 대표: 뜻을 「평소 · 무거운 프로그램과 함께(3ds Max · 유니티 · 게임)」로 — 16GB 흉내에서 Swift 작은 판이 넘쳐 초당 6토큰.
     alternative = picks["open_alternative"]
     assert alternative["model_key"] == "qwen3.6-35b-iq2m" and alternative["license_open"] is True
     assert (picks["verified"]["role"], alternative["role"]) == ("smart", "fast")
-    assert any("똑똑함" in line and "빠름" in line for line in rec["reasons"])
+    assert any("평소에는" in line and "그래픽카드를 쓰는 프로그램" in line for line in rec["reasons"])
     assert any("조건이 없습니다" in line for line in rec["reasons"])
 
 
@@ -85,7 +86,7 @@ def test_a_16gb_card_gets_the_small_27b_first_and_9b_as_the_alternative() -> Non
         assert (alt["model_key"], alt["num_ctx"], alt["text_only"]) == ("qwen3.6-35b-iq2m", 65536, True)
         assert alt["vram_gb"] == 12.4 and alt["license_open"] is True
         assert (picks["verified"]["role"], alt["role"]) == ("smart", "fast")
-        assert any("똑똑함" in line and "빠름" in line for line in rec["reasons"])
+        assert any("평소에는" in line and "그래픽카드를 쓰는 프로그램" in line for line in rec["reasons"])
 
 
 def test_smart_and_fast_only_when_the_first_pick_is_swift() -> None:
@@ -93,7 +94,7 @@ def test_smart_and_fast_only_when_the_first_pick_is_swift() -> None:
     for name, vram in (("RTX 4070", 12.0), ("RTX 4060", 8.0)):
         rec = sp.recommend(_profile(name, vram, display=False))
         assert all("role" not in p for p in rec["picks"]), name
-        assert not any("똑똑함" in line for line in rec["reasons"]), name
+        assert not any("평소에는" in line for line in rec["reasons"]), name
 
 
 def test_text_only_is_recommended_only_on_the_rung_that_says_so() -> None:

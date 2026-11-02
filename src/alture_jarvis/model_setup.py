@@ -634,7 +634,7 @@ class SetupService:
         self._publish("setup_model_pull", dict(state))
 
     def apply(self, model_key: str, num_ctx: int, *, remembered_first: bool = False,
-              eyes: bool | None = None) -> dict[str, Any]:
+              eyes: bool | None = None, accept_spill: bool = False) -> dict[str, Any]:
         """고른 모델로 **실제로 한 번 돌려 보고**, 되면 그때 저장한다.
 
         `num_ctx` 는 사람이 모델 카드에서 **고른 칸**이다 — 그대로 올린다. 모델만 바꾸는 길(고르개)은 `remembered_first` 로
@@ -674,13 +674,13 @@ class SetupService:
             tag, vision = str(made["tag"]), False
         previous = self.config.model_for("chat")
         return self._try_and_save(tag, ctx, previous, catalog_key=model.key, vision=vision,
-                                  status=model.status, remembered_first=remembered_first)
+                                  status=model.status, remembered_first=remembered_first, accept_spill=accept_spill)
 
     def _try_and_save(self, tag: str, ctx: int, previous: str, *, catalog_key: str, vision: bool,
-                      status: str, remembered_first: bool = False) -> dict[str, Any]:
+                      status: str, remembered_first: bool = False, accept_spill: bool = False) -> dict[str, Any]:
         with self._apply_lock:
             result = self._measure_and_save(tag, ctx, previous, catalog_key=catalog_key, vision=vision, status=status,
-                                            remembered_first=remembered_first)
+                                            remembered_first=remembered_first, accept_spill=accept_spill)
         if not result.get("ok") and previous and _bare_tag(previous) != _bare_tag(tag):
             # ★ 2026-09-29 밤: 교체가 실패하면 **옛 모델을 도로 올려 둔다.** 재기 전에 옛 모델을 내리고(`_unload(previous)`)
             #   새 모델도 내리니 GPU 가 빈 채로 끝났고, 대표의 다음 질문이 3.8 을 처음부터 올리느라 70~90초 가만히 있었다
@@ -730,7 +730,8 @@ class SetupService:
         return unloaded
 
     def _measure_and_save(self, tag: str, ctx: int, previous: str, *, catalog_key: str, vision: bool,
-                          status: str, remembered_first: bool = False) -> dict[str, Any]:
+                          status: str, remembered_first: bool = False, accept_spill: bool = False) -> dict[str, Any]:
+        force_spill = accept_spill
         # 코드 역할이 **대화를 따라가고 있었나** — 저장·설정 반영 전에 잡아 둔다(바꾼 뒤엔 옛 대화 모델을 모른다).
         code_follows_chat = bool(previous) and _bare_tag(str(self.config.model_for("code") or "")) == _bare_tag(previous)
         # ★ 2026-09-30: **이 PC 가 이미 아는 것부터** (대표: 「직전에 쓰던 컨텍스트를 넣어 주면 된다」).
@@ -741,7 +742,9 @@ class SetupService:
         failed = {int(step.get("num_ctx") or 0) for step in known.get("steps") or [] if not step.get("passed")}
         chosen = int(known.get("chosen") or 0)
         measured_ceiling = int(known.get("ceiling") or 0)
-        accept_spill = False
+        # ★ 「넘쳐도 받기」(2026-10-30 · `model_fallback`): 그래픽카드가 모자라 빠른 모델로 넘기는 길은 그 모델도 일부가 넘칠 수 있다 —
+        #   MoE 라 넘쳐도 빠르니 첫 칸 그대로 받는다(창을 줄여 다시 재지 않는다).
+        accept_spill = bool(force_spill)
         # ★ 2026-10-05: 기억은 **모델만 바꿀 때** 쓴다. 전에는 늘 기억이 이겨서, 모델 카드에서 64K·128K 를 골라 적용해도
         #   「성공」이라면서 예전에 쓰던 32K 로 올라왔다(가짜 홈 실측: 64K → 32K, 128K → 32K). 사람이 지금 고른 칸이 기억보다 먼저다.
         if chosen and (remembered_first or ctx == chosen):

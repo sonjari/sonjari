@@ -1,0 +1,26 @@
+{
+  "repo": "https://github.com/gamedev-skills/awesome-gamedev-agent-skills",
+  "commit": "19d93f97c9c1ea0f8b306e77aa81e0d3e352d3e9",
+  "license": "Apache-2.0",
+  "fetched_at": "2026-10-31",
+  "skills": [
+    "unity-animation",
+    "unity-build-pipeline",
+    "unity-csharp-scripting",
+    "unity-input-system",
+    "unity-navmesh",
+    "unity-physics",
+    "unity-scriptableobjects",
+    "unity-tilemap-2d"
+  ],
+  "dropped_executable_files": {
+    "unity-animation": 0,
+    "unity-build-pipeline": 0,
+    "unity-csharp-scripting": 1,
+    "unity-input-system": 0,
+    "unity-navmesh": 0,
+    "unity-physics": 0,
+    "unity-scriptableobjects": 0,
+    "unity-tilemap-2d": 0
+  }
+}

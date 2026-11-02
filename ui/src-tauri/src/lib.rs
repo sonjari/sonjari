@@ -1577,6 +1577,24 @@ fn pilot_cancel(app: AppHandle, job_id: String) -> Result<bool, String> {
     Ok(false)
 }
 
+/// 사람이 손자리 크롬을 **직접 부른** 순간(`/레시피` · 「다시 보여 주기」)에 앞창인 이 화면이 「다음 앞창 바꾸기를 허락」한다.
+///
+/// ★ 2026-10-30 대표 PC: 백엔드(뒤쪽 프로세스)의 `SetForegroundWindow` 는 앞창 입력에 이어도 윈도우가 막을 때가 있다 —
+///   기록 `chrome raise for human: raised=False attached=True`. 앞창 프로세스만 `AllowSetForegroundWindow` 로 허락을 넘길 수 있다.
+///   허락은 다음 한 번의 앞창 바꾸기에만 쓰인다 — 사람이 부른 두 자리에서만 부른다(아무 때나 부르면 남이 앞을 가로챌 수 있다).
+#[tauri::command]
+fn allow_foreground() -> bool {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{AllowSetForegroundWindow, ASFW_ANY};
+        return unsafe { AllowSetForegroundWindow(ASFW_ANY) } != 0;
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
 #[tauri::command]
 fn pick_code_workspace(current_dir: Option<String>) -> Option<String> {
     let mut dialog = rfd::FileDialog::new().set_title("손자리 Code 프로젝트 폴더 선택");
@@ -2209,6 +2227,7 @@ pub fn run() {
             release_foreground,
             pick_upload_files,
             pick_code_workspace,
+            allow_foreground,
             pilot_auth_status,
             pilot_choose_api_key_file,
             pilot_clear_api_key,

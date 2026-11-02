@@ -423,3 +423,143 @@ def test_the_answered_dialog_shows_up_in_the_next_result(tmp_path: Path) -> None
 
     assert evidence["dialog_answered"]["message"] == "저장하시겠습니까?"
     assert evidence["dialog_answered"]["accepted"] is False
+
+
+# ── 클릭이 연 파일 선택 창 가로채기 (2026-11-01 job 39d6a5f5) ────────────────────
+class _Chooser:
+    def __init__(self) -> None:
+        self.files: list[str] | None = None
+
+    def set_files(self, paths: list[str]) -> None:
+        self.files = list(paths)
+
+
+class _ChooserPage(Page):
+    """`page.on("filechooser")` 리스너가 달려 있을 때 클릭이 창을 여는 쪽을 흉내 낸다."""
+
+    def __init__(self, *args: Any, opens_chooser: bool, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.opens_chooser = opens_chooser
+        self.listeners: list[Any] = []
+        self.chooser = _Chooser()
+        self.delay_ms: int | None = None  # 값이 있으면 클릭 직후가 아니라 이만큼 펌프한 뒤에 창이 온다(실측: 30ms 뒤 열리는 드라이브 꼴)
+        self.waited_ms = 0
+        self._delivered = False
+
+    def wait_for_timeout(self, milliseconds: int) -> None:
+        self.waited_ms += milliseconds
+        if self.delay_ms is not None and not self._delivered and self.waited_ms >= self.delay_ms and self.opens_chooser:
+            self._delivered = True
+            for listener in list(self.listeners):
+                listener(self.chooser)
+
+    def on(self, event: str, handler: Any) -> None:
+        if event == "filechooser":
+            self.listeners.append(handler)
+
+    def remove_listener(self, event: str, handler: Any) -> None:
+        if event == "filechooser" and handler in self.listeners:
+            self.listeners.remove(handler)
+
+
+def _chooser_setup(tmp_path: Path, opens: bool) -> tuple[BrowserWorker, _ChooserPage, FormEl, Path]:
+    allowed = tmp_path / "documents"
+    allowed.mkdir()
+    document = allowed / "영상.mp4"
+    document.write_bytes(b"x")
+    menu = FormEl(tag="button", text="파일 업로드")
+    page = _ChooserPage([FormFrame(elements=[menu])], opens_chooser=opens)
+    worker = _upload_worker(tmp_path, (str(allowed),))
+    worker.config.browser_read_only = False
+    worker._snapshot(page, {})
+    # 클릭 한 번이 창을 연다 — 리스너가 달려 있을 때만 가로채진다.
+    original = FormLoc.click
+
+    def click(self: Any, *a: Any, **k: Any) -> Any:
+        out = original(self, *a, **k)
+        if page.opens_chooser and page.delay_ms is None:
+            for listener in list(page.listeners):
+                listener(page.chooser)
+        return out
+
+    FormLoc.click = click  # type: ignore[method-assign]
+    return worker, page, menu, document
+
+
+@pytest.fixture(autouse=False)
+def _restore_click() -> Any:
+    original = FormLoc.click
+    yield
+    FormLoc.click = original  # type: ignore[method-assign]
+
+
+def test_a_click_that_opens_a_file_chooser_is_reported_and_kept(tmp_path: Path, _restore_click: Any) -> None:
+    worker, page, menu, _doc = _chooser_setup(tmp_path, opens=True)
+
+    result = worker._watching_file_chooser(worker._click_confirmed)(page, {"ref": menu.ref})
+
+    assert result["file_chooser_opened"] is True
+    assert "browser_file_upload" in result["next"]
+    assert worker._pending_chooser and worker._pending_chooser["chooser"] is page.chooser
+    assert page.listeners == [], "클릭이 끝났는데 리스너가 남았다"
+
+
+def test_the_next_file_upload_uses_the_kept_chooser_without_a_ref(tmp_path: Path, _restore_click: Any) -> None:
+    worker, page, menu, doc = _chooser_setup(tmp_path, opens=True)
+    worker._watching_file_chooser(worker._click_confirmed)(page, {"ref": menu.ref})
+
+    result = worker._file_upload(page, {"paths": [str(doc)]})
+
+    assert page.chooser.files == [str(doc.resolve())]
+    assert result["via"] == "pending_chooser"
+    assert worker._pending_chooser is None
+
+
+def test_a_click_without_a_chooser_keeps_nothing(tmp_path: Path, _restore_click: Any) -> None:
+    worker, page, menu, _doc = _chooser_setup(tmp_path, opens=False)
+
+    result = worker._watching_file_chooser(worker._click_confirmed)(page, {"ref": menu.ref})
+
+    assert "file_chooser_opened" not in result and "next" not in result
+    assert worker._pending_chooser is None
+    assert page.listeners == []
+
+
+def test_an_expired_chooser_is_not_used(tmp_path: Path, _restore_click: Any) -> None:
+    worker, page, menu, doc = _chooser_setup(tmp_path, opens=True)
+    worker._watching_file_chooser(worker._click_confirmed)(page, {"ref": menu.ref})
+    worker._pending_chooser["at"] -= 121  # type: ignore[index]
+
+    with pytest.raises(ValueError, match="ref_required"):
+        worker._file_upload(page, {"paths": [str(doc)]})
+    assert page.chooser.files is None
+
+
+def test_a_chooser_that_opens_after_the_click_returns_is_still_caught(tmp_path: Path, _restore_click: Any) -> None:
+    worker, page, menu, doc = _chooser_setup(tmp_path, opens=True)
+    page.delay_ms = 200  # click() 직후엔 비어 있고 200ms 펌프 뒤에 온다 — 업로드 이름이 붙은 클릭만 이만큼 기다린다
+
+    result = worker._watching_file_chooser(worker._click_confirmed)(page, {"ref": menu.ref})
+
+    assert result["file_chooser_opened"] is True
+    assert page.listeners == []
+    worker._file_upload(page, {"paths": [str(doc)]})
+    assert page.chooser.files == [str(doc.resolve())]
+
+
+def test_an_ordinary_click_only_pays_one_short_pump(tmp_path: Path, _restore_click: Any) -> None:
+    worker, page, _menu, _doc = _chooser_setup(tmp_path, opens=False)
+
+    # 클릭 자체의 기다림은 빼고 **감시가 더한 것**만 잰다 — 핸들러를 이름만 있는 가짜로 바꾼다.
+    result = worker._watching_file_chooser(lambda _p, _a: {"element": {"name": "다음"}})(page, {"ref": "x"})
+
+    assert page.waited_ms == 80
+    assert "file_chooser_opened" not in result and worker._pending_chooser is None
+
+
+def test_an_upload_labelled_click_waits_up_to_600ms_when_nothing_comes(tmp_path: Path, _restore_click: Any) -> None:
+    worker, page, _menu, _doc = _chooser_setup(tmp_path, opens=False)
+
+    worker._watching_file_chooser(lambda _p, _a: {"element": {"name": "파일 업로드"}})(page, {"ref": "x"})
+
+    assert 80 < page.waited_ms <= 650

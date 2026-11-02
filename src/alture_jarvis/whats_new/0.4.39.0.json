@@ -1,0 +1,60 @@
+{
+  "ko": {
+    "changes": "이번에 새로 생긴 것\n- 유튜브 영상 주소를 주면 자막 전체를 시간표째 읽습니다. 긴 페이지는 끊긴 자리부터 이어 읽습니다.\n- 코드 일에 맞는 스킬이 붙습니다: 버그 원인 찾기 · 코드 구조 설계, 유니티 물리 · 애니메이션 · 내비메시 · 입력 · 스크립트 등. 같은 스킬 하나가 자리를 다 차지하던 것을 줄였습니다.\n- /레시피 배우기가 앱 안 「Sonjari의 컴퓨터」 칸을 크게 펴고 구글 첫 화면에서 시작합니다. 검색으로 거쳐 온 앞부분은 떼고 도착한 사이트부터 기억합니다.\n\n이번에 고친 것\n- 조사가 판마다 들쭉날쭉하던 것: 걸음마다 생각을 켰다 껐다 하며 앞 기록을 다시 읽던 것을 줄였고, 브라우저를 닫으며 쓴 답이 그대로 마지막 답이 됩니다.\n- 「상위 3권의 제목 · 저자 · 가격」처럼 목록에 보이는 값만 달라고 하면 상세 페이지를 하나씩 열지 않고 목록에서 담습니다.\n- 긴 대화에서 기록을 너무 일찍 접어 처음부터 다시 읽던 것: 이 PC 에서 잰 창 크기만큼 씁니다.\n- 숨은 메뉴 글이 책 목록보다 본문으로 뽑혀 헤매던 것을 고쳤습니다.\n- /레시피: 단서 없는 글 칸도 다시 찾고, 크롬을 앞으로 올리는 것이 막히던 것을 고쳤습니다.",
+    "tour": "이미 되는데 잘 모르시는 것\n- 게임 팩 — 유니티 프로젝트 점검(텍스처 · 참조 · 용량)과 열린 에디터에서 만들고 바꾸기를 손자리가 합니다(설정 › 팩).\n- 클로드 · 코덱스 · 커서에서 Sonjari 쓰기 — 그 AI 가 웹 조사 · 파일 일을 손자리에게 맡깁니다. 페이지는 이 PC 가 읽고 결과만 돌아가 클로드 사용 한도를 아낍니다(설정 › 연결).\n- 디스코드로 일 시키기 — 밖에서 휴대폰 디스코드로 손자리에게 일을 맡기고 결과를 받습니다(설정 › 디스코드로 일 시키기).\n- 무거운 프로그램과 함께 — 3ds Max · 유니티가 켜져 있으면 일을 시작할 때 빠른 모델로 바꿉니다.",
+    "slides": [
+      {
+        "title": "조사가 덜 흔들립니다",
+        "body": "걸음마다 생각을 켰다 껐다 하며 앞 기록을 다시 읽던 것을 줄였습니다. 브라우저를 닫으며 쓴 답은 그대로 마지막 답이 됩니다.",
+        "try": "「위키백과에서 ○○ 찾아 세 줄로」",
+        "visual": {
+          "kind": "stat",
+          "label": "조사 과제 셋을 세 번씩 돌린 시간 합",
+          "before": 1376,
+          "after": 983,
+          "unit": "초",
+          "basis": "이 PC(RTX 3090 · Swift 27B) · 위키백과 · 알라딘 · 깃허브 트렌딩 과제를 각 3판 · 고치기 전(10-31) · 뒤(11-01 0시) · 9판 모두 끝까지."
+        }
+      },
+      {
+        "title": "목록에 보이면 목록에서",
+        "body": "「상위 3권의 제목 · 저자 · 판매가」처럼 목록에 이미 보이는 값은 상세 페이지를 하나씩 열지 않고 목록에서 담습니다.",
+        "try": "「알라딘에서 파이썬 검색해 상위 3권 제목 · 저자 · 판매가 표로」"
+      },
+      {
+        "title": "유튜브 자막 읽기",
+        "body": "영상 주소를 주면 자막 전체를 시간표째 읽어 요약합니다. 읽는 동안 영상은 멈춰 둡니다.",
+        "try": "「이 유튜브 영상 핵심 다섯 줄로: (주소)」"
+      }
+    ]
+  },
+  "en": {
+    "changes": "New in this update\n- Give a YouTube video link and Sonjari reads the whole transcript with timestamps. Long pages are read on from where they were cut.\n- Code jobs get matching skills: finding a bug's cause, codebase design, and Unity physics, animation, NavMesh, input and scripting. One skill no longer takes up every slot.\n- /recipe learning opens the \"Sonjari's computer\" pane large inside the app and starts from the Google home page. The search steps before the site you land on are dropped.\n\nFixed in this update\n- Research runs varied a lot from run to run: thinking is no longer switched on and off every step (which re-read the earlier record), and the answer written while closing the browser becomes the final answer.\n- When you ask only for values shown in a list, like \"title, author and price of the top 3 books\", Sonjari takes them from the list instead of opening each detail page.\n- In long conversations the record was folded too early and re-read from the start; it now uses the window size measured on this PC.\n- Fixed hidden menu text being picked as the page body over a book list.\n- /recipe: input boxes without labels are found again, and bringing Chrome to the front is no longer blocked.",
+    "tour": "Already works, but easy to miss\n- Game pack: Sonjari checks Unity projects (textures, references, size) and creates or changes things in the open editor (Settings › Packs).\n- Use Sonjari from Claude, Codex or Cursor: that AI hands web research and file work to Sonjari. Pages are read on this PC and only the result goes back, which saves your Claude usage (Settings › Connections).\n- Hand off work from Discord: send Sonjari a job from Discord on your phone and get the result back (Settings › Work from Discord).\n- With heavy apps open: if 3ds Max or Unity is running, Sonjari switches to the fast model when a job starts.",
+    "slides": [
+      {
+        "title": "Research varies less",
+        "body": "Thinking is no longer switched on and off every step, which re-read the earlier record. The answer written while closing the browser becomes the final answer.",
+        "try": "\"Find X on Wikipedia and sum it up in three lines\"",
+        "visual": {
+          "kind": "stat",
+          "label": "Total time for three research tasks, three runs each",
+          "before": 1376,
+          "after": 983,
+          "unit": "s",
+          "basis": "This PC (RTX 3090, Swift 27B) · Wikipedia, Aladin and GitHub Trending tasks, 3 runs each · before (10-31) and after (11-01 00:00) · all 9 runs finished."
+        }
+      },
+      {
+        "title": "If the list shows it, take it from the list",
+        "body": "Values already shown in a list, like \"title, author and price of the top 3 books\", are taken from the list instead of opening each detail page.",
+        "try": "\"Search Aladin for Python and table the top 3 books' title, author and price\""
+      },
+      {
+        "title": "Read YouTube transcripts",
+        "body": "Give a video link and Sonjari reads the whole transcript with timestamps and sums it up. The video is paused while it reads.",
+        "try": "\"Give me the key five points of this YouTube video: (link)\""
+      }
+    ]
+  }
+}

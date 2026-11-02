@@ -26,6 +26,18 @@ from typing import Any
 # 한글·코드 실측 약 2자 = 1토큰이므로 180,000자 ≈ 90,000토큰이고, 이는
 # `config.ollama_num_ctx`(131,072)와 **쌍이다.**
 _TRANSCRIPT_BUDGET_CHARS = 180_000
+#: 위 상한이 짝을 이루는 창. 창이 이보다 크면 상한도 같은 비율로 커진다(`transcript_cap_chars`).
+_TRANSCRIPT_BUDGET_FOR_CTX = 131_072
+
+
+def transcript_cap_chars(num_ctx: int) -> int:
+    """전사 전체 상한(글자) — **창에 맞춰** 커진다. 131,072 이하면 예전 그대로 18만 자.
+
+    ★ 2026-10-31 대표 「걸음마다 첫 글자 70초」: 운영 창을 192K(196,608)로 올렸는데 이 상한은 131K 짝 그대로라
+      7만 7천 토큰(창의 40%)에서 접혔고, 접힐 때마다 앞을 다시 읽었다 — 10-27 이후 첫 글자 30초 넘은 116건 중 47건(중앙 39초).
+      넘치는 것은 서버가 알려 준 실제 토큰 수로 맞추는 `window_fitted_budget` 이 따로 막는다.
+    """
+    return max(_TRANSCRIPT_BUDGET_CHARS, int(_TRANSCRIPT_BUDGET_CHARS * max(0, int(num_ctx)) / _TRANSCRIPT_BUDGET_FOR_CTX))
 
 # ── Code 전사 예산은 **창에서 파생한다** ────────────────────────────────
 #
@@ -109,7 +121,7 @@ def chat_transcript_budget(num_ctx: int, model: str = "") -> tuple[int, int]:
         tokens = min(_CHAT_SMALL_MAX_TOKENS, usable * 0.75)
     else:
         tokens = usable * _CHAT_BUDGET_SHARE
-    budget = min(_TRANSCRIPT_BUDGET_CHARS, max(12_000, int(tokens * _CHAT_CHARS_PER_TOKEN)))
+    budget = min(transcript_cap_chars(num_ctx), max(12_000, int(tokens * _CHAT_CHARS_PER_TOKEN)))
     # 페이지 하나가 예산의 1/4 를 넘으면 두 페이지만 읽어도 앞이 다 접힌다.
     # ★ 2026-10-12 해 보고 되돌렸다 — 지우지 않고 적어 둔다. 그 「예산」에는 시스템 글도 들어 있어서(`transcript.bounded` 가
     #   거기서 뺀다) 창 32,768 에서는 한 건(8,600자)이 걸음에 쓸 자리(1만 4천 자)의 6할이다. 그래서 「시스템 글을 뺀 나머지의
@@ -143,6 +155,8 @@ def chat_transcript_budget(num_ctx: int, model: str = "") -> tuple[int, int]:
 # ※ 이것은 **넘치지 않게** 할 뿐이다. 창 49,152 에서 고정 앞부분이 57% 라는 사실은 그대로고, 접힌 페이지의 값을 모델이
 #   기억하는지는 실제 판으로 봐야 한다. 걸음마다 접혀 앞부분을 다시 읽는 것(그 판 489초 중 214초)도 이것으로는 안 준다.
 _WINDOW_FIT_CHARS_PER_TOKEN = 1.5
+#: 잰 토큰으로 넓힐 때 창의 이만큼까지 쓴다(`window_fitted_budget` · 2026-11-01). 나머지는 생각 · 답 · 셈 오차의 여유다.
+_WIDEN_WINDOW_SHARE = 0.85
 
 
 # ★ 자리가 남았으면 **넓히기도 한다** (2026-10-12 밤 · `widen`).
@@ -175,7 +189,15 @@ def window_fitted_budget(
         return budget
     room = int(num_ctx) - int(reserve_tokens) - int(prompt_tokens)
     fitted = int(sent_chars) + int(room * _WINDOW_FIT_CHARS_PER_TOKEN)
-    ceiling = max(int(budget), _TRANSCRIPT_BUDGET_CHARS) if widen else int(budget)
+    if not widen:
+        return max(1, min(int(budget), fitted))
+    # ★ 2026-11-01 — 천장도 **잰 토큰으로**. 10-31 22:03 · 22:07 판은 창 196,608 에서 10.1만 · 10.7만 토큰(창의 53%)에 접혔다:
+    #   `fitted` 는 37만 자를 말했는데 글자로 정한 천장(`transcript_cap_chars` = 27만 자 · 「토큰당 1.37자」 짐작)이 덮었다.
+    #   그 판의 실제 비는 토큰당 2.4자쯤이었다. 접히면 그 뒤 걸음이 줄어든 기록을 처음부터 다시 읽는다(10-27~10-31 접기 76건 ·
+    #   한 건 평균 32.7초). 잰 것이 있으면 창의 `_WIDEN_WINDOW_SHARE` 까지는 넓힌다 — 쓸 자리(reserve)는 그대로 뺀다.
+    share_room = int(int(num_ctx) * _WIDEN_WINDOW_SHARE) - int(reserve_tokens) - int(prompt_tokens)
+    measured_ceiling = int(sent_chars) + int(max(0, share_room) * _WINDOW_FIT_CHARS_PER_TOKEN)
+    ceiling = max(int(budget), transcript_cap_chars(num_ctx), measured_ceiling)
     return max(1, min(ceiling, fitted))
 
 
@@ -772,5 +794,7 @@ _TEXT_READ_TOOLS = frozenset(
         "unity_run_recipe",
         # 프로젝트 정보의 큰 파일 상위 10개도 실제로 잰 값이다(2026-10-01 테스터 시험 — evidence.MANIFEST 와 같이).
         "unity_project_info",
+        # 영상 팩(2026-11-02) — 영상을 실제로 틀어 잰 표.
+        "video_read",
     }
 )

@@ -844,6 +844,56 @@ def _progress_sentence(progress: "dict[str, Any]") -> str:
     return " ".join(parts)
 
 
+#: 답이 「로그인이 있어야 한다 · 로그인에 막혔다」고 말하는 꼴. 「로그인 없이」 · 「로그인하지 않아도」는 반대말이라 뺀다.
+#: **서술어**일 때만 — 「로그인이 필요합니다 · 필요하여」 · 「로그인해야 볼 수 있」 · 「로그인 벽에 막혀」. 「로그인이 필요한 곳」처럼
+#: 꾸미는 말과 「로그인 벽」 낱말만 있는 일반 설명은 이 판의 페이지 이야기가 아니다(지난 5,219판 대조에서 헛표시 8판이 이 꼴).
+_LOGIN_CLAIM = re.compile(
+    r"로그인(?:이|을)?\s*필요(?:합니다|하여|해서|했|하다|함|하네|해요|하거나)"
+    r"|로그인(?:을)?\s*해야\s*(?:보|볼|확인|읽|열|들어)"
+    r"|로그인\s*(?:벽|화면|창)에\s*막"
+    r"|(?:login|log\s?in|sign[\s-]?in)\s+(?:is\s+)?required|requires?\s+(?:a\s+)?(?:login|log\s?in|sign[\s-]?in)\s+to",
+    re.IGNORECASE,
+)
+_LOGIN_URL = re.compile(r"/login|/signin|/sign_in|/sign-in|/auth/|nid\.naver\.com|accounts\.google\.com|/oauth", re.IGNORECASE)
+
+
+def login_claim_without_gate(answer: str, steps: list[dict[str, Any]], prompt: str = "") -> str:
+    """답이 「로그인이 필요하다」고 말하는데 이 판이 **로그인 문을 본 적이 없으면** 그 문장(120자)을, 아니면 "" 를.
+
+    ★ 2026-11-02 대표: 「사람이 필요한 작업이라고 · 로그인이 필요하다고 하는데 막상 보면 없다」. 로그인 문은 도구가
+      구조로 본다(비밀번호 칸 → `human_gate`). 그 표시도 없고 로그인 주소에 간 적도 없는데 답이 로그인 탓을 하면 근거 없는
+      말이다(10-10 Gmail 판 「보고서 화면이 로그인 벽에 막혀 있습니다」). 숫자 대조처럼 **표시만** 한다 — 상태는 안 바꾼다.
+      사람이 요청에서 먼저 로그인을 꺼낸 판은 대화의 일부라 보지 않는다.
+    """
+    if "로그인" in str(prompt or "") or re.search(r"log\s?in|sign\s?in", str(prompt or ""), re.I):
+        return ""
+    found = _LOGIN_CLAIM.search(str(answer or ""))
+    if not found:
+        return ""
+    before = str(answer)[max(0, found.start() - 12):found.start()]
+    if re.search(r"(?:없이|않아도|안\s*해도|without)\s*$", before, re.I):
+        return ""
+    if not any(str(step.get("tool") or "").startswith(("browser_", "naver_blog_")) for step in steps):
+        return ""  # 페이지를 안 본 판의 「로그인」은 일반 설명이다
+    def _url_of(value: Any) -> str:
+        # 걸음 기록의 칸이 늘 사전인 것은 아니다(글자열 인자 · 빈 값) — 코드 리뷰 11-02.
+        return str(value.get("url") or "") if isinstance(value, dict) else ""
+
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        if step.get("human_gate"):
+            return ""
+        if "login_required" in str(step.get("error") or "") + str(step.get("result") or "")[:400]:
+            return ""  # 도구가 따로 낸 로그인 문(네이버 블로그 `naver_blog_login_required`)
+        blob = " ".join(_url_of(step.get(key)) for key in ("arguments", "evidence"))
+        if _LOGIN_URL.search(blob):
+            return ""
+    text = str(answer)
+    start = max(text.rfind("\n", 0, found.start()) + 1, found.start() - 60)
+    return re.sub(r"\s+", " ", text[start:found.end() + 60]).strip()[:120]
+
+
 def summarize_job(
     job: dict[str, Any], *, ahead: int | None = None, now: float | None = None, live: dict[str, Any] | None = None,
     pending_approval: dict[str, Any] | None = None,
@@ -1031,10 +1081,26 @@ def summarize_job(
     notes: list[str] = []
     if unsupported:
         notes.append(f"도구가 준 적 없는 숫자 {len(unsupported)}개 — 사실로 전하기 전에 확인하세요.")
+    login_claim = login_claim_without_gate(answer, steps, str(payload.get("prompt") or payload.get("task") or ""))
+    if login_claim:
+        summary["unsupported_login_claim"] = login_claim
+        notes.append(f"답이 로그인이 필요하다고 말하지만(「{login_claim}」) 이 판은 로그인 화면 · 비밀번호 칸을 본 적이 없습니다 — "
+                     "사람에게 로그인을 부탁하기 전에 그 페이지가 정말 막혀 있는지 확인하세요.")
     # ★ 2026-10-19: met 은 셋이다 — False(이름 붙은 자리가 비었다)만 「비어 있다」고 말한다. None(이름으로 자리를 못 찾음)은
     #   「확인 못 함」이다. 둘을 섞어 「비어 있는 항목」으로 알리던 탓에 답에 다 있는 판이 0/4 로 나갔다(Ollama FAQ 세 판).
     missing = [item["label"] for item in needs_checked or [] if item.get("met") is False]
-    unchecked = [item["label"] for item in needs_checked or [] if item.get("met") is None]
+    # ★ 2026-11-02: met=None 안에 셋이 섞여 있었다 — 일부 줄만 참(partial) · 손자리가 「못 얻었다」고 적음(negative) · 자리를 못 찾음.
+    #   앞의 둘을 「이름을 못 찾았다 · 비어 있다는 뜻이 아니다」로 알리면 거꾸로 말하는 것이다.
+    partial = [f"{item['label']}({item['partial']})" for item in needs_checked or []
+               if item.get("met") is None and item.get("partial")]
+    said_not = [item["label"] for item in needs_checked or []
+                if item.get("met") is None and item.get("negative") and not item.get("partial")]
+    unchecked = [item["label"] for item in needs_checked or []
+                 if item.get("met") is None and not item.get("partial") and not item.get("negative")]
+    if partial:
+        notes.append(f"일부 줄만 채운 항목: {', '.join(partial)} — 나머지 줄은 비어 있습니다.")
+    if said_not:
+        notes.append(f"{NAME_KO}가 「얻지 못했다」고 적은 항목: {', '.join(said_not)} — 값이 아니라 못 했다는 말입니다.")
     if missing:
         notes.append(f"돌려받아야 할 것 중 비어 있는 항목: {', '.join(missing)} — 이 항목 없이 끝낼 수 있는지, 다시 맡길지 정하세요.")
     if unchecked:
