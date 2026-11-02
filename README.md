@@ -27,22 +27,14 @@
 
 ---
 
+## An AI coworker in your own browser
+
 ```mermaid
 flowchart LR
-    subgraph ON_ITS_OWN["On its own"]
-        Y["You<br/>(app or phone)"] --> S1["Sonjari<br/>on your GPU"]
-        S1 -->|"opens · clicks · reads"| C["Your Chrome<br/>and files"]
-        S1 --> R["Answer + file<br/>with the pages it read"]
-    end
-    subgraph NEXT_TO["Next to Claude Code"]
-        CC["Claude Code · Codex · Cursor"] -->|"sonjari_task (MCP)"| S2["Sonjari reads<br/>on this PC"]
-        S2 -->|"only the result<br/>and a receipt"| CC
-        L["Conversation logs"] -->|"scribe, while idle"| K["Cards: decided ·<br/>dropped · left to do"]
-        K -->|"after compaction"| CC
-    end
+    Y["You<br/>(app or phone)"] --> S["Sonjari<br/>on your GPU"]
+    S -->|"opens · clicks · reads"| C["Your Chrome<br/>and files"]
+    S --> R["Answer + file<br/>with the pages it read"]
 ```
-
-## An AI coworker in your own browser
 
 One sentence in, an Excel file out. Sonjari opens GitHub Trending, reads the top three Python repositories and saves name,
 stars and description as a table. Shown at about 9x; the real run took 2 min 46 s on an RTX 3090 with Qwen3.8 27B.
@@ -56,6 +48,14 @@ https://github.com/user-attachments/assets/91763b31-fe72-4614-b574-b3457ef0518c
 | **Give it work from your phone** | Message your own Discord bot; the PC at home does the job and answers in the same chat. Approvals stay on the PC. | [Discord](docs/guide/remote.md) |
 
 ## The seat next to Claude Code
+
+```mermaid
+flowchart LR
+    CC["Claude Code · Codex · Cursor"] -->|"sonjari_task (MCP)"| S["Sonjari reads<br/>on this PC"]
+    S -->|"only the result + a receipt"| CC
+    L["Conversation logs"] -->|"scribe, while idle"| K["Cards: decided ·<br/>dropped · left to do"]
+    K -->|"after compaction"| CC
+```
 
 Claude Code hands the research to Sonjari over MCP. Sonjari reads the release page on this PC and only the answer, its
 source and a short receipt go back to Claude. Claude then checks it. Shown at 4x.
