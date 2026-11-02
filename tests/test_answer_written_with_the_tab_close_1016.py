@@ -59,7 +59,7 @@ class _Model:
         return self.turns.pop(0) if len(self.turns) > 1 else self.turns[0]
 
 
-def _run(tmp_path, model) -> tuple[str, list[str]]:
+def _run(tmp_path, model, prompt: str = "둘 중 어느 쪽이 우리와 더 겹치나 찾아봐") -> tuple[str, list[str]]:
     config = JarvisConfig(runtime_root=tmp_path, data_dir=tmp_path / "data", output_dir=tmp_path / "outputs",
                           browser_enabled=True, browser_task_timeout_sec=60)
     store = JobStore(tmp_path / "j.db")
@@ -67,9 +67,9 @@ def _run(tmp_path, model) -> tuple[str, list[str]]:
     from test_agent import FakeBrowser
 
     agent = BrowserAgent(config, model, _Gateway(), FakeBrowser(), _Tools(), store, events)
-    job = store.create_job("chat", "agent", {"prompt": "둘 중 어느 쪽이 우리와 더 겹치나 찾아봐"})
+    job = store.create_job("chat", "agent", {"prompt": prompt})
     store.claim_next()
-    result = agent.run("둘 중 어느 쪽이 우리와 더 겹치나 찾아봐", job_id=job["id"], origin="chat")
+    result = agent.run(prompt, job_id=job["id"], origin="chat")
     return result.answer, [event.event for event in events.get_since(0)]
 
 
@@ -78,6 +78,12 @@ def test_the_summary_written_with_the_tab_close_becomes_the_answer(tmp_path) -> 
 
     assert "가장 겹치는 쪽은 가상 에이전트 A" in answer
     assert "| 도는 곳 |" in answer
+    # 2026-11-01: 조사 판은 닫은 뒤 모델을 다시 부르지 않고 그 답으로 마무리한다(`_finishes_at_wrap_up`).
+    assert "agent_finished_at_wrap_up" in events
+    # 파일을 만들라는 판은 예전처럼 한 차례를 더 주고, 짧은 마무리면 쥐어 둔 답을 낸다.
+    answer, events = _run(tmp_path / "file", _Model(with_close=SUMMARY, final="브라우저 닫았습니다. 위에서 정리한 대로입니다."),
+                          prompt="둘 중 어느 쪽이 더 겹치나 찾아서 보고서로 줘")
+    assert "가장 겹치는 쪽은 가상 에이전트 A" in answer
     assert "agent_answer_from_wrap_up" in events
 
 
@@ -90,7 +96,8 @@ def test_a_one_sentence_remark_with_the_close_is_not_an_answer(tmp_path) -> None
 
 def test_a_longer_final_answer_wins(tmp_path) -> None:
     final = SUMMARY + "\n\n덧붙여, 두 문서 모두 2026년 판입니다."
-    answer, events = _run(tmp_path, _Model(with_close=SUMMARY, final=final))
+    # 닫은 뒤 차례가 남는 판(파일 · 문서를 만들라는 일)에서만 성립한다 — 조사 판은 닫으며 쓴 답으로 끝난다(2026-11-01).
+    answer, events = _run(tmp_path, _Model(with_close=SUMMARY, final=final), prompt="둘 중 어느 쪽이 더 겹치나 찾아서 보고서로 줘")
 
     assert answer.rstrip().endswith("2026년 판입니다.") or "2026년 판입니다." in answer
     assert "agent_answer_from_wrap_up" not in events

@@ -8,7 +8,10 @@ import {
   Brain, ChevronsDownUp, Code2, FileText, FolderOpen, HandHelping, Image, Loader2, Mic, Monitor, Paperclip, Send, ShieldCheck, Square, X,
 } from "lucide-react";
 import { ChangeEvent, ClipboardEvent, DragEvent, FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createBackendClient, focusWorkspaceWindow, isTauri, JarvisClient, loadBootstrap, openExternalUrl, pickNativeCodeWorkspace } from "./backend";
+import {
+  allowForegroundForChrome, callsSonjariChrome, createBackendClient, focusWorkspaceWindow, isTauri, JarvisClient, loadBootstrap,
+  openExternalUrl, pickNativeCodeWorkspace,
+} from "./backend";
 import { createShowcaseSource } from "./workspace/ShowcaseStrip";
 import { invoke } from "@tauri-apps/api/core";
 import { StageMiniWatcher } from "./stageMini";
@@ -85,6 +88,9 @@ import "./tutorial/tutorial.css";
 import { QuestBoard } from "./tutorial/QuestBoard";
 import { CoachBubble } from "./tutorial/CoachBubble";
 import { useTutorial } from "./tutorial/useTutorial";
+import {
+  folderForSession, recentFolders, rememberRecentFolder, rememberSessionFolder, saveCoworkFolder, savedCoworkFolder,
+} from "./workspace/projectFolders";
 
 type LocalAttachment = ChatAttachment & { size: number };
 
@@ -230,6 +236,9 @@ export function WorkspaceApp() {
   const [codeWorkspace, setCodeWorkspace] = useState(savedCodeWorkspace);
   // presence 는 타이머에서 불린다 — 낡은 클로저를 안 보게 ref 로 읽는다.
   const codeWorkspaceRef = useRef<string>(codeWorkspace);
+  // 코워크의 프로젝트 폴더(만든 파일이 갈 곳 · 그 안은 바로 읽음) — 비우면 결과물 폴더(2026-10-30 대표).
+  const [coworkFolder, setCoworkFolder] = useState(savedCoworkFolder);
+  const [folderHistory, setFolderHistory] = useState<string[]>(recentFolders);
   const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
   const [connected, setConnected] = useState(false);
   const [pilotMode, setPilotMode] = useState(false);
@@ -460,19 +469,27 @@ export function WorkspaceApp() {
     window.localStorage.setItem(CODE_WORKSPACE_KEY, codeWorkspace);
   }, [codeWorkspace]);
 
+  useEffect(() => {
+    saveCoworkFolder(coworkFolder);
+  }, [coworkFolder]);
+
+  // 머리의 폴더 칸은 모드마다 제 폴더를 보인다 — 코드는 저장소, 코워크는 프로젝트 폴더.
+  const shownFolder = workspaceMode === "code" ? codeWorkspace : coworkFolder;
+  const setShownFolder = workspaceMode === "code" ? setCodeWorkspace : setCoworkFolder;
+
   const chooseCodeWorkspace = useCallback(async () => {
     if (workspacePickerOpen) return;
     setWorkspacePickerOpen(true);
     setError("");
     try {
-      const selected = await pickNativeCodeWorkspace(codeWorkspace);
-      if (selected) setCodeWorkspace(selected);
+      const selected = await pickNativeCodeWorkspace(workspaceMode === "code" ? codeWorkspace : coworkFolder);
+      if (selected) (workspaceMode === "code" ? setCodeWorkspace : setCoworkFolder)(selected);
     } catch (reason) {
       setError(t("프로젝트 폴더 선택창을 열지 못했습니다: {0}", reason instanceof Error ? reason.message : String(reason)));
     } finally {
       setWorkspacePickerOpen(false);
     }
-  }, [codeWorkspace, workspacePickerOpen]);
+  }, [codeWorkspace, coworkFolder, workspaceMode, workspacePickerOpen]);
 
   const refreshSessions = useCallback(async (client = clientRef.current) => {
     if (!client) return [];
@@ -635,6 +652,11 @@ export function WorkspaceApp() {
     followOutputRef.current = true;
     setSessionId(nextId);
     sessionRef.current = nextId;
+    // 그 대화에서 쓰던 폴더로 돌아온다(있을 때만 — 없으면 지금 폴더를 그대로 둔다).
+    const codeFolder = folderForSession(nextId, "code");
+    if (codeFolder) setCodeWorkspace(codeFolder);
+    const coworkSaved = folderForSession(nextId, "cowork");
+    if (coworkSaved) setCoworkFolder(coworkSaved);
     setStreaming("");
     setProgress([]);
     setNarration([]);
@@ -1561,6 +1583,20 @@ export function WorkspaceApp() {
     setBrowserControl(true);
     void clientRef.current?.liveControl("take").catch(() => null);
   }, []);
+  // ★ /레시피 배우기가 시작되면 「Sonjari의 컴퓨터」 칸을 크게 펴고 조작을 사람에게 넘긴다 (2026-10-30 대표 「크롬이 앞으로 안 뜬다 —
+  //   앱 안에서 하게」). 칸 안에서 누르고 치면 진짜 크롬에 진짜 입력으로 들어가 기록기가 그대로 받는다. 배우기가 끝나면 조작을 돌려받는다.
+  const learningRef = useRef(false);
+  useEffect(() => {
+    const learning = learn.phase === "learning";
+    if (learning && !learningRef.current) {
+      setComputerDismissed(false);
+      takeOverHere();
+    } else if (!learning && learningRef.current) {
+      setBrowserControl(false);
+      void clientRef.current?.liveControl("release", "learn_done").catch(() => null);
+    }
+    learningRef.current = learning;
+  }, [learn.phase, takeOverHere]);
   // 사람 문에서 할 일 — 위 안내 띠와 아래 「이어서」 카드가 같이 쓴다.
   const gateActionButtons = (
     <div className="attention-actions">
@@ -1789,6 +1825,9 @@ export function WorkspaceApp() {
     // ★ await **앞에서** 적어 둔다. `job_queued` 가 POST 응답보다 먼저 도착하므로,
     // 여기가 await 뒤로 가면 그 사건이 이 질문을 남의 것으로 보고 화면에 또 얹는다.
     localSendsRef.current = rememberLocalSend(localSendsRef.current, prompt);
+    const sentFolder = (workspaceMode === "code" ? codeWorkspace : coworkFolder).trim();
+    // 사람이 손자리 크롬을 직접 부르는 말이면 앞창 바꾸기를 먼저 허락한다 — 뒤쪽 백엔드의 「크롬 앞으로」가 윈도우에 막히던 것(10-30).
+    if (callsSonjariChrome(prompt)) await allowForegroundForChrome();
     // ★ 코드 탭에서 일을 보내는 순간, 코드 모델이 작고 이 카드에 더 큰 것이 들어가면 카드를 띄운다(막지 않는다).
     //   판단은 백엔드 규칙(`code_upgrade`) 한 곳 — 고르개의 「코드 일 추천」과 같은 답을 받는다.
     if (workspaceMode === "code" && override === undefined && setupApi && !codeOfferSeen.current.has(targetSession)) {
@@ -1806,12 +1845,17 @@ export function WorkspaceApp() {
         // Tells the small HUD window this answer is already on screen here.
         "workspace",
         workspaceMode,
-        workspaceMode === "code" ? codeWorkspace.trim() : "",
+        // 코워크도 고른 프로젝트 폴더를 보낸다 — 백엔드가 그 판의 저장 자리로 쓴다(2026-10-30).
+        sentFolder,
         "",
         "",
         reasoning,
         observe,
       );
+      if (sentFolder) {
+        setFolderHistory(rememberRecentFolder(sentFolder));
+        rememberSessionFolder(targetSession, workspaceMode, sentFolder);
+      }
       // 사건이 먼저 도착해 이미 대기열에 들어갔을 수 있다 — 그러면 그대로 둔다.
       if (!pendingRef.current.some((item) => item.jobId === job.id)) {
         syncPending([
@@ -2203,8 +2247,11 @@ export function WorkspaceApp() {
         <header className="workspace-header">
           <div className="workspace-heading">
             <h2>{currentTitle}</h2>
-            {workspaceMode === "code" && (
-              <div className="code-workspace-field" title={t("허용된 로컬 폴더만 열 수 있습니다")}>
+            {/* 코워크에도 프로젝트 폴더 칸 (2026-10-30 대표 「클로드 코워크처럼 폴더를 정해 두고 오가자」). 최근 폴더는 둘이 같이 쓴다. */}
+            {(workspaceMode === "code" || workspaceMode === "cowork") && (
+              <div className="code-workspace-field" title={workspaceMode === "code"
+                ? t("허용된 로컬 폴더만 열 수 있습니다")
+                : t("만든 파일은 이 폴더에 저장하고, 이 폴더 안 파일은 바로 읽습니다")}>
                 <button
                   type="button"
                   className="code-workspace-picker"
@@ -2216,11 +2263,18 @@ export function WorkspaceApp() {
                   {workspacePickerOpen ? <Loader2 className="spin" size={14} /> : <FolderOpen size={14} />}
                 </button>
                 <input
-                  value={codeWorkspace}
-                  onChange={(event) => setCodeWorkspace(event.target.value)}
-                  placeholder={t("비워두면 대화에서 프로젝트를 찾아요")}
+                  value={shownFolder}
+                  onChange={(event) => setShownFolder(event.target.value)}
+                  placeholder={workspaceMode === "code"
+                    ? t("비워두면 대화에서 프로젝트를 찾아요")
+                    : t("프로젝트 폴더 — 비워 두면 결과물 폴더(문서\\Sonjari)에 저장")}
+                  aria-label={workspaceMode === "code" ? t("저장소 폴더") : t("프로젝트 폴더")}
+                  list="recent-project-folders"
                   spellCheck={false}
                 />
+                <datalist id="recent-project-folders">
+                  {folderHistory.map((folder) => <option key={folder} value={folder} />)}
+                </datalist>
                 <button
                   type="button"
                   className="code-workspace-browse"

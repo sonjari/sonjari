@@ -136,6 +136,8 @@ MANIFEST: dict[str, _Spec] = {
     # ★ 2026-10-01 테스터 시험: 프로젝트 정보는 **실제 파일 크기를 잰 상위 10개**(largest_assets)를 준다. 목록으로 두었더니
     #   거기서 옮긴 16MB 텍스처 넷에 「읽지 않고 적었다」 헛경고가 붙었다 — 원문 그대로의 자료라 본문 읽기로 센다.
     "unity_project_info": _Spec(EFFECT_READ_LOCAL, TYPE_BODY_READ, ("project",), (), "path"),
+    # ── 영상 팩 (2026-11-02) — 영상 페이지(또는 이 PC 파일)를 실제로 틀어 화면을 잰 결과다. 본문 읽기로 센다.
+    "video_read": _Spec(EFFECT_READ_WEB, TYPE_BODY_READ, ("url", "path"), (), "url"),
     "unity_run_recipe": _Spec(EFFECT_READ_LOCAL, TYPE_BODY_READ, ("project",), (), "path"),
     # 열린 에디터(2026-09-27 · 2단계) — 읽기는 계층·콘솔 목록, 바꾸기는 씬 변경(에디터 Undo 에 남는다).
     "unity_editor_status": _Spec(EFFECT_READ_LOCAL, TYPE_LISTING, ("project",), (), "path"),

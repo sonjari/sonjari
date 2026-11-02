@@ -26,8 +26,10 @@ TABLE = (
     "| 가게 | 상품 이름 | 판매 가격 | 주소 |\n"
     "|---|---|---|---|\n"
     "| 다나와 | 무선 마우스 | 129,000원 | https://prod.danawa.com/info/?pcode=1 |\n"
-    "| 11번가 | 무선 마우스 |  | https://www.11st.co.kr/products/1 |\n"
+    "| 11번가 | 무선 마우스 | 129,000원 | https://www.11st.co.kr/products/1 |\n"
 )
+# ★ 2026-11-02: 11번가 가격 칸이 비어 있던 것을 채웠다 — 빈칸이 섞인 칸은 이제 「채웠다」가 아니라 「일부만(1/2)」이다
+#   (test_needs_unobtained_and_partial_1102). 이 파일은 칸 이름 · 「이름: 값」 줄로 찾는 것을 본다.
 
 
 def _job(answer: str, needs: list[str] | None = None) -> dict[str, Any]:

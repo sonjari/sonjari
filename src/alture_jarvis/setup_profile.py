@@ -35,6 +35,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable
 
+from . import heavy_apps
 from .model_catalog import CATALOG, EXTERNAL_BY_TIER, CatalogModel, by_key, tier_for, is_open_license, text_only_need
 
 #: 화면 출력이 물린 GPU 는 창·바탕화면이 VRAM 을 나눠 쓴다. 노트북에서 특히 크다.
@@ -415,6 +416,7 @@ def detect(ollama_base_url: str = "http://127.0.0.1:11434") -> dict[str, Any]:
     tags = _get_json(f"{ollama_base_url}/api/tags") or {}
     return {
         "measured_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "heavy_apps": heavy_apps.installed(),   # 그래픽카드를 같이 쓰는 작업 프로그램(2026-10-30)
         "os": platform.platform(),
         "cpu": platform.processor() or "",
         "ram_gb": _ram_gb(),
@@ -787,11 +789,19 @@ def recommend(profile: dict[str, Any], bench: dict[str, Any] | None = None) -> d
         if fast is not None:
             alt, alt_ctx, alt_need = fast
             picks[-1]["role"] = "smart"
-            reasons.append(f"똑똑함은 {model.family_name or model.name}, 빠름은 {alt.name} 입니다 — 둘 다 이 PC 에 들어갑니다. "
-                           "어려운 일은 똑똑한 쪽, 빨리 끝낼 일은 빠른 쪽이 맞습니다.")
+            reasons.append(f"평소에는 {model.family_name or model.name}, 3ds Max · 유니티 · 게임처럼 그래픽카드를 쓰는 프로그램을 같이 켜 둘 때는 "
+                           f"{alt.name} 입니다 — 둘 다 이 PC 에 들어갑니다. 그래픽카드를 나눠 쓰면 {model.family_name or model.name} 은 "
+                           "카드 밖으로 넘쳐 아주 느려지고, 2비트는 넘쳐도 빠릅니다.")
+            # ★ 이 PC 에 무거운 작업 프로그램이 깔려 있고 카드가 16GB 이하면 「같이 받아 두기」를 권한다 (2026-10-30 대표).
+            #   깔려 있음은 같이 쓴다는 뜻이 아니라 권하기까지만 한다 — 실제로 넘기는 것은 판 시작에 「켜져 있음」을 보고 한다.
+            heavy = [str(name) for name in profile.get("heavy_apps") or []]
+            biggest = max((float(g.get("vram_total_gb") or 0) for g in gpus), default=0.0)
+            if heavy and heavy_apps.small_card(biggest):
+                reasons.append(f"이 PC 에 {' · '.join(heavy)} 이(가) 깔려 있습니다 — 같이 켜고 일할 때를 위해 {alt.name} 도 받아 두세요. "
+                               "나중에 대화창에 「빠른 모델 받기」라고 쳐도 받습니다.")
             if not is_open_license(model.license):
                 reasons.append(f"{model.name} 의 라이선스에는 사용 조건이 있습니다 — {alt.name} 은 조건이 없습니다(Apache 2.0).")
-            picks.append({"kind": "open_alternative", "role": "fast", "model_key": alt.key, "name": alt.name,
+            picks.append({"kind": "open_alternative", "role": "fast", "heavy_apps": heavy, "model_key": alt.key, "name": alt.name,
                           "ollama_tag": alt.ollama_tag, "num_ctx": alt_ctx, "vram_gb": alt_need, "download_gb": alt.download_gb,
                           "installed": alt.ollama_tag in installed,
                           "confidence": "measured" if alt.chain and alt.chain_ctx == alt_ctx else "memory_only",

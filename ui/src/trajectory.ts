@@ -314,6 +314,7 @@ const TOOL_LABELS: Record<string, string> = {
   unity_list_recipes: t("유니티 레시피 목록"),
   unity_run_recipe: t("유니티 레시피 실행"),
   unity_try_script: t("클로드·코덱스 초안 돌려 보기"),
+  video_read: t("영상 짜임 읽기"),
   unity_editor_status: t("유니티 에디터 상태 보기"),
   unity_editor_look: t("유니티 에디터 안 읽기"),
   unity_editor_change: t("유니티 에디터에서 바꾸기"),

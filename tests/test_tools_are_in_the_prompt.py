@@ -48,6 +48,8 @@ UNMENTIONED_ON_PURPOSE: dict[str, str] = {
     # 게임 팩(2026-09-27). 모든 판의 절차에 넣으면 유니티와 무관한 판까지 글이 길어진다. 대신 유니티 낱말이 있을 때만
     # 코드 프로필(`code_runtime.select_code_tool_profile` 의 unity 갈래) 안내와 `game-unity` 스킬이 이름을 댄다.
     "unity_project_info": "유니티 판에만 코드 프로필 안내·game-unity 스킬이 이름을 댄다 — 전역 절차에 넣지 않는다",
+    # 영상 팩(2026-11-02). 팩이 꺼진 판에는 도구 자체가 목록에 없다 — 켠 판에서는 도구 설명이 쓰는 법을 다 말한다(한 번 부르면 끝).
+    "video_read": "영상 팩을 켠 판에만 목록에 들어오고 도구 설명이 쓰는 법을 다 말한다 — 전역 절차에 넣지 않는다",
     "unity_run_recipe": "유니티 판에만 코드 프로필 안내·game-unity 스킬이 이름을 댄다 — 전역 절차에 넣지 않는다",
     "unity_editor_status": "유니티 판에만 코드 프로필 안내·game-unity 스킬이 이름을 댄다 — 전역 절차에 넣지 않는다",
     "unity_editor_look": "유니티 판에만 코드 프로필 안내·game-unity 스킬이 이름을 댄다 — 전역 절차에 넣지 않는다",

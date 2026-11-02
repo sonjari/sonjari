@@ -634,6 +634,25 @@ SKILL_TRIGGERS_KO: dict[str, tuple[str, ...]] = {
     "game-unity": (
         "유니티", "프리팹", "텍스처 설정", "텍스처 점검", "빠진 참조", "missing script", "에셋 점검",
     ),
+    # ── 유니티 세부 주제 (vendor/gamedev-unity · gamedev-skills, Apache-2.0 · 2026-11-01) ──
+    #   주제 낱말만 둔다. 「유니티」 한 낱말은 위 `game-unity` 몫이라 여기 넣지 않는다 — 넣으면 유니티 판마다 여덟이 다툰다.
+    "unity-animation": ("애니메이터", "애니메이션 컨트롤러", "블렌드 트리", "animator controller", "blend tree"),
+    "unity-physics": ("리지드바디", "rigidbody", "콜라이더", "collider", "물리 충돌", "레이캐스트", "raycast"),
+    "unity-navmesh": ("내비메시", "네브메시", "navmesh", "길찾기 ai", "navmeshagent"),
+    "unity-input-system": ("인풋 시스템", "input system", "입력 시스템", "inputaction", "키 입력 처리"),
+    "unity-scriptableobjects": ("스크립터블 오브젝트", "scriptableobject", "scriptable object"),
+    "unity-tilemap-2d": ("타일맵", "tilemap", "2d 타일"),
+    "unity-build-pipeline": ("유니티 빌드", "빌드 파이프라인", "어드레서블", "addressables", "에셋 번들", "assetbundle"),
+    "unity-csharp-scripting": ("monobehaviour", "모노비헤이비어", "코루틴", "coroutine", "유니티 스크립트", "c# 스크립트"),
+    # ── 코드 구조 (vendor/mattpocock · mattpocock/skills, MIT · 2026-11-01) ──
+    #   「리팩터」 · 「정리」는 넣지 않는다 — 판마다 걸려 소음이 된다. 구조 · 모듈 · 인터페이스를 말할 때만.
+    "codebase-design": (
+        "모듈 설계", "모듈 구조", "인터페이스 설계", "구조 개선", "구조를 개선", "구조 잡아", "깊은 모듈",
+        "테스트하기 쉽게", "결합도", "의존성 정리",
+    ),
+    # 디버깅 낱말은 `systematic-debugging` 이 그대로 쥔다(시험이 지킨다). 코드 판에서는 runtime 이 그 자리를
+    # `diagnosing-bugs` 로 바꿔 세운다(`_CODE_SKILL_SWAP`). 여기는 그 스킬만의 말 — 느려짐 · 성능 퇴행.
+    "diagnosing-bugs": ("성능 퇴행", "갑자기 느려", "느려졌", "재현 명령", "재현 스크립트"),
 
     # ── 창업 지원사업 (vendor/alture, 우리가 씀 · 2026-10-02) ────────────────
     #   대표 운영 판 K-Startup 3차: 「AI」 공고 13건 대부분이 교육·행사였고, 「3년 이상 제외」 문장으로 「1년 미만 불가」를
@@ -877,6 +896,8 @@ _OUTPUT_VERBS_EN: tuple[str, ...] = tuple(
     }
 )
 _WEAK_TRIGGERS_EN: frozenset[str] = frozenset({
+    # codebase-design 의 넓은 말 — 하나만 걸리면 안 붙인다(2026-11-01).
+    "seam", "coupling",
     "post", "posts", "apply", "recruiting", "organize", "analysis", "research", "review", "material", "document",
     "list", "result", "information", "content", "compare", "comparison", "still open",
     "sign up flow",  # 「test the sign up flow」는 해 보는 일이다 — 한국어 「회원가입」과 같은 자리(10-03)
@@ -901,6 +922,19 @@ SKILL_TRIGGERS_EN: dict[str, tuple[str, ...]] = {
         "unity project", "unity editor", "in unity", "prefab", "prefabs", "texture settings", "texture import",
         "missing script", "missing scripts", "missing reference", "missing references",
     ),
+    "unity-animation": ("animator controller", "blend tree", "animation controller", "animation state machine"),
+    "unity-physics": ("rigidbody", "collider", "colliders", "raycast", "physics collision"),
+    "unity-navmesh": ("navmesh", "navmeshagent", "nav mesh", "pathfinding agent"),
+    "unity-input-system": ("input system", "inputaction", "input actions", "new input system"),
+    "unity-scriptableobjects": ("scriptableobject", "scriptable object", "scriptable objects"),
+    "unity-tilemap-2d": ("tilemap", "tilemaps", "2d tiles"),
+    "unity-build-pipeline": ("unity build", "build pipeline", "addressables", "assetbundle", "asset bundle"),
+    "unity-csharp-scripting": ("monobehaviour", "coroutine", "coroutines", "unity script", "c# script"),
+    "codebase-design": (
+        "module design", "module boundary", "interface design", "deep module", "deep modules",
+        "improve the structure", "make it testable", "coupling", "seam",
+    ),
+    "diagnosing-bugs": ("performance regression", "got slower", "suddenly slow", "repro script", "reproduction command"),
     "document-craft": (
         "as a document", "into a document", "word document", "word file", "word doc", "as a report",
         "into a report", "in excel", "into excel", "in an excel file", "into an excel file", "as an excel file", "as the excel file", "into a spreadsheet", "in a spreadsheet", "as a csv", "to a csv", "markdown", "hangul document", "as a hangul",

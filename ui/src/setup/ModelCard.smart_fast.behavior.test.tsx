@@ -38,8 +38,8 @@ async function render(withRoles: boolean) {
   return [...host.querySelectorAll(".model-badge")].map((badge) => badge.textContent);
 }
 
-it("역할을 받으면 「똑똑함」 · 「빠름」 배지", async () => {
-  expect(await render(true)).toEqual(["Sonjari 추천 · 똑똑함", "빠름"]);
+it("역할을 받으면 「평소」 · 「무거운 프로그램과 함께」 배지(2026-10-30 대표)", async () => {
+  expect(await render(true)).toEqual(["Sonjari 추천 · 평소", "무거운 프로그램과 함께"]);
 });
 
 it("역할이 없으면 예전 배지 그대로", async () => {

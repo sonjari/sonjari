@@ -1792,6 +1792,8 @@
  "원문 보기": "Read the license",
  "조건 없는 대안": "Alternative with no conditions",
  "Sonjari 추천 · 똑똑함": "Sonjari recommended · smarter",
+ "Sonjari 추천 · 평소": "Sonjari recommended · everyday",
+ "무거운 프로그램과 함께": "With heavy apps open",
  "빠름": "Faster",
  "크기 고르기": "Choose a size",
  "{0} 크기 고르기": "Choose a size for {0}",
@@ -2452,6 +2454,7 @@
  "이 PC에서 읽은 양": "Read on this PC",
  "동시에": "At the same time",
  "영수증": "Receipt",
+ "영상 짜임 읽기": "Read how a video is cut",
  "이 PC에서 읽고 클로드로 안 보낸 양": "Read on this PC and never sent to Claude",
  "10월 26일 실제 판 · 이 PC 26걸음 · 센 글자로 잡은 하한": "A real run on Oct 26 · 26 steps on this PC · a lower bound from counted characters",
  "손자리 창": "Sonjari window",
@@ -2536,5 +2539,9 @@
  "로그인이 필요해요 — 크롬 창에서 로그인해 주세요.": "Sign-in needed — please sign in in the Chrome window.",
  "주간 보고 엑셀 정리": "Tidy the weekly report spreadsheet",
  "끝내지 못했습니다 — 그래픽카드가 가득 차 있어 다른 프로그램을 닫은 뒤 「이어서 해줘」라고 보내 주세요": "Couldn't finish — the graphics card is full; close other programs, then send \"continue\"",
- "다른 일 하는 중": "Doing something else"
+ "다른 일 하는 중": "Doing something else",
+ "만든 파일은 이 폴더에 저장하고, 이 폴더 안 파일은 바로 읽습니다": "Files you make are saved in this folder, and files inside it can be read right away",
+ "프로젝트 폴더 — 비워 두면 결과물 폴더(문서\\Sonjari)에 저장": "Project folder (leave empty to save in Documents\\Sonjari)",
+ "저장소 폴더": "Repository folder",
+ "프로젝트 폴더": "Project folder"
 }

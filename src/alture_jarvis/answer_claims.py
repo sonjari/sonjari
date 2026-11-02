@@ -123,6 +123,8 @@ _CONTENT_TOOLS = frozenset(
         # 유니티 레시피(2026-09-27) — 유니티가 에셋 설정·참조를 **실제로 열어 읽은** 결과 파일이다.
         # 첫 레시피는 전부 읽기다. 바꾸는 레시피가 생기면 그 판정은 쓰기 쪽(measure_autonomy.WRITE_TOOLS)에서 따로 한다.
         "unity_run_recipe",
+        # 영상 팩(2026-11-02) — 영상 페이지를 열어 화면을 실제로 읽고 잰 결과(표 · 사진)다.
+        "video_read",
         "hwp_read",
         "browser_extract", "browser_read", "browser_open", "browser_open_result",
         # 받은 것은 **가져온 내용**이다 — 파일이 손에 들어왔으니 목록이 아니다.

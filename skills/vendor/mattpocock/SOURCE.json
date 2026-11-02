@@ -1,0 +1,14 @@
+{
+  "repo": "https://github.com/mattpocock/skills",
+  "commit": "5ae481693d13b37d4d2c2c92d0b66d299c93e695",
+  "license": "MIT",
+  "fetched_at": "2026-10-31",
+  "skills": [
+    "codebase-design",
+    "diagnosing-bugs"
+  ],
+  "dropped_executable_files": {
+    "codebase-design": 1,
+    "diagnosing-bugs": 2
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "ko": {
+    "changes": "이번에 새로 생긴 것\n- 영상 팩: 레퍼런스 영상 주소를 주면 손자리 크롬의 새 탭에서 소리 끄고 빠르게 틀며 컷 · 겹쳐 넘기기 · 확대 · 자막 박자 · 시청자가 다시 본 구간을 읽어 표 한 장과 대표 장면 사진 한 장으로 돌려줍니다. 영상은 내려받지 않습니다(설정 › 팩에서 켭니다).\n\n이번에 고친 것\n- 구글 드라이브처럼 메뉴를 눌러야 파일 선택 창이 열리는 곳에서도 파일을 올립니다.\n- 「파일 3개(…)를 업로드」처럼 개수 바로 뒤에 괄호 목록이 붙은 말을 「자료 3개 읽기」로 잘못 알아듣던 것을 고쳤습니다.\n- 본문이 다 보이는 기사 · 보도자료 아래에 보안 문자 상자가 있다고 「사람이 필요하다」며 멈추던 것을 고쳤습니다. 진짜 검사 화면과 로그인 화면은 그대로 사람에게 넘깁니다.\n- 클로드 등 바깥 AI 에게 결과를 넘길 때, 손자리가 「확인 불가」 · 「읽을 수 없었습니다」라고 적은 칸이나 일부 줄만 찬 칸을 「채웠다」로 잘못 알리던 것을 고쳤습니다.\n- 근거를 다 읽고도 마지막에 답 대신 도구 부르는 글을 써서 답이 비던 것: 한 번 더 답을 쓰게 합니다.\n- 그래픽카드가 큰 PC(16GB 넘음)에서 잠깐 메모리가 찼다고 빠른 모델로 영구히 바꾸던 것을 멈췄습니다. 16GB 이하 카드에서는 그대로 바꿉니다.",
+    "tour": "이미 되는데 잘 모르시는 것\n- 게임 팩 — 유니티 프로젝트 점검과 열린 에디터에서 만들고 바꾸기를 손자리가 합니다(설정 › 팩).\n- 클로드 · 코덱스 · 커서에서 Sonjari 쓰기 — 그 AI 가 웹 조사 · 파일 일을 손자리에게 맡깁니다. 페이지는 이 PC 가 읽고 결과만 돌아가 클로드 사용 한도를 아낍니다(설정 › 연결).\n- 무거운 프로그램과 함께 — 16GB 이하 카드에서 3ds Max · 유니티가 켜져 있으면 일을 시작할 때 빠른 모델로 바꿉니다. 「원래 모델로」라고 하면 돌아갑니다.",
+    "slides": [
+      {
+        "title": "영상을 보고 짜임을 읽습니다",
+        "body": "레퍼런스 영상을 손자리 크롬에서 2배속으로 틀며 컷 · 확대 · 자막 박자 · 다시 본 구간을 표 한 장과 대표 장면 사진 한 장으로 돌려줍니다. 긴 영상은 앞부분과 시청자가 다시 본 곳만 봅니다.",
+        "try": "「이 영상 짜임 읽어 줘: (유튜브 주소)」 — 설정 › 팩에서 영상 팩을 먼저 켜세요",
+        "visual": {
+          "kind": "stat",
+          "label": "같은 10분 영상에서 못 읽은 화면 칸",
+          "before": 1236,
+          "after": 2,
+          "unit": "칸",
+          "basis": "이 PC(RTX 3090) · 같은 유튜브 영상 · 같은 구간 · 고치기 전: 로그인 없는 빈 브라우저(11-01, 재생 오류) · 뒤: 손자리 크롬(11-02) · 영상 한 편, 한 판씩."
+        }
+      },
+      {
+        "title": "정말 막혔을 때만 사람에게",
+        "body": "본문이 다 보이는 페이지 아래의 보안 문자 상자나 로그인 상자 때문에 멈추지 않습니다. 진짜 검사 화면과 로그인 화면에서만 사람에게 넘깁니다.",
+        "try": "「○○ 보도자료 찾아 요약해 줘」"
+      },
+      {
+        "title": "드라이브에 파일 올리기",
+        "body": "메뉴를 눌러야 파일 선택 창이 열리는 곳(구글 드라이브 등)에서도 파일을 골라 올립니다.",
+        "try": "「이 폴더의 파일 3개를 내 드라이브 ○○ 폴더에 올려 줘」"
+      }
+    ]
+  },
+  "en": {
+    "changes": "New in this update\n- Video pack: give a reference video link and Sonjari plays it muted and fast in a new tab of its Chrome, reads cuts, cross-fades, zooms, caption rhythm and the parts viewers replayed, and returns one table and one sheet of key frames. The video is never downloaded (turn it on in Settings › Packs).\n\nFixed in this update\n- Uploads now work where a menu has to be clicked before the file picker opens, such as Google Drive.\n- \"Upload 3 files (…)\" with a list right after the count was read as \"read 3 sources\". Fixed.\n- Sonjari no longer stops with \"a person is needed\" just because a captcha box sits under a fully readable article or press release. Real check screens and login screens still go to you.\n- When handing results to Claude or another AI, fields Sonjari marked \"could not confirm\" or \"could not read\", and columns filled in only some rows, were reported as filled. Fixed.\n- After reading all the sources, the final answer was sometimes a tool-call text instead of an answer, leaving it empty. Sonjari is now asked once more to write the answer.\n- On PCs with a large graphics card (over 16GB), a moment of full memory no longer switches you to the fast model for good. Cards of 16GB or less still switch.",
+    "tour": "Already works, but easy to miss\n- Game pack: Sonjari checks Unity projects and creates or changes things in the open editor (Settings › Packs).\n- Use Sonjari from Claude, Codex or Cursor: that AI hands web research and file work to Sonjari. Pages are read on this PC and only the result goes back, which saves your Claude usage (Settings › Connections).\n- With heavy apps open: on cards of 16GB or less, if 3ds Max or Unity is running, Sonjari switches to the fast model when a job starts. Say \"go back to the original model\" to return.",
+    "slides": [
+      {
+        "title": "Reads how a video is cut",
+        "body": "Plays a reference video at 2x in Sonjari's Chrome and returns cuts, zooms, caption rhythm and replayed parts as one table and one sheet of key frames. Long videos are watched at the start and where viewers replayed.",
+        "try": "\"Read how this video is cut: (YouTube link)\" — turn on the video pack in Settings › Packs first",
+        "visual": {
+          "kind": "stat",
+          "label": "Frame slots that could not be read, same 10-minute video",
+          "before": 1236,
+          "after": 2,
+          "unit": "slots",
+          "basis": "This PC (RTX 3090) · same YouTube video and segments · before: a blank browser with no sign-in (11-01, playback error) · after: Sonjari's Chrome (11-02) · one video, one run each."
+        }
+      },
+      {
+        "title": "A person only when it's really blocked",
+        "body": "Sonjari no longer stops for a captcha or login box under a page whose text is fully readable. Only real check screens and login screens go to you.",
+        "try": "\"Find the press release about X and sum it up\""
+      },
+      {
+        "title": "Upload files to Drive",
+        "body": "Picks and uploads files even where a menu has to be clicked before the file picker opens, such as Google Drive.",
+        "try": "\"Upload the 3 files in this folder to my Drive folder X\""
+      }
+    ]
+  }
+}

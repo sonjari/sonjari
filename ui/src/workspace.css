@@ -144,6 +144,13 @@
 .code-workspace-picker { width: 22px; height: 24px; padding: 0; display: grid; place-items: center; border-radius: 6px; }
 .code-workspace-picker:hover { background: rgb(var(--signal) / .1); }
 .code-workspace-browse { height: 24px; padding: 0 2px 0 7px; border-left: 1px solid rgb(var(--line)); color: rgb(var(--text-4)); font-size: var(--fs-1); white-space: nowrap; }
+/* ★ 10-30 대표 스크린샷: 코워크에도 폴더 칸이 붙자, 좁은 창(작업 화면을 편 대화 칸)에서 칸이 줄지 않아 「찾아보기」가
+   오른쪽 칩(컴퓨터 · 깊게 판단 중) 밑으로 깔렸다. 칸은 남는 폭만큼만 쓰고 줄어들며, 넘치는 것은 칸 안에서 잘린다.
+   더 좁으면 「찾아보기」 글자를 숨긴다 — 폴더 아이콘 단추가 같은 일을 한다. */
+.code-workspace-field { flex: 0 1 430px; width: auto; min-width: 0; overflow: hidden; }
+.workspace-heading { overflow: hidden; }
+.workspace-heading h2 { flex: 0 0 auto; }
+@media (max-width: 1100px) { .code-workspace-browse { display: none; } }
 .code-workspace-browse:hover { color: rgb(var(--text-2)); }
 .code-workspace-picker:disabled,
 .code-workspace-browse:disabled { cursor: wait; opacity: .65; }

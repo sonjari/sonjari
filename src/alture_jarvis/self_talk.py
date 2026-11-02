@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from . import whats_new
+from . import model_fallback, whats_new
 
 #: 제안은 다음 말 한 번 · 그리고 이 시간 안에만 유효하다.
 OFFER_TTL_SEC = 30 * 60
@@ -166,6 +166,9 @@ class SelfContext:
     replay_demo: Callable[[dict[str, Any]], dict[str, Any]] | None = None
     # 화면에 알릴 사건(「배우는 중」 칸) — 이름 · 내용. 없어도 대화는 그대로 간다.
     notify: Callable[[str, dict[str, Any]], None] | None = None
+    # 모델이 새서 빠른 모델로 넘긴 뒤 「원래 모델로」 · 넘기려는데 없을 때 「빠른 모델 받기」(2026-10-30 · `model_fallback`). 없으면 안 받는다.
+    restore_model: Callable[[], dict[str, Any]] | None = None
+    pull_fast_model: Callable[[], dict[str, Any]] | None = None
 
 
 @dataclass
@@ -286,6 +289,10 @@ class SelfTalk:
             return self._forget_recipe(str(last.get("name") or ""), session_id, ctx, lang)
         if last and is_undo(prompt):
             return self._switch_eyes(bool(last.get("before")), session_id, ctx, lang, asked_by="undo")
+        if ctx.restore_model is not None and model_fallback.restore_command(prompt):
+            return self._restore_model(ctx, lang)
+        if ctx.pull_fast_model is not None and model_fallback.pull_command(prompt):
+            return self._pull_fast_model(ctx, lang)
         command = eyes_command(prompt)
         if command is not None:
             return self._switch_eyes(command, session_id, ctx, lang, asked_by="command")
@@ -415,12 +422,16 @@ class SelfTalk:
             self._state(session_id).demo_label = clean
         self._notify(ctx, "demo_started", {"label": clean, "url": str(result.get("url") or "")})
         if en:
-            text = ("Okay — do it once in the **Sonjari browser** I just brought to the front (the window with the red \"learning\" bar). "
+            text = ("Okay — do it once in the **Sonjari's computer** panel on the right; it opens large with control handed to you "
+                    "(you can also use the Sonjari browser window with the red \"learning\" bar). "
                     "Your everyday Chrome isn't watched. The step count on the bar goes up as you click and type, and the steps pile up "
                     "in the \"Learning\" box next to this chat. When you're done, press **Done** on the bar or say \"done\" here. "
                     "I don't record passwords or file fields.")
         else:
-            text = ("좋습니다. 방금 앞으로 띄운 **손자리 크롬**(위에 빨간 「배우는 중」 띠가 있는 창)에서 한 번 해 보여 주세요. "
+            # ★ 2026-10-30 대표: 「크롬이 앞으로 안 뜬다 — 앱 안 손자리 컴퓨터 칸을 크게 펴서 거기서 하게」. 화면이 배우기 시작을 받으면
+            #   그 칸을 펴고 직접 조작을 넘긴다(`WorkspaceApp` learn 효과). 창 앞뒤 다툼(윈도우가 막음)이 없어진다.
+            text = ("좋습니다. 오른쪽 **「Sonjari의 컴퓨터」** 칸이 크게 펴지고 조작이 넘어갑니다 — 그 안에서 한 번 해 보여 주세요"
+                    "(빨간 「배우는 중」 띠가 있는 손자리 크롬 창에서 해도 됩니다). "
                     "평소 쓰시는 크롬은 보지 않습니다. 누르거나 칠 때마다 띠의 걸음 수가 올라가고, 이 대화창 옆 「배우는 중」 칸에도 한 걸음씩 쌓입니다. "
                     "다 하시면 띠의 **[다 했어]** 를 누르거나 여기에 「다 했어」라고 해 주세요. 비밀번호 · 파일 칸은 적지 않습니다.")
         return {"answer": text, "kind": "demo_started",
@@ -594,6 +605,41 @@ class SelfTalk:
             return {"answer": text, "kind": "recipe_forgotten", "name": name}
         text = "The recipe was already gone." if en else "레시피가 이미 없었습니다."
         return {"answer": text, "kind": "recipe_undo_none", "name": name}
+
+    def _restore_model(self, ctx: SelfContext, lang: str) -> dict[str, Any]:
+        """「원래 모델로」 — 넘치기 전 모델로 되돌린다(`model_fallback.Fallback.restore`)."""
+        try:
+            result = ctx.restore_model() or {}
+        except Exception as exc:  # noqa: BLE001
+            result = {"ok": False, "error": str(exc)[:120]}
+        if result.get("ok"):
+            text = (f"Switched back to the usual model ({result.get('restored_to')}). If the graphics card is still short, it may be slow."
+                    if lang == "en" else
+                    f"원래 모델({result.get('restored_to')})로 돌아왔습니다. 그래픽카드가 아직 모자라면 다시 느릴 수 있습니다.")
+            return {"answer": text, "kind": "model_restored", "tag": result.get("restored_to")}
+        if result.get("error") == "nothing_to_restore":
+            text = ("I have not switched models, so there is nothing to switch back." if lang == "en"
+                    else "모델을 바꾼 적이 없어 되돌릴 것이 없습니다.")
+            return {"answer": text, "kind": "model_restore_none"}
+        text = (f"I could not switch back ({result.get('error')}). The model button lets you pick it by hand." if lang == "en"
+                else f"원래 모델로 되돌리지 못했습니다({result.get('error')}). 모델 이름 버튼에서 직접 고를 수 있습니다.")
+        return {"answer": text, "kind": "model_restore_failed", "error": result.get("error")}
+
+    def _pull_fast_model(self, ctx: SelfContext, lang: str) -> dict[str, Any]:
+        """「빠른 모델 받기」 — Qwen 3.6 2비트(12GB)를 받기 시작한다. 받는 동안은 지금 모델 그대로다."""
+        try:
+            result = ctx.pull_fast_model() or {}
+        except Exception as exc:  # noqa: BLE001
+            result = {"ok": False, "error": str(exc)[:120]}
+        if result.get("ok"):
+            text = ("Downloading the faster model (Qwen 3.6 2-bit, about 12GB). Until it finishes I keep using the current one; "
+                    "next time the graphics card is short, I switch to it." if lang == "en" else
+                    "빠른 모델(Qwen 3.6 2비트 · 약 12GB)을 받기 시작했습니다. 다 받을 때까지는 지금 모델로 하고, "
+                    "다음에 그래픽카드가 모자라면 그 모델로 바꿔 진행합니다.")
+            return {"answer": text, "kind": "fast_model_pull", "status": result.get("status")}
+        text = (f"I could not start the download ({result.get('error')})." if lang == "en"
+                else f"받기를 시작하지 못했습니다({result.get('error')}).")
+        return {"answer": text, "kind": "fast_model_pull_failed", "error": result.get("error")}
 
     def _switch_eyes(self, on: bool, session_id: str, ctx: SelfContext, lang: str, *, asked_by: str) -> dict[str, Any]:
         en = lang == "en"

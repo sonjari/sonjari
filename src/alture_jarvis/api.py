@@ -958,6 +958,16 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
                 "confidence": 1.0, "source": "explicit", "candidates": [],
             }
             runtime.project_discovery.remember(payload["session_id"], str(root))
+        elif request.code_workspace.strip():
+            # ★ 코워크의 프로젝트 폴더 (2026-10-30 대표 「클로드 코워크처럼 폴더를 정해 두고 오가자」). 코드 칸과 같은 문:
+            #   사람이 화면에서 **직접 고른** 폴더만 허락으로 받는다. 바깥 AI(MCP)가 넘긴 경로는 받지 않는다(폴더를 넓히는 결정은 사람 몫).
+            payload.pop("code_workspace", None)
+            if request.origin != "mcp":
+                try:
+                    root = runtime.local_computer.admit_code_workspace(request.code_workspace.strip())
+                except (ValueError, PermissionError, FileNotFoundError) as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+                payload["project_folder"] = str(root)
         return runtime.enqueue("chat", (request.display_prompt or request.prompt)[:80], payload)
 
     @app.get("/v1/code/workspaces/discover", dependencies=[Depends(require_token)])
@@ -1276,6 +1286,36 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     )
     # 대화로 「그림 읽기 켜 줘」를 받는 쪽(`runtime.self_talk`)이 화면과 **같은 손**으로 바꾸게 잇는다(2026-10-20).
     runtime.setup_service = setup_service
+
+    # ── 모델이 그래픽카드 밖으로 새면 빠른 모델로 (2026-10-30 대표 결정 · `model_fallback`) ──────────────────
+    from . import model_fallback as _model_fallback
+    from .model_catalog import by_key as _catalog_by_key, by_tag as _catalog_by_tag, text_only_key as _text_only_key
+
+    def _installed_tags() -> set[str]:
+        try:
+            tags = setup_service._get(f"{setup_service.base_url}/api/tags") or {}
+        except Exception:  # noqa: BLE001 — 못 물으면 안 깔린 것으로 본다(바꾸지 않는다)
+            return set()
+        names: set[str] = set()
+        for row in tags.get("models") or []:
+            name = str((row or {}).get("name") or "")
+            names |= {name, name.removesuffix(":latest")}
+        return names
+
+    def _fast_tag() -> str:
+        model = _catalog_by_key(_model_fallback.FAST_KEY)
+        return model.ollama_tag if model is not None else ""
+
+    def _is_fast(tag: str) -> bool:
+        found = _catalog_by_tag(tag)
+        return (found is not None and found.key == _model_fallback.FAST_KEY) or _text_only_key(tag) == _model_fallback.FAST_KEY
+
+    if not setup_service.is_satellite:
+        runtime.model_fallback = _model_fallback.Fallback(
+            service=setup_service, config=runtime.config, data_dir=runtime.config.data_dir,
+            installed=_installed_tags, fast_tag=_fast_tag, is_fast=_is_fast,
+        )
+        runtime.agent.model_fallback = runtime.model_fallback.on_spill
 
     # ── 업데이트 뒤 「바뀐 것 · 이미 되는 것」 (2026-10-20 대표 · `whats_new`) ──────────────────────
     from . import whats_new as _whats_new

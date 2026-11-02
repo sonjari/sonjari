@@ -248,6 +248,8 @@ def _under_heading(want: str, answer: str, label: str = "") -> bool | None:
                     if value and _negative(value):
                         # 「**reached Confirm and pay:** No — …」: 채움이 아니다 — 「이름: 값」 줄 검사가 그 말을 `negative` 로 넘긴다(2026-10-29).
                         continue
+                    if value and _unobtained(value):
+                        return _unobtained(value)
                     if value and _filled(value):
                         return True
                     for after in lines[index + 1:]:
@@ -255,7 +257,7 @@ def _under_heading(want: str, answer: str, label: str = "") -> bool | None:
                             break
                         body = after.strip().lstrip("-*•>|").strip().strip("*").strip()
                         if body and not re.fullmatch(r"[-:|\s]+", body) and body.casefold() not in _BLANK:
-                            return True
+                            return _unobtained(body) or True
             continue
         title = found.group(1) or found.group(2) or ""
         strict = want in _norm(title)
@@ -275,7 +277,8 @@ def _under_heading(want: str, answer: str, label: str = "") -> bool | None:
                 break
             body = after.strip().lstrip("-*•>|").strip().strip("*").strip()
             if body and not re.fullmatch(r"[-:|\s]+", body) and body.casefold() not in _BLANK:
-                return True
+                # 제목 아래 첫 내용이 「확인 불가」면 채운 것이 아니라 못 얻었다는 말이다 — 그 원문을 돌려준다.
+                return _unobtained(body) or True
         seen_empty = seen_empty or strict
     return False if seen_empty else None
 
@@ -367,6 +370,37 @@ def _negative(cell: str) -> str | None:
     return text[:120] if text and _NEGATIVE.match(text) else None
 
 
+#: 값 **어디에** 있든 「못 얻었다」는 말 — 「Shorts 페이지에서 설명란이 렌더링되지 않아 읽을 수 없었습니다」 · 「**확인 불가** — …」 ·
+#: 「위 8건 모두 공식 페이지를 열지 못해 확인 불가로 표시」. 괄호 속 덧말(「12,000원 (재고 확인 불가)」)은 값의 단서라 빼고 본다.
+_UNOBTAINED = re.compile(
+    r"확인\s*(?:불가|못|안\s*됨)|미확인|(?:읽|찾|알|볼|열)\s*을?\s*수\s*(?:가\s*)?없|[가-힣]지\s*(?:를\s*)?못(?:했|함|하|해|한)|불가능|"
+    r"렌더링\s*되지\s*않|could\s*n[o']t|unable\s+to|not\s+(?:found|available|visible|accessible)",
+    re.IGNORECASE,
+)
+
+
+def _unobtained(cell: str) -> str | None:
+    """값이 「못 얻었다」는 말이면 그 원문(120자까지), 아니면 None — 판정하는 네 길(표 칸 · 첫 칸 이름 표 · 제목 아래 · 「이름: 값」)이
+    모두 이 함수 하나로 가른다.
+
+    ★ 2026-11-02 대표 PC 판 둘: 유튜브 조사(7356c221) 「**해시태그**: Shorts 페이지에서 … 읽을 수 없었습니다」와 「## 자주 쓰는 해시태그
+      / **확인 불가**」, 행사 조사(31f78a75) 「**…·공식 주소** — … 열지 못해 확인 불가로 표시」가 전부 met=True 였다. 부정을 가르는 규칙이
+      두 벌(`_NEGATIVE` 맨 앞 낱말 · `_NOT_FOUND_VALUE`)이었고 길마다 다른 것을 쓰거나 안 썼다.
+    """
+    text = str(cell or "").strip().strip("*`").strip()
+    if not text:
+        return None
+    # 「없음」 · 「모름」 단독은 보지 않는다 — 「미리 색인 여부: 없음」처럼 그 자체가 답일 수 있다(옛 · 새 대조 e4fce44f).
+    if _NEGATIVE.match(text) or re.fullmatch(r"(?:unknown|n/?a)\.?", text, re.I):
+        return text[:120]
+    core = re.sub(r"[(（][^)）]*[)）]", "", text)
+    # 첫 문장만 본다 — 「열었다. … 16분 이후 부분은 못 읽음」의 답은 「열었다」다(옛 · 새 대조 6699f094).
+    # ★ 11-02 27B 시험 3판(2c6406a1): 「③ 명사.txt 내용 / 상자에서 kiwipiepy를 설치하지 못했습니다」가 채움이었다 — 「읽·찾·열·보지 못」만
+    #   있었다. 「~하지 못했」 전체와 「불가능」을 넣는다(첫 문장만 보니 뒤 문장의 덧말은 안 걸린다).
+    first = re.split(r"(?<=[.!?。])\s+|\*\*", core, maxsplit=1)[0]
+    return text[:120] if _UNOBTAINED.search(first) else None
+
+
 def _nothing_came_back(answer: str, files: list[str] | tuple[str, ...]) -> bool:
     """답 글이 비었고 이 판이 만든 파일도 하나도 없다 — 그러면 어떤 항목도 돌아오지 않은 것이 확실하다."""
     if str(answer or "").strip():
@@ -408,21 +442,27 @@ def check_needs(needs: list[str], answer: str, *, files: list[str] | tuple[str, 
         met = False
         saw_empty = False
         negative: str | None = None  # 이름 붙은 자리에 「No …」로 답했다 — 채움이 아니라 확인 못 함(2026-10-29)
+        partial: str | None = None   # 그 칸이 줄 일부만 찼다(「2/5」) — 채움으로 치지 않는다(2026-11-02)
         for head, rows in tables:
             for index, name in enumerate(head):
                 if not _same_column(want, name):
                     continue
                 cells = [row[index] for row in rows if len(row) > index and _filled(row[index])]
-                if cells and all(_negative(cell) for cell in cells):
-                    negative = negative or _negative(cells[0])
+                real = [cell for cell in cells if not _unobtained(cell)]
+                if cells and not real:
+                    negative = negative or _unobtained(cells[0])
                     continue
-                if cells:
+                if real and len(cells) < len(rows):  # 빈칸 줄만 센다 — 「No」도 그 줄의 대답(10-29 logged in)
+                    # ★ 2026-11-02 유튜브 조사 7356c221: 「채널 이름」 칸이 5줄 중 2줄만 찼는데 「값이 하나라도 있으면」 채움이었다.
+                    partial = partial or f"{len(cells)}/{len(rows)}"
+                    continue
+                if real:
                     met = True
                     break
                 saw_empty = True
             if met:
                 break
-        if not met:
+        if not met and not partial:
             # ★ 표의 **첫 칸**이 항목 이름인 표(「| 라이선스 | MIT |」) — 머리가 아니라 줄이 이름을 든다 (2026-10-15 GLM 조사 판).
             #   줄이 없는 표(「| 가격 | 129,000원 |」 한 줄)는 머리 줄 자체가 이름 · 값 한 쌍이다 — 머리도 줄로 본다.
             for head, rows in tables:
@@ -432,8 +472,8 @@ def check_needs(needs: list[str], answer: str, *, files: list[str] | tuple[str, 
                     if not want or want not in have:
                         continue
                     values = [cell for cell in row[1:] if _filled(cell)]
-                    if values and _negative(values[0]):
-                        negative = negative or _negative(values[0])
+                    if values and _unobtained(values[0]):
+                        negative = negative or _unobtained(values[0])
                         continue
                     if values:
                         met = True
@@ -441,21 +481,23 @@ def check_needs(needs: list[str], answer: str, *, files: list[str] | tuple[str, 
                     saw_empty = True
                 if met:
                     break
-        if not met:
+        if not met and not partial:
             under = _under_heading(want, answer, label)
+            if isinstance(under, str):
+                negative = negative or under
             met = under is True
             saw_empty = saw_empty or under is False
-        if not met:
+        if not met and not partial:
             words = r"\s*".join(re.escape(part) for part in label.split())
             for line in re.finditer(rf"(?im)^\s*(?:[-*•]\s*)?\**{words}\**\s*[:：]\s*\**\s*(.*)$", str(answer or "")):
                 if _filled(line.group(1)):
-                    if _negative(line.group(1)):
-                        negative = negative or _negative(line.group(1))
+                    if _unobtained(line.group(1)):
+                        negative = negative or _unobtained(line.group(1))
                         continue
                     met = True
                     break
                 saw_empty = True
-        if not met:
+        if not met and not partial:
             # ★ 「이름: 값」 줄의 이름이 항목 이름과 글자 그대로 같지 않아도 낱말이 다 있으면 그 자리다(`_covers`, 2026-10-19 판 51f35b07
             #   「현재 로그인된 GitHub 계정: `(계정 이름)`」 ↔ 「로그인된 깃허브 계정 이름」). 채움의 증거로만 쓴다 — 빈 값이어도 「없다」로 안 친다.
             for line in _KEY_VALUE.finditer(str(answer or "")):
@@ -463,11 +505,15 @@ def check_needs(needs: list[str], answer: str, *, files: list[str] | tuple[str, 
                 if value.startswith("//") or not _a_slot_name(key, label) or not _covers(label, key):
                     continue
                 if _filled(value):
-                    if _negative(value):
-                        negative = negative or _negative(value)
+                    if _unobtained(value):
+                        negative = negative or _unobtained(value)
                         continue
                     met = True
                     break
+        if not met and partial:
+            # 일부 줄만 찬 칸 — 「채웠다」도 「비었다」도 아니다. 몇 줄이 찼는지 그대로 넘긴다.
+            checked.append({"label": label, "met": None, "partial": partial})
+            continue
         if not met and negative:
             # 「No …」는 비어 있는 게 아니라 손자리가 「안 됐다」고 답한 것 — 「없다」로 단정하지 않고 그 말을 그대로 넘긴다.
             checked.append({"label": label, "met": None, "negative": negative})

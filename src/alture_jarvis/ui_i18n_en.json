@@ -1759,6 +1759,8 @@
  "모델이 제한 시간 동안 답이 없어 한 번 다시 이어 갑니다": "The model gave no reply within its time limit, so I am picking the task up once more",
  "모델 일부({0}%)가 그래픽카드에 안 들어가 느릴 수 있습니다 — 그래픽카드를 쓰는 다른 프로그램을 닫거나, 모델 이름 버튼의 「상한 재기」 · 더 작은 모델을 써 보세요. 손자리는 다른 프로그램을 끄지 않습니다": "Part of the model ({0}%) does not fit on the graphics card, so it may be slow - close other programs that use the graphics card, or use \"Measure limit\" under the model name button, or a smaller model. I do not close other programs",
  "그래픽카드 메모리가 거의 가득 찼습니다({0}/{1}GB) — 모델이 아주 느려질 수 있습니다. 다른 프로그램(3ds Max · 유니티 등)을 닫거나 모델 이름 버튼에서 더 작은 모델을 써 보세요. 손자리는 다른 프로그램을 끄지 않습니다": "Graphics card memory is nearly full ({0}/{1}GB), so the model may run very slowly - close other programs that use it (3ds Max, Unity, and so on), or pick a smaller model under the model name button. I do not close other programs",
+ "그래픽카드가 모자라 빠른 모델(Qwen 3.6 2비트)로 바꿔 진행합니다 — 「원래 모델로」라고 하시면 돌아갑니다": "Graphics card memory is short, so I switched to the faster model (Qwen 3.6 2-bit) for this job - say \"go back to the usual model\" to switch back",
+ "그래픽카드가 모자라 지금 모델이 느립니다. 빠른 모델(Qwen 3.6 2비트 · 12GB)이 이런 때 훨씬 빠릅니다 — 「빠른 모델 받기」라고 하시면 받습니다. 손자리는 다른 프로그램을 끄지 않습니다": "Graphics card memory is short, so this model runs slowly. The faster model (Qwen 3.6 2-bit, 12GB) handles this much better - say \"download the fast model\" to get it. I do not close other programs",
  "저장하지 않은 한글 문서": "Unsaved Hangul (.hwp) document",
  "저장한 작업 지점부터 이어서 진행하고 있습니다": "Continuing from the saved checkpoint",
  "저장할 파일 이름(생략 가능)": "File name to save as (optional)",
@@ -2408,5 +2410,7 @@
  "서기가 켜져 있지만 아직 쌓인 카드가 없습니다(손자리가 노는 시간에 한 덩어리씩 씁니다). 이것은 「정한 것이 없었다」는 뜻이 아닙니다.": "The scribe is on but no cards have been written yet (Sonjari writes one chunk at a time while idle). This does not mean \"nothing was decided\".",
  "서기 카드 {0}줄 — 초안입니다. 중요한 줄은 (줄 번호)의 원문을 직접 확인하세요.": "{0} scribe card lines — these are drafts. For anything important, check the original at the (line number) yourself.",
  "장표를 그리는 중": "Drawing the slides",
- "막혀서 지금부터 깊게 생각합니다": "Got stuck — thinking more carefully from here"
+ "막혀서 지금부터 깊게 생각합니다": "Got stuck — thinking more carefully from here",
+ "{0} 이(가) 켜져 있어 그래픽카드를 나눠 씁니다 — 모델이 느려질 수 있습니다. 그 프로그램을 닫거나 모델 이름 버튼에서 더 작은 모델을 써 보세요. 손자리는 다른 프로그램을 끄지 않습니다": "{0} is open and shares the graphics card, so the model may run slowly - close it, or pick a smaller model under the model name button. I do not close other programs",
+ "이 PC 에 {0} 이(가) 깔려 있습니다 — 같이 켜고 일할 때를 위해 {1} 도 받아 두세요. 나중에 대화창에 「빠른 모델 받기」라고 쳐도 받습니다.": "{0} is installed on this PC - also download {1} for when you work with it open. You can also type \"download the fast model\" in the chat later."
 }

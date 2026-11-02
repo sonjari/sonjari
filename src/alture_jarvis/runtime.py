@@ -123,6 +123,7 @@ from .site_recipes import RecipeError, SiteRecipeTools
 from .unity_schedule import RecipeSchedule
 from .unity_stage import UnityStage
 from .unity_tools import UnityTools
+from .video_tools import VideoTools
 from .packs import PackError, PackRegistry
 from .tts import SupertonicTTS
 from . import tts_server
@@ -1130,6 +1131,9 @@ class JarvisRuntime:
         # 프로젝트 자리 허락은 local_computer 의 규칙을 그대로 쓴다(코드 모드 작업 폴더·쓰기 허용 폴더).
         self.unity_tools = UnityTools(self.config, self.local_computer, packs=self.packs)
         self.unity_tools.register(self.gateway)
+        # 영상 팩(2026-11-02) — 레퍼런스 영상 읽기. 팩이 꺼져 있으면 목록에 안 끼고 불러도 거절한다.
+        self.video_tools = VideoTools(self.config, self.browser, packs=self.packs)
+        self.video_tools.register(self.gateway)
         # 열린 유니티 창을 온텔릭 화면에 비춘다(2단계). 창을 움직이지 않고 그림만 복사한다 — 모델에게는 안 간다.
         self.unity_stage = UnityStage()
         self.project_discovery = ProjectDiscovery(
@@ -1326,6 +1330,7 @@ class JarvisRuntime:
             self.naver_blog,
             self.local_computer,
             self.unity_tools,
+            self.video_tools,
             self.windows_automation,
             self.hwp,
             self.scheduler,
@@ -3791,7 +3796,7 @@ class JarvisRuntime:
 
     def _skill_instruction(
         self, prompt: str, *, job_id: str = "", for_agent: bool = False,
-        asked: str = ""
+        asked: str = "", code_mode: bool = False,
     ) -> str:
         """이 말이 어느 스킬의 것인가. 아니면 빈 문자열.
 
@@ -3852,6 +3857,14 @@ class JarvisRuntime:
         #
         #   모르는 이름이면 무시하고 추측으로 간다. 이름이 틀렸다고 판을 죽이는
         #   것보다, 조용히 평소대로 도는 편이 낫다.
+        # ★ 코드 판은 「무엇을 하나」의 플레이북을 앞에 세운다 (2026-11-01 · 대표 「코딩할 때 스킬이 안 붙는다」).
+        #   10월 코드 판 382개 중 296개에 스킬이 붙었는데 205개가 `verification-before-completion` 하나였다 — 모델에게
+        #   고르라 하면 거의 늘 그것을 집었다. 그 일(「됐다」 전에 실행해 확인)은 코드 판에서 하네스가 **코드로** 한다
+        #   (확인 명령 · 회귀 대조). 같은 말을 산문으로 또 실으면 원인 찾기 · 테스트 먼저 · 구조 같은 진짜 필요한
+        #   플레이북의 자리를 뺏는다. 그래서 코드 판 후보에서 뺀다. 디버깅 판은 같은 일의 더 센 판(`diagnosing-bugs` —
+        #   빨갛게 되는 재현 명령부터)으로 바꿔 세운다. 지목(asked)은 그대로 존중한다.
+        if code_mode and not str(asked or "").strip():
+            available = set(available) - _CODE_SKILL_DROP
         wanted = str(asked or "").strip()
         picked_by = "asked" if wanted and wanted in available else ""
         if not picked_by and route_on:
@@ -3868,6 +3881,8 @@ class JarvisRuntime:
             #   우리 문서 스킬도 걸렸고, 점수가 같아 이름순으로 그쪽이 앞자리(본문을 가장 길게 싣는 자리)를 가져갔다.
             #   그 일을 위해 켠 팩이다 — 우리 스킬은 빠지지 않고 뒤에 선다. 순서를 지키는 정렬이라 나머지는 그대로다.
             matches.sort(key=lambda item: item[0] not in from_packs)
+        if code_mode and matches:
+            matches = _swap_code_skills(matches, available)
         if not matches:
             return ""
         name, hits = matches[0]
@@ -4910,6 +4925,7 @@ class JarvisRuntime:
             }
 
         recipes = getattr(self, "site_recipes", None)
+        fallback = getattr(self, "model_fallback", None)
         return SelfContext(
             version=version, lang=ui_i18n.lang, current_eyes=current_eyes, apply_eyes=apply_eyes, summary=summary,
             save_recipe=recipes.save_learned if recipes is not None else None,
@@ -4919,6 +4935,8 @@ class JarvisRuntime:
             stop_demo=self._stop_demo if getattr(self, "browser", None) is not None else None,
             replay_demo=self._replay_demo if (getattr(self, "browser", None) is not None and recipes is not None) else None,
             notify=self._demo_notify,
+            restore_model=fallback.restore if fallback is not None else None,
+            pull_fast_model=fallback.pull_fast if fallback is not None else None,
         )
 
     def _learn_value_cells(self, job_id: str, answer: str, agent_trace: dict[str, Any], lang: str = "ko") -> str:
@@ -5308,6 +5326,16 @@ class JarvisRuntime:
             # 모델이 어느 저장소에 대한 요청인지 잃지 않게 사실만 붙인다. 먼저 읽게
             # 하는 정책은 아래 `required_local_root` 강제 걸음이 담당한다.
             model_prompt = f"코드 작업공간: {code_workspace}\n\n사용자 요청:\n{model_prompt}"
+        project_folder = str(payload.get("project_folder") or "").strip()
+        if project_folder and not code_mode:
+            # ★ 코워크의 프로젝트 폴더 (2026-10-30 대표). 입구(`api.py`)가 사람이 고른 폴더만 허락으로 받았다. 저장 자리는
+            #   안내문이 아니라 도구가 정한다(`set_project_folder` — 이름만 준 새 파일이 이 폴더로). 모델에게는 사실만 알린다.
+            try:
+                folder = self.local_computer.set_project_folder(str(job.get("id") or ""), project_folder)
+                model_prompt = (f"프로젝트 폴더: {folder} — 이 일에서 파일 이름만 주고 만드는 파일은 이 폴더에 저장된다. "
+                                f"이 폴더 안 파일은 바로 읽을 수 있다.\n\n사용자 요청:\n{model_prompt}")
+            except (ValueError, PermissionError, FileNotFoundError, NotADirectoryError):
+                project_folder = ""   # 그사이 폴더가 사라졌으면 예전처럼 결과물 폴더로
         session_id = self._session_id(payload)
         # ★ 손자리 자신에 대한 말(「뭐가 바뀌었어?」 · 「그림 읽기 켜 줘」 · 제안에 대한 「응」 · 「되돌려」) — 모델에게 묻지 않는다
         #   (2026-10-20 대표 · `self_talk`). 사람이 화면 · 디스코드로 친 말만 본다 — 바깥 AI 가 맡긴 판 · 코드 탭 · 첨부는 지나간다.
@@ -5565,6 +5593,7 @@ class JarvisRuntime:
                     job_id=str(job["id"]), for_agent=True,
                     # 부르는 쪽(클로드·MCP·화면)이 지목한 스킬. 없으면 빈 문자열.
                     asked=str((job.get("payload") or {}).get("skill") or ""),
+                    code_mode=bool(code_mode or coding_requested),
                 ),
                 model_role="code" if code_mode or coding_requested else "chat",
                 reasoning=str(payload.get("reasoning") or ""),
@@ -6592,6 +6621,27 @@ class JarvisRuntime:
             "naver_blog": self._probe("naver_blog", self.naver_blog.status),
             "scheduler": self._probe("scheduler", lambda: self.scheduler.list({"limit": 10})),
         }
+
+
+#: 코드 판에서 후보에서 빼는 스킬 — 하네스가 코드로 하는 일이라 산문으로 다시 싣지 않는다(`_skill_instruction`).
+_CODE_SKILL_DROP: frozenset[str] = frozenset({"verification-before-completion"})
+#: 코드 판에서 같은 일의 더 센 플레이북으로 바꿔 세우는 짝. 바꿀 쪽이 후보에 있을 때만 바꾼다.
+_CODE_SKILL_SWAP: dict[str, str] = {"systematic-debugging": "diagnosing-bugs"}
+
+
+def _swap_code_skills(matches: list[tuple[str, int]], available: set[str]) -> list[tuple[str, int]]:
+    """코드 판 후보 목록에서 짝을 바꿔 세우고 겹친 것을 지운다. 순서는 지킨다."""
+    out: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    for name, hits in matches:
+        swapped = _CODE_SKILL_SWAP.get(name, name)
+        if swapped not in available:
+            swapped = name
+        if swapped in seen or swapped in _CODE_SKILL_DROP:
+            continue
+        seen.add(swapped)
+        out.append((swapped, hits))
+    return out
 
 
 def _companion_skills(

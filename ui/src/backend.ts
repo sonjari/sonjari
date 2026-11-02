@@ -152,6 +152,21 @@ export async function minimizeNativeWorkspace(): Promise<void> {
   if (isTauri()) await invoke("minimize_workspace");
 }
 
+/** 사람이 손자리 크롬을 직접 부르는 말이면(`/레시피` · 「다시 보여 줄게」) 앞창 바꾸기를 미리 허락한다(2026-10-30 · lib.rs `allow_foreground`). */
+export function callsSonjariChrome(text: string): boolean {
+  const value = text.trim();
+  return /^\/(?:레시피|recipe)(?:\s|$)/i.test(value) || /^(?:다시 보여 줄게|show again)$/i.test(value);
+}
+
+export async function allowForegroundForChrome(): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    await invoke<boolean>("allow_foreground");
+  } catch {
+    /* 허락을 못 줘도 보내기는 그대로 간다 */
+  }
+}
+
 export async function pickNativeCodeWorkspace(currentDir = ""): Promise<string | null> {
   if (!isTauri()) return null;
   return invoke<string | null>("pick_code_workspace", {

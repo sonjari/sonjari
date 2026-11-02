@@ -100,3 +100,19 @@ approaches" 라고 하는데 우리 코드는 `JarvisRuntime`·`BrowserAgent`·`
 **빼는 것을 검토할 후보**: `python`(62) · `fastapi-python`(61) · `python-testing`(60) ·
 `typescript`(65) · `react`(46) · `testing`(48). 우리 관례는 이미 `CLAUDE.md` 와 코드
 주석에 훨씬 촘촘히 적혀 있어서, 얇은 일반론이 그걸 흔들 수 있다.
+
+## 2026-11-01 수확 — 코드 판 플레이북 보강 (대표 승인)
+
+**왜.** 대표 「코딩할 때 스킬이 안 붙는다」. 세어 보니 붙기는 붙었다 — 10월 코드 판 382개 중 296개. 그런데 205개가
+`verification-before-completion` 하나였다. 그 일(「됐다」 전에 실행해 확인)은 코드 판에서 하네스가 코드로 한다.
+그래서 코드 판에서는 그 스킬을 후보에서 빼고(`runtime._CODE_SKILL_DROP`), 디버깅은 더 센 판으로 바꿔 세운다
+(`_CODE_SKILL_SWAP`: `systematic-debugging` → `diagnosing-bugs`).
+
+| 폴더 | 출처 | 커밋 | 라이선스 | 들인 것 |
+|---|---|---|---|---|
+| `vendor/mattpocock/` | [mattpocock/skills](https://github.com/mattpocock/skills) | `5ae48169` | MIT | `diagnosing-bugs`(빨갛게 되는 재현 명령부터) · `codebase-design`(깊은 모듈 · 경계) |
+| `vendor/gamedev-unity/` | [gamedev-skills/awesome-gamedev-agent-skills](https://github.com/gamedev-skills/awesome-gamedev-agent-skills) | `19d93f97` | Apache-2.0 | 유니티 주제 8개(애니메이션 · 물리 · 내비메시 · 입력 · 스크립터블 · 타일맵 · 빌드 · C# 스크립트) |
+
+고른 것만 들였다(`--from-dir` 에 고른 폴더만 모아서). 빠진 파일은 `diagnosing-bugs` 의 보조 스크립트 2개(실행 파일이라 안 받음).
+위생 문장 0. 안 들인 것: 같은 저장소의 `code-review`(서브에이전트 병렬 전제) · `triage`·`pr`(깃허브 이슈 흐름) · `tdd`(superpowers 의
+`test-driven-development` 와 같은 일 — 두 벌을 싣지 않는다). 둘러본 것: `affaan-m/ECC`(수백 개 꾸러미 · 소음), `garrytan/gstack`(역할극).

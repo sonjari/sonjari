@@ -469,6 +469,71 @@ def _read_only_blocks(name: str, element_type: str) -> bool:
 #   판 기록의 `j5` 는 그 판의 스냅샷 번호라 다음 판에서는 아무것도 아니다. 좌표도 창 크기만 바뀌면 깨진다.
 #   안정적인 것부터: data-testid · id(숫자 범벅이 아닌 것) · name · placeholder · aria-label · 역할+이름 · 짧은 글자.
 #   각 후보는 80자 안 — 판 기록은 목록 항목을 80자로 자른다(`agent._step_evidence`). 잘린 셀렉터는 틀린 셀렉터다.
+#: browser_read 이어 읽기의 가장 먼 시작 자리(글자) — 한 페이지를 끝없이 모으지 않게.
+_READ_MAX_OFFSET = 400_000
+
+#: 유튜브 영상 페이지의 자막 줄을 모은다(없으면 「스크립트 표시」를 눌러 연다). [[시각, 말], …] — 못 열면 빈 목록.
+#: ★ 2026-10-31 실측(Kimi GTC 강연 · 39분): 자막 칸을 열면 296줄(0:07~39:25 · 35,693자)이 **한꺼번에** 그려진다.
+#:   자막 주소(timedtext)를 바로 받는 길은 빈 값(0바이트)이라 쓰지 않는다.
+_YOUTUBE_TRANSCRIPT_JS = """async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // 자막을 읽는 데 재생은 필요 없다 — 저절로 재생된 영상 소리가 사람 방을 채웠다(2026-10-31 대표 「시끄러워 죽겠다」).
+  document.querySelectorAll('video, audio').forEach((media) => { try { media.pause(); } catch (e) { /* 무시 */ } });
+  const rows = () => [...document.querySelectorAll('transcript-segment-view-model, ytd-transcript-segment-renderer')];
+  const opener = () => [...document.querySelectorAll('button')].find((b) =>
+    /show transcript|스크립트 표시|transcript/i.test((b.innerText || '') + ' ' + (b.getAttribute('aria-label') || '')));
+  if (!rows().length) {
+    let button = opener();
+    if (!button) {
+      const more = document.querySelector('ytd-text-inline-expander #expand, tp-yt-paper-button#expand');
+      if (more) { more.click(); await sleep(800); }
+      button = opener();
+    }
+    if (button) button.click();
+    for (let i = 0; i < 24 && !rows().length; i++) await sleep(250);
+  }
+  // 칸을 끝까지 내리며 모은다 — 내리는 만큼만 그리는 판(10-31 손자리 크롬: 「내려도 15~22분만」)이어도 다 모이게.
+  const seen = new Map();
+  const take = () => {
+    for (const row of rows()) {
+      const stamp = row.querySelector('.ytwTranscriptSegmentViewModelTimestamp, .segment-timestamp');
+      const said = row.querySelector('.ytAttributedStringHost, .segment-text, yt-formatted-string');
+      const pair = [((stamp && stamp.innerText) || '').trim(), ((said && said.innerText) || '').replace(/\\s+/g, ' ').trim()];
+      if (pair[1] && !seen.has(pair[0] + '|' + pair[1])) seen.set(pair[0] + '|' + pair[1], pair);
+    }
+  };
+  take();
+  let box = rows()[0] || null;
+  while (box && box !== document.body) {
+    const style = getComputedStyle(box);
+    if (/(auto|scroll)/.test(style.overflowY) && box.scrollHeight > box.clientHeight + 4) break;
+    box = box.parentElement;
+  }
+  if (box && box !== document.body) {
+    let still = 0;
+    for (let i = 0; i < 80 && still < 3; i++) {
+      const before = seen.size;
+      box.scrollTop = box.scrollTop + Math.max(200, box.clientHeight - 40);
+      await sleep(180);
+      take();
+      still = seen.size === before && box.scrollTop + box.clientHeight >= box.scrollHeight - 4 ? still + 1 : 0;
+    }
+    box.scrollTop = 0;
+  }
+  const toSec = (t) => t.split(':').reduce((acc, v) => acc * 60 + (parseInt(v, 10) || 0), 0);
+  return [...seen.values()].sort((a, b) => toSec(a[0]) - toSec(b[0]));
+}"""
+
+
+def _is_youtube_watch(url: str) -> bool:
+    parsed = urlparse(str(url or ""))
+    host = (parsed.hostname or "").lower()
+    return host.endswith("youtube.com") and parsed.path.startswith("/watch")
+
+#: /레시피 배우기를 시작할 때 손자리 크롬에 띄우는 첫 화면(2026-10-30 대표).
+DEMO_START_URL = "https://www.google.com/"
+
+
 _DURABLE_SELECTORS_JS = """el => {
   if (!el) return [];
   const out = [];
@@ -500,9 +565,30 @@ _DURABLE_SELECTORS_JS = """el => {
     else if (el.isContentEditable) role = 'textbox';
   }
   const text = (el.innerText || el.value || '').replace(/\\s+/g, ' ').trim();
-  const name = al || (role === 'textbox' || role === 'searchbox' ? (ph || '').trim() : text);
+  const typable = role === 'textbox' || role === 'searchbox' || role === 'combobox';
+  // ★ 글 칸에 붙은 이름표(<label for> · aria-labelledby) · title 도 이름이다 (2026-10-30 대표 /레시피 실패 감사 78132:
+  //   click · fill · press … — 검색칸에 testid · id · name · 안내문 · aria-label 이 하나도 없어 「2번째 걸음(fill)을 다시 찾을 이름이 없다」).
+  let labelled = '';
+  if (typable) {
+    const by = (el.getAttribute('aria-labelledby') || '').split(/\\s+/).map(i => document.getElementById(i)).filter(Boolean);
+    labelled = ((by.length ? by.map(n => n.innerText).join(' ') : (el.labels && el.labels[0] ? el.labels[0].innerText : ''))
+      || el.getAttribute('title') || '').replace(/\\s+/g, ' ').trim();
+  }
+  const name = al || (typable ? ((ph || '').trim() || labelled) : text);
   if (role && name && name.length <= 40) add('role=' + role + '[name=' + q(name) + ']');
   if (!['input', 'textarea', 'select'].includes(tag) && text && text.length <= 30) add('text=' + q(text));
+  // 그래도 아무 단서가 없으면 **페이지에서 유일한 그 모양의 글 칸**으로 적는다(검색 상자 · 유일한 입력칸). 여럿이면 적지 않는다.
+  if (!out.length && typable) {
+    const visible = n => { const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    const shapes = [];
+    if (tag === 'input') { shapes.push('[role=search] input' + (type ? '[type=' + q(type) + ']' : ''), 'input[type=' + q(type || 'text') + ']'); }
+    else shapes.push(tag);
+    for (const shape of shapes) {
+      let hits = [];
+      try { hits = Array.from(document.querySelectorAll(shape)).filter(visible); } catch (_) { hits = []; }
+      if (hits.length === 1 && hits[0] === el) { add(shape); break; }
+    }
+  }
   return out.slice(0, 6);
 }"""
 
@@ -1333,6 +1419,14 @@ _EXTRACT_MAIN_JS = """
     if (t.length < 140) return -1;
     return t.length - linkChars(el);
   };
+  // ★ 점수는 **화면에 보이는 글자 수**를 넘지 않는다 (2026-10-31 알라딘 검색 결과 · 판 d5564aae 373초).
+  //   복제본은 화면 밖이라 innerText 가 숨긴 글까지 센다 — 알라딘 머리 칸은 보이는 글 198자인데 숨긴 카테고리 메뉴가 18,302자라
+  //   책 목록(보이는 6,975자 · 가격 85개)을 이기고 본문으로 뽑혔다. 모델은 메뉴만 받고 도구를 다섯 번 바꿔 가며 헤맸다.
+  const capSeen = (live, s) => {
+    if (s < 0) return s;
+    const seen = (live.innerText || '').trim().length;
+    return seen < 140 ? -1 : Math.min(s, seen);
+  };
   const nameOf = (el) => {
     const id = el.id ? '#' + el.id : '';
     const cls = (el.className && typeof el.className === 'string')
@@ -1369,12 +1463,12 @@ _EXTRACT_MAIN_JS = """
   for (const el of trusted) {
     if (!visible(el)) continue;
     let s = -1;
-    try { s = score(clone(el)); } catch (e) { s = -1; }
+    try { s = capSeen(el, score(clone(el))); } catch (e) { s = -1; }
     if (s > preferredScore) { preferredScore = s; preferred = el; }
   }
   if (preferred) {
     let pageScore = 0;
-    try { pageScore = score(clone(document.body)); } catch (e) { pageScore = 0; }
+    try { pageScore = capSeen(document.body, score(clone(document.body))); } catch (e) { pageScore = 0; }
     if (preferredScore < 0 || (pageScore > 0 && preferredScore * 10 < pageScore)) preferred = null;
   }
   const pool = preferred ? [preferred] : Array.from(
@@ -1469,7 +1563,7 @@ _EXTRACT_MAIN_JS = """
   let bestEl = null;
   for (const el of pool) {
     const cleaned = clone(el);
-    const s = score(cleaned);
+    const s = capSeen(el, score(cleaned));
     if (s < 0) continue;
     if (!best || s > best.score) {
       const t = textOf(cleaned);
@@ -2336,6 +2430,9 @@ _SEARCH_WORD_PARAM = re.compile(
 _SEARCH_WORD_IN_PATH = re.compile(r"(?:^|/)search(?:/(?:keyword|q|query))?/([^/?#]+)/?$", re.IGNORECASE)
 
 
+_UPLOAD_LOOKING = re.compile(r"업로드|파일|첨부|찾아보기|사진|이미지|upload|attach|browse|choose\s*file", re.IGNORECASE)
+
+
 class BrowserWorker:
     """Serialized, persistent Playwright worker for JARVIS.
 
@@ -2479,6 +2576,8 @@ class BrowserWorker:
         self._ref_counter = 0
         # 다음 확인창을 어떻게 답할지(일회용). 비어 있으면 취소가 기본이다.
         self._dialog_policy: dict[str, Any] | None = None
+        # ★ 2026-11-01 (job 39d6a5f5) 클릭이 연 **파일 선택 창**을 가로채 둔 것 — {chooser, page, at, ref}. `_file_upload` 가 쓴다.
+        self._pending_chooser: dict[str, Any] | None = None
         # 마지막으로 답한 확인창의 문구. Playwright 는 리스너가 없으면 조용히 닫아버려
         # 무엇을 물었는지조차 안 남는데, 그 침묵이 되돌릴 수 없는 동작 앞에서 가장 나쁘다.
         self._last_dialog: dict[str, Any] | None = None
@@ -3264,6 +3363,13 @@ class BrowserWorker:
             raise RuntimeError("browser_not_started")
         self._wire_demo()
         page = self._current_page()
+        # ★ 배우기는 **구글 첫 화면**에서 시작한다 (2026-10-30 대표 「레시피 하면 구글 창을 딱 띄워 줘야지 — 주소를 쳐야 되는 게 불편」).
+        #   검색으로 거쳐 온 앞부분은 변환(`demo_recorder.steps_from_demo`)이 떼고, 실제 사이트에 도착한 주소부터 레시피를 쓴다.
+        try:
+            if page is not None:
+                page.goto(DEMO_START_URL, wait_until="domcontentloaded", timeout=15_000)
+        except Exception:  # noqa: BLE001 — 못 열어도 지금 페이지에서 배운다
+            pass
         url = str(getattr(page, "url", "") or "")
         self._demo.start(url)
         self._demo_badge(True)
@@ -5951,6 +6057,7 @@ class BrowserWorker:
     def _shutdown(self, *, keep_chrome: bool = False) -> None:
         """연결을 내려놓는다. `keep_chrome` 이면 우리가 띄운 크롬도 끄지 않는다 — 연결만 갈아 끼울 때 쓴다."""
         self._pump_stop.set()
+        self._pending_chooser = None  # 옛 연결의 창은 쓸 수 없다
         context, playwright = self._context, self._playwright
         mode, process = self._connect_mode, self._chrome_proc
         # 탭마다 붙들어 둔 응답 기록도 내려놓는다 — 남기면 그 응답이 옛 연결 전체를 붙든다. 새 연결에서 탭마다 다시 건다.
@@ -6592,14 +6699,14 @@ class BrowserWorker:
             "browser_dismiss_dialog": self._dismiss_dialog,
             "browser_verify": self._verify,
             "browser_find_selector": self._find_selector,
-            "browser_click_confirmed": self._click_confirmed,
+            "browser_click_confirmed": self._watching_file_chooser(self._click_confirmed),
             "browser_fill_form": self._fill_form,
             "browser_select_option": self._select_option,
             "browser_file_upload": self._file_upload,
             "browser_handle_dialog": self._handle_dialog,
             "browser_read": self._read_with_data,
-            "browser_click": self._click,
-            "browser_click_at": self._click_at,
+            "browser_click": self._watching_file_chooser(self._click),
+            "browser_click_at": self._watching_file_chooser(self._click_at),
             "browser_type_at": self._type_at,
             "browser_hover": self._hover,
             "browser_fill": self._fill,
@@ -9593,6 +9700,13 @@ class BrowserWorker:
         # 결과 하나를 따로 자른다(`_TOOL_RESULT_MAX_CHARS`). 두 값은 같이 움직여야
         # 한다 — 오늘만 세 번째로 만나는 "상한이 여러 군데" 자리다.
         max_chars = max(500, min(int(arguments.get("max_chars") or 20000), 30000))
+        # ★ 유튜브 영상 페이지는 「뽑기」로 와도 자막을 준다 (2026-10-31 · 판 7aebb25a: 뽑기 세 번이 2만 자 상한에 22분에서 끊김).
+        if _is_youtube_watch(str(getattr(page, "url", "") or "")):
+            terms = arguments.get("find") if isinstance(arguments.get("find"), list) else None
+            found = self._youtube_transcript(page, "extracted", offset=max(0, int(arguments.get("offset") or 0)),
+                                             max_chars=min(max_chars, 20000), find=terms)
+            if found is not None:
+                return found
         # ★ 읽기 전에 **페이지를 훑고 온다** (2026-08-13).
         #
         # 사용자가 브라우저를 보다 짚으신 자리다 — "상세페이지 들어가는 것에만 보상이
@@ -10923,6 +11037,51 @@ class BrowserWorker:
             return _fold_rollers(text, [])
         return _fold_rollers(text, digits) if digits else text
 
+    def _youtube_transcript(
+        self, page: Any, action: str, *, offset: int = 0, max_chars: int = 20000, find: list[str] | None = None,
+    ) -> dict[str, Any] | None:
+        """유튜브 영상 페이지의 자막(없으면 「스크립트 표시」를 열어) — `[시각] 말` 줄. 못 열면 None(부른 쪽이 예전 길로).
+
+        `find` 가 있으면(「뽑기」로 왔을 때) 그 낱말이 든 줄과 앞뒤 두 줄만. 길면 `offset` 으로 이어 읽는다.
+        """
+        try:
+            pairs = page.evaluate(_YOUTUBE_TRANSCRIPT_JS) or []
+        except Exception:  # noqa: BLE001 — 자막을 못 열면 예전 길로
+            return None
+        if not pairs:
+            return None
+        title = ""
+        try:
+            title = str(page.title() or "")
+        except Exception:  # noqa: BLE001
+            pass
+        lines = [f"[{stamp}] {said}" if stamp else said for stamp, said in pairs]
+        terms = [str(term).strip().lower() for term in (find or []) if str(term).strip()]
+        if terms:
+            keep: set[int] = set()
+            for index, line in enumerate(lines):
+                if any(term in line.lower() for term in terms):
+                    keep.update(range(max(0, index - 2), min(len(lines), index + 3)))
+            if keep:
+                picked: list[str] = []
+                last = -2
+                for index in sorted(keep):
+                    if index != last + 1 and picked:
+                        picked.append("…")
+                    picked.append(lines[index])
+                    last = index
+                lines = picked
+        head = f"[유튜브 자막 · {len(pairs)}줄 · {pairs[0][0]}~{pairs[-1][0]}] {title}"
+        full = head + "\n" + "\n".join(lines)
+        text = full[offset:offset + max_chars]
+        paging: dict[str, Any] = {"transcript_lines": len(pairs)}
+        if offset:
+            paging["offset"] = offset
+        if len(full) > offset + max_chars:
+            paging.update(has_more=True, next_offset=offset + max_chars,
+                          note=f"자막이 더 있다 — 이어 읽으려면 browser_read 를 offset={offset + max_chars} 로 다시 불러라.")
+        return self._evidence(action, text=text, char_count=len(text), frame_count=1, source="youtube_transcript", **paging)
+
     def _read(self, page: Any, arguments: dict[str, Any]) -> dict[str, Any]:
         """Visible text -- from every frame, not just the top document.
 
@@ -10931,18 +11090,29 @@ class BrowserWorker:
         budget so one chatty frame cannot starve the one being asked about.
         """
         max_chars = max(500, min(int(arguments.get("max_chars") or 12000), 20000))
+        # ★ 이어 읽기 (2026-10-31 · Kimi 강연 자막 판 6699f094): 한 번에 2만 자에서 잘렸고, 스크롤해도 읽기는 늘 처음부터라
+        #   같은 2만 자만 다시 받았다(자막 16분에서 멈춤). `offset` 부터 2만 자를 주고, 뒤에 더 있으면 어디서 이을지 알려 준다.
+        offset = max(0, min(int(arguments.get("offset") or 0), _READ_MAX_OFFSET))
+        gather = offset + max_chars + 1
         selector = _clean(arguments.get("selector"), 200)
+        # ★ 유튜브 영상 페이지면 **자막을 읽는다** (2026-10-31 · 같은 판: 페이지 전체 2만 자에 메뉴 · 추천 영상이 섞여 자막 16분에서 끊김).
+        #   모델이 따로 배울 도구 없이 같은 「읽기」로 받는다. 못 열면 예전처럼 페이지 글을 읽는다.
+        #   칸 이름을 붙여 와도(`ytd-transcript-renderer` 처럼 자막 칸을 짚음) 같은 길 — 판 7aebb25a 는 그렇게 와서 0자를 받았다.
+        if (not selector or "transcript" in selector.lower()) and _is_youtube_watch(str(getattr(page, "url", "") or "")):
+            found = self._youtube_transcript(page, "read", offset=offset, max_chars=max_chars)
+            if found is not None:
+                return found
         frames = self._frames_of(page)
         parts: list[str] = []
         used = 0
         for index, frame in enumerate(frames):
-            if used >= max_chars:
+            if used >= gather:
                 break
             try:
                 locator = frame.locator(selector).first if selector else frame.locator("body")
                 if selector and int(frame.locator(selector).count()) == 0:
                     continue
-                text = _clean(locator.inner_text(), max_chars - used)
+                text = _clean(locator.inner_text(), gather - used)
             except Exception:
                 continue
             if not text:
@@ -10952,15 +11122,23 @@ class BrowserWorker:
             used += len(text)
         shadow = False
         if not selector:
-            deep = self._deep_text(page, max_chars)
+            deep = self._deep_text(page, gather)
             light = sum(len(part) for part in parts)
             # 일반 DOM 글이 거의 없고 섀도 안 글이 훨씬 많을 때만 바꾼다(섞인 페이지는 그대로).
             if deep and len(deep) > max(2 * light, light + 40):
                 parts, shadow = [deep], True
-        text = self._visible_rollers(page, "\n\n".join(parts))[:max_chars]
+        full = self._visible_rollers(page, "\n\n".join(parts))
+        text = full[offset:offset + max_chars]
+        paging: dict[str, Any] = {}
+        if offset:
+            paging["offset"] = offset
+        if len(full) > offset + max_chars:
+            paging.update(has_more=True, next_offset=offset + max_chars,
+                          note=(f"뒤에 글이 더 있다 — 이어 읽으려면 browser_read 를 offset={offset + max_chars} 로 다시 불러라. "
+                                "스크롤은 소용없다(읽기는 늘 페이지 처음부터 센다)."))
         return self._evidence(
             "read", text=text, char_count=len(text), frame_count=len(frames),
-            **({"shadow_dom": True} if shadow else {}),
+            **({"shadow_dom": True} if shadow else {}), **paging,
         )
 
     #: 누를 수 있는 것으로 보는 접근성 역할.
@@ -13122,6 +13300,85 @@ class BrowserWorker:
             "undo_toggle_clicked_but_result_unverified",
         )
 
+    #: 가로챈 파일 선택 창을 쓸 수 있는 시간(초). 모델이 다음 걸음에 경로를 정하는 데 걸리는 시간보다 넉넉히.
+    _PENDING_CHOOSER_TTL = 120.0
+
+    def _watching_file_chooser(
+        self, handler: Callable[[Any, dict[str, Any]], dict[str, Any]]
+    ) -> Callable[[Any, dict[str, Any]], dict[str, Any]]:
+        """클릭 핸들러를 감싸 **그 클릭이 여는 파일 선택 창**을 가로챈다.
+
+        ★ 2026-11-01 구글 드라이브 업로드(job 39d6a5f5): 모델이 「파일 업로드」 메뉴 항목을 `browser_click` 으로 눌렀고, 운영체제
+          파일 창이 떴다. 손자리는 그 사실을 말하지 않았고 모델은 「창이 안 열린다」고 결론 내 포기했다. 드라이브의 메뉴 항목은 한 번
+          누르면 사라져 `browser_file_upload` 로 다시 누를 수도 없다. 그래서 클릭하는 동안만 `filechooser` 리스너를 달아(달려 있으면
+          Playwright 가 창을 가로채 화면에 안 뜬다) 창이 열렸으면 보관하고, 결과로 알린다. 리스너는 클릭이 끝나면 어떤 경우에도 뗀다.
+          (창 이벤트는 클릭 응답보다 먼저 와 클릭 호출 안에서 처리된다 — `expect_file_chooser` 와 같은 순서다.)
+        """
+
+        def wrapped(page: Any, arguments: dict[str, Any]) -> dict[str, Any]:
+            fired: list[Any] = []
+
+            def on_chooser(chooser: Any) -> None:
+                fired.append(chooser)
+
+            try:
+                page.on("filechooser", on_chooser)
+                armed = True
+            except Exception:  # noqa: BLE001 — 리스너를 못 달아도 클릭은 한다
+                armed = False
+            try:
+                result = handler(page, arguments)
+                # ★ 2026-11-01 실측(진짜 크롬 5/5): 메뉴 항목이 30ms 뒤 숨은 <input type=file> 을 여는 드라이브 꼴에서는 click() 이
+                #   돌아온 직후 `fired` 가 **비어 있고** 200ms 뒤에야 찬다(동기 API 는 이벤트를 다음 호출 때 펌프). 게다가 리스너를 먼저 떼면
+                #   Playwright 는 이미 가로채기를 켠 뒤라 창이 삼켜진다. 그래서 떼기 **전에** 잠깐 펌프한다 — 보통 클릭은 80ms 한 번,
+                #   업로드처럼 보이는 클릭(이름이 evidence 에 이미 있다 — 따로 DOM 을 묻지 않는다)은 50ms 씩 최대 600ms.
+                if armed and not fired:
+                    shown = str(result.get("element") if isinstance(result, dict) else "") + " " + " ".join(
+                        str(v) for v in arguments.values() if isinstance(v, str)
+                    )
+                    budget = 600 if _UPLOAD_LOOKING.search(shown) else 80
+                    waited = 0
+                    try:
+                        page.wait_for_timeout(80)
+                        waited = 80
+                        while not fired and waited < budget:
+                            page.wait_for_timeout(50)
+                            waited += 50
+                    except Exception:  # noqa: BLE001 — 탭이 닫혔거나 이동했다. 펌프는 덤이다
+                        pass
+            finally:
+                if armed:
+                    try:
+                        page.remove_listener("filechooser", on_chooser)
+                    except Exception:  # noqa: BLE001
+                        pass
+            if fired:
+                self._pending_chooser = {
+                    "chooser": fired[-1],
+                    "page": page,
+                    "at": time.monotonic(),
+                    "ref": str(arguments.get("ref") or ""),
+                }
+                if isinstance(result, dict):
+                    result = dict(result)
+                    result["file_chooser_opened"] = True
+                    result["next"] = (
+                        "이 클릭이 파일 선택 창을 열었다(화면에는 안 뜬다). browser_file_upload 에 paths 를 주면 "
+                        "그 창에 파일을 넣는다 — 다시 누를 필요 없다."
+                    )
+            return result
+
+        return wrapped
+
+    def _take_pending_chooser(self, page: Any) -> Any | None:
+        """같은 탭에서 120초 안에 가로챈 파일 선택 창을 꺼낸다(한 번만). 낡았거나 다른 탭이면 버리고 None."""
+        pending, self._pending_chooser = self._pending_chooser, None
+        if not pending or pending.get("page") is not page:
+            return None
+        if time.monotonic() - float(pending.get("at") or 0) > self._PENDING_CHOOSER_TTL:
+            return None
+        return pending.get("chooser")
+
     def _click_confirmed(self, page: Any, arguments: dict[str, Any]) -> dict[str, Any]:
         """되돌릴 수 없는 클릭. 게이트웨이가 화면 승인을 받은 뒤에만 여기까지 온다.
 
@@ -13233,6 +13490,19 @@ class BrowserWorker:
             if path.stat().st_size > int(self.config.browser_upload_max_bytes):
                 raise RuntimeError(f"file_too_large:{path.name}")
             resolved.append(str(path))
+        # ★ 방금 누른 것이 파일 선택 창을 열었으면(`_watching_file_chooser`) 번호 없이도 그 창에 넣는다.
+        chooser = self._take_pending_chooser(page)
+        if chooser is not None:
+            chooser.set_files(resolved)
+            return self._evidence(
+                "files_uploaded",
+                ref=ref,
+                files=[Path(p).name for p in resolved],
+                file_count=len(resolved),
+                via="pending_chooser",
+            )
+        if not ref:
+            raise ValueError("ref_required — 가로챈 파일 선택 창이 없다(없거나 120초가 지났다). 파일 칸이나 그것을 여는 단추의 ref 를 줘라")
         locator = self._ref_locator(page, ref)
         self._show_visual(page, "파일 첨부 중", locator=locator)
         via = "input"
@@ -14783,6 +15053,21 @@ class BrowserWorker:
             # reCAPTCHA/hCaptcha/Turnstile 은 사람이 풀어도 iframe 자체는 DOM에
             # 남는다. iframe 존재만 보면 watcher가 영원히 재개하지 못한다. 푸는
             # 동작은 하지 않고, 공급자가 이미 써 둔 완료 체크/응답 토큰만 읽는다.
+            # ★ **읽을 본문이 다 보이는 페이지의 캡차는 문이 아니다** (2026-11-02 대표: 「로그인 · 사람이 필요하다는데 막상 보면 없다」).
+            #   최근 30일 봇 검사로 사람에게 넘긴 5판 중 hcaptcha **소개 글**(견본 상자가 박혀 있다) · KDI 보도자료처럼 본문이 다 읽히는
+            #   페이지가 섞였다. 로그인 상자에 이미 쓰는 규칙(10-06 기사 머리말)을 캡차에도 똑같이 쓴다 — 본 화면에 긴 문단이 기준 이상
+            #   보이면 막힌 것이 아니다. 클라우드플레어 「잠시만요」 같은 진짜 검사 화면에는 읽을 글이 없다. 인증 주소는 그대로 문이다.
+            if page_captcha and not self._captcha_was_solved(frames) and not any(
+                marker in lowered_url for marker in ("/login", "/signin", "/sign_in", "nid.naver.com")
+            ):
+                try:
+                    prose = int(page.main_frame.evaluate(
+                        f"(limit) => ({_PROSE_OUTSIDE_LOGIN_JS})([], limit)", self._READABLE_PROSE_CHARS))
+                except Exception:
+                    prose = 0
+                if prose >= self._READABLE_PROSE_CHARS:
+                    page_captcha = False
+                    self._note_trait(None, "captcha_beside_readable_page", url=page_url)
             if page_captcha and not self._captcha_was_solved(frames):
                 captcha = True
                 if not where:
@@ -15560,7 +15845,8 @@ class BrowserTools:
                 "클릭을 가로막는 팝업·동의창을 정리한다. 취소·닫기 같은 부정 버튼만 자동으로 누르며, 확인이 필요한 창은 문구를 알리고 멈춘다.",
                 {"rounds": {"type": "integer"}},
             ),
-            self._function("browser_read", "현재 페이지의 보이는 본문을 읽는다.", {"max_chars": {"type": "integer"}, "selector": {"type": "string"}}),
+            self._function("browser_read", "현재 페이지의 보이는 본문을 읽는다. 한 번에 최대 20000자 — 뒤에 더 있으면 결과의 next_offset 을 offset 으로 넘겨 이어 읽는다.",
+                           {"max_chars": {"type": "integer"}, "selector": {"type": "string"}, "offset": {"type": "integer"}}),
             # `expect` is how a click stops being a claim. Without it the tool
             # can only report that it pressed something, which is exactly what
             # was reported the night nothing was actually saved.
@@ -15708,9 +15994,10 @@ class BrowserTools:
                 self._function(
                     "browser_file_upload",
                     "파일 첨부란에 이 PC의 파일을 올린다. 허용된 폴더(바탕화면·문서·다운로드) 안의 "
-                    "파일만 가능하며, 실행 전에 화면 승인을 받는다.",
+                    "파일만 가능하며, 실행 전에 화면 승인을 받는다. 방금 누른 클릭이 파일 선택 창을 열었다고 결과에 "
+                    "적혀 있으면(file_chooser_opened) ref 는 무시되고 그 창에 파일이 들어간다(120초 안).",
                     {"ref": {"type": "string"}, "paths": {"type": "array", "items": {"type": "string"}}},
-                    ["ref", "paths"],
+                    ["paths"],
                 ),
                 self._function(
                     "browser_handle_dialog",

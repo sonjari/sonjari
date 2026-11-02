@@ -15,7 +15,7 @@ from __future__ import annotations
 import threading
 import time
 from typing import Any, Callable
-from urllib.parse import urlparse
+from urllib.parse import quote, quote_plus, urlparse
 
 from .recipe_from_run import DraftRefused
 
@@ -275,6 +275,30 @@ def _findable_label(label: str) -> bool:
     return bool(label) and len(label) <= 40
 
 
+def _search_landing(events: list[dict[str, Any]], index: int) -> tuple[str, set[int]] | None:
+    """글 채우기 바로 뒤에 (Enter →) 그 글이 든 주소로 갔으면 (그 주소, 건너뛸 사건 번호들). 아니면 None."""
+    value = str(events[index].get("value") or "").strip()
+    if not value:
+        return None
+    used: set[int] = set()
+    at = float(events[index].get("at") or 0)
+    nxt = index + 1
+    if nxt < len(events) and events[nxt].get("kind") == "press":
+        used.add(nxt)
+        at = float(events[nxt].get("at") or at)
+        nxt += 1
+    if nxt >= len(events) or events[nxt].get("kind") != "nav":
+        return None
+    if float(events[nxt].get("at") or 0) - at > NAV_AFTER_ACTION_SEC:
+        return None
+    landing = str(events[nxt].get("url") or "")
+    spelled = {value, quote(value), quote_plus(value), quote(value, safe="")}
+    if not landing.startswith("http") or not any(item and item in landing for item in spelled):
+        return None
+    used.add(nxt)
+    return landing, used
+
+
 def steps_from_demo(events: list[dict[str, Any]], start_url: str = "") -> list[dict[str, Any]]:
     """기록을 **판 기록과 같은 꼴**(`agent_trace.steps`)로 바꾼다 — 그다음은 `draft_from_run` 이 똑같이 옮긴다.
 
@@ -286,7 +310,10 @@ def steps_from_demo(events: list[dict[str, Any]], start_url: str = "") -> list[d
     if first_url.startswith("http") and not (events and events[0].get("kind") == "nav"):
         steps.append({"tool": "browser_open", "ok": True, "arguments": {"url": first_url}, "evidence": {"url": first_url}})
     ref = 0
+    skip: set[int] = set()
     for index, event in enumerate(events):
+        if index in skip:
+            continue
         kind = str(event.get("kind") or "")
         url = str(event.get("url") or "")
         if kind == "nav":
@@ -297,6 +324,16 @@ def steps_from_demo(events: list[dict[str, Any]], start_url: str = "") -> list[d
             continue
         ref += 1
         selectors = [str(s) for s in (event.get("selectors") or []) if str(s).strip()]
+        if kind == "fill" and not selectors and not _findable_label(str(event.get("field") or "")):
+            # ★ **다시 찾을 단서가 하나도 없는 글 칸**에 쳐서 그 글이 든 주소로 갔으면 「그 검색 주소 열기」로 적는다
+            #   (2026-10-30 대표 /레시피 두 번째 실패 · 감사 78132: click · fill · press · nav …). 친 글은 레시피의 빈칸(query)이 된다.
+            searched = _search_landing(events, index)
+            if searched is not None:
+                landing, used = searched
+                skip.update(used)
+                steps.append({"tool": "browser_site_search", "ok": True,
+                              "arguments": {"query": str(event.get("value") or ""), "url": landing}, "evidence": {"url": landing}})
+                continue
         if kind == "fill":
             steps.append({"tool": "browser_fill", "ok": True, "arguments": {"ref": f"d{ref}", "value": str(event.get("value") or "")},
                           "evidence": {"url": url, "selectors": selectors, "field": str(event.get("field") or "")}})
@@ -332,4 +369,33 @@ def steps_from_demo(events: list[dict[str, Any]], start_url: str = "") -> list[d
         if kind == "select":
             # 고르기는 아직 레시피 엔진에 걸음이 없다. 빼고 쓰면 **다른 절차**가 된다 — 쓰지 않는다(누르기의 확인 조건과 같은 규칙).
             raise DraftRefused(f"{len(steps) + 1}번째 걸음(목록에서 「{event.get('value') or ''}」 고르기)은 아직 레시피에 실을 수 없습니다")
+    return _skip_search_lead_in(steps)
+
+
+#: 거쳐 가는 검색 사이트 — 여기서 찾아 다른 사이트로 넘어갔으면 앞부분은 길 찾기다(레시피의 절차가 아니다).
+_SEARCH_HOSTS = ("google.", "bing.com", "duckduckgo.com", "search.naver.com", "search.daum.net")
+
+
+def _is_search_host(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == mark.rstrip(".") or host.startswith("www." + mark) or host.startswith(mark) or host.endswith("." + mark.rstrip("."))
+               for mark in _SEARCH_HOSTS)
+
+
+def _skip_search_lead_in(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """검색 사이트에서 시작해 다른 사이트에 도착했으면 **도착한 주소 열기**부터 쓴다 (2026-10-30 대표: 배우기는 구글에서 시작한다).
+
+    검색어 · 결과 누르기는 길 찾기라 다음 판에 같은 결과가 같은 자리에 있다는 보장이 없다. 끝까지 검색 사이트에서만 했으면 그대로 둔다.
+    """
+    def url_of(step: dict[str, Any]) -> str:
+        return str((step.get("evidence") or {}).get("url") or "")
+
+    if not steps or not _is_search_host(url_of(steps[0])):
+        return steps
+    for index, step in enumerate(steps):
+        landing = url_of(step)
+        if landing.startswith("http") and not _is_search_host(landing):
+            opened = {"tool": "browser_open", "ok": True, "arguments": {"url": landing}, "evidence": {"url": landing}}
+            rest = steps[index + 1:] if step.get("tool") != "browser_open" else steps[index + 1:]
+            return [opened, *rest]
     return steps

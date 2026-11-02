@@ -37,6 +37,7 @@ from .clock import now_line_ko
 from .claude_code import CLAUDE_CODE_TOOL, DelegationDecision, completion_answer, delegation_decision
 from .delegation import SPILL_WARN_BELOW
 from .gpu_pressure import card_is_full, late_after_sec, read_card, usual_prefill_rate
+from . import heavy_apps
 from .api_escalation import advice_message, build_brief
 from .unity_editor import EDITOR_TOOL_NAMES
 from .unity_tools import UNITY_TOOL_NAMES
@@ -1658,6 +1659,24 @@ def hold_notes_after_last_call(messages: list[dict[str, Any]]) -> list[dict[str,
 
 
 
+#: 곁가지 부름이 직전 걸음의 생각 설정을 따를 앞 기록 길이(글자). 약 2만 토큰 — 이보다 짧으면 다시 읽어도 몇 초다.
+_KEEP_THINK_FOR_CACHE_CHARS = 40_000
+
+#: 글만 쓰라고 했는데 도구 부르는 글만 쓴 모델에게 한 번 더 붙이는 지시(2026-11-02 · `_text_only_message_inner`).
+_TEXT_ONLY_RETRY_NOTE = ("[자동 점검 · 사용자가 한 말 아님] 지금은 도구를 부를 수 없다. <tool_call> 을 쓰지 말고, "
+                         "지금까지 실제로 읽은 근거만으로 사용자에게 줄 답 본문을 지금 써라. 확인하지 못한 것은 못 했다고 적어라.")
+
+
+def _only_leaked_tool_call(text: str) -> bool:
+    """답이 **도구를 부르는 글뿐**인가 — 걷어 내면 아무것도 안 남는가(`runtime.strip_leaked_tool_calls` 와 같은 눈)."""
+    if "<tool_call>" not in (text or ""):
+        return False
+    from .runtime import UNEXECUTED_TOOL_CALL_NOTE, strip_leaked_tool_calls  # 늦은 가져오기 — runtime 이 agent 를 가져온다
+
+    left = strip_leaked_tool_calls(text)
+    return not left.strip() or left.strip() == UNEXECUTED_TOOL_CALL_NOTE
+
+
 class AgentCancelled(RuntimeError):
     pass
 
@@ -1752,6 +1771,30 @@ def untouched_sites(plan_results: list[tuple[Any, bool, str]]) -> list[str]:
 
 #: 새로 읽는 것이 없는 마무리 도구. 이것만 부르며 쓴 긴 글은 답 후보다(`wrap_up_said`).
 _WRAP_UP_TOOLS = frozenset({"browser_close"})
+
+#: 파일 · 문서를 만들라는 말 — 이런 일은 브라우저를 닫은 뒤에도 할 걸음(파일 쓰기)이 남아 있다(`_finishes_at_wrap_up`).
+_ASKS_FOR_A_FILE = re.compile(
+    r"엑셀|xlsx|csv|워드|docx|한글 ?파일|hwp|pdf|ppt|장표|슬라이드|파일로|파일에|문서로|문서를|보고서|저장|"
+    r"excel|spreadsheet|word (?:file|doc)|as a file|into a file|save",
+    re.IGNORECASE,
+)
+
+
+def _finishes_at_wrap_up(prompt: str, *, model_role: str, require_sandbox: bool) -> bool:
+    """브라우저를 닫으며 완성된 답(200자 이상)을 썼을 때, 모델을 다시 부르지 않고 그 답으로 마무리하는가.
+
+    ★ 2026-11-01 — 알라딘 「파이썬 상위 3권」 9판이 48~373초로 흔들린 몸통. 느린 판은 5걸음째에 표까지 다 쓴 답(604 · 641자)을
+      `browser_close` 와 같이 냈다. 하네스는 그 답을 쥐어만 두고 모델에게 한 차례를 더 줬고, 모델은 생각을 켜 「더 확인하자」며
+      책 상세 페이지를 하나씩 열었다(한 권 60~75초). 그리고 **마지막엔 5걸음째 답을 그대로 냈다**(`wrap_up.used_as_answer`).
+      10-20 뒤 완료 359판 중 7판이 이 모양이었고 그 가운데 6판이 결국 그 답을 냈다 — 더 걸은 시간 합 906초 · 중앙 103초.
+      `browser_close` 는 탭 하나가 아니라 브라우저를 통째로 닫는다 — 「다 읽었다」는 분명한 신호다.
+
+    예전대로 모델을 부르는 판: 코드 판(검증 걸음이 남는다) · 파일 · 문서를 만들라는 일(닫은 뒤 파일 쓰기가 남는다).
+    마무리 검사(되돌리기 · needs · 읽지 않은 주소)는 그대로 거친다 — 모델이 도구 없이 답한 것과 같은 길로 들어간다.
+    """
+    if model_role == "code" or require_sandbox:
+        return False
+    return not _ASKS_FOR_A_FILE.search(str(prompt or ""))
 #: 「하는 말」은 한 문장이다(`narration.NARRATION_INSTRUCTION`). 이보다 길면 답을 쓴 것으로 본다.
 _WRAP_UP_ANSWER_MIN_CHARS = 200
 #: 창 동작을 **미리 보기만** 하는 도구 — 실행이 아니라서 걸음 예산을 깎지 않는다(위 루프의 `preview_grace`).
@@ -2849,6 +2892,15 @@ class BrowserAgent:
 
         `purpose` 는 부르기 기록에 붙는 이름표다(어느 정리 자리인가 · `ollama.tagged_call`) — 동작은 안 바꾼다.
         """
+        # ★ 생각을 껐다 켜면 앞에서 읽어 둔 기억(캐시)을 못 쓰고 앞 기록 전체를 다시 읽는다 (2026-10-30 대표 스크린샷
+        #   「앞의 기록(약 7.8만 토큰)을 읽는 중 · 첫 글자 전 45초」). 그 판: 마지막 걸음 생각 끔 3.9초 → 마무리 답 생각 켬 57.2초
+        #   (늘어난 것은 3,500토큰). 10-21 이후 기록에서 2만 토큰 넘는 마무리 답: 뒤집힘 12건 중앙 11초 · 같음 17건 중앙 2초.
+        #   앞 기록이 길면 직전 걸음과 같은 설정으로 쓴다. 짧으면 다시 읽어도 몇 초라 정책대로 생각한다.
+        previous = self.__dict__.get("_last_think", {}).get(job_id)
+        if previous is not None and bool(previous) != bool(think):
+            history_chars = sum(len(str(item.get("content") or "")) for item in messages)
+            if history_chars >= _KEEP_THINK_FOR_CACHE_CHARS:
+                think = bool(previous)
         with tagged_call(purpose=purpose):
             return self._text_only_message_inner(
                 messages, job_id=job_id, think=think, model_role=model_role, inference_profile=inference_profile,
@@ -2881,6 +2933,17 @@ class BrowserAgent:
             again, used_again = self._model_message(
                 messages, job_id=job_id, tools=None, think=think, model_role=model_role, inference_profile=inference_profile,
             )
+            if _only_leaked_tool_call(str(again.get("content") or "")):
+                # ★ 목록을 빼도 **도구를 부르는 글**만 쓴 판 (2026-11-02 · 28168caf · 3.6 2비트): 104자가 전부
+                #   `<tool_call>` 덩어리라 걷어 내자 빈 답이 됐다 — 13걸음 근거를 다 읽고도 답이 「(도구를 부르는 글만 적고 끝냈습니다)」.
+                #   한 번만 더, 도구를 못 부른다는 지시를 끝에 붙여 부른다(앞부분은 그대로라 캐시가 안 깨진다).
+                third, used_third = self._model_message(
+                    messages + [{"role": "user", "content": _TEXT_ONLY_RETRY_NOTE}],
+                    job_id=job_id, tools=None, think=think, model_role=model_role, inference_profile=inference_profile,
+                )
+                if str(third.get("content") or "").strip() and not _only_leaked_tool_call(str(third.get("content") or "")):
+                    return third, used + used_again + used_third
+                return again, used + used_again + used_third
             return again, used + used_again
         return self._model_message(
             messages, job_id=job_id, tools=None, think=think, model_role=model_role, inference_profile=inference_profile,
@@ -2930,6 +2993,11 @@ class BrowserAgent:
         effective_think = bool(
             think and (model_role != "code" or inference_profile in {"balanced", "medium", "deep"})
         )
+        # 이 판이 마지막으로 보낸 생각 설정 — 곁가지 부름(마무리 답 등)이 같은 값을 써서 캐시를 살리게(`_text_only_message`).
+        last_think = self.__dict__.setdefault("_last_think", {})
+        for other in [key for key in last_think if key != job_id]:
+            del last_think[other]
+        last_think[job_id] = effective_think
         if model_role == "code" and tools:
             tools = qwen_code_tools(tools, allowed_code_tools or frozenset())
         thinking_started = False
@@ -2972,9 +3040,14 @@ class BrowserAgent:
             # ★ 생각 · 답을 흘리는 **도중에도** 비켜 준다 (2026-10-09 저녁 · 대표 결정). 걸음 사이에서만 비키면 모델이 길게
             #   생각하는 동안 사람이 기다린다 — 그날 실제 판에서 38초였다. 조각이 올 때마다가 아니라 `_YIELD_POLL_SEC` 마다 줄을 본다.
             #   여기서 예외가 나가면 연결이 닫히고 서버도 생성을 멈춘다. 끊긴 생각은 버린다 — 되살아난 판이 그 걸음을 다시 생각한다.
-            if may_yield and time.monotonic() - yield_looked_at >= _YIELD_POLL_SEC:
+            if time.monotonic() - yield_looked_at >= _YIELD_POLL_SEC:
                 yield_looked_at = time.monotonic()
-                if self.store.person_is_waiting():
+                # ★ 취소된 판은 부르기 **도중에** 끊는다 (2026-10-30 16GB 출시 문 시험). 걸음 사이에서만 보면, 넘친 카드에서
+                #   한 걸음 생각이 19분 걸리는 동안 취소해도 그 부르기가 끝까지 돌며 일꾼을 쥐었다 — 다음 판은 시작도 못 했다.
+                #   예외가 나가면 연결이 닫히고 서버도 생성을 멈춘다.
+                if self._cancelled(job_id):
+                    raise AgentCancelled("agent_cancelled")
+                if may_yield and self.store.person_is_waiting():
                     raise YieldToPerson(job_id)
             thinking = str(chunk.get("thinking") or "")
             if thinking:
@@ -3399,7 +3472,64 @@ class BrowserAgent:
                 f"그래픽카드 메모리가 거의 가득 찼습니다({used}/{total}GB) — 모델이 아주 느려질 수 있습니다. 다른 프로그램(3ds Max · 유니티 등)을 "
                 "닫거나 모델 이름 버튼에서 더 작은 모델을 써 보세요. 손자리는 다른 프로그램을 끄지 않습니다"
             )
+        busy = facts.get("heavy_running")
+        if busy:
+            names = " · ".join(str(item) for item in busy)
+            if english:
+                return (f"{names} is open and shares the graphics card, so the model may run slowly - close it, or pick a smaller "
+                        "model under the model name button. I do not close other programs")
+            return (f"{names} 이(가) 켜져 있어 그래픽카드를 나눠 씁니다 — 모델이 느려질 수 있습니다. 그 프로그램을 닫거나 "
+                    "모델 이름 버튼에서 더 작은 모델을 써 보세요. 손자리는 다른 프로그램을 끄지 않습니다")
         return ""
+
+    def _steady_think(self, job_id: str, messages: list[dict[str, Any]], steps: list[dict[str, Any]], think: bool) -> bool:
+        """걸음마다 생각을 켰다 껐다 하지 않게 고르는 자리 (2026-10-31 대표 「한 번 막히면 쭉 깊게」 · 측정 중).
+
+        생각을 뒤집으면 앞 기록을 처음부터 다시 읽어 그동안 화면에 글이 안 나온다(10-27 이후 30초+ 116건 중 51건).
+        어느 방식이 나은지는 재서 정한다 — 그때까지 기본은 예전 그대로(`off`). `data/bench_overrides.json` 의 `think_stick`:
+          · `sticky` — 첫 걸음 뒤 한 번이라도 생각했으면 그 판은 끝까지 생각한다
+          · `long_steady` — 앞 기록이 길면(`_KEEP_THINK_FOR_CACHE_CHARS`) 직전 걸음 설정을 그대로 쓴다(진짜 막힘은 정책이 「깊게」로 올린다)
+        """
+        mode = ""
+        try:
+            raw = json.loads((Path(self.config.data_dir) / "bench_overrides.json").read_text(encoding="utf-8"))
+            mode = str((raw or {}).get("think_stick") or "")
+        except (OSError, ValueError, TypeError):
+            mode = ""
+        if mode == "sticky":
+            stuck = self.__dict__.setdefault("_stuck_think_jobs", set())
+            if think and steps:
+                stuck.add(job_id)
+            return bool(think or job_id in stuck)
+        if mode == "stuck_once":
+            # ★ 대표 10-31 안의 다듬은 꼴: **진짜 막힘**(실패한 걸음)이 한 번 나오면 그 판은 끝까지 생각한다.
+            #   「같은 도구 두 번」 같은 한 걸음짜리 켜기는 앞 기록이 길면 하지 않는다(도구가 엉뚱한 것을 줘서 다시 부른 것일 수 있다).
+            stuck = self.__dict__.setdefault("_stuck_think_jobs", set())
+            if any(not step.get("ok", True) for step in steps):
+                stuck.add(job_id)
+            if job_id in stuck:
+                return True
+            if steps:
+                previous = self.__dict__.get("_last_think", {}).get(job_id)
+                if previous is not None and bool(previous) != bool(think):
+                    history_chars = sum(len(str(item.get("content") or "")) for item in messages)
+                    if history_chars >= _KEEP_THINK_FOR_CACHE_CHARS:
+                        return bool(previous)
+            return bool(think)
+        if mode == "long_steady" and steps:
+            previous = self.__dict__.get("_last_think", {}).get(job_id)
+            if previous is not None and bool(previous) != bool(think):
+                history_chars = sum(len(str(item.get("content") or "")) for item in messages)
+                if history_chars >= _KEEP_THINK_FOR_CACHE_CHARS:
+                    return bool(previous)
+        return bool(think)
+
+    def _fallback_covers(self, model_role: str) -> bool:
+        """이 역할의 판이 넘쳤을 때 빠른 모델로 넘겨도 되는가 — 대화 판은 늘, 코드 판은 코드 모델이 대화 모델과 같을 때만."""
+        if model_role != "code":
+            return True
+        chat = str(self.config.model_for("chat") or "").strip()
+        return bool(chat) and str(self.config.model_for("code") or "").strip() == chat
 
     def _warn_if_model_spills(self, job_id: str, model_role: str) -> None:
         """판이 시작될 때 모델이 그래픽카드에 안 들어갈 것 같으면 **300초를 기다리지 말고** 곧바로 진행 줄에 알린다 (2026-10-27).
@@ -3409,10 +3539,38 @@ class BrowserAgent:
         본 사실은 판 기록(`verification.model_spill`)과 끝맺음 문장에 남는다.
         """
         facts = self._gpu_facts(model_role)
+        # ★ 무거운 프로그램이 켜져 있는가 (2026-10-30 대표). 윈도우는 그 프로그램이 쥔 카드 메모리를 잘 안 보여 줘서
+        #   넘쳐도 몫 1.0 · 남은 메모리 넉넉으로 읽힐 수 있다 — 켜져 있다는 사실을 먼저 믿는다. 16GB 이하 카드에서만.
+        if heavy_apps.small_card(facts.get("card_total_gb")):
+            busy = (getattr(self, "_heavy_running", None) or heavy_apps.running)()
+            if busy:
+                facts["heavy_running"] = list(busy)
         self._remember_gpu_facts(job_id, facts)
         text = self._gpu_warning(facts, False)
         if not text:
             return
+        only_busy = bool(facts.get("heavy_running")) and not self._gpu_warning({**facts, "heavy_running": None}, False)
+        # ★ 넘쳤으면 경고만 하지 않고 빠른 모델로 넘긴다(2026-10-30 대표 결정 · `model_fallback`).
+        #   깔려 있으면 묻지 않고 바꾸고, 없으면 받는 법을 알린다. 손이 없으면(시험 · 위성) 예전처럼 경고만.
+        #   코드 판도 넘긴다 — 단 코드 모델이 대화 모델과 **같을 때만**(따로 고른 코드 모델은 사람의 선택이라 덮지 않는다).
+        #   (같은 날 16GB 시험: 넘친 Swift 코드 0/3 · 한 걸음 생각 19분, 3.6 2비트는 같은 조건 코드 10/12.)
+        fallback = getattr(self, "model_fallback", None)
+        if callable(fallback) and self._fallback_covers(model_role):
+            from .model_fallback import missing_line, switched_line
+
+            try:
+                outcome = fallback(job_id, facts) or {}
+            except Exception:  # noqa: BLE001 — 바꾸지 못하면 예전처럼 경고만
+                outcome = {}
+            action = outcome.get("action")
+            if only_busy and outcome.get("why") == "already_fast":
+                return  # 이미 빠른 모델이다 — 프로그램이 켜져 있다는 말만으로 판마다 경고하지 않는다
+            if action == "switched":
+                text = switched_line(False)
+                facts = {**facts, "fell_back_to": outcome.get("to"), "fell_back_from": outcome.get("from")}
+                self._remember_gpu_facts(job_id, facts)
+            elif action == "missing":
+                text = missing_line(False)
         # 진행 줄은 나가는 순간 화면 언어로 바뀐다(`ui_i18n`) — 한국어로 보낸다.
         self._progress(job_id, "planning", text)
         payload = {"job_id": job_id, **facts}
@@ -7946,6 +8104,9 @@ class BrowserAgent:
         #: 2026-10-16: 10-14 대표 판 셋이 같은 고장이었는데, 그 글이 기록에 안 남아 「200자 넘었나(고침이 들었을까)」를 알 수 없었다.
         wrap_up_turns: list[dict[str, Any]] = []
         answer_from_wrap_up = False
+        #: 브라우저를 닫으며 완성된 답을 쓴 걸음 — 다음 차례에 모델을 부르지 않고 이 답으로 마무리 검사에 들어간다
+        #: (`_finishes_at_wrap_up`). 비어 있으면 예전처럼 모델을 부른다.
+        wrap_up_finish = ""
         #: 도구를 부르며 쓴 글 가운데 **가장 긴 것**의 길이와 걸음 — 최종 답이 그보다 훨씬 짧으면 끝내기를 한 번 되돌린다(아래
         #: `_FINAL_TOO_SHORT_RATIO`). 판 기록(`verification.said_with_tools`)에도 남긴다 — 10-16 까지는 이 글이 어디에도 안 남아
         #: 「답을 도구와 같이 써 버린 판」이 몇이었는지 지난 기록으로 셀 수 없었다.
@@ -9311,8 +9472,14 @@ class BrowserAgent:
                         "reason": _reasoning_escalation_reason(steps, plan_pushbacks + coding_pushbacks),
                     }
                     self._progress(job_id, "running", "막혀서 지금부터 깊게 생각합니다", step=len(steps))
+                # ★ 브라우저를 닫으며 완성된 답을 쓴 다음 차례 — 모델을 다시 부르지 않는다(`_finishes_at_wrap_up`).
+                finishing_turn = ({"role": "assistant", "content": wrap_up_finish}, 0) if wrap_up_finish else None
+                if finishing_turn is not None:
+                    wrap_up_finish = ""
+                    answer_from_wrap_up = True
+                    self.events.publish("agent_finished_at_wrap_up", {"job_id": job_id, "step": len(steps)})
                 try:
-                    message, used_thinking = self._model_turn_that_may_step_aside(
+                    message, used_thinking = finishing_turn or self._model_turn_that_may_step_aside(
                             may_step_aside,
                             messages,
                             run_started=segment_started,
@@ -9320,13 +9487,13 @@ class BrowserAgent:
                             tools=model_tools,
                         # 산출물 전환에서 8,192 토큰짜리 답 초안 반복이 일어났다. 이
                         # 단계는 추론보다 구조화된 도구 인자가 필요하므로 thinking을 끈다.
-                        think=_should_think(
+                        think=self._steady_think(job_id, messages, steps, _should_think(
                             self.config, steps, artifact_focus=artifact_focus,
                             policy=_job_thinking_policy(
                                 self.config, reasoning,
                                 escalated=_reasoning_escalated(steps, plan_pushbacks + coding_pushbacks),
                             ),
-                        ),
+                        )),
                         model_role=model_role,
                         inference_profile=active_profile,
                         allowed_code_tools=shown_code_tools,
@@ -9379,6 +9546,8 @@ class BrowserAgent:
                                               "held": len(said_in_full) >= _WRAP_UP_ANSWER_MIN_CHARS})
                     if len(said_in_full) >= _WRAP_UP_ANSWER_MIN_CHARS:
                         wrap_up_said = said_in_full
+                        if _finishes_at_wrap_up(prompt, model_role=model_role, require_sandbox=require_sandbox):
+                            wrap_up_finish = said_in_full
                 if calls:
                     said_chars = len(str(message.get("content") or "").strip())
                     if said_chars > said_with_tools_longest["chars"]:

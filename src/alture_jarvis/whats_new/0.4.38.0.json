@@ -1,0 +1,68 @@
+{
+  "ko": {
+    "changes": "이번에 새로 생긴 것\n- 3ds Max · 유니티처럼 그래픽카드를 쓰는 프로그램과 같이 쓸 때: 모델이 그래픽카드 밖으로 넘치거나(16GB 이하 카드에서) 그런 프로그램이 켜져 있으면, 일을 시작할 때 빠른 모델(Qwen 3.6 35B 2비트)로 바로 바꿉니다. 코드 일도 바꿉니다. 빠른 모델이 없으면 「빠른 모델 받기」를 알려 드리고, 프로그램을 닫은 뒤 「원래 모델로」라고 하시면 되돌립니다.\n- 처음 설정의 두 모델 카드가 「평소 · 무거운 프로그램과 함께」로 바뀌었습니다. 이 PC 에 그런 프로그램이 깔려 있으면 빠른 모델도 받아 두라고 알려 드립니다.\n- 코워크에도 프로젝트 폴더 — 위 폴더 칸에서 고르면 만든 파일이 그 폴더에 저장되고, 그 폴더 안 파일은 바로 읽습니다. 대화마다 쓰던 폴더를 기억하고, 최근 폴더도 바로 고릅니다. 비워 두면 예전처럼 결과물 폴더(문서 › Sonjari)입니다.\n\n이번에 고친 것\n- 취소하면 모델이 생각하는 도중에도 바로 멈춥니다. 전에는 그 생각이 끝날 때까지 다음 일이 시작하지 못했습니다.\n- /레시피: 이름 없는 누르기 하나 때문에 보여 준 절차 전체를 버리던 것을 고쳤습니다. 손자리 크롬을 부르면 정말 화면 앞으로 뜹니다.\n- 조사: 「목록에서 몇 개씩」 같은 부탁은 곱한 만큼 읽고, 「이 화면까지 가 줘」는 그 화면에 실제로 서기 전에는 다 했다고 하지 않습니다.\n- 다른 대화에서 찾아 붙인 기억을 숫자의 근거로 치지 않습니다. 「아직 안 했다」는 답은 「못 다 함」으로 정직하게 남깁니다.\n- 천천히 닫히는 제안 목록을 「안 골라짐」으로 잘못 읽던 것 · 「No」 답을 채운 것으로 세던 것을 고쳤습니다. 파이썬 문법을 깨는 편집은 쓰지 않습니다.\n- 코드 칸: 같은 할 일 목록이 두 번 보이던 것을 하나로, 작업 근거 칸이 남는 높이를 다 씁니다. 일하는 도중 누른 「크게/작게」가 지워지지 않습니다.\n- 뒤에서 부르는 명령줄 도구가 검은 콘솔 창을 띄우지 않습니다. 첫 걸음의 사이트 목록을 표로 보여 드립니다.",
+    "tour": "이미 되는데 잘 모르시는 것\n- 게임 팩 — 유니티 프로젝트 점검(텍스처 · 참조 · 용량)과 열린 에디터에서 만들고 바꾸기를 손자리가 합니다(설정 › 팩).\n- 클로드 · 코덱스 · 커서에서 Sonjari 쓰기 — 그 AI 가 웹 조사 · 파일 일을 손자리에게 맡깁니다. 페이지는 이 PC 가 읽고 결과만 돌아가 클로드 사용 한도를 아낍니다(설정 › 연결).\n- 디스코드로 일 시키기 — 밖에서 휴대폰 디스코드로 손자리에게 일을 맡기고 결과를 받습니다(설정 › 디스코드로 일 시키기).\n- 예약 작업 — 정해 둔 시각에 같은 일을 돌립니다(설정 › 일반).",
+    "slides": [
+      {
+        "title": "무거운 프로그램과 같이 켜도",
+        "body": "3ds Max · 유니티가 그래픽카드를 나눠 쓰면 큰 모델은 카드 밖으로 넘쳐 아주 느려집니다. 손자리가 일을 시작할 때 이것을 보고 빠른 모델로 바꿉니다. 프로그램을 닫은 뒤 「원래 모델로」라고 하시면 되돌립니다.",
+        "try": "3ds Max 를 켠 채로 일 맡겨 보기",
+        "visual": {
+          "kind": "stat",
+          "label": "그래픽카드를 나눠 쓸 때 글 쓰는 속도",
+          "before": 6.3,
+          "after": 116.0,
+          "unit": "토큰/초",
+          "basis": "16GB 카드 흉내(모델 자리 12GB · RTX 3090) · 앞은 Swift 27B 작은 판 세 번 평균(10-30) · 뒤는 Qwen 3.6 35B 2비트(10-23)."
+        }
+      },
+      {
+        "title": "취소하면 바로 멈춥니다",
+        "body": "모델이 길게 생각하는 도중에 취소해도 그 자리에서 멈춥니다. 전에는 그 생각이 끝날 때까지 다음 일이 시작하지 못했습니다.",
+        "try": "긴 일을 맡겼다가 취소하고 바로 다른 일 맡기기"
+      },
+      {
+        "title": "/레시피가 덜 버립니다",
+        "body": "보여 준 절차에 이름 없는 누르기가 하나 섞여도 전체를 버리지 않습니다. 손자리 크롬을 부르면 정말 화면 앞으로 뜹니다.",
+        "try": "「/레시피 위키 검색」",
+        "visual": {
+          "kind": "show",
+          "scene": "recipe-learn"
+        }
+      }
+    ]
+  },
+  "en": {
+    "changes": "New in this update\n- Working alongside 3ds Max, Unity and other programs that use the graphics card: if the model spills off the graphics card (on cards of 16GB or less) or such a program is open, Sonjari switches to the fast model (Qwen 3.6 35B 2-bit) when a job starts. Code jobs switch too. If the fast model is missing, it tells you to say \"download the fast model\"; after closing the program, say \"go back to the usual model\".\n- At first setup the two model cards now read \"everyday\" and \"with heavy apps open\". If such programs are installed on this PC, it suggests downloading the fast model too.\n- Project folders in Cowork too: pick one in the folder box at the top and files you make are saved there, and files inside it can be read right away. Each conversation remembers its folder, and recent folders are one click away. Leave it empty to keep using Documents › Sonjari.\n\nFixed in this update\n- Cancelling now stops the model even in the middle of thinking. Before, the next job could not start until that thought finished.\n- /recipe: one unnamed click no longer throws away the whole demonstrated procedure. Calling the Sonjari browser really brings it to the front.\n- Research: requests like \"a few from each item in a list\" read that many in total, and \"go to this screen\" is not reported done until it actually stands on that screen.\n- Memories found in another conversation no longer count as the source of a number. A \"not done yet\" answer is recorded honestly as \"not finished\".\n- Fixed reading a slowly closing suggestion list as \"not picked\" and counting a \"No\" answer as filled. Edits that break Python syntax are not written.\n- Code pane: the same task list no longer shows twice, and the evidence pane uses the remaining height. \"Bigger/Smaller\" pressed mid-job is no longer cleared.\n- Command-line tools started in the background no longer flash a console window. The first step's site list is shown as a table.",
+    "tour": "Already works, but easy to miss\n- Game pack: Sonjari checks Unity projects (textures, references, size) and creates or changes things in the open editor (Settings › Packs).\n- Use Sonjari from Claude, Codex or Cursor: that AI hands web research and file work to Sonjari. Pages are read on this PC and only the result goes back, which saves your Claude usage (Settings › Connections).\n- Hand off work from Discord: send Sonjari a job from Discord on your phone and get the result back (Settings › Work from Discord).\n- Scheduled jobs: run the same job at a set time (Settings › General).",
+    "slides": [
+      {
+        "title": "Even with heavy apps open",
+        "body": "When 3ds Max or Unity shares the graphics card, a large model spills off the card and gets very slow. Sonjari checks this when a job starts and switches to the fast model. After closing the program, say \"go back to the usual model\".",
+        "try": "Hand over a job with 3ds Max open",
+        "visual": {
+          "kind": "stat",
+          "label": "Writing speed while sharing the graphics card",
+          "before": 6.3,
+          "after": 116.0,
+          "unit": "tokens/s",
+          "basis": "Simulated 16GB card (12GB left for the model, RTX 3090) · before: Swift 27B small, average of three runs (10-30) · after: Qwen 3.6 35B 2-bit (10-23)."
+        }
+      },
+      {
+        "title": "Cancel stops it right away",
+        "body": "Cancelling stops the model on the spot, even in the middle of a long thought. Before, the next job could not start until that thought finished.",
+        "try": "Hand over a long job, cancel it, and start another right away"
+      },
+      {
+        "title": "/recipe throws away less",
+        "body": "One unnamed click in the demonstrated procedure no longer throws the whole thing away. Calling the Sonjari browser really brings it to the front.",
+        "try": "\"/recipe wiki search\"",
+        "visual": {
+          "kind": "show",
+          "scene": "recipe-learn"
+        }
+      }
+    ]
+  }
+}

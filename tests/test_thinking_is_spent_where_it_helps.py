@@ -109,5 +109,6 @@ def test_the_loop_actually_asks_the_policy() -> None:
         Path(__file__).resolve().parents[1] / "src" / "alture_jarvis" / "agent.py"
     ).read_text(encoding="utf-8")
 
-    assert "think=_should_think(" in source
+    # 10-31: 정책 답을 `_steady_think`(켰다 껐다 줄이기 · 측정 스위치)가 감싼다 — 그래도 정책은 걸음마다 묻는다.
+    assert "think=self._steady_think(job_id, messages, steps, _should_think(" in source
     assert source.count("think=self.config.agent_thinking_enabled and not artifact_focus") == 0
