@@ -29,6 +29,9 @@ import { LookingAt } from "./workspace/LookingAt";
 import { CapabilityDrawer } from "./workspace/CapabilityDrawer";
 import { SettingsScreen } from "./workspace/SettingsScreen";
 import { DISCORD_REQUESTS_EVENT, DiscordRequestBanner } from "./workspace/DiscordSection";
+import { PAIR_REQUESTS_EVENT, PairRequestBanner } from "./setup/Pairing";
+import { HOME_LLM_EVENT } from "./setup/ModelPlace";
+import { friendlyModelName } from "./setup/modelNames";
 import { ComputerPane, ThinkingTrace } from "./workspace/ComputerPane";
 import { applyDeckEvent, type DeckState } from "./workspace/DeckStage";
 import { ApprovalCard, ContinuationCard, QuestionCard } from "./workspace/DecisionCards";
@@ -137,18 +140,9 @@ function savedCodeWorkspace(): string {
   return window.localStorage.getItem(CODE_WORKSPACE_KEY) ?? "";
 }
 
+// 모델 이름은 한 곳에서(setup/modelNames) — 칩 · 목록 · 넘김 카드가 같은 이름을 쓴다(11-04 대표: 「Qwen3.5 / Qwen 3.5 통일」).
 function displayModelName(model: string): string {
-  const value = model.toLowerCase();
-  if (value.includes("qwen3.8") && value.includes("27b")) return "Qwen3.8 · 27B";
-  if (value.includes("qwen3.5") && value.includes("9b")) return "Qwen3.5 · 9B";
-  if (value.includes("gemma4")) return "Gemma 4";
-  // ★ 2026-09-17 E2E 3판: 설정 › 모델에서 Granite 로 바꾸니 머리에 태그 그대로 「granite4.1」이 떴다.
-  //   이름 앞 글자를 대문자로, 크기 태그는 따로 — 「Granite4.1 · 8B」.
-  const [name, size] = model.split(":");
-  if (!name) return model;
-  const pretty = name.charAt(0).toUpperCase() + name.slice(1);
-  const sizeMatch = /^(\d+(?:\.\d+)?b)/i.exec(size ?? "");
-  return sizeMatch ? `${pretty} · ${sizeMatch[1].toUpperCase()}` : pretty;
+  return friendlyModelName(model);
 }
 
 /**
@@ -885,7 +879,20 @@ export function WorkspaceApp() {
         if (event.event === "context_watch" || event.event === "setup_context_measured") {
           window.dispatchEvent(new Event("ontelic:context-watch"));
         }
+        // 모델 자리(이 맥 / 집 PC)가 바뀌었다 — 위쪽 모델 칩과 라벨이 다시 읽는다(2026-11-04 · 칩이 옛 판정에 굳던 것).
+        if (event.event === "model_place_changed") {
+          window.dispatchEvent(new Event("ontelic:model-changed"));
+        }
+        // 이 맥이 집 PC 로 모델을 실제로 부를 때 — 연결 띠의 구슬이 갔다가 돌아온다(꾸밈으로 돌리지 않는다).
+        if (event.event === "home_llm_call") {
+          window.dispatchEvent(new CustomEvent(HOME_LLM_EVENT, { detail: payload }));
+        }
         // 허용 목록 밖 사람이 디스코드로 말을 걸었다 — 알림 자리와 설정 칸이 목록을 다시 읽는다(카드는 GET 으로 그린다).
+        // 짝짓기 요청(맥이 이 PC 를 빌리려 함) — 띠와 「빌려 쓰는 기기」 목록이 다시 읽는다(코드는 띠가 GET 으로 받는다).
+        if (event.event.startsWith("pair_request") || event.event.startsWith("paired_device")) {
+          window.dispatchEvent(new Event(PAIR_REQUESTS_EVENT));
+          return;
+        }
         if (event.event === "discord_access_requested") {
           window.dispatchEvent(new CustomEvent(DISCORD_REQUESTS_EVENT, { detail: payload }));
           return;
@@ -2162,7 +2169,6 @@ export function WorkspaceApp() {
   const activeContext = pilotMode ? selectedPilotModel.context : (workspaceMode === "code"
     ? measuredContext || modelContexts.code || modelContexts.chat || contextWindow
     : measuredContext || history?.context_window || contextWindow);
-  const activeContextLabel = activeContext >= 1_000_000 ? "1M" : `${Math.round(activeContext / 1024)}K`;
   const currentTitle = sessions.find((row) => row.session_id === sessionId)?.title || t("새 대화");
   // 가운데 대화 칸과 입력창은 **이 방의 판**만 본다(`jobShownHere`). 오른쪽 작업 창은 지금까지처럼 도는 판을 따라간다.
   const hereJobId = jobShownHere(activeJobId, sessionId, pending, jobs);
@@ -2321,7 +2327,8 @@ export function WorkspaceApp() {
               <LocalModelPicker
                 api={setupApi}
                 role={workspaceMode === "code" ? "code" : "chat"}
-                label={activeModel ? `${displayModelName(activeModel)} · ${activeContextLabel}` : ""}
+                label={activeModel ? displayModelName(activeModel) : ""}
+                contextLength={activeContext}
                 context={claudeBrain ? t("이 대화는 Claude Agent 가 일합니다 · 내 API 키") : workspaceMode === "code" ? t("{0} · 코드 작업 전용", activeModel) : contextLabel}
                 onChanged={() => window.dispatchEvent(new Event("ontelic:model-changed"))}
                 claude={claudeChoice}
@@ -2485,6 +2492,8 @@ export function WorkspaceApp() {
           )}
           {/* 디스코드로 말을 건 새 사람(가족 · 동료 추가) — 받을지 여기서 바로 고른다. 접으면 설정 › 디스코드에 남는다. */}
           {!pilotMode && <DiscordRequestBanner client={clientRef.current} connected={connected} />}
+          {/* 맥이 이 PC 를 빌리려 한다 — 짝 코드 6자리. 그 맥에 친 것이 허락이다(설계_짝짓기_모델자리 §3-2). */}
+          <PairRequestBanner api={setupApi} />
           {/* 자동 승인 — 무엇이 지나갔는지 한 줄. 되돌리기는 작업 기록(오른쪽 칸)의 그 걸음에 붙어 있다. */}
           {autoApproved && (
             <div className="auto-approved-banner" role="status">

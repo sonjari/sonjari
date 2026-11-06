@@ -90,7 +90,7 @@ def test_no_user_folder_is_the_same_as_before(tmp_path: Path) -> None:
     registry = PackRegistry(REPO / "packs", tmp_path / "data")
 
     # 우리가 싣는 팩: 게임(09-27) · 영상(11-02). 사람이 넣는 폴더가 없으면 그 밖에 아무것도 안 늘어난다.
-    assert set(registry.packs) == {"game", "video"} and registry.listing()["user_dir"] == ""
+    assert set(registry.packs) == {"animator", "game", "video"} and registry.listing()["user_dir"] == ""
     assert registry.user_skill_dirs() == [] and registry.triggers() == {}
 
 

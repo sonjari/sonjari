@@ -194,7 +194,9 @@ DEFAULT_BASE_URL = "http://127.0.0.1:8091"
 # 잡으므로 바깥에서 부르면 엉뚱한 곳을 짚는다.
 #
 # 막는 것이 아니라 기본값일 뿐이다 — JARVIS_MCP_INCLUDE 로 다시 열 수 있다.
-DEFAULT_EXCLUDE_PREFIXES = ("camera_", "ui_")
+# ★ 2026-11-04 `mcp_`: 손자리에 꽂힌 남의 MCP 서버(mcp_find · mcp_call)는 손자리 모델용이다. 클로드는 자기 MCP 를 직접 꽂는다 —
+#   손자리를 거쳐 부르면 승인 카드가 손자리 창에 뜨고(아무도 안 봄), 같은 서버를 두 길로 부르게 된다.
+DEFAULT_EXCLUDE_PREFIXES = ("camera_", "ui_", "mcp_")
 
 # ★ 되돌릴 수 없는 도구(L2)는 기본으로 **내보내지 않는다** — 승인을 건너뛰는 게
 # 아니라 그 능력을 아예 주지 않는다(사용자 결정, 2026-08-06).
@@ -415,7 +417,7 @@ class JarvisMcpBridge:
         runtime_payload: Any = None
         for attempt in range(3):
             try:
-                response = await client.get(f"{self.base_url}/v1/tools")
+                response = await client.get(f"{self.base_url}/v1/tools", headers={"X-JARVIS-TOKEN": self.token})
                 response.raise_for_status()
                 runtime_payload = response.json()
                 break
@@ -642,7 +644,8 @@ class JarvisMcpBridge:
                 if str(job.get("status") or "") == "queued":
                     # 줄을 섰으면 **앞에 몇 개인지** 같이 준다 — 「왜 안 움직이지」를 없앤다.
                     try:
-                        listed = (await client.get(f"{self.base_url}/v1/jobs?limit=50&view=summary")).json()
+                        listed = (await client.get(f"{self.base_url}/v1/jobs?limit=50&view=summary",
+                                                   headers={"X-JARVIS-TOKEN": self.token})).json()
                         created = float(job.get("created_at") or 0)
                         ahead = sum(1 for row in listed
                                     if str(row.get("status")) in ("queued", "running")

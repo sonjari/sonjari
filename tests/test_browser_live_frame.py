@@ -40,7 +40,7 @@ def test_frame_never_starts_the_browser(tmp_path) -> None:
     runtime.browser._ensure_started = lambda: started.append("boom")  # type: ignore[method-assign]
 
     with TestClient(app) as client:
-        response = client.get("/v1/browser/frame.jpg")
+        response = client.get("/v1/browser/frame.jpg", headers={"X-JARVIS-TOKEN": "test-token"})
 
     assert response.status_code == 503
     assert started == [], "화면을 본 것만으로 브라우저가 떴다"
@@ -60,7 +60,7 @@ def test_frame_says_why_it_could_not_look(tmp_path) -> None:
     browser._capture_live_frame = busy  # type: ignore[method-assign]
 
     with TestClient(app) as client:
-        response = client.get("/v1/browser/frame.jpg")
+        response = client.get("/v1/browser/frame.jpg", headers={"X-JARVIS-TOKEN": "test-token"})
 
     assert response.status_code == 503
     assert "browser_busy_active" in unquote(response.headers["X-Jarvis-Frame-Reason"])
@@ -79,7 +79,7 @@ def test_a_captured_frame_carries_where_it_was(tmp_path) -> None:
     }
 
     with TestClient(app) as client:
-        response = client.get("/v1/browser/frame.jpg")
+        response = client.get("/v1/browser/frame.jpg", headers={"X-JARVIS-TOKEN": "test-token"})
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/jpeg"
@@ -111,7 +111,7 @@ def test_a_stale_frame_is_served_but_marked_stale(tmp_path) -> None:
     browser._capture_live_frame = busy  # type: ignore[method-assign]
 
     with TestClient(app) as client:
-        response = client.get("/v1/browser/frame.jpg")
+        response = client.get("/v1/browser/frame.jpg", headers={"X-JARVIS-TOKEN": "test-token"})
 
     assert response.status_code == 200
     assert response.headers["X-Jarvis-Frame-Fresh"] == "0"
@@ -134,7 +134,7 @@ def test_repeat_calls_do_not_re_capture(tmp_path) -> None:
 
     with TestClient(app) as client:
         for _ in range(4):
-            assert client.get("/v1/browser/frame.jpg").status_code == 200
+            assert client.get("/v1/browser/frame.jpg", headers={"X-JARVIS-TOKEN": "test-token"}).status_code == 200
 
     assert len(captures) == 1, f"같은 순간에 {len(captures)}번 찍었다"
 
@@ -163,7 +163,7 @@ def test_a_busy_pump_does_not_freeze_the_view(tmp_path) -> None:
     browser._capture_live_frame = busy_then_ready  # type: ignore[method-assign]
 
     with TestClient(app) as client:
-        response = client.get("/v1/browser/frame.jpg")
+        response = client.get("/v1/browser/frame.jpg", headers={"X-JARVIS-TOKEN": "test-token"})
 
     assert response.status_code == 200
     assert response.headers["X-Jarvis-Frame-Fresh"] == "1", "펌프에 밀려 낡은 장만 돌려줬다"
@@ -184,6 +184,6 @@ def test_it_does_not_keep_retrying_what_will_not_clear(tmp_path) -> None:
     browser._capture_live_frame = stuck  # type: ignore[method-assign]
 
     with TestClient(app) as client:
-        assert client.get("/v1/browser/frame.jpg").status_code == 503
+        assert client.get("/v1/browser/frame.jpg", headers={"X-JARVIS-TOKEN": "test-token"}).status_code == 503
 
     assert len(tries) == 1, f"안 풀릴 것을 {len(tries)}번 다시 시도했다"

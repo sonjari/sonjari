@@ -120,9 +120,14 @@ fn fetch_state(port: u16) -> Option<String> {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(400)).ok()?;
     stream.set_read_timeout(Some(Duration::from_millis(1500))).ok()?;
-    stream
-        .write_all(b"GET /v1/state HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
-        .ok()?;
+    // 11-04 보안 점검: /v1/state 는 이제 열쇠가 있어야 준다 — 화면과 같은 열쇠 파일을 읽어 싣는다(매번 읽는다:
+    // 백엔드가 다시 켜지며 열쇠가 바뀌어도 따라간다). 열쇠를 못 읽으면 상태를 모르는 것으로 둔다.
+    let token = std::fs::read_to_string(crate::token_path()).ok()?;
+    let token = token.trim_start_matches('\u{feff}').trim();
+    let request = format!(
+        "GET /v1/state HTTP/1.0\r\nHost: 127.0.0.1\r\nX-JARVIS-TOKEN: {token}\r\nConnection: close\r\n\r\n"
+    );
+    stream.write_all(request.as_bytes()).ok()?;
     let mut raw = String::new();
     stream.read_to_string(&mut raw).ok()?;
     let (head, body) = raw.split_once("\r\n\r\n")?;

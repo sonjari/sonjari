@@ -96,7 +96,7 @@ _LISTING_TOOLS = frozenset(
         "browser_site_search",
         # 사이트가 공개한 출처(피드·사이트맵·공식 링크) **목록**이다(2026-09-18). 열어야 출처가 된다.
         "browser_site_sources",
-        "google_drive_search", "google_gmail_search", "naver_web", "naver_news",
+        "google_drive_search", "google_gmail_search",
         "github_search",
     }
 )

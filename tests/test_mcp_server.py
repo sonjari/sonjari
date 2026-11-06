@@ -45,9 +45,11 @@ class _Client:
         self.tools = tools or []
         self.execute_payload = execute or {"ok": True, "tool": "x", "status": "completed", "result": {"v": 1}}
         self.posts: list[dict[str, Any]] = []
+        self.gets: list[dict[str, Any]] = []
         self.status_code = 200
 
-    async def get(self, url: str) -> _Response:
+    async def get(self, url: str, headers: dict[str, str] | None = None) -> _Response:
+        self.gets.append({"url": url, "headers": dict(headers or {})})
         return _Response(self.tools)
 
     async def post(self, url: str, json: dict[str, Any], headers: dict[str, str]) -> _Response:  # noqa: A002
@@ -165,7 +167,7 @@ def test_an_allowed_tool_still_goes_through() -> None:
 def test_a_jarvis_outage_does_not_masquerade_as_a_forbidden_tool() -> None:
     # 목록을 못 가져온 것과 "금지된 도구"를 섞으면 진짜 원인이 가려진다.
     class _Broken(_Client):
-        async def get(self, url: str) -> _Response:
+        async def get(self, url: str, headers: dict[str, str] | None = None) -> _Response:
             raise RuntimeError("connection refused")
 
     client = _Broken()
@@ -264,3 +266,13 @@ def test_a_result_comes_back_as_readable_text() -> None:
 
     assert failed is False
     assert "제주 경비" in text, "한글이 \\uXXXX 로 나가면 사람도 모델도 못 읽는다"
+
+
+def test_the_tool_list_is_read_with_the_key() -> None:
+    """11-04 보안 점검: /v1/tools 는 이제 열쇠가 있어야 준다 — 연결 프로세스가 열쇠를 싣지 않으면 도구가 0개가 된다."""
+    client = _Client(tools=[{"name": "browser_search", "risk_level": "L0", "enabled": True}])
+    bridge = JarvisMcpBridge(token="t", client=client)
+    asyncio.run(bridge.list_tools())
+    tool_reads = [g for g in client.gets if g["url"].endswith("/v1/tools")]
+    assert tool_reads and all(g["headers"].get("X-JARVIS-TOKEN") == "t" for g in tool_reads)
+

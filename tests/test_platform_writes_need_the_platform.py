@@ -18,9 +18,11 @@ def test_the_ms_store_question_cannot_reach_the_blog() -> None:
     asked = "마이크로소프트 스토어(apps.microsoft.com)에서 ChatGPT 앱을 찾아서 게시자와 별점을 알려줘"
     for name in ("naver_blog_prepare_post", "naver_blog_fill_editor", "naver_blog_publish"):
         assert _platform_write_unrequested(name, asked) == "네이버 블로그"
-    kept = [t["function"]["name"] for t in _platform_scoped_tool_definitions(
-        [_tool("browser_extract"), _tool("naver_blog_prepare_post"), _tool("google_gmail_send"), _tool("google_calendar_list")], asked)]
-    assert kept == ["browser_extract", "google_calendar_list"], "읽기 도구·조회는 그대로, 올리는 손만 빠진다"
+    menu = [_tool("browser_extract"), _tool("naver_blog_prepare_post"), _tool("google_gmail_send"), _tool("google_calendar_list")]
+    # 11-06: 큰 창은 목록을 요청마다 바꾸지 않는다(바뀌면 이 모델은 3만 토큰을 통째로 다시 읽는다) — 막는 것은 부를 때(`platform_write_not_requested`)
+    assert [t["function"]["name"] for t in _platform_scoped_tool_definitions(menu, asked)] == [t["function"]["name"] for t in menu]
+    kept = [t["function"]["name"] for t in _platform_scoped_tool_definitions(menu, asked, compact=True)]
+    assert kept == ["browser_extract", "google_calendar_list"], "작은 창에서는 읽기 도구·조회는 그대로, 올리는 손만 빠진다"
 
 
 def test_asking_for_the_blog_still_opens_it_including_a_follow_up_turn() -> None:

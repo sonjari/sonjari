@@ -185,4 +185,5 @@ def test_pinned_the_list_still_fits_the_budget_and_keeps_one_line_per_page() -> 
 
 def test_the_agent_pins_them_only_for_small_windows() -> None:
     source = (Path(__file__).resolve().parents[1] / "src" / "alture_jarvis" / "agent.py").read_text(encoding="utf-8")
-    assert 'pin_reads=model_role != "code" and self._compact_tool_surface(model_role),' in source
+    assert 'pin_reads=model_role != "code" and self._compact_tool_surface(' in source
+    assert 'model_role, window=self._job_window(job_id, model_role) if job_id else None),' in source   # 11-06 판 안에서는 같은 창

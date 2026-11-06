@@ -45,18 +45,18 @@
         --f-display: Georgia, 'Batang', serif;
         --f-heading: Georgia, 'Batang', serif;
         /* Body: Jost weight 300 — light grotesque that steps back so the serif leads */
-        --f-body: 'Segoe UI', 'Malgun Gothic', sans-serif;
+        --f-body: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
         /* Mono: JetBrains Mono — labels, vertical sidebar text, metadata */
-        --f-mono: Consolas, 'Malgun Gothic', monospace;
+        --f-mono: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
 
         /* ── Type Scale ───────────────────────────────────────────────────── */
         /* vw units keep all sizes proportional regardless of window width */
-        --sz-display: 'Segoe UI', 'Malgun Gothic', sans-serif; /* hero cover title — very large, commanding */
+        --sz-display: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; /* hero cover title — very large, commanding */
         --sz-h1: 5.5vw; /* chapter and statement titles */
         --sz-h2: 3.2vw; /* slide headlines */
         --sz-h3: 2vw; /* sub-headlines, compare panel titles */
         --sz-lead: 1.45vw; /* lead paragraph */
-        --sz-body: 'Segoe UI', 'Malgun Gothic', sans-serif; /* body text, bullets */
+        --sz-body: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; /* body text, bullets */
         --sz-caption: 0.82vw; /* captions, footnotes, chart sources */
         --sz-label: 0.7vw; /* chrome labels, kickers, mono metadata */
 

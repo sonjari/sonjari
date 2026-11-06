@@ -13,6 +13,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Callable
 
+from . import code_syntax
 from .config import setting
 
 CODE_EXTENSIONS = {
@@ -184,20 +185,25 @@ class CodeIndex:
         return symbols[:500], sorted(set(imports))[:500]
 
     @staticmethod
-    def _generic_facts(text: str) -> tuple[list[dict[str, Any]], list[str]]:
+    def _generic_facts(text: str, language: str = "") -> tuple[list[dict[str, Any]], list[str]]:
         symbols = [
             {"name": match.group(1), "kind": "symbol", "line": text.count("\n", 0, match.start()) + 1}
             for match in SYMBOL_RE.finditer(text)
         ][:500]
-        imports = sorted(
-            {
-                value
-                for match in IMPORT_RE.finditer(text)
-                for value in match.groups()
-                if value
-            }
-        )[:500]
-        return symbols, imports
+        found = {
+            value
+            for match in IMPORT_RE.finditer(text)
+            for value in match.groups()
+            if value
+        }
+        # ★ 11-04: 문법이 있는 언어는 이름을 문법으로 뽑는다(C# 메서드 · 화살표 함수 · Go 메서드). 가져오기는 **합친다** —
+        #   문법 쪽은 using · import · #include 를, 정규식 쪽은 `from '…'` · require 를 잡는다. 하나만 쓰면 한쪽을 잃는다.
+        parsed = code_syntax.facts(text, language) if language else None
+        if parsed is not None:
+            if parsed[0]:
+                symbols = parsed[0]
+            found |= set(parsed[1])
+        return symbols, sorted(found)[:500]
 
     # ── 운동장: 파일이 아니라 덩어리를 색인한다 ─────────────────────────
     #
@@ -291,6 +297,11 @@ class CodeIndex:
     def _chunks_for(cls, text: str, language: str) -> list[dict[str, Any]]:
         if language == "python":
             chunks = cls._python_chunks(text)
+            if chunks:
+                return chunks
+        else:
+            # 문법이 있는 언어는 함수 · 클래스 단위로(`code_syntax`). 부품이 없거나 정의가 없으면 예전 120줄 창.
+            chunks = code_syntax.chunks(text, language)
             if chunks:
                 return chunks
         return cls._generic_chunks(text)
@@ -1006,6 +1017,19 @@ class CodeIndex:
                 )"""
             )
             self._ensure_chunk_tables(db)
+            # ★ 11-04 자르는 법의 판. 문법 자르기(tree-sitter)가 들어오거나 빠지면 이미 만든 색인의 그 언어 파일은
+            #   「변경 없음」이라 **영원히 옛 덩어리로 남는다**(덩어리 색인이 처음 생겼을 때와 같은 모양 — 아래 backfill 주석).
+            #   판을 적어 두고, 다르면 그 언어들의 파일 행만 지워 이번 따라잡기에서 다시 읽게 한다.
+            db.execute("CREATE TABLE IF NOT EXISTS index_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            chunker = f"{code_syntax.CHUNKER_VERSION}:{','.join(code_syntax.supported_languages())}"
+            stored = db.execute("SELECT value FROM index_meta WHERE key = 'chunker'").fetchone()
+            if stored is None or stored[0] != chunker:
+                grammar_languages = sorted(code_syntax.GRAMMAR_LANGUAGES)
+                db.execute(
+                    f"DELETE FROM files WHERE language IN ({','.join('?' * len(grammar_languages))})",
+                    grammar_languages,
+                )
+                db.execute("INSERT OR REPLACE INTO index_meta(key, value) VALUES ('chunker', ?)", (chunker,))
             # 옛 조각을 줄 번호로 지워도 되는가 — 갱신마다 한 번(`_fts_rowids_aligned`).
             aligned = self._fts_rowids_aligned(db)
             existing = {
@@ -1072,7 +1096,7 @@ class CodeIndex:
                     symbols, imports = (
                         self._python_facts(text)
                         if language == "python"
-                        else self._generic_facts(text)
+                        else self._generic_facts(text, language)
                     )
                     self._replace_chunks(
                         db, relative, language, self._chunks_for(text, language), aligned=aligned

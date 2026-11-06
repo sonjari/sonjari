@@ -17,6 +17,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ctxLabel, pullFailureText, pushedOutReason, type ApplyResult, type CatalogModel, type GpuCard, type ModelsView, type SetupApi, type WayOutInfo } from "../setup/setupApi";
 import { WayOut, hasWayOut } from "../setup/WayOut";
 import { HfPicker, type HfPick } from "../setup/HfPicker";
+import { ModelPlaceBar } from "../setup/ModelPlace";
+import { PairedDevices } from "../setup/Pairing";
 
 type Row = CatalogModel & { current: boolean };
 
@@ -168,7 +170,8 @@ export function ModelSection({ api, onChanged }: { api: SetupApi | null; onChang
 
   if (!api) return <p className="settings-note">{t("모델 목록을 읽을 수 없습니다 — 앱을 다시 켜 주세요.")}</p>;
   if (!view) return <p className="settings-note"><Loader2 size={14} className="spin" /> {t("이 PC 에 맞는 모델을 확인하는 중입니다")}</p>;
-  if (view.satellite) return <p className="settings-note">{t("이 PC 는 본체의 모델을 빌려 씁니다 — 모델은 본체에서 바꿉니다.")}</p>;
+  // 모델 자리가 집 PC 면 이 기기 목록 대신 자리 막대(집 PC 에 깔린 모델 고르기)를 보인다(2026-11-03 · 예전엔 「본체에서 바꾸세요」 한 줄).
+  if (view.satellite) return <ModelPlaceBar api={api} showForget onChanged={() => void load()} />;
 
   const selected = view.selection?.catalog_key ?? "";
   const rows: Row[] = view.models
@@ -185,6 +188,8 @@ export function ModelSection({ api, onChanged }: { api: SetupApi | null; onChang
 
   return (
     <div className="settings-block model-list">
+      <ModelPlaceBar api={api} showForget onChanged={() => void load()} />
+      <PairedDevices api={api} />
       {loose && (
         <div className="model-loose-eyes">
           <p className="model-row-eyes">

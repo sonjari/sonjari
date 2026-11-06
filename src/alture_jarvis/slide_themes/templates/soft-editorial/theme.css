@@ -12,7 +12,7 @@
     --lilac:    #C9BEDC;     /* lilac (extra) */
   }
   html, body { margin:0; padding:0; background:#1a1a1a; }
-  body { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; color: var(--ink); }
+  body { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; color: var(--ink); }
   
 
   section.slide {
@@ -26,7 +26,7 @@
   .eyebrow {
     position: absolute;
     top: 40px; left: 53.33px;
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-size: 18.67px;
     font-weight: 400;
     color: var(--ink);
@@ -70,13 +70,13 @@
     letter-spacing: -0.01em;
   }
   .subtitle {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 500;
     font-size: 29.33px;
     line-height: 1.1;
   }
   .body {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 400;
     font-size: 17.33px;
     line-height: 1.5;
@@ -229,7 +229,7 @@
     white-space: nowrap;
   }
   .s-insights .card .head .sub {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 500;
     font-size: 21.33px;
     line-height: 1.1;
@@ -338,7 +338,7 @@
   .s-quote blockquote em { font-weight: 400; }
   .s-quote .attr {
     margin-top: 32px;
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 500;
     font-size: 16px;
     color: var(--ink);
@@ -475,7 +475,7 @@
     padding-bottom: 9.33px;
   }
   .s-consult .col .meta {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-size: 16px;
     line-height: 1.4;
     color: var(--ink);
@@ -751,7 +751,7 @@
 
   .s-system .pal { grid-column: 1 / span 5; grid-row: 1 / span 2; }
   .s-system .pal .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6.67px; }
-  .s-system .pal .sw { aspect-ratio: 1/1.2; border-radius: 10.67px; display: flex; flex-direction: column; justify-content: flex-end; padding: 6.67px; font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-size: 7.33px; color: var(--ink); }
+  .s-system .pal .sw { aspect-ratio: 1/1.2; border-radius: 10.67px; display: flex; flex-direction: column; justify-content: flex-end; padding: 6.67px; font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: 7.33px; color: var(--ink); }
   .s-system .pal .sw.s1 { background: var(--paper); border: 1px solid rgba(0,0,0,0.06); }
   .s-system .pal .sw.s2 { background: var(--pink); }
   .s-system .pal .sw.s3 { background: var(--lemon); }
@@ -765,7 +765,7 @@
   }
   .s-system .type .row:last-child { border-bottom: 0; }
   .s-system .type .lbl {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-size: 7.33px; letter-spacing: .06em; text-transform: uppercase;
     color: var(--ink-soft); margin-left: auto; white-space: nowrap;
   }

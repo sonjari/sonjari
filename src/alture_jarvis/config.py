@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import secrets
+import sys
 from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -120,7 +121,7 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "search_boxes.py",
         "plopfit.py", "serp.py", "inhouse_data.py", "google_workspace.py",
         "local_computer.py", "document_reader.py", "person_search.py",
-        "hwp.py", "claude_code.py", "code_index.py", "code_scout.py",
+        "hwp.py", "claude_code.py", "code_index.py", "code_syntax.py", "code_scout.py",
         # 코드 모드가 어느 파이썬으로 돌고 무엇을 깔 수 있나(2026-09-26). 시험을 **어떤 환경에서** 돌리느냐가
         # 코드 판의 결과를 바꾸므로 local_computer.py 와 같은 축에 둔다.
         "project_env.py",
@@ -133,6 +134,12 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "unity_editor.py", "unity_stage.py", "unity_schedule.py",
         # 영상 팩(2026-11-02): 영상 페이지를 틀어 짜임을 읽는 도구. 결과 표가 답의 근거가 된다.
         "video_tools.py",
+        # 애니메이터 팩(2026-11-02): 3ds Max 엇박자 루프 계산 · 스크립트. 맥스에 쓰는 키를 직접 정한다.
+        "animator_tools.py",
+        # MCP 서버 꽂기(2026-11-04): 사람이 꽂은 남의 MCP 도구를 찾고 부른다. 그 도구가 돌려준 것이 답의 근거가 되고, 승인 등급을 정한다.
+        "mcp_hub.py", "mcp_tools.py",
+        # 그림 파일 보기(2026-11-04): 모델이 이 PC 의 그림을 직접 보고 답한다 — 그 답이 근거가 된다.
+        "image_look.py",
         # 분야 팩(2026-09-27). 켜고 끄면 모델이 보는 도구·스킬·「시킨 것」이 바뀐다 — 성적을 직접 바꾸는 층이다.
         "packs.py",
         # 이름 하나로 정의·참조·줄 범위를 찾는 쪽(2026-09-21). 색인이 「무엇이 있나」라면
@@ -268,6 +275,11 @@ def axis_files() -> dict[str, tuple[str, ...]]:
     return dict(_AXIS_FILES)
 
 
+def env_file_path() -> Path:
+    """`load_env_file` 이 읽는 `.env` 자리."""
+    return Path(_env("JARVIS_RUNTIME_ROOT") or _default_runtime_root()) / ".env"
+
+
 def load_env_file(path: Path | None = None) -> dict[str, str]:
     """`.env` 의 값을 **안쪽 보관소(`_PRIVATE`)** 에 싣는다. **이미 있는 값은 덮지 않는다.**
 
@@ -291,7 +303,7 @@ def load_env_file(path: Path | None = None) -> dict[str, str]:
     프로세스 환경(os.environ)에 두면 자식 프로세스가 물려받아 열쇠와 데이터 위치가
     새는다. 보관소는 이 프로세스 안에서만 보인다.
     """
-    target = path or Path(_env("JARVIS_RUNTIME_ROOT") or _default_runtime_root()) / ".env"
+    target = path or env_file_path()
     loaded: dict[str, str] = {}
     if not target.exists():
         return loaded
@@ -415,6 +427,12 @@ def _default_runtime_root() -> Path:
         if local_app_data:
             return runtime_dir(Path(local_app_data))
         return runtime_dir(Path.home() / "AppData" / "Local")
+    if sys.platform == "darwin":
+        # ★ 2026-11-03 맥판(전수조사 C1 · 설계 D2): 예전엔 띄운 폴더(`Path.cwd()`)가 데이터 자리라, 띄우는 자리가
+        #   바뀌면 기억 · 로그인 · 브라우저 프로필이 갈라졌다. 윈도우 `%LOCALAPPDATA%\Sonjari` 와 같은 뜻의 맥 표준 자리.
+        #   SONJARI_APP_SUPPORT: 윈도우의 LOCALAPPDATA 와 같은 「앱 데이터 자리」 덮어쓰기(11-04) — 시험이 이것을 임시 폴더로 돌린다.
+        #   없으면 시험이 설치된 손자리의 진짜 자리(설정 · DB · 짝 기억)를 읽고 썼다(맥 첫 전체 회귀에서 드러남).
+        return runtime_dir(Path(os.environ.get("SONJARI_APP_SUPPORT") or Path.home() / "Library" / "Application Support"))
     return Path.cwd()
 
 
@@ -498,6 +516,16 @@ class JarvisConfig:
     # ★ 새 비밀을 안 만든 이유: 이미 깔린 위성(다른 사용자 노트북)이 재설치 없이
     #   동작해야 한다. 설정을 하나 더 요구하면 그 한 대는 영원히 못 받는다.
     brain_host: str = ""
+    #: 집 PC 모델 자리(`model_place`) — 기동 때 `.env` 가 준 집 PC 주소 · 모델 · 창을 쥐어 둔다. 「이 맥」으로 바꾸면
+    #: `ollama_base_url` · `model_roles` 를 덮으므로, 되돌릴 값은 여기 남는다(2026-11-03). None = 아직 안 쥠.
+    home_ollama_url: str | None = None
+    home_model_roles: dict[str, str] = field(default_factory=dict)
+    home_num_ctx: int = 0
+    # 짝짓기 전용 문(2026-11-04 · pair_door.py) — 윈도우 집 PC 가 같은 와이파이 · 테일넷에 내놓는 유일한 문(8092).
+    pair_door: str = "1"
+    pair_door_host: str = "0.0.0.0"
+    #: 옛 위성 설치본의 집 PC 값(주소 · 역할별 모델 · 창) — 처음 덮이기 전에 한 번 쥔다. 짝을 끊으면 그리로 돌아간다.
+    legacy_home: tuple | None = None
     # 제어 API 에 닿을 수 있는 **추가** 대역. 루프백과 테일넷은 항상 열려 있다.
     # 쉼표로 여럿. 오타가 있으면 뜰 때 예외로 알려 준다 — 조용히 버리면
     # 「열어 뒀다고 생각했는데 안 열린」 상태가 된다.
@@ -1498,7 +1526,10 @@ class JarvisConfig:
             ollama_max_tool_steps=_int("JARVIS_OLLAMA_MAX_TOOL_STEPS", 12),
             code_max_tool_steps=_int("JARVIS_CODE_MAX_TOOL_STEPS", 24),
             code_autonomous_max_steps=_int("JARVIS_CODE_AUTONOMOUS_MAX_STEPS", 80),
-            ollama_keep_alive=_env("JARVIS_OLLAMA_KEEP_ALIVE", "24h"),
+            # 맥은 30분(11-04 대표 결정 · 통합 메모리라 모델이 24시간 붙어 있으면 다른 앱이 쓸 메모리가 없다). 윈도우는 그대로 24시간.
+            ollama_keep_alive=_env("JARVIS_OLLAMA_KEEP_ALIVE", "30m" if sys.platform == "darwin" else "24h"),
+            pair_door=_env("JARVIS_PAIR_DOOR", "1"),
+            pair_door_host=_env("JARVIS_PAIR_DOOR_HOST", "0.0.0.0"),
             ollama_stall_timeout_sec=_int("JARVIS_OLLAMA_STALL_TIMEOUT_SEC", 300),
             # ★ 이 기본값이 **실제로 쓰이는 값**이다. 위 dataclass 기본값(131072)은
             #   `load()` 를 안 거치는 경로에서만 쓰인다 — 둘이 갈리면 여기가 이긴다.
@@ -1847,7 +1878,27 @@ class JarvisConfig:
             · 상자   — WSL 이 없다(있어도 본체 것과 다른 상자다)
             · 카메라 — Pocket 3 는 본체에 물려 있다
         """
-        # 첫 실행 화면에서 고른 모델을 얹는다. 위성은 본체 모델을 빌리므로 얹지 않는다.
+        # ★ 짝지은 집 PC 가 있으면 이 기기는 자식이다(설계_짝짓기_모델자리 §4-4) — 예약 메일 · 카메라 · 상자를 끄는 규칙을 그대로 받는다.
+        #   `.env` 에 위성 줄을 쓰지 않아도 된다. 짝을 끊으면 다음 기동부터 원래 역할로 돌아간다.
+        if str(self.jarvis_role).lower() != "satellite":
+            try:
+                from .pairing import read_home
+
+                paired = read_home(self.data_dir)
+                if paired.get("address"):
+                    self.jarvis_role = "satellite"
+                    self.brain_host = self.brain_host or str(paired["address"]).rsplit(":", 1)[0]
+            except Exception:  # noqa: BLE001 — 짝 파일이 깨졌다고 손자리가 안 뜨면 안 된다
+                pass
+        # 첫 실행 화면에서 고른 모델을 얹는다. 위성은 **모델 자리**(`model_place`)를 따른다 — 집 PC 면 집 PC 모델,
+        #   이 맥이면 이 기기의 선택(2026-11-03 설계_짝짓기_모델자리 순서 1: 위성이라고 모델 고르기를 숨기지 않는다).
+        if str(self.jarvis_role).lower() == "satellite":
+            try:
+                from . import model_place
+
+                self.model_source = "model_place:" + model_place.apply(self)
+            except Exception:  # noqa: BLE001 — 자리 파일이 깨졌다고 손자리가 안 뜨면 안 된다
+                pass
         if str(self.jarvis_role).lower() != "satellite":
             try:
                 from .model_setup import apply_selection_to_config

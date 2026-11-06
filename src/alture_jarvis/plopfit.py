@@ -50,8 +50,8 @@ class PlopfitTools:
         self.config = config
         self._instances: dict[str, Any] = {}
         self._definitions = [
-            self._function("naver_news", "국내 최신 뉴스와 한국어 기사 출처를 네이버 검색 API로 찾는다.", {"query": {"type": "string"}, "display": {"type": "integer", "minimum": 1, "maximum": 20}}, ["query"]),
-            self._function("naver_web", "한국어·국내 웹 자료의 제목, 요약, 원문 URL을 네이버 검색 API로 찾는다.", {"query": {"type": "string"}, "display": {"type": "integer", "minimum": 1, "maximum": 20}}, ["query"]),
+            # ★ 2026-11-06 대표: 네이버 검색 API(naver_news · naver_web)는 뺀다 — 막혀서 결국 브라우저(browser_search)로 가고,
+            #   제목 · 요약 한 겹이라 본문에 못 들어간다. 있어 봤자 목록만 길어진다(목록은 판마다 3만 토큰 앞부분이다).
             self._function("github_search", "GitHub API로 공개 저장소를 검색하고 별점·설명·저장소 URL을 가져온다.", {"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, ["query"]),
             self._function("reddit_hot", "Reddit 공개 인기글을 조회한다.", {"subreddit": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 20}}, ["subreddit"]),
             self._function("hackernews_top", "Hacker News의 최신 인기 기술 글을 조회한다.", {"limit": {"type": "integer", "minimum": 1, "maximum": 20}}),

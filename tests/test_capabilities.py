@@ -32,7 +32,7 @@ def _config(tmp_path) -> JarvisConfig:
 def test_capabilities_answer_the_whole_question(tmp_path) -> None:
     app = create_app(_config(tmp_path), start_services=False)
     with TestClient(app) as client:
-        body = client.get("/v1/capabilities").json()
+        body = client.get("/v1/capabilities", headers={"X-JARVIS-TOKEN": "test-token"}).json()
 
     assert body["tool_count"] == len(body["tools"])
     assert body["tool_count"] > 50, "도구가 이만큼도 안 나오면 게이트웨이를 잘못 읽고 있다"
@@ -48,7 +48,7 @@ def test_capabilities_answer_the_whole_question(tmp_path) -> None:
 def test_every_tool_carries_what_it_needs_to_be_shown(tmp_path) -> None:
     app = create_app(_config(tmp_path), start_services=False)
     with TestClient(app) as client:
-        tools = client.get("/v1/capabilities").json()["tools"]
+        tools = client.get("/v1/capabilities", headers={"X-JARVIS-TOKEN": "test-token"}).json()["tools"]
 
     for tool in tools:
         assert tool["name"], tool
@@ -66,7 +66,7 @@ def test_recipes_show_which_actions_cannot_be_undone(tmp_path) -> None:
     """
     app = create_app(_config(tmp_path), start_services=False)
     with TestClient(app) as client:
-        recipes = client.get("/v1/capabilities").json()["recipes"]
+        recipes = client.get("/v1/capabilities", headers={"X-JARVIS-TOKEN": "test-token"}).json()["recipes"]
 
     assert recipes, "recipes/ 에 파일이 있는데 목록이 비었다"
     for recipe in recipes:

@@ -279,6 +279,13 @@ NEUTRAL_TOOLS = frozenset(
         "sonjari_story",  # 서기 카드를 돌려주는 읽기 전용 문(2026-10-21) — 잡이 아니다
         "unity_list_recipes",  # 레시피 목록(2026-09-27) — 무엇을 할 수 있나일 뿐, 읽은 근거가 아니다
         "unity_try_script",  # 바깥 AI 전용 초안 문(2026-09-27) — 온텔릭 잡 안 걸음으로는 안 나온다
+        # 애니메이터 팩(2026-11-02) — 클로드가 3dsmax-mcp 와 오가며 부르는 바깥 AI 전용 문. 손자리 잡 안 걸음으로는 안 나온다
+        "anim_offset_read",
+        "anim_offset_plan",
+        # MCP 서버 꽂기(2026-11-04): 찾기는 「무엇을 할 수 있나」일 뿐 근거가 아니다. 부르기는 읽기도 쓰기도 될 수 있어
+        #   (대상 도구 표시로 갈림) 한쪽으로 세면 분모가 틀어진다 — 실사용 기록이 쌓이면 읽기/쓰기로 나눠 센다.
+        "mcp_find", "local_view_image",
+        "mcp_call",
         "browser_find",
         "browser_wait",
         "browser_screenshot",

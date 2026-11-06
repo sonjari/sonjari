@@ -1,0 +1,60 @@
+{
+  "ko": {
+    "changes": "이번에 새로 생긴 것\n- 애니메이터 팩(3ds Max · 블렌더): 예전 작업 동작을 모션 창고에 쌓아 두고 말로 찾아 지금 캐릭터에 입힙니다. 체형이 다른 캐릭터(8등신 동작 → 2~3등신)는 보폭 · 팔 벌림으로 맞추고, 무게중심은 지금 캐릭터 자리에 맞춥니다. 레퍼런스 영상에서 키포즈를 뽑아 블로킹 초안을 찍고, 꼬리 · 머리카락 엇박자 루프도 만듭니다. 입힌 뒤 팔이 몸을 뚫는 곳 점검 · 자동 수정은 시험 중입니다. 블렌더는 손자리가 직접 띄우고 원본은 덮어쓰지 않습니다(설정 › 팩).\n- MCP 서버 꽂기: 쓰시는 다른 MCP 서버를 손자리도 씁니다(설정 › MCP 서버 꽂기).\n- 그림 파일 보기: 「이 사진 봐 줘」를 이 PC 모델이 직접 봅니다.\n- 코드 읽기: C# · JS/TS · Java · Go · Rust · C/C++ 도 함수 단위로 찾고, .ipynb · .eml · .xls 를 읽습니다.\n\n이번에 고친 것\n- 일을 시작할 때 첫 답까지 30~40초 걸리던 경우를 줄였습니다(요청마다 도구 목록이 조금씩 달라져 모델이 앞부분을 처음부터 다시 읽던 것). 막혀서 결국 브라우저로 가던 네이버 검색 API 도구 둘은 뺐습니다.\n- 손자리 본체가 가끔 통째로 꺼지던 것을 고쳤습니다.\n- 열쇠 없이 읽히던 길 11곳(브라우저 화면 · 카메라 그림 · 기록 · 설정 등)을 막았습니다.\n- 요약표 답에 「표 값이 하나도 없다」는 헛경고, 「찾을 거리가 없었다」를 다 채운 것으로 보던 것을 고쳤습니다.",
+    "tour": "이미 되는데 잘 모르시는 것\n- 영상 팩 — 레퍼런스 영상의 컷 · 확대 · 자막 박자를 표 한 장으로(설정 › 팩).\n- 게임 팩 — 유니티 프로젝트 점검과 열린 에디터에서 만들고 바꾸기.\n- 클로드 · 코덱스에서 Sonjari 쓰기 — 웹 조사 · 파일 일을 손자리에게 맡겨 클로드 사용 한도를 아낍니다(설정 › 연결).",
+    "slides": [
+      {
+        "title": "애니메이터 팩",
+        "body": "쌓아 둔 동작을 말로 찾아 지금 캐릭터에 입히고, 레퍼런스 영상에서 키포즈를 뽑아 블로킹 초안을 찍습니다. 맥스에 적용은 늘 「해」 뒤에, 되돌리기는 한 번. 회사 파일은 이 PC 밖으로 나가지 않습니다.",
+        "try": "「돌진 공격 찾아서 지금 캐릭터에 입혀 줘」 — 설정 › 팩에서 애니메이터 팩을 먼저 켜세요"
+      },
+      {
+        "title": "블렌더에서는 손자리가 직접",
+        "body": "연결 부품 없이 손자리가 블렌더를 창 없이 띄워 팔이 몸을 뚫는 곳을 찾고 고친 뒤 새 파일로 저장합니다. 원본은 그대로입니다. 점검 · 자동 수정은 시험 중입니다.",
+        "try": "「이 .blend 에서 팔이 몸 뚫는 데 고쳐서 새 파일로 저장해 줘」",
+        "visual": {
+          "kind": "stat",
+          "label": "팔이 몸을 뚫은 프레임",
+          "before": 59,
+          "after": 1,
+          "unit": "프레임",
+          "basis": "공개 시험 캐릭터(2~3등신) · 영상에서 뽑은 블로킹 259프레임 · 이 PC · 블렌더 5.2 · 세 번 고침 8.8초 · 한 동작, 한 판."
+        }
+      },
+      {
+        "title": "쓰시는 MCP 서버를 손자리도",
+        "body": "설정에 꽂은 다른 MCP 서버의 도구를 손자리가 찾아 씁니다. 바꾸는 도구는 승인 카드를 거칩니다.",
+        "try": "설정 › MCP 서버 꽂기에서 「클로드에서 가져오기」"
+      }
+    ]
+  },
+  "en": {
+    "changes": "New in this update\n- Animator pack (3ds Max and Blender): keep your past motions in a motion library, find them by describing them, and apply them to the character you're working on. For a different body it adjusts stride and arm spread and keeps the center of mass where your character stands. It pulls key poses from a reference video into a blocking draft and makes offset loops for tails and hair. Checking and fixing arms that pass through the body after applying is in testing. In Blender, Sonjari runs Blender itself and never overwrites the original (Settings › Packs).\n- Plug in MCP servers: Sonjari can use the other MCP servers you already use (Settings › Plug in MCP servers).\n- Look at image files: \"look at this picture\" is now read by the model on this PC.\n- Code reading: C#, JS/TS, Java, Go, Rust and C/C++ are searched by function, and .ipynb, .eml and .xls files open.\n\nFixed in this update\n- Starting a job sometimes took 30-40 seconds before the first answer: the tool list changed between requests, so the model reread everything. Reduced. The two Naver search API tools, which got blocked and fell back to the browser anyway, were removed.\n- Sonjari's backend sometimes shut down entirely. Fixed.\n- Closed 11 paths that could be read without the key (browser view, camera image, logs, settings and more).\n- Fixed a false \"none of the table values are there\" warning on summary answers, and \"nothing to find\" being counted as filled.",
+    "tour": "Already works, but easy to miss\n- Video pack: reads cuts, zooms and caption rhythm of a reference video into one table (Settings › Packs).\n- Game pack: checks Unity projects and creates or changes things in the open editor.\n- Use Sonjari from Claude or Codex: hand web research and file work to Sonjari and save your Claude usage (Settings › Connections).",
+    "slides": [
+      {
+        "title": "Animator pack",
+        "body": "Find a stored motion by describing it and apply it to your character, or pull key poses from a reference video into a blocking draft. Changes to Max happen only after you say go, and undo is one step. Company files never leave this PC.",
+        "try": "\"Find the dash attack and apply it to this character\" — turn on the animator pack in Settings › Packs first"
+      },
+      {
+        "title": "In Blender, Sonjari does it itself",
+        "body": "No connector needed: Sonjari runs Blender in the background, finds where arms pass through the body, fixes them and saves a new file. The original stays as it was. Checking and fixing are in testing.",
+        "try": "\"Fix the arms passing through the body in this .blend and save it as a new file\"",
+        "visual": {
+          "kind": "stat",
+          "label": "Frames with arms through the body",
+          "before": 59,
+          "after": 1,
+          "unit": "frames",
+          "basis": "Public test character (2-3 heads tall) · 259-frame blocking pulled from a video · this PC · Blender 5.2 · three fix passes in 8.8 s · one motion, one run."
+        }
+      },
+      {
+        "title": "Your MCP servers, in Sonjari",
+        "body": "Sonjari finds and uses tools from the other MCP servers you plug in. Tools that change things go through an approval card.",
+        "try": "Settings › Plug in MCP servers › \"Import from Claude\""
+      }
+    ]
+  }
+}

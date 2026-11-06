@@ -23,12 +23,15 @@
 
 from __future__ import annotations
 
+from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
+
 import ctypes
 import json
 import os
 import platform
 import shutil
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -327,7 +330,97 @@ def merge_gpus(nvidia: list[dict[str, Any]], adapters: list[dict[str, Any]]) -> 
     return annotate_gpus(cards)
 
 
+# ── 애플 통합 메모리 (2026-11-03 맥판 · 대표 지시) ───────────────────────────────────────────────
+#
+# ★ 맥에는 그래픽카드 메모리가 따로 없다 — 모델도 앱도 같은 메모리를 쓴다. 그래서 「카드 메모리」 대신 **메모리 예산**으로 센다:
+#     모델에 남는 몫 = min(GPU 상한, 전체 − 다른 앱이 지금 쓰는 몫 − 손자리 자신의 몫)
+#   GPU 상한은 Metal 이 알려 주는 값(`recommendedMaxWorkingSetSize` · 맥미니 M4 16GB 에서 10.67GB 잼).
+#   이 몫을 **그래픽카드 한 장**처럼 프로필에 넣어, 윈도우와 같은 사다리 표 · 같은 추천 함수(`recommend`)가 그대로 고른다
+#   (표를 두 벌 만들면 어긋난다 — 대표). 16GB 같은 기준값은 박지 않는다: 8 ~ 128GB 어느 맥이든 그 기계를 잰 값으로 고른다.
+#
+#: 손자리 자신의 몫 — 백엔드 + MCP 서버 + 손자리가 띄운 크롬. **잰 값**: 맥미니 M4 16GB 에서 조사 세 판(위키 · 네이버 금융 · python.org)
+#  동안 `footprint` Summary 합 최고 1.35GB(크롬 0.98 · MCP 0.25 · 백엔드 0.16), `ps` RSS 합 최고 1.64GB(각 1판 ·
+#  bench/macport/results/footprint_run2.json). 큰 쪽을 올림해 둔다. 크롬 탭을 더 여는 과제면 더 클 수 있다(짐작).
+#  ★ 바로잡음(11-03): 첫 판은 2.7GB 로 적었다 — `footprint` 에 여러 프로세스를 넘기면 끝의 「Summary Footprint」 줄까지 더해
+#    두 배로 셌다(footprint_run1.json · 지우지 않고 남김).
+SONJARI_SELF_GB = 1.7
+
+
+def apple_memory_card(*, chip: str, total_gb: float, gpu_limit_gb: float | None, free_percent: float | None,
+                      ollama_loaded_gb: float = 0.0, self_now_gb: float = 0.0,
+                      self_need_gb: float = SONJARI_SELF_GB) -> dict[str, Any]:
+    """애플 칩 맥의 메모리를 **그래픽카드 한 장 모양**으로 — 순수 함수(가짜 값으로 등급마다 시험한다).
+
+    - `gpu_limit_gb` 를 못 읽으면 전체의 2/3 로 둔다(맥미니 16GB 실측 10.67 = 2/3 · 다른 크기는 **짐작**이라 `limit_source` 로 밝힌다).
+    - 다른 앱이 지금 쓰는 몫 = 쓰고 있는 메모리 − 우리 Ollama 에 이미 올라간 모델 − 지금 떠 있는 손자리. 비율을 못 읽으면 모른다(0 으로 두고 밝힌다).
+    """
+    limit_source = "metal"
+    if not gpu_limit_gb:
+        gpu_limit_gb = round(total_gb * 2 / 3, 2)
+        limit_source = "guess_two_thirds"
+    if free_percent is None:
+        others = 0.0
+        others_source = "unknown"
+    else:
+        used = total_gb * (1 - free_percent / 100.0)
+        others = max(0.0, used - ollama_loaded_gb - self_now_gb)
+        others_source = "memory_pressure"
+    share = max(0.0, min(gpu_limit_gb, total_gb - others - self_need_gb))
+    usable = round(max(0.0, share - BASE_RESERVE_GB), 2)
+    return {
+        # 화면의 메모리 자(`MemoryRuler`)가 그리는 칸 — 전체는 GPU 상한, 쓸 수 있는 것은 모델에 남는 몫에서 여유를 뺀 값.
+        "usable_gb": usable, "reserve_gb": round(max(0.0, gpu_limit_gb - usable), 2),
+        "vram_used_gb": round(others, 2), "driver": "Metal",
+        "index": 0, "name": f"{chip or 'Apple'} · 통합 메모리 {total_gb:g}GB", "vendor": "apple", "backend": "metal",
+        "vram_total_gb": round(gpu_limit_gb, 2), "integrated": False, "display_active": False, "source": "apple",
+        "unified": True, "model_share_gb": round(share, 2),
+        "memory": {"total_gb": round(total_gb, 2), "gpu_limit_gb": round(gpu_limit_gb, 2), "limit_source": limit_source,
+                   "others_gb": round(others, 2), "others_source": others_source, "self_gb": self_need_gb,
+                   "model_share_gb": round(share, 2), "ollama_loaded_gb": round(ollama_loaded_gb, 2)},
+    }
+
+
+def _apple_profile(local_ollama_url: str = "http://127.0.0.1:11434") -> dict[str, Any] | None:
+    """이 맥을 잰다(애플 칩일 때만). 인텔 맥 · 다른 OS 는 None."""
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        return None
+    from . import macos
+
+    try:
+        total_gb = int(macos.sysctl("hw.memsize") or 0) / 2**30
+    except ValueError:
+        total_gb = 0.0
+    if not total_gb:
+        return None
+    loaded = 0.0
+    ps = _get_json(f"{local_ollama_url}/api/ps", timeout=2.0) or {}
+    for model in ps.get("models") or []:
+        loaded += float(model.get("size") or 0) / 2**30
+    # ★ 11-03 맥미니: 백엔드가 켜지자마자 모델을 올리는 동안 물으면 그 메모리가 `/api/ps` 에 아직 없어 「다른 앱 몫」으로 세었고
+    #   모델 몫이 0GB 로 나왔다. Ollama 프로세스들의 실제 사용량(`footprint`)과 견줘 큰 쪽을 뺀다.
+    loaded = max(loaded, macos.footprint_gb(macos.ollama_pids()))
+    try:
+        import resource
+
+        self_now = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 2**30   # 맥은 바이트
+    except Exception:  # noqa: BLE001
+        self_now = 0.0
+    card = apple_memory_card(chip=macos.sysctl("machdep.cpu.brand_string"), total_gb=round(total_gb, 2),
+                             gpu_limit_gb=macos.metal_gpu_limit_gb(), free_percent=macos.memory_free_percent(),
+                             ollama_loaded_gb=loaded, self_now_gb=self_now)
+    card["memory"]["swap_used_gb"] = macos.swap_used_gb()
+    card["memory"]["wired_limit_mb"] = macos.sysctl("iogpu.wired_limit_mb")
+    return card
+
+
 def _ram_gb() -> float | None:
+    if sys.platform == "darwin":
+        from . import macos
+
+        try:
+            return round(int(macos.sysctl("hw.memsize") or 0) / 2**30, 1) or None
+        except ValueError:
+            return None
     if os.name != "nt":
         return None
 
@@ -343,7 +436,7 @@ def _ram_gb() -> float | None:
     status = _Status()
     status.dwLength = ctypes.sizeof(_Status)
     try:
-        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        if not winapi.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
             return None
     except Exception:  # noqa: BLE001
         return None
@@ -406,15 +499,43 @@ def _get_json(url: str, timeout: float = 5.0) -> dict[str, Any] | None:
         return None
 
 
+LOCAL_OLLAMA = "http://127.0.0.1:11434"
+
+
+def _is_local(url: str) -> bool:
+    host = (url.split("://", 1)[-1].split("/", 1)[0].rsplit(":", 1)[0]).strip("[]").lower()
+    return host in {"127.0.0.1", "localhost", "::1", ""}
+
+
 def detect(ollama_base_url: str = "http://127.0.0.1:11434") -> dict[str, Any]:
     """이 PC 를 **읽기만** 해서 잰다."""
-    nvidia, gpu_error = _run_nvidia_smi()
-    gpus = merge_gpus(nvidia, _registry_adapters())
-    driver = classify_driver(_video_controllers(), reboot_pending=_reboot_pending(), smi_error=gpu_error)
+    apple = _apple_profile()
+    if apple is not None:
+        # 맥(애플 칩): nvidia-smi · 윈도우 레지스트리는 없다 — 통합 메모리 한 장(`apple_memory_card`).
+        nvidia, gpu_error = [], ""
+        gpus = [apple]
+        driver = {"state": "ok"}
+    else:
+        nvidia, gpu_error = _run_nvidia_smi()
+        gpus = merge_gpus(nvidia, _registry_adapters())
+        driver = classify_driver(_video_controllers(), reboot_pending=_reboot_pending(), smi_error=gpu_error)
     models_dir = _models_dir()
     version = _get_json(f"{ollama_base_url}/api/version")
     tags = _get_json(f"{ollama_base_url}/api/tags") or {}
+    # ★ 위성이면 위 Ollama 는 **본체 PC 의 것**이다(11-03 대표: 맥 마법사가 3090 PC 의 0.40.10 · 모델 36개를 이 맥 것처럼 보였다).
+    #   이 PC 의 Ollama 는 따로 읽어 같이 싣는다 — 화면이 둘을 나눠 보인다.
+    remote = not _is_local(ollama_base_url)
+    local: dict[str, Any] | None = None
+    if remote:
+        local_version = _get_json(f"{LOCAL_OLLAMA}/api/version", timeout=2.0)
+        local_tags = _get_json(f"{LOCAL_OLLAMA}/api/tags", timeout=2.0) or {}
+        local = {"reachable": local_version is not None, "version": (local_version or {}).get("version", ""),
+                 "installed": sorted(str(m.get("name") or "") for m in local_tags.get("models") or [])}
     return {
+        "apple": apple is not None,
+        "ollama_remote": remote,
+        "ollama_host": ollama_base_url.split("://", 1)[-1].split("/", 1)[0] if remote else "",
+        "local_ollama": local,
         "measured_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "heavy_apps": heavy_apps.installed(),   # 그래픽카드를 같이 쓰는 작업 프로그램(2026-10-30)
         "os": platform.platform(),
@@ -581,6 +702,9 @@ def _discrete(profile: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _budget(card: dict[str, Any]) -> float:
     reserve = DISPLAY_RESERVE_GB if card.get("display_active") else BASE_RESERVE_GB
+    if card.get("unified") and card.get("model_share_gb") is not None:
+        # 애플 통합 메모리: 카드 전체가 아니라 **모델에 남는 몫**(다른 앱 · 손자리 몫을 뺀 것)에서 여유를 뺀다.
+        return round(max(0.0, float(card["model_share_gb"]) - reserve), 2)
     return round(float(card["vram_total_gb"]) - reserve, 2)
 
 
@@ -744,11 +868,21 @@ def recommend(profile: dict[str, Any], bench: dict[str, Any] | None = None) -> d
                 "warnings": warnings, "fixes": fixes, "alternatives": [], "budget_gb": budget, "tier_gb": tier,
                 "picks": [], "card": card_info}
 
-    reasons = [
-        f"{card['name']} · 쓸 수 있는 메모리 약 {budget:g}GB"
-        + (" (화면 출력이 같은 카드라 1GB 를 비워 둡니다)" if card.get("display_active") else ""),
-    ]
-    if card_info["vendor"] != "nvidia":
+    if card.get("unified"):
+        mem = card.get("memory") or {}
+        reasons = [
+            f"{card['name']} — 이 맥 메모리 {mem.get('total_gb', 0):g}GB · 손자리가 쓰는 몫 약 {mem.get('self_gb', 0):g}GB · "
+            f"지금 다른 앱이 쓰는 몫 약 {mem.get('others_gb', 0):g}GB → 모델에 남는 몫 약 {mem.get('model_share_gb', 0):g}GB "
+            f"(GPU 상한 {mem.get('gpu_limit_gb', 0):g}GB)",
+            "애플 칩은 그래픽카드 메모리가 따로 없고 앱과 같은 메모리를 씁니다 — 표의 메모리 값은 NVIDIA 에서 잰 것이라, "
+            "받은 뒤 이 맥에서 실제로 돌려 창 크기를 맞춥니다(맥에서는 아직 실측 전인 칸이 많습니다).",
+        ]
+    else:
+        reasons = [
+            f"{card['name']} · 쓸 수 있는 메모리 약 {budget:g}GB"
+            + (" (화면 출력이 같은 카드라 1GB 를 비워 둡니다)" if card.get("display_active") else ""),
+        ]
+    if card_info["vendor"] not in ("nvidia", "apple"):
         engine = "ROCm" if card_info["backend"] == "rocm" else "Vulkan"
         reasons.append(f"이 카드는 Ollama 가 {engine} 으로 돌립니다 — 받은 뒤 실제로 돌려 그래픽카드에 올라가는지 확인합니다.")
 
@@ -898,6 +1032,8 @@ def catalog_view(profile: dict[str, Any]) -> list[dict[str, Any]]:
     """
     budget = _card_budget(profile)
     installed = set((profile.get("ollama") or {}).get("installed") or [])
+    # 애플 칩 맥이면 카드 설명을 맥에서 잰 문장으로 바꾼다(`CatalogModel.blurb_mac`).
+    mac = any(str(card.get("vendor") or "") == "apple" for card in profile.get("gpus") or [])
     view = []
     for model in CATALOG:
         fitting = [ctx for ctx, need in sorted(model.vram_gb.items(), reverse=True) if budget >= need]
@@ -907,6 +1043,7 @@ def catalog_view(profile: dict[str, Any]) -> list[dict[str, Any]]:
         ctx = lean[0] if text_only else (fitting[0] if fitting else None)
         view.append({
             **model.public(),
+            **({"blurb": model.blurb_mac} if mac and model.blurb_mac else {}),
             "installed": model.ollama_tag in installed,
             "fits": bool(fitting) or text_only,
             "largest_fitting_ctx": ctx,

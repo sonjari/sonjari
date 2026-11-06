@@ -10,7 +10,7 @@
     --cream-2: #e6dcc4;
     --ink: #1a1a17;
     --serif: Georgia, 'Batang', serif;
-    --mono: Consolas, 'Malgun Gothic', monospace;
+    --mono: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
   }
   html, body { margin: 0; padding: 0; background: #111; }
   

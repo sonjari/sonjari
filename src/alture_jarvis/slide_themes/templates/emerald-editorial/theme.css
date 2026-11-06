@@ -21,7 +21,7 @@
     height: 720px;
     background: var(--bg);
     color: var(--ink);
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     overflow: hidden;
     position: relative;
     box-sizing: border-box;
@@ -42,11 +42,11 @@
   }
 
   .sans {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 600;
   }
   .sans-b {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     letter-spacing: 0.04em;
   }
@@ -196,7 +196,7 @@
 
   .s1-credit {
     margin-top: 20px;
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 700;
     font-size: 18.67px;
     letter-spacing: 0.18em;
@@ -240,7 +240,7 @@
     letter-spacing: -0.005em;
   }
   .s2-row .kind {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 700;
     font-size: 17.33px;
     letter-spacing: 0.1em;
@@ -291,7 +291,7 @@
     overflow: hidden;
   }
   .s3-right .kicker {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     letter-spacing: 0.16em;
     font-size: 18.67px;
@@ -305,7 +305,7 @@
     margin: 0;
   }
   .s3-right .lede {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-size: 18.67px;
     line-height: 1.5;
     font-weight: 500;
@@ -691,7 +691,7 @@
     gap: 0;
   }
   .s8-kicker {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     letter-spacing: 0.2em;
     font-size: 20px;

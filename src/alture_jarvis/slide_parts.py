@@ -119,7 +119,7 @@ _PARTS_DIR = Path(__file__).resolve().parent / "slide_themes" / "parts"
 _TOKEN_DEFAULTS = {
     "bg": "#ffffff", "ink": "#15181f", "sub": "#5a6274", "faint": "#959cab", "line": "#d8dce4", "fill": "#f3f5f9",
     "accent": "#0f2152", "on_accent": "#ffffff", "on_accent_sub": "#dfe5f2", "hi": "#ffee9a", "loss": "#c33b2c", "bar": "#c4ccdc",
-    "font": "'Malgun Gothic', '맑은 고딕', sans-serif", "num_font": "'Segoe UI', 'Malgun Gothic', sans-serif",
+    "font": "'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif", "num_font": "'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif",
     "head_weight": "700", "num_weight": "300", "radius": "0px", "stroke": "1px", "card_border": "0 solid transparent",
     "card_shadow": "none", "shadow": "rgba(0,0,0,.15)", "tape": "rgba(255,255,255,.6)",
 }

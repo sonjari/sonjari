@@ -22,9 +22,12 @@
 
 from __future__ import annotations
 
+from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
+
 import hashlib
 import json
 import os
+import sys
 import re
 import shutil
 import subprocess
@@ -38,6 +41,12 @@ from typing import Any, Callable
 
 RELEASE_API = "https://api.github.com/repos/ollama/ollama/releases/latest"
 ASSET_NAME = "ollama-windows-amd64.zip"
+#: 맥(2026-11-03 · 대표 지시 「마법사가 직접 깐다」): 공식 맥 앱(서명 · 공증된 Ollama.app 을 담은 zip).
+#  v0.40.13 기준 219MB · 같은 `sha256sum.txt` 에 해시가 있다.
+MAC_ASSET_NAME = "Ollama-darwin.zip"
+#: 공식 Ollama.app 의 서명 팀 — 「Developer ID Application: Infra Technologies, Inc (3MU9H2V9Y9)」(맥미니 codesign · spctl 확인).
+#  다른 팀이 서명한 것은 해시가 맞아도 깔지 않는다.
+MAC_TEAM_ID = "3MU9H2V9Y9"
 SUMS_NAME = "sha256sum.txt"
 ALLOWED_DOWNLOAD_PREFIXES = (
     "https://github.com/ollama/ollama/releases/download/",
@@ -67,7 +76,12 @@ def _latest_page_url(timeout: float = 30.0) -> str:
 
 
 def _system_app_candidates() -> tuple[Path, ...]:
-    """공식 설치 파일(OllamaSetup.exe)이 까는 트레이 앱 자리 — 사용자별 설치가 기본, 예전 판은 Program Files."""
+    """공식 설치 파일(OllamaSetup.exe)이 까는 트레이 앱 자리 — 사용자별 설치가 기본, 예전 판은 Program Files.
+
+    맥은 응용 프로그램 폴더의 `Ollama.app`(관리자가 아니면 사용자 응용 프로그램 폴더).
+    """
+    if sys.platform == "darwin":
+        return (Path("/Applications/Ollama.app"), Path.home() / "Applications" / "Ollama.app")
     out: list[Path] = []
     for env_name, tail in (("LOCALAPPDATA", ("Programs", "Ollama")), ("ProgramFiles", ("Ollama",))):
         base = os.environ.get(env_name)
@@ -189,6 +203,14 @@ class OllamaInstaller:
         self._thread: threading.Thread | None = None
         self._process: subprocess.Popen | None = None
         self._state: dict[str, Any] = {"phase": "idle"}
+        #: 받을 자산 이름 — 윈도우 zip · 맥 앱 zip.
+        self.asset_name = MAC_ASSET_NAME if sys.platform == "darwin" else ASSET_NAME
+        #: 맥에서 서명 · 공증을 확인하는 손(`verify_mac_app`). 시험은 가짜를 넣는다.
+        self.verify_mac = verify_mac_app
+        #: 맥에서 앱을 켜는 손(`open -g -a`). 시험은 가짜를 넣는다.
+        self.mac_open: Callable[[Path], None] = lambda app: subprocess.run(
+            ["open", "-g", "-a", str(app)], check=False, capture_output=True, timeout=30,
+            creationflags=CREATE_NO_WINDOW if os.name == "nt" else 0)
 
     # ── 상태 ───────────────────────────────────────────────────────────────
     def running_version(self) -> str:
@@ -337,6 +359,9 @@ class OllamaInstaller:
                 self._set(phase="ready" if started.get("ok") else "error", error=started.get("error", ""))
                 return
             # 예전 자리에 멀쩡한 설치가 있으면 그것을 옮겨 쓴다 — 1.4GB 를 다시 받지 않는다.
+            if sys.platform == "darwin":
+                self.install_mac()
+                return
             if self.adopt_legacy_install().get("ok"):
                 started = self.serve()
                 self._set(phase="ready" if started.get("ok") else "error", error=started.get("error", ""))
@@ -428,24 +453,25 @@ class OllamaInstaller:
             raise RuntimeError(f"latest_page_unexpected:{final[:120]}")
         tag = match.group(1)
         base = f"{ALLOWED_DOWNLOAD_PREFIXES[0]}{tag}/"
-        expected = parse_sums(self._fetch_bytes(base + SUMS_NAME).decode("utf-8", "replace"))
+        expected = parse_sums(self._fetch_bytes(base + SUMS_NAME).decode("utf-8", "replace"), self.asset_name)
         if not expected:
             raise RuntimeError("no_published_hash")
-        return {"version": tag, "url": base + ASSET_NAME, "sha256": expected, "size": ""}
+        return {"version": tag, "url": base + self.asset_name, "sha256": expected, "size": ""}
 
     def _resolve_by_api(self) -> dict[str, str]:
         release = self._fetch_json(RELEASE_API)
         assets = {str(a.get("name") or ""): a for a in release.get("assets") or []}
-        asset = assets.get(ASSET_NAME)
+        asset = assets.get(self.asset_name)
         sums = assets.get(SUMS_NAME)
         if not asset:
-            raise RuntimeError(f"release_has_no_{ASSET_NAME}")
+            raise RuntimeError(f"release_has_no_{self.asset_name}")
         url = str(asset.get("browser_download_url") or "")
         if not url.startswith(ALLOWED_DOWNLOAD_PREFIXES):
             raise RuntimeError("download_url_not_official")
         expected = ""
         if sums and str(sums.get("browser_download_url") or "").startswith(ALLOWED_DOWNLOAD_PREFIXES):
-            expected = parse_sums(self._fetch_bytes(str(sums["browser_download_url"])).decode("utf-8", "replace"))
+            expected = parse_sums(self._fetch_bytes(str(sums["browser_download_url"])).decode("utf-8", "replace"),
+                                  self.asset_name)
         digest = str(asset.get("digest") or "")
         api_digest = digest.split(":", 1)[1].lower() if digest.startswith("sha256:") else ""
         if expected and api_digest and expected != api_digest:
@@ -509,6 +535,64 @@ class OllamaInstaller:
         started = self.serve()
         self._set(phase="ready" if started.get("ok") else "error", error=started.get("error", ""))
         return {"ok": bool(started.get("ok")), "version": release["version"], "sha256": actual}
+
+    # ── 맥 설치 (2026-11-03 · 설계 D4 뒤집음) ─────────────────────────────────────────────
+    def mac_app_target(self) -> Path:
+        """깔 자리 — 응용 프로그램 폴더에 쓸 수 있으면(관리자 계정) 거기, 아니면 사용자 응용 프로그램 폴더."""
+        system = Path("/Applications")
+        return (system if os.access(system, os.W_OK) else Path.home() / "Applications") / "Ollama.app"
+
+    def install_mac(self) -> dict[str, Any]:
+        """공식 맥 앱을 받아 → 해시 대조 → 풀기(`ditto`) → 서명 · 공증 · 팀 확인 → 응용 프로그램 폴더 → 뒤에서 켜기.
+
+        ★ 사람 손이 안 드는 길로 짰다: urllib 로 받은 파일에는 「인터넷에서 받음」 표시(quarantine)가 붙지 않아
+          처음 열 때 「확인되지 않은 개발자」 창이 안 뜬다 — 그 창이 하던 검사(서명 · 공증)는 **우리가 대신** 한다(`verify_mac_app`).
+          응용 프로그램 폴더는 관리자 계정이면 비밀번호 없이 쓴다(맥미니: 관리자 그룹 · /Applications 소유 root:admin).
+        """
+        self._set(phase="resolving")
+        release = self.resolve()
+        self.install_root.mkdir(parents=True, exist_ok=True)
+        archive = self.install_root / f"{MAC_ASSET_NAME}.partial"
+        self._set(phase="downloading", version=release["version"], expected_sha256=release["sha256"],
+                  total=int(release["size"] or 0), received=0)
+        self._download(release["url"], archive, lambda received, total: self._set(received=received, total=total))
+        self._set(phase="verifying")
+        actual = _sha256(archive)
+        if actual != release["sha256"]:
+            archive.unlink(missing_ok=True)
+            self._set(phase="error", error="hash_mismatch", actual_sha256=actual)
+            return {"ok": False, "error": "hash_mismatch"}
+        self._set(phase="extracting", actual_sha256=actual)
+        staging = self.install_root / "ollama-mac-staging"
+        shutil.rmtree(staging, ignore_errors=True)
+        staging.mkdir(parents=True)
+        # `ditto` 가 맥 앱의 서명 · 확장 속성을 그대로 푼다(파이썬 zipfile 은 실행 권한 · 심볼릭 링크를 깨뜨린다).
+        done = subprocess.run(["ditto", "-x", "-k", str(archive), str(staging)], capture_output=True, text=True,
+                              timeout=600, creationflags=CREATE_NO_WINDOW if os.name == "nt" else 0)
+        app = staging / "Ollama.app"
+        if done.returncode != 0 or not app.is_dir():
+            shutil.rmtree(staging, ignore_errors=True)
+            raise RuntimeError(f"unzip_failed:{(done.stderr or '').strip()[:120]}")
+        check = self.verify_mac(app)
+        if not check.get("ok"):
+            shutil.rmtree(staging, ignore_errors=True)
+            archive.unlink(missing_ok=True)
+            self._set(phase="error", error=f"signature_rejected:{check.get('reason', '')}")
+            return {"ok": False, "error": "signature_rejected", **check}
+        self._set(phase="starting", signature=check)
+        target = self.mac_app_target()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            shutil.rmtree(target, ignore_errors=True)
+        shutil.move(str(app), str(target))
+        shutil.rmtree(staging, ignore_errors=True)
+        archive.unlink(missing_ok=True)
+        (self.install_root / "current-mac.json").write_text(
+            json.dumps({"app": str(target), "version": release["version"], "sha256": actual,
+                        "team": check.get("team", ""), "installed_at": time.time()}, ensure_ascii=False), encoding="utf-8")
+        started = self._serve_system_app(target, wait_sec=60.0)
+        self._set(phase="ready" if started.get("ok") else "error", error=started.get("error", ""), app=str(target))
+        return {"ok": bool(started.get("ok")), "version": release["version"], "sha256": actual, "app": str(target)}
 
     #: 푼 폴더를 제자리로 옮기는 것을 몇 초까지 다시 해 보나.
     MOVE_RETRY_SECONDS = 20.0
@@ -661,8 +745,9 @@ class OllamaInstaller:
             time.sleep(0.3)
 
     def system_app(self) -> Path | None:
-        """사람이 공식 설치 파일로 깐 Ollama 트레이 앱. 없으면 None."""
-        return next((app for app in self.system_apps if app.is_file()), None)
+        """사람이 공식 설치 파일로 깐 Ollama 트레이 앱. 없으면 None. 맥은 `Ollama.app` 폴더다."""
+        return next((app for app in self.system_apps
+                     if app.is_file() or (app.suffix == ".app" and app.is_dir())), None)
 
     def _serve_system_app(self, app: Path, *, wait_sec: float) -> dict[str, Any]:
         """★ 사람이 따로 깐 Ollama 가 꺼져 있으면 **그 프로그램으로** 켠다 (2026-10-01 베타 첫 사용자 · 회사 PC).
@@ -671,6 +756,15 @@ class OllamaInstaller:
         모델 받기가 「[WinError 10061] 연결 거부」였다 — 그때 이 관리자는 **우리가 깐 것만** 켰다. 트레이 앱을 띄우면 서버를
         같이 올린다. 우리 것이 아니므로 `_process` 로 쥐지 않는다(`stop()` 은 사람이 켠 Ollama 를 건드리지 않는다).
         """
+        if app.suffix == ".app":
+            # 맥: 메뉴 막대 앱을 **앞으로 끌지 않고**(`open -g`) 켠다 — 앱이 서버를 같이 올린다.
+            self.mac_open(app)
+            deadline = time.monotonic() + wait_sec
+            while time.monotonic() < deadline:
+                if self.running_version():
+                    return {"ok": True, "external": True, "app": str(app)}
+                time.sleep(0.5)
+            return {"ok": False, "error": "system_ollama_not_answering"}
         env = ollama_launch_env(self.prompt_cache_mib)
         if needs_gpu_only():
             env["OLLAMA_VULKAN"] = "0"
@@ -990,7 +1084,7 @@ def _write_user_env(name: str, value: str) -> bool:
             winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
         # 새로 켜는 프로그램(로그인 때 뜨는 Ollama 포함)이 바뀐 환경을 보게 알린다.
         result = ctypes.c_ulong()
-        ctypes.windll.user32.SendMessageTimeoutW(0xFFFF, 0x001A, 0, "Environment", 0x0002, 2000, ctypes.byref(result))
+        winapi.user32.SendMessageTimeoutW(0xFFFF, 0x001A, 0, "Environment", 0x0002, 2000, ctypes.byref(result))
         return True
     except Exception:  # noqa: BLE001
         return False
@@ -1042,6 +1136,30 @@ def _runner_processes() -> list[dict[str, Any]]:
 def _kill_pid(pid: int) -> None:
     subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, timeout=20,
                    creationflags=CREATE_NO_WINDOW if os.name == "nt" else 0)
+
+
+def verify_mac_app(app: Path, *, run: Callable[..., Any] = subprocess.run) -> dict[str, Any]:
+    """맥 앱의 서명 · 공증 · 팀을 확인한다 — 셋 다 맞아야 `ok`.
+
+    1. `codesign --verify --deep --strict` — 서명이 온전한가(파일 하나라도 바뀌면 실패)
+    2. `codesign -dv` 의 `TeamIdentifier` 가 공식 Ollama 팀(`MAC_TEAM_ID`)인가
+    3. `spctl -a -t exec` 가 「accepted · Notarized Developer ID」인가(애플이 공증한 것)
+    """
+    def call(args: list[str]) -> tuple[int, str]:
+        done = run(args, capture_output=True, text=True, timeout=120)
+        return int(getattr(done, "returncode", 1)), f"{getattr(done, 'stdout', '') or ''}{getattr(done, 'stderr', '') or ''}"
+
+    code, out = call(["codesign", "--verify", "--deep", "--strict", str(app)])
+    if code != 0:
+        return {"ok": False, "reason": "codesign_verify_failed", "detail": out.strip()[:200]}
+    _, info = call(["codesign", "-dv", str(app)])
+    team = next((line.split("=", 1)[1].strip() for line in info.splitlines() if line.startswith("TeamIdentifier=")), "")
+    if team != MAC_TEAM_ID:
+        return {"ok": False, "reason": "wrong_team", "team": team}
+    code, out = call(["spctl", "-a", "-vv", "-t", "exec", str(app)])
+    if code != 0 or "accepted" not in out or "Notarized" not in out:
+        return {"ok": False, "reason": "not_notarized", "detail": out.strip()[:200], "team": team}
+    return {"ok": True, "team": team, "spctl": out.strip()[:200]}
 
 
 def _sha256(path: Path) -> str:

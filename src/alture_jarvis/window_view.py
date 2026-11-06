@@ -22,6 +22,8 @@
 
 from __future__ import annotations
 
+from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
+
 import os
 import time
 from dataclasses import dataclass
@@ -149,7 +151,7 @@ class Win32Desktop:
 
         self._ctypes = ctypes
         self._wintypes = wintypes
-        self._user32 = ctypes.windll.user32
+        self._user32 = winapi.user32
 
     def monitors(self) -> list[Monitor]:
         ctypes, wintypes = self._ctypes, self._wintypes

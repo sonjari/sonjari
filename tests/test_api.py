@@ -286,11 +286,11 @@ def test_code_mode_change_without_saying_code_still_requires_verification(tmp_pa
 def test_public_state_and_redacted_config(tmp_path) -> None:
     app = create_app(_config(tmp_path), start_services=False)
     with TestClient(app) as client:
-        assert client.get("/v1/state").json()["state"] == "idle"
-        config = client.get("/v1/config").json()
+        assert client.get("/v1/state", headers={"X-JARVIS-TOKEN": "test-token"}).json()["state"] == "idle"
+        config = client.get("/v1/config", headers={"X-JARVIS-TOKEN": "test-token"}).json()
         assert "control_token" not in config
         assert "pc_mcp_token" not in config
-        policy = client.get("/v1/presentation/policy").json()
+        policy = client.get("/v1/presentation/policy", headers={"X-JARVIS-TOKEN": "test-token"}).json()
         assert policy["default"] == "auto"
         assert policy["modes"] == ["voice", "hybrid", "screen"]
         assert client.get("/v1/memory/office-main").status_code == 401
@@ -299,7 +299,7 @@ def test_public_state_and_redacted_config(tmp_path) -> None:
         )
         assert memory.status_code == 200
         assert memory.json()["message_count"] == 0
-        browser = client.get("/v1/browser/status")
+        browser = client.get("/v1/browser/status", headers={"X-JARVIS-TOKEN": "test-token"})
         assert browser.status_code == 200
         assert browser.json()["read_only"] is True
 

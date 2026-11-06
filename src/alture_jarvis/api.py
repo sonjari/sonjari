@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import subprocess
+import sys
 import json
 import threading
 import time
@@ -11,7 +14,7 @@ from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .config import JarvisConfig
@@ -115,7 +118,7 @@ class ChatRequest(BaseModel):
 class ResearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
     session_id: str = Field(default="office-main", min_length=1, max_length=80)
-    source: str = "naver_web"
+    source: str = "browser_search"
     max_results: int = Field(default=5, ge=1, le=20)
     delivery: Literal["auto", "voice", "hybrid", "screen"] = "auto"
     speak: bool | None = Field(default=None, deprecated=True)
@@ -217,12 +220,23 @@ class PttRequest(BaseModel):
 def create_app(config: JarvisConfig | None = None, *, start_services: bool = True) -> FastAPI:
     runtime = JarvisRuntime(config)
 
+    door_holder: dict[str, Any] = {}
+
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         if start_services:
             runtime.start()
+            # 짝짓기 전용 문(8092 · pair_door.py) — 본 8091 은 127.0.0.1 에 그대로 두고 이 문만 바깥에 연다(윈도우 집 PC).
+            from . import pair_door
+
+            if pair_door.should_open(runtime.config):
+                door = pair_door.PairDoor(app, host=str(runtime.config.pair_door_host or "0.0.0.0"))
+                door.start()
+                door_holder["door"] = door
         yield
         if start_services:
+            if door_holder.get("door"):
+                door_holder["door"].stop()
             runtime.stop()
 
     app = FastAPI(
@@ -252,7 +266,7 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     @app.middleware("http")
     async def only_from_home(request: Request, call_next):  # type: ignore[no-untyped-def]
         client = request.client.host if request.client else ""
-        if not peer_guard.is_allowed(client, extra_allowed):
+        if not peer_guard.is_allowed_for(client, request.url.path, extra_allowed):
             return JSONResponse({"detail": peer_guard.refusal(client)}, status_code=403)
         return await call_next(request)
 
@@ -265,6 +279,9 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     async def ui_language_out(request: Request, call_next):  # type: ignore[no-untyped-def]
         response = await call_next(request)
         if ui_i18n.lang() != "en" or not response.headers.get("content-type", "").startswith("application/json"):
+            return response
+        # 빌려 주는 모델 응답은 화면 글이 아니다 — 번역 사전이 모델 답을 바꾸면 안 된다(2026-11-03 짝짓기).
+        if request.url.path.startswith(("/v1/llm/", "/v1/home-llm/")):
             return response
         body = b"".join([chunk async for chunk in response.body_iterator])  # type: ignore[attr-defined]
         headers = {key: value for key, value in response.headers.items() if key.lower() != "content-length"}
@@ -323,11 +340,16 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def health() -> dict[str, Any]:
         return runtime.health()
 
-    @app.get("/v1/config")
+    # ★ 11-04 보안 점검(대표 「전부 해 주라」): 아래 읽기 길 11개(설정 · 상태 · 표시 정책 · 사건 기록 · 일 목록 · 카메라 상태 ·
+    #   브라우저 상태 · 브라우저 화면 그림 · 카메라 그림 · 능력 목록 · 도구 목록)는 열쇠 없이 읽혔다 — 같은 와이파이는 문지기가
+    #   막았지만 이 PC 안의 다른 프로그램과 테일넷 기기는 브라우저 화면 · 카메라 그림까지 읽을 수 있었다. 이제 열쇠 필수.
+    #   열쇠 없이 남는 것: / · /health · 공개 글꼴 · 짝짓기 · 기기 열쇠로 여는 /v1/llm · 정제한 일 답(/v1/jobs/{id}) ·
+    #   도구 목록(/v1/tools — 이름 · 설명뿐, 아래 까닭).
+    @app.get("/v1/config", dependencies=[Depends(require_token)])
     def public_config() -> dict[str, Any]:
         return runtime.config.public_dict()
 
-    @app.get("/v1/state")
+    @app.get("/v1/state", dependencies=[Depends(require_token)])
     def state() -> dict[str, Any]:
         # Reconcile first: this is what the HUD polls to resync after a dropped
         # socket, so it must never report a busy state no job can leave.
@@ -344,7 +366,7 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             "workspace_session": runtime.workspace_session(),
         }
 
-    @app.get("/v1/presentation/policy")
+    @app.get("/v1/presentation/policy", dependencies=[Depends(require_token)])
     def presentation_policy() -> dict[str, Any]:
         policy = runtime.presentation
         return {
@@ -366,11 +388,11 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             ],
         }
 
-    @app.get("/v1/events")
+    @app.get("/v1/events", dependencies=[Depends(require_token)])
     def events(after: int = 0, limit: int = 200) -> list[dict[str, Any]]:
         return [event.to_dict() for event in runtime.events.get_since(after, limit)]
 
-    @app.get("/v1/jobs")
+    @app.get("/v1/jobs", dependencies=[Depends(require_token)])
     def jobs(limit: int = 50, status: str = "", view: str = "full") -> list[dict[str, Any]]:
         # `view=summary` 는 목록용 — 답변 전문과 도구 걸음을 빼고 한 줄에 그릴 것만
         # 준다(`JobStore.list_job_summaries` 주석에 실측 근거). 기본값은 그대로
@@ -774,6 +796,64 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         except PackError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    # ── MCP 서버 꽂기(2026-11-04 · 설계 docs/설계_MCP서버꽂기) — 사람만 꽂고 뺀다. 모델 도구에는 이 문이 없다. ──
+    def _mcp_fail(exc: Exception) -> HTTPException:
+        return HTTPException(status_code=400, detail=str(exc))
+
+    @app.get("/v1/mcp/servers", dependencies=[Depends(require_token)])
+    def mcp_servers_list() -> dict[str, Any]:
+        return {"servers": runtime.mcp_hub.public_list()}
+
+    @app.post("/v1/mcp/servers", dependencies=[Depends(require_token)])
+    async def mcp_servers_add(request: Request) -> dict[str, Any]:
+        """본문: `{"name": <서버 이름>, "server": {…클로드 데스크톱 mcpServers 한 칸과 같은 모양…}}`
+        또는 `{"mcpServers": {…}}` 통째(붙여 넣기). 비밀로 보이는 값은 보관함으로 옮긴다."""
+        from .mcp_hub import McpHubError
+
+        body = await request.json()
+        added, skipped = [], []
+        items = (body.get("mcpServers") or {}) if isinstance(body, dict) and "mcpServers" in body else {
+            str(body.get("name") or ""): body.get("server") or {}} if isinstance(body, dict) else {}
+        for name, raw in items.items():
+            try:
+                runtime.mcp_hub.add_server(name, dict(raw or {}))
+                added.append(name)
+            except McpHubError as exc:
+                skipped.append({"name": name, "why": str(exc)})
+        if not added and skipped:
+            raise HTTPException(status_code=400, detail="; ".join(f"{s['name']}: {s['why']}" for s in skipped))
+        return {"added": added, "skipped": skipped, "servers": runtime.mcp_hub.public_list()}
+
+    @app.post("/v1/mcp/import-claude", dependencies=[Depends(require_token)])
+    def mcp_import_claude() -> dict[str, Any]:
+        result = runtime.mcp_hub.import_claude_desktop()
+        return {**result, "servers": runtime.mcp_hub.public_list()}
+
+    @app.post("/v1/mcp/servers/{name}/test", dependencies=[Depends(require_token)])
+    def mcp_server_test(name: str) -> dict[str, Any]:
+        from .mcp_hub import McpHubError, risk_from_annotations
+
+        try:
+            tools = runtime.mcp_hub.refresh_tools(name)
+        except McpHubError as exc:
+            raise _mcp_fail(exc) from exc
+        return {"name": name, "tools": [{"name": t["name"], "description": t.get("description", "")[:200],
+                                         "risk": risk_from_annotations(t.get("annotations")).label()} for t in tools]}
+
+    @app.post("/v1/mcp/servers/{name}/{action}", dependencies=[Depends(require_token)])
+    def mcp_server_toggle(name: str, action: str) -> dict[str, Any]:
+        if action not in {"enable", "disable"}:
+            raise HTTPException(status_code=404, detail="unknown_action")
+        if not runtime.mcp_hub.set_enabled(name, action == "enable"):
+            raise HTTPException(status_code=404, detail="no_such_server")
+        return {"servers": runtime.mcp_hub.public_list()}
+
+    @app.delete("/v1/mcp/servers/{name}", dependencies=[Depends(require_token)])
+    def mcp_server_remove(name: str) -> dict[str, Any]:
+        if not runtime.mcp_hub.remove_server(name):
+            raise HTTPException(status_code=404, detail="no_such_server")
+        return {"servers": runtime.mcp_hub.public_list()}
+
     @app.get("/v1/packs/game/unity", dependencies=[Depends(require_token)])
     def unity_setup() -> dict[str, Any]:
         return runtime.unity_tools.setup_status()
@@ -1003,11 +1083,11 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def describe(request: VisionRequest) -> dict[str, Any]:
         return runtime.enqueue("vision_describe", "카메라 장면 분석", request.model_dump())
 
-    @app.get("/v1/vision/status")
+    @app.get("/v1/vision/status", dependencies=[Depends(require_token)])
     def vision_status() -> dict[str, Any]:
         return runtime.vision.status()
 
-    @app.get("/v1/browser/status")
+    @app.get("/v1/browser/status", dependencies=[Depends(require_token)])
     def browser_status() -> dict[str, Any]:
         return runtime.browser.status()
 
@@ -1026,7 +1106,7 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     # 못 찍었을 때 **왜 못 찍었는지**를 헤더로 같이 보낸다. 503 만 오면 화면은
     # "브라우저가 없다"밖에 말할 수 없는데, 실제 이유는 안 떠 있음·붙기 실패·앞
     # 동작에 물림·회로 열림으로 다 다르고 사람이 할 일도 다르다.
-    @app.get("/v1/browser/frame.jpg")
+    @app.get("/v1/browser/frame.jpg", dependencies=[Depends(require_token)])
     def browser_frame() -> Response:
         frame = runtime.browser.live_frame()
         headers = {
@@ -1193,7 +1273,7 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def computer_status() -> dict[str, Any]:
         return runtime.local_computer.status()
 
-    @app.get("/v1/vision/snapshot.jpg")
+    @app.get("/v1/vision/snapshot.jpg", dependencies=[Depends(require_token)])
     def vision_snapshot() -> Response:
         frame = runtime.vision.latest_jpeg()
         if not frame:
@@ -1234,6 +1314,8 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def tts(request: TTSRequest) -> dict[str, Any]:
         return runtime.enqueue("tts", "F1 음성 합성", request.model_dump())
 
+    # /v1/tools 는 열쇠 없이 둔다(11-04): 도구 이름 · 설명뿐이고, 이미 떠 있는 클로드 연결 프로세스(옛 코드)가 열쇠 없이 읽는다 —
+    #   잠그면 클로드 앱을 다시 켜기 전까지 열린 세션들이 손자리 세부 도구를 잃는다. 새 연결 코드는 열쇠를 싣는다.
     @app.get("/v1/tools")
     def tools() -> list[dict[str, Any]]:
         return runtime.gateway.list_tools()
@@ -1367,6 +1449,474 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     @app.get("/v1/setup/recommendation", dependencies=[Depends(require_token)])
     def setup_recommendation() -> dict[str, Any]:
         return setup_service.recommendation()
+
+    # ── 짝짓기 — 이 맥(자식) ↔ 집 PC(부모) (설계_짝짓기_모델자리 순서 2 · 3 · 2026-11-03) ──────────────────────────
+    from . import pairing as _pairing
+    from .config import build_id as _build_id
+    from .messaging.credentials import default_store as _secret_store
+
+    # ★ 찾기 답(hello)은 0.35초 안에 와야 한다 — 맥은 같은 네트워크 254곳을 그 시간으로 훑는다. 그래픽카드 재기(`profile`)는 30초마다
+    #   다시 재고 nvidia-smi 를 불러 그보다 길다(11-03 맥미니: 앱 안 찾기가 빈 목록). 이름은 한 번 재서 쥐고, 재는 동안은 빈 칸으로 답한다.
+    _gpu_label: dict[str, Any] = {}
+
+    def _measure_gpu_label() -> None:
+        try:
+            cards = (setup_service.profile() or {}).get("gpus") or []
+            card = cards[0] if cards else {}
+            _gpu_label["value"] = f"{card.get('name') or ''} {round(float(card.get('vram_total_gb') or 0))}GB".strip() if card else ""
+        except Exception:  # noqa: BLE001 — 찾기 답이 그래픽카드 때문에 실패하면 안 된다
+            _gpu_label["value"] = ""
+
+    def _pair_info() -> dict[str, Any]:
+        if "value" not in _gpu_label and not _gpu_label.get("started"):
+            _gpu_label["started"] = True
+            threading.Thread(target=_measure_gpu_label, name="pair-gpu-label", daemon=True).start()
+        return {"name": _pairing.this_name(), "version": _build_id(), "gpu": str(_gpu_label.get("value") or "")}
+
+    pair_host = _pairing.PairingHost(runtime.config.data_dir, publish=runtime.events.publish, info=_pair_info)
+    runtime.pair_host = pair_host
+
+    def _lends_models() -> bool:
+        """모델을 빌려 줄 수 있는 손자리인가 — 자기도 남의 모델을 빌리는 중이면 아니다."""
+        return str(runtime.config.jarvis_role).lower() != "satellite" and not _pairing.read_home(runtime.config.data_dir)
+
+    @app.get("/v1/pair/hello")
+    def pair_hello() -> dict[str, Any]:
+        return {**pair_host.hello(), "accepting": _lends_models()}
+
+    @app.post("/v1/pair/request")
+    def pair_request(request: Request, body: dict[str, Any] | None = None) -> dict[str, Any]:
+        if not _lends_models():
+            return {"ok": False, "error": "not_a_home_pc"}
+        body = body or {}
+        client = request.client.host if request.client else ""
+        return pair_host.request(str(body.get("name") or ""), str(body.get("device_id") or ""), peer=client)
+
+    @app.post("/v1/pair/confirm")
+    def pair_confirm(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        body = body or {}
+        done = pair_host.confirm(str(body.get("request_id") or ""), str(body.get("code") or ""))
+        if done.get("ok"):
+            # 이 기기가 처음에 쓸 모델 — 집 PC 가 지금 쓰는 것(그 뒤 고르기는 이 기기 몫).
+            done["home_model"] = runtime.config.model_for("chat")
+            done["home_ctx"] = int(runtime.config.ollama_num_ctx or 0)
+        return done
+
+    @app.get("/v1/pair/pending", dependencies=[Depends(require_token)])
+    def pair_pending() -> dict[str, Any]:
+        return {"requests": pair_host.pending()}
+
+    @app.post("/v1/pair/reject", dependencies=[Depends(require_token)])
+    def pair_reject(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {"ok": pair_host.reject(str((body or {}).get("request_id") or ""))}
+
+    @app.get("/v1/pair/devices", dependencies=[Depends(require_token)])
+    def pair_devices() -> dict[str, Any]:
+        return {"devices": pair_host.devices()}
+
+    @app.post("/v1/pair/revoke", dependencies=[Depends(require_token)])
+    def pair_revoke(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {"ok": pair_host.revoke(str((body or {}).get("device_id") or ""))}
+
+    #: 빌려 주는 Ollama 길 — 대화 · 목록 · 상태만. 받기 · 지우기 · 만들기는 집 PC 에서 사람이 한다.
+    _LLM_PATHS = frozenset({"api/chat", "api/generate", "api/tags", "api/ps", "api/show", "api/version", "api/embed", "api/embeddings"})
+
+    async def _relay(method: str, url: str, headers: dict[str, str], body: bytes,
+                     on_done: Any = None, *, connect_timeout: float = 10.0, give_up: bool = True) -> Response | None:
+        """give_up=False 면 붙지 못했을 때 None(다음 길을 두드리라는 뜻) — 붙은 뒤의 실패는 그대로 돌려준다."""
+        import httpx
+
+        client = httpx.AsyncClient(timeout=httpx.Timeout(connect=connect_timeout, read=None, write=60.0, pool=10.0))
+        try:
+            upstream = await client.send(client.build_request(method, url, headers=headers, content=body), stream=True)
+        except Exception as exc:  # noqa: BLE001
+            await client.aclose()
+            if not give_up:
+                return None
+            if on_done:
+                on_done(False)
+            return JSONResponse({"error": f"upstream_unreachable: {type(exc).__name__}"}, status_code=502)
+
+        async def chunks():  # type: ignore[no-untyped-def]
+            try:
+                async for chunk in upstream.aiter_bytes():
+                    yield chunk
+            finally:
+                await upstream.aclose()
+                await client.aclose()
+                if on_done:
+                    on_done(upstream.status_code < 400)
+
+        keep = {k: v for k, v in upstream.headers.items() if k.lower() == "content-type"}
+        return StreamingResponse(chunks(), status_code=upstream.status_code, headers=keep)
+
+    @app.api_route("/v1/llm/{path:path}", methods=["GET", "POST"])
+    async def llm_for_paired(path: str, request: Request) -> Response:
+        """짝지은 기기에게 이 PC 의 Ollama 를 빌려 준다(기기 토큰). Ollama 자체는 네트워크에 열지 않는다."""
+        device = pair_host.verify(request.headers.get("x-sonjari-device", ""))
+        if not device:
+            return JSONResponse({"error": "not_paired"}, status_code=401)
+        if path not in _LLM_PATHS or not _lends_models():
+            return JSONResponse({"error": "not_allowed"}, status_code=403)
+        base = str(runtime.config.ollama_base_url).rstrip("/")
+        return await _relay(request.method, f"{base}/{path}",
+                            {"Content-Type": request.headers.get("content-type", "application/json")}, await request.body())
+
+    # 이 맥 쪽 — 모델 호출을 집 PC 로 넘기는 길(이 기기 안에서만). 토큰은 여기서만 붙인다.
+    _home_token: dict[str, str] = {}
+    _home_route: dict[str, Any] = {"via": "", "lan_down_until": 0.0}
+
+    def _ordered_home_routes(home: dict[str, Any]) -> list[tuple[str, str]]:
+        routes = _pairing.home_routes(home)
+        if len(routes) > 1 and time.monotonic() < float(_home_route.get("lan_down_until") or 0):
+            routes = [row for row in routes if row[0] != "lan"] + [row for row in routes if row[0] == "lan"]
+        return routes
+
+    def _token_for_home() -> str:
+        if "value" not in _home_token:
+            try:
+                _home_token["value"] = str(_secret_store().read(_pairing.SECRET_TARGET) or "")
+            except Exception:  # noqa: BLE001
+                _home_token["value"] = ""
+        return _home_token["value"]
+
+    @app.api_route("/v1/home-llm/{path:path}", methods=["GET", "POST"])
+    async def llm_to_home(path: str, request: Request) -> Response:
+        client = request.client.host if request.client else ""
+        if not peer_guard.is_loopback(client):
+            return JSONResponse({"error": "loopback_only"}, status_code=403)
+        home = _pairing.read_home(runtime.config.data_dir)
+        token = _token_for_home()
+        if not home or not token:
+            return JSONResponse({"error": "not_paired"}, status_code=409)
+        if path not in _LLM_PATHS:
+            return JSONResponse({"error": "not_allowed"}, status_code=403)
+        # ★ 11-04 대표: 「Satellite 면 클로드 · 손자리가 이어지듯 한몸으로 보이게」 — 연결 띠의 구슬은 **실제로 부를 때만** 간다.
+        #   대화 · 생성 부르기만 알린다(목록 · 상태 묻기는 꾸밈 움직임이 된다). 끝나면 돌아오는 구슬.
+        speaks = path in ("api/chat", "api/generate")
+        if speaks:
+            runtime.events.publish("home_llm_call", {"phase": "start"})
+        done = (lambda ok: runtime.events.publish("home_llm_call", {"phase": "end", "ok": ok})) if speaks else None
+        headers = {"Content-Type": request.headers.get("content-type", "application/json"), "X-Sonjari-Device": token}
+        body = await request.body()
+        # ★ 11-04 밖에서도 쓰기 §2-3: 집 와이파이 길을 먼저(빠름), 안 닿으면 테일넷 길. 와이파이가 안 닿았으면 1분은 맨 뒤로 미룬다
+        #   (카페에서 집 사설 주소로 매번 붙어 보며 기다리지 않게). 어느 길로 갔는지는 연결 띠의 한 단어가 된다.
+        #   붙지 못한 길은 on_done 을 부르지 않으니(give_up=False → None) 끝 알림은 답한 길에서 한 번만 난다.
+        routes = _ordered_home_routes(home)
+        for index, (via, address) in enumerate(routes):
+            last = index == len(routes) - 1
+            answer = await _relay(request.method, f"http://{address}/v1/llm/{path}", headers, body, on_done=done,
+                                  connect_timeout=10.0 if last else 2.5, give_up=last)
+            if answer is None:
+                if via == "lan":
+                    _home_route["lan_down_until"] = time.monotonic() + 60.0
+                continue
+            if via == "lan":
+                _home_route["lan_down_until"] = 0.0
+            _home_route["via"] = via if answer.status_code < 500 else ""
+            return answer
+        if done:
+            done(False)
+        _home_route["via"] = ""
+        return JSONResponse({"error": "upstream_unreachable"}, status_code=502)
+
+    _pending_pair: dict[str, Any] = {}
+
+    @app.get("/v1/pair/home", dependencies=[Depends(require_token)])
+    def pair_home() -> dict[str, Any]:
+        home = _pairing.read_home(runtime.config.data_dir)
+        return {"paired": bool(home), "home": {**{k: home.get(k) for k in ("name", "gpu", "address", "paired_at")},
+                                               "outside": bool(home.get("tailnet_address"))} if home else None,
+                "waiting_code": bool(_pending_pair), "lends_models": _lends_models()}
+
+    @app.post("/v1/pair/discover", dependencies=[Depends(require_token)])
+    async def pair_discover(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        home = _pairing.read_home(runtime.config.data_dir)
+        address = str((body or {}).get("address") or "").strip()
+        me = await asyncio.to_thread(_tailnet.status)
+        peers = [peer["dns_name"] for peer in me.get("peers") or [] if peer.get("online") and peer.get("dns_name")] \
+            if me.get("state") == "Running" else []
+        found = await _pairing.discover(remembered=str(home.get("address") or ""), extra=[address] if address else [],
+                                        tailnet_peers=peers)
+        return {"found": [row for row in found if row["name"] != _pairing.this_name()]}
+
+    @app.post("/v1/pair/start", dependencies=[Depends(require_token)])
+    def pair_start(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        import httpx
+
+        body = body or {}
+        address = str(body.get("address") or "").strip()
+        if not address:
+            return {"ok": False, "error": "no_address"}
+        try:
+            answer = httpx.post(f"http://{address}/v1/pair/request", timeout=5.0,
+                                json={"name": _pairing.this_name(), "device_id": _pairing.device_id(runtime.config.data_dir)}).json()
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": f"unreachable: {type(exc).__name__}"}
+        if not answer.get("ok"):
+            return {"ok": False, "error": str(answer.get("error") or "refused")}
+        _pending_pair.clear()
+        _pending_pair.update({"address": address, "request_id": answer["request_id"],
+                              "name": str(body.get("name") or ""), "gpu": str(body.get("gpu") or "")})
+        return {"ok": True, "expires_in": answer.get("expires_in")}
+
+    @app.post("/v1/pair/finish", dependencies=[Depends(require_token)])
+    def pair_finish(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        import httpx
+
+        from . import model_place
+
+        if not _pending_pair:
+            return {"ok": False, "error": "no_request"}
+        try:
+            answer = httpx.post(f"http://{_pending_pair['address']}/v1/pair/confirm", timeout=5.0,
+                                json={"request_id": _pending_pair["request_id"], "code": str((body or {}).get("code") or "")}).json()
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": f"unreachable: {type(exc).__name__}"}
+        if not answer.get("ok"):
+            if answer.get("error") in {"closed", "no_request"}:
+                _pending_pair.clear()
+            return {"ok": False, "error": str(answer.get("error") or "refused"), "tries_left": answer.get("tries_left")}
+        try:
+            _secret_store().write(_pairing.SECRET_TARGET, str(answer["token"]))
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": f"keychain: {type(exc).__name__}"}
+        _home_token["value"] = str(answer["token"])
+        _pairing.save_home(runtime.config.data_dir, {
+            "address": _pending_pair["address"], "name": str(answer.get("home_name") or _pending_pair.get("name") or ""),
+            "gpu": str(answer.get("home_gpu") or _pending_pair.get("gpu") or ""), "device_id": answer.get("device_id"),
+            "home_model": str(answer.get("home_model") or ""), "home_ctx": int(answer.get("home_ctx") or 0),
+            "paired_at": int(time.time()),
+        })
+        _pending_pair.clear()
+        model_place.forget_cache(runtime.config)
+        done = model_place.set_place(runtime.config, "home_pc", extra_live=[runtime.ollama_installer])
+        runtime.events.publish("model_place_changed", done)
+        return {**done, "ok": True}
+
+    @app.post("/v1/pair/forget", dependencies=[Depends(require_token)])
+    def pair_forget() -> dict[str, Any]:
+        from . import model_place
+
+        _pairing.forget_home(runtime.config.data_dir, _secret_store())
+        _home_token.clear()
+        model_place.forget_cache(runtime.config)
+        if not model_place.home_url(runtime.config):
+            model_place.set_place(runtime.config, "this_pc", extra_live=[runtime.ollama_installer])
+        else:
+            model_place.apply(runtime.config)
+        runtime.events.publish("model_place_changed", model_place.view(runtime.config))
+        return {"ok": True, **model_place.view(runtime.config)}
+
+    # ── 밖에서도 쓰기 — 테일스케일 체크 목록 (설계_밖에서도쓰기_테일스케일_2026-11-04 §2-2 · §3 · §8) ───────────────
+    # 단계는 백엔드가 정하고(`tailnet.plan`) 두 화면은 그 stage 만 그린다. 맥이 집 PC 에 자기 상태를 보고하고 집 PC 상태를 받아
+    # 두 손자리 창이 같은 진행을 보여 준다. 사람 몫: 설치 누르기 · 로그인. 나머지(같은 계정 맞춰 보기 · 문 열기 · 밖 길 기억)는 손자리.
+    from . import pair_door as _pair_door
+    from . import tailnet as _tailnet
+
+    _outside_reports: dict[str, dict[str, Any]] = {}   # 집 PC: 기기별 마지막 보고
+    _serve_state: dict[str, Any] = {"running": False, "error": ""}
+
+    def _tailnet_side(me: dict[str, Any] | None) -> dict[str, Any]:
+        me = me or {}
+        return {"installed": bool(me.get("installed")), "state": str(me.get("state") or ""),
+                "tailnet_id": str(me.get("tailnet_id") or ""), "dns_name": str(me.get("dns_name") or "")}
+
+    def _door_state(me: dict[str, Any], mac: dict[str, Any] | None) -> dict[str, Any]:
+        """집 PC: 문(8092)이 테일넷에 나가 있나. 두 기기가 같은 테일넷에서 켜져 있으면 스스로 연다(§2-2 ④ · 사람 몫 없음)."""
+        if not _pair_door.should_open(runtime.config) or me.get("state") != "Running":
+            return {"open": False, "error": ""}
+        if _tailnet.door_served():
+            _serve_state["error"] = ""
+            return {"open": True, "error": ""}
+        same = bool(mac) and mac.get("state") == "Running" and mac.get("tailnet_id") == me.get("tailnet_id")
+        if same and not _serve_state["running"]:
+            _serve_state["running"] = True
+
+            def open_door() -> None:
+                try:
+                    done = _tailnet.serve_door()
+                    _serve_state["error"] = "" if done.get("ok") else str(done.get("error") or "serve_failed")
+                finally:
+                    _serve_state["running"] = False
+
+            threading.Thread(target=open_door, name="tailnet-serve-door", daemon=True).start()
+        return {"open": False, "error": _serve_state["error"]}
+
+    @app.post("/v1/pair/outside")
+    def pair_outside(request: Request, body: dict[str, Any] | None = None) -> Any:
+        """집 PC: 짝지은 기기가 자기 테일스케일 진행을 알리고 집 PC 것을 받는다(기기 열쇠 · 짝짓기 문으로도 열림)."""
+        device = pair_host.verify(request.headers.get("x-sonjari-device", ""))
+        if not device:
+            return JSONResponse({"error": "not_paired"}, status_code=401)
+        body = body or {}
+        mac = _tailnet_side(body.get("me"))
+        _outside_reports[str(device.get("device_id") or "")] = {**mac, "reached": bool(body.get("reached")),
+                                                                "name": str(device.get("name") or ""), "at": time.time()}
+        me = _tailnet.status()
+        door = _door_state(me, mac)
+        # 같은 계정인지는 열쇠가 있는 기기에만 알려 준다(찾기 답 hello 에는 싣지 않는다).
+        return {"pc": _tailnet_side(me), "door_open": door["open"], "serve_error": door["error"]}
+
+    def _home_side_status(home: dict[str, Any]) -> dict[str, Any]:
+        """맥(자식): 내 상태 + 집 PC 상태로 단계를 정한다. 마지막 단계(⑤)에서는 테일넷 길로 실제로 붙어 보고 기억한다."""
+        import httpx
+
+        me = _tailnet.status()
+        token = _token_for_home()
+        reached = bool(home.get("tailnet_address"))
+        answer: dict[str, Any] | None = None
+        for via, address in _ordered_home_routes(home):
+            try:
+                answer = httpx.post(f"http://{address}/v1/pair/outside", timeout=4.0 if via == "lan" else 8.0,
+                                    json={"me": _tailnet_side(me), "reached": reached},
+                                    headers={"X-Sonjari-Device": token}).json()
+                break
+            except Exception:  # noqa: BLE001 — 다음 길
+                continue
+        pc = answer.get("pc") if isinstance(answer, dict) and isinstance(answer.get("pc"), dict) else None
+        if pc is not None:
+            pc = {**pc, "serve_error": str(answer.get("serve_error") or "")}
+        door_open = bool(answer.get("door_open")) if isinstance(answer, dict) else False
+        done = _tailnet.plan(me, pc, door_open=door_open, reached=reached)
+        if done["stage"] == "reach" and pc and pc.get("dns_name"):
+            target = f"{pc['dns_name']}:{_pairing.PAIR_PORT}"
+            try:
+                ok = httpx.get(f"http://{target}/v1/llm/api/version", timeout=8.0,
+                               headers={"X-Sonjari-Device": token}).status_code == 200
+            except Exception:  # noqa: BLE001
+                ok = False
+            if ok:
+                _pairing.save_home(runtime.config.data_dir, {**home, "tailnet_address": target})
+                home = _pairing.read_home(runtime.config.data_dir)
+                done = _tailnet.plan(me, pc, door_open=door_open, reached=True)
+        started = bool(home.get("outside_started")) or bool(home.get("tailnet_address"))
+        return {"role": "mac", **done, "other_name": str(home.get("name") or ""), "pc_answered": answer is not None,
+                "offer": not started and not home.get("outside_later"), "later": bool(home.get("outside_later")),
+                "started": started}
+
+    @app.get("/v1/outside/status", dependencies=[Depends(require_token)])
+    def outside_status() -> dict[str, Any]:
+        home = _pairing.read_home(runtime.config.data_dir)
+        if home:
+            return _home_side_status(home)
+        # 집 PC(부모): 가장 최근에 보고한 기기와 맞춰 본다. 아무도 시작하지 않았으면 체크 목록을 안 띄운다.
+        me = _tailnet.status()
+        recent = sorted(_outside_reports.values(), key=lambda row: row.get("at") or 0)
+        if not recent or time.time() - float(recent[-1].get("at") or 0) > 900:
+            return {"role": "pc", "stage": "idle", "reason": "", "pc": _tailnet_side(me), "mac": None,
+                    "door_open": _tailnet.door_served() if me.get("state") == "Running" else False}
+        mac = recent[-1]
+        door = _door_state(me, mac)
+        done = _tailnet.plan(mac, {**me, "serve_error": door["error"]}, door_open=door["open"], reached=bool(mac.get("reached")))
+        return {"role": "pc", **done, "other_name": str(mac.get("name") or ""), "door_open": door["open"]}
+
+    @app.post("/v1/outside/step/{step}", dependencies=[Depends(require_token)])
+    def outside_step(step: str) -> dict[str, Any]:
+        """사람이 누른 단추. 페이지 주소는 돌려주기만 하고 여는 것은 화면이 한다(디스코드 연결 화면과 같다)."""
+        home = _pairing.read_home(runtime.config.data_dir)
+        if step in {"start", "later"}:
+            if home:
+                _pairing.save_home(runtime.config.data_dir, {**home, "outside_started": step == "start",
+                                                             "outside_later": step == "later"})
+            return {"ok": True}
+        if step == "install":
+            return {"ok": True, "url": _tailnet.install_page()}
+        if step == "login":
+            return _tailnet.login()
+        if step == "switch_account":
+            return _tailnet.login(force=True)
+        if step == "turn_on":
+            return _tailnet.turn_on()
+        if step == "recheck":
+            return {"ok": True}
+        return {"ok": False, "error": "unknown_step"}
+
+    # ── 모델 자리 — 이 맥 / 집 PC (설계_짝짓기_모델자리 순서 1 · 2026-11-03) ───────────────────────────────
+    def _jobs_running() -> bool:
+        try:
+            return any(str(row.get("status") or "") in {"running", "queued"} for row in runtime.store.list_jobs(limit=20))
+        except Exception:  # noqa: BLE001 — 못 읽으면 쉬는 것으로 본다(자리 바꾸기를 막지 않는다)
+            return False
+
+    def _home_models() -> dict[str, Any]:
+        """집 PC 에 깔린 모델 — 집 PC Ollama 에 직접 묻는다(짝짓기 순서 3 에서 집 PC 손자리를 거치게 바뀐다)."""
+        from . import model_place
+        import httpx
+
+        url = model_place.home_url(runtime.config)
+        if not url:
+            return {"reachable": False, "models": []}
+        try:
+            answer = httpx.get(f"{url}/api/tags", timeout=12.0)
+            answer.raise_for_status()   # 중계가 502 로 답하면 닿지 않은 것이다
+            tags = answer.json().get("models") or []
+        except Exception as exc:  # noqa: BLE001
+            # 밖에서 「PC not found」 의 까닭을 한 줄로(§2-3) — 테일넷 길을 기억한 기기만.
+            paired = _pairing.read_home(runtime.config.data_dir) or {}
+            why = _tailnet.why_not_found(_tailnet.status(), str(paired.get("tailnet_address") or "")) if paired else ""
+            return {"reachable": False, "models": [], "error": type(exc).__name__, "why": why}
+        if not isinstance(tags, list):
+            tags = []
+        # 대화 모델만 · 집 PC 기본 모델 표시(11-04 대표: 임베딩 · 그림 부품 · 시험 별칭이 섞여 있었다)
+        return {"reachable": True, "via": str(_home_route.get("via") or ""),
+                "models": model_place.home_rows(tags, model_place.home_default_model(runtime.config))}
+
+    def _apply_place_when_idle() -> None:
+        from . import model_place
+
+        def wait_then_apply() -> None:
+            while _jobs_running():
+                time.sleep(2.0)
+            model_place.apply(runtime.config)
+            runtime.ollama_installer.base_url = runtime.config.ollama_base_url
+            runtime.events.publish("model_place_changed", model_place.view(runtime.config))
+
+        threading.Thread(target=wait_then_apply, name="model-place-apply", daemon=True).start()
+
+    @app.get("/v1/model-place", dependencies=[Depends(require_token)])
+    def model_place_view(home_models: bool = True) -> dict[str, Any]:
+        from . import model_place
+
+        return {**model_place.view(runtime.config),
+                "satellite": str(runtime.config.jarvis_role).lower() == "satellite",
+                **({"home": _home_models()} if home_models else {})}
+
+    @app.post("/v1/model-place", dependencies=[Depends(require_token)])
+    def model_place_set(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        """자리를 바꾼다 — **다시 켜지 않고** 다음 모델 호출부터. 일하는 중이면 파일만 적고 그 일이 끝난 뒤 얹는다."""
+        from . import model_place
+
+        place = str((body or {}).get("place") or "")
+        if _jobs_running():
+            if place not in model_place.PLACES:
+                return {"ok": False, "error": "unknown_place"}
+            if place == "home_pc" and not model_place.home_url(runtime.config):
+                return {"ok": False, "error": "no_home_pc"}
+            data = model_place.read(runtime.config.data_dir)
+            data["place"] = place
+            model_place._write(runtime.config.data_dir, data)
+            _apply_place_when_idle()
+            return {"ok": True, "pending": True, **model_place.view(runtime.config)}
+        done = model_place.set_place(runtime.config, place, extra_live=[runtime.ollama_installer])
+        if done.get("ok"):
+            runtime.events.publish("model_place_changed", done)
+        return {**done, "pending": False}
+
+    @app.post("/v1/model-place/home-model", dependencies=[Depends(require_token)])
+    def model_place_home_model(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        """집 PC 모델 가운데 이 기기가 쓸 것. 집 PC 사용자의 선택은 바꾸지 않는다."""
+        from . import model_place
+
+        body = body or {}
+        tag = str(body.get("tag") or "")
+        listed = {row["tag"] for row in _home_models().get("models") or []}
+        if tag and listed and tag not in listed:
+            return {"ok": False, "error": "not_on_home_pc"}
+        done = model_place.set_home_model(runtime.config, tag, int(body.get("num_ctx") or 0))
+        if done.get("ok"):
+            runtime.events.publish("model_place_changed", done)
+        return done
 
     @app.get("/v1/setup/models", dependencies=[Depends(require_token)])
     def setup_models() -> dict[str, Any]:
@@ -1771,7 +2321,7 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         from .msix import external_path
 
         real = external_path(path)
-        if os.name != "nt":
+        if os.name != "nt" and sys.platform != "darwin":
             return {"ok": False, "error": "not_windows", "path": str(real)}
         from .file_open import open_file
 
@@ -2127,8 +2677,9 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         from .msix import external_path
 
         real = external_path(folder)
-        if os.name == "nt":
-            os.startfile(str(real))  # noqa: S606 — 고정된 폴더만
+        from .file_open import open_folder_or_url
+
+        open_folder_or_url(str(real))  # 고정된 폴더만 — 윈도우 탐색기 · 맥 파인더(2026-11-03)
         return {"ok": True, "path": str(real)}
 
     # ── 기억 복제 폴더 (W1-3) ────────────────────────────────────────────────
@@ -2187,7 +2738,7 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def takeover_discard(takeover_id: int) -> dict[str, Any]:
         return runtime.takeover.discard(takeover_id)
 
-    @app.get("/v1/capabilities")
+    @app.get("/v1/capabilities", dependencies=[Depends(require_token)])
     def capabilities() -> dict[str, Any]:
         tools = runtime.gateway.list_tools()
         by_risk: dict[str, int] = {}

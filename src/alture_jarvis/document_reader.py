@@ -31,6 +31,9 @@ SUPPORTED_EXTENSIONS = PLAIN_TEXT_EXTENSIONS | MODERN_OFFICE_EXTENSIONS | {
     #   더 나쁜 것은 **읽는 자가 두 벌이었다는 것**이다. `preview_of_file` 은
     #   hwpx 를 읽는데 이쪽은 못 읽었다. 이제 여기 한 곳에서만 읽는다.
     ".hwpx",
+    # ★ 2026-11-04 빈칸 세기: MarkItDown 을 넣으려다 세어 보니 대부분은 이미 읽었다(읽는 자를 두 벌 두지 않는다 —
+    #   위 hwpx 교훈). 정말 비어 있던 셋만 여기서 읽는다: 주피터 노트북 · 저장한 메일 · 옛 엑셀.
+    ".ipynb", ".eml", ".xls",
 }
 
 
@@ -192,6 +195,12 @@ class DocumentReader:
             result = self._open_document(raw, suffix)
         elif suffix == ".epub":
             result = self._epub(raw)
+        elif suffix == ".ipynb":
+            result = self._ipynb(raw)
+        elif suffix == ".eml":
+            result = self._eml(raw)
+        elif suffix == ".xls":
+            result = self._xls(raw)
         else:
             text, encoding = decode_text(raw)
             if suffix in {".html", ".htm"}:
@@ -209,6 +218,83 @@ class DocumentReader:
             result.truncated = True
         result.text = _normalize(result.text)
         return result
+
+    @staticmethod
+    def _ipynb(raw: bytes) -> DocumentContent:
+        """주피터 노트북: 셀 순서대로 글 · 코드 · 글자 출력. 그림 출력은 「그림」 표시만."""
+        text, encoding = decode_text(raw)
+        try:
+            notebook = json.loads(text)
+        except json.JSONDecodeError:
+            return DocumentContent(text=text, format="ipynb", encoding=encoding,
+                                   warnings=("JSON 이 아니라 글자 그대로 읽었습니다.",))
+        parts: list[str] = []
+        for index, cell in enumerate(notebook.get("cells") or [], 1):
+            source = cell.get("source") or ""
+            body = "".join(source) if isinstance(source, list) else str(source)
+            kind = "코드" if cell.get("cell_type", "code") == "code" else "글"
+            parts.append(f"[셀 {index} · {kind}]\n{body}")
+            for output in cell.get("outputs") or []:
+                data = output.get("data") or {}
+                chunk = output.get("text") or data.get("text/plain") or ""
+                chunk = "".join(chunk) if isinstance(chunk, list) else str(chunk)
+                if output.get("output_type") == "error":
+                    parts.append(f"[셀 {index} 오류] {output.get('ename', '')}: {output.get('evalue', '')}")
+                elif chunk.strip():
+                    parts.append(f"[셀 {index} 출력]\n{chunk[:2000]}")
+                elif any(key.startswith("image/") for key in data):
+                    parts.append(f"[셀 {index} 출력: 그림]")
+        return DocumentContent(text="\n\n".join(parts), format="ipynb", encoding=encoding)
+
+    @staticmethod
+    def _eml(raw: bytes) -> DocumentContent:
+        """저장한 메일(.eml): 머리(보낸 사람 · 받는 사람 · 날짜 · 제목) + 본문 + 첨부 이름."""
+        from email import policy
+        from email.parser import BytesParser
+
+        message = BytesParser(policy=policy.default).parsebytes(raw)
+        head = [f"{name}: {message[name]}" for name in ("From", "To", "Cc", "Date", "Subject") if message[name]]
+        body = message.get_body(preferencelist=("plain", "html"))
+        content = ""
+        if body is not None:
+            try:
+                content = body.get_content()
+            except Exception:  # noqa: BLE001 — 모르는 글자판이면 바이트를 풀어 본다
+                content, _ = decode_text(body.get_payload(decode=True) or b"")
+            if body.get_content_subtype() == "html":
+                parser = _VisibleHTML()
+                parser.feed(content)
+                content = "".join(parser.parts)
+        attachments = [part.get_filename() for part in message.iter_attachments() if part.get_filename()]
+        parts = ["\n".join(head), content]
+        if attachments:
+            parts.append("[첨부] " + " · ".join(attachments) + " — 첨부 내용은 여기서 읽지 않았다.")
+        return DocumentContent(text="\n\n".join(parts), format="eml")
+
+    @staticmethod
+    def _xls(raw: bytes) -> DocumentContent:
+        """옛 엑셀(.xls, 97~2003). xlsx 와 같은 모양으로 시트마다 행을 탭으로."""
+        try:
+            import xlrd
+        except ImportError:
+            raise ValueError("unsupported_document_format:.xls — 옛 엑셀을 읽는 부품(xlrd)이 없습니다.") from None
+        book = xlrd.open_workbook(file_contents=raw, on_demand=True)
+        parts: list[str] = []
+        for sheet in book.sheets()[:50]:
+            parts.append(f"[시트: {sheet.name}]")
+            for row_index in range(min(sheet.nrows, 10_000)):
+                # xlrd 는 숫자를 전부 실수로 준다 — 120 이 「120.0」으로 보이지 않게 정수는 정수로.
+                values = [
+                    "" if value in (None, "")
+                    else str(int(value)) if isinstance(value, float) and value.is_integer()
+                    else str(value)
+                    for value in sheet.row_values(row_index)
+                ]
+                if any(values):
+                    parts.append("\t".join(values))
+            if sheet.nrows > 10_000:
+                parts.append("[행 제한으로 이후 내용 생략]")
+        return DocumentContent(text="\n".join(parts), format="xls", sheets=book.nsheets)
 
     def _pdf(self, raw: bytes) -> DocumentContent:
         from pypdf import PdfReader

@@ -453,7 +453,17 @@ class SetupService:
 
     @property
     def is_satellite(self) -> bool:
-        return str(getattr(self.config, "jarvis_role", "")).lower() == "satellite"
+        """**지금 모델이 집 PC 에서 도는가.** 그때만 이 기기의 모델 받기 · 적용을 막는다.
+
+        ★ 2026-11-03 맥미니(설계_짝짓기_모델자리 순서 1): 예전엔 역할(`JARVIS_ROLE=satellite`)만 보고 모델 화면을 통째로 막았다 —
+          맥에 받아 둔 Ornith 9B 로 돌릴 길이 없었다. 역할과 모델 자리를 나눈다: 자리가 「이 맥」이면 위성 설치본도 이 기기
+          모델을 받고 고른다.
+        """
+        if str(getattr(self.config, "jarvis_role", "")).lower() != "satellite":
+            return False
+        from . import model_place
+
+        return model_place.current(self.config) == "home_pc"
 
     # 진단은 비싸지 않지만 화면이 단계마다 부른다 — 30초는 같은 PC 다.
     def profile(self, *, fresh: bool = False) -> dict[str, Any]:

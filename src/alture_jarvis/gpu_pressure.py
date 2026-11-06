@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import statistics
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Callable
 
@@ -51,6 +52,9 @@ def read_card(run: Callable[..., Any] | None = None) -> dict[str, Any] | None:
     """
     from . import setup_profile
 
+    if sys.platform == "darwin":
+        return read_card_mac()
+
     def bounded(args: list[str], **kwargs: Any) -> Any:
         kwargs["timeout"] = 4
         return (run or subprocess.run)(args, **kwargs)
@@ -66,6 +70,30 @@ def read_card(run: Callable[..., Any] | None = None) -> dict[str, Any] | None:
     total, used = float(card["vram_total_gb"]), float(card.get("vram_used_gb") or 0)
     return {"used_gb": round(used, 2), "total_gb": round(total, 2), "free_gb": round(total - used, 2),
             "index": card.get("index")}
+
+
+def read_card_mac(*, limit_gb: Callable[[], float | None] | None = None, total_gb: Callable[[], float] | None = None,
+                  free_percent: Callable[[], float | None] | None = None) -> dict[str, Any] | None:
+    """맥(애플 칩 · 2026-11-03): 통합 메모리를 「카드」로 읽는다 — 전체 = Metal GPU 상한, 남은 몫 = 지금 쓸 수 있는 메모리.
+
+    ★ 맥은 3ds Max 같은 프로그램이 「그래픽 메모리」를 따로 쥐지 않고 **같은 메모리**를 쓴다. 그래서 「카드가 가득」은
+      맥이 말하는 여유 비율(`memory_pressure`)로 본다. 윈도우와 같은 바닥(`FREE_FLOOR_GB`)을 쓴다.
+      전체를 GPU 상한으로 두므로 「큰 카드(16.5GB 넘음)는 넘기지 않고 알리기만」(11-02 대표 승인)이 맥에도 그대로 걸린다 —
+      GPU 상한이 16.5GB 넘는 맥(대략 32GB 이상 · 짐작)은 알리기만 한다.
+    """
+    from . import macos
+
+    limit = (limit_gb or macos.metal_gpu_limit_gb)()
+    try:
+        ram = (total_gb or (lambda: int(macos.sysctl("hw.memsize") or 0) / 2**30))()
+    except ValueError:
+        ram = 0.0
+    free = (free_percent or macos.memory_free_percent)()
+    if not limit or not ram or free is None:
+        return None
+    available = ram * free / 100.0
+    return {"used_gb": round(max(0.0, limit - available), 2), "total_gb": round(limit, 2),
+            "free_gb": round(min(limit, available), 2), "index": 0, "unified": True}
 
 
 def card_is_full(card: dict[str, Any] | None) -> bool | None:

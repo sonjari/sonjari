@@ -82,6 +82,6 @@ def test_the_agent_fits_the_contract_only_for_the_small_window_research_bundle()
     source = inspect.getsource(agent)
     hook = source[source.index("작은 창의 조사 판은 **지침도 손에 맞춘다**"):]
     hook = hook[:hook.index("task_contract = compile_task_contract")]
-    for condition in ('"small_window_research_bundle"', 'model_role != "code"', "web_research_job", "self._compact_tool_surface(model_role)"):
+    for condition in ('"small_window_research_bundle"', 'model_role != "code"', "web_research_job", "self._compact_tool_surface(model_role, window=self._job_window(job_id, model_role))"):
         assert condition in hook, condition
     assert "_SMALL_WINDOW_RESEARCH_BUNDLE | _ALWAYS_ON_TOOLS | planned_action_tools" in hook

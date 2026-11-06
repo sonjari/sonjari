@@ -16,7 +16,7 @@
   --hi: #ffee9a;        /* 형광 — 장마다 한 곳 */
   --loss: #c33b2c;      /* 손실 숫자만 */
   --font: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif;
-  --num: 'Segoe UI', 'Malgun Gothic', 'Helvetica Neue', sans-serif;  /* 숫자 — 가는 획 */
+  --num: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', 'Helvetica Neue', sans-serif;  /* 숫자 — 가는 획 */
 }
 html, body { margin: 0; padding: 0; background: #fff; }
 section.slide {

@@ -15,7 +15,7 @@ import { lang, setLang, t, type Lang } from "../i18n";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Archive, Brain, Cpu, FlaskConical, Link2, Loader2, MessagesSquare, Mic, RotateCcw, Settings2, ShieldCheck,
-  Sparkles, Stethoscope, Undo2, Workflow, X, FileInput, Package, MessageCircle, UserRound, NotebookPen,
+  Sparkles, Stethoscope, Undo2, Workflow, X, FileInput, Package, MessageCircle, UserRound, NotebookPen, Plug,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { isTauri, loadBootstrap, type JarvisClient } from "../backend";
@@ -32,6 +32,7 @@ import "../setup/setup.css";
 import type { BackupSummary, SettingRow, SettingValue, SettingsView } from "../types";
 import { LearnedPanel } from "./LearnedPanel";
 import { PacksSection } from "./PacksSection";
+import { McpSection } from "./McpSection";
 import { DiscordSection } from "./DiscordSection";
 import { AboutMeSection } from "./AboutMeSection";
 import { SavingsCard } from "./SavingsCard";
@@ -53,6 +54,8 @@ const EXTRA_SECTIONS: { id: Section; label: string; heading: string; icon: React
   { id: "about_me", label: t("나에 대한 지침"), heading: t("사용자 지정"), icon: <UserRound size={15} /> },
   { id: "packs", label: t("팩"), heading: t("사용자 지정"), icon: <Package size={15} /> },
   { id: "connect", label: t("연결"), heading: t("사용자 지정"), icon: <Link2 size={15} /> },
+  // 2026-11-04: 남의 MCP 서버를 Sonjari 에 꽂는 곳(「연결」은 거꾸로 — Sonjari 를 클로드 · 커서에 꽂는 곳).
+  { id: "mcp", label: t("MCP 서버 꽂기"), heading: t("사용자 지정"), icon: <Plug size={15} /> },
   // ★ 2026-10-22 대표: 서기를 실험실에서 꺼냈다 — 클로드 코드와 같이 쓰는 기능이라 「연결」 바로 아래.
   { id: "scribe", label: t("서기"), heading: t("사용자 지정"), icon: <NotebookPen size={15} /> },
   // ★ 2026-10-18: 폰 디스코드로 일 시키기 — 명령 창 마법사를 쓸 수 없는 스토어판 사람이 클릭 몇 번으로 잇는다.
@@ -300,6 +303,7 @@ export function SettingsScreen({ client, open, onClose, initialSection = "genera
 
           {section === "about_me" && <AboutMeSection api={setupApi} />}
           {section === "packs" && client && <PacksSection client={client} />}
+          {section === "mcp" && client && <McpSection client={client} />}
           {section === "connect" && (
             <div className="settings-block">
               {/* 2026-10-19: 클로드를 이은 까닭이 숫자로 보이는 자리 — 연결 설정 바로 위. */}

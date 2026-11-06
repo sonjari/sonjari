@@ -1217,7 +1217,9 @@ def _workdir_of(log: Path) -> str:
 def _is_temp(where: str) -> bool:
     """임시 폴더에서 연 대화(측정 · 시험이 만든 것) — 화면에서 접어 둔다. 지우거나 숨기지는 않는다."""
     lowered = where.replace("\\", "/").lower()
-    return "/appdata/local/temp/" in lowered or "-appdata-local-temp" in lowered
+    # 맥 임시 자리는 `/var/folders/…/T/`(실제 `/private/var/folders`) — 클로드 코드 프로젝트 폴더 이름으로는 `-private-var-folders-…`.
+    return ("/appdata/local/temp/" in lowered or "-appdata-local-temp" in lowered
+            or "/var/folders/" in lowered or "-var-folders-" in lowered)
 
 
 def claude_projects(home: Path | None = None, limit: int = PROJECTS_LIMIT) -> list[dict[str, Any]]:

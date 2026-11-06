@@ -159,6 +159,8 @@ def test_shipped_source_has_no_personal_or_machine_specific_markers() -> None:
         *sorted((root / "skills").glob("*.json")),
     ]
     body = "\n".join(path.read_text(encoding="utf-8") for path in files)
+    # The private-range table in peer_guard.py (RFC 1918) is not a home address.
+    body = body.replace('"192.168.0.0/16"', "")
     for marker in (
         "사용자님",
         "박가람",

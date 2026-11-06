@@ -78,6 +78,38 @@ class WindowsCredentialStore:
         return True
 
 
+class MacKeychainStore:
+    """맥 로그인 키체인의 일반 암호 하나(2026-11-03 맥판) — 「키체인 접근」 앱에서 서비스 이름 `Sonjari/…` 로 보인다.
+
+    `security` 명령을 쓴다. 쓸 때 비밀이 명령줄 인자로 잠깐 지나간다(같은 맥의 프로세스 목록) — 파일에 평문으로 두는 것보다 낫고,
+    프레임워크를 직접 부르는 것은 다음 판 몫으로 둔다.
+    """
+
+    ACCOUNT = "sonjari"
+
+    def _run(self, *args: str) -> "subprocess.CompletedProcess[str]":
+        import subprocess
+
+        return subprocess.run(["/usr/bin/security", *args], capture_output=True, text=True, timeout=15,
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+    def read(self, target: str) -> str | None:
+        done = self._run("find-generic-password", "-s", target, "-a", self.ACCOUNT, "-w")
+        if done.returncode == 44:  # errSecItemNotFound
+            return None
+        if done.returncode != 0:
+            raise OSError(f"keychain read failed ({done.returncode}): {(done.stderr or '').strip()[:120]}")
+        return (done.stdout or "").strip() or None
+
+    def write(self, target: str, secret: str) -> None:
+        done = self._run("add-generic-password", "-U", "-s", target, "-a", self.ACCOUNT, "-w", secret)
+        if done.returncode != 0:
+            raise OSError(f"keychain write failed ({done.returncode}): {(done.stderr or '').strip()[:120]}")
+
+    def delete(self, target: str) -> bool:
+        return self._run("delete-generic-password", "-s", target, "-a", self.ACCOUNT).returncode == 0
+
+
 class MemoryCredentialStore:
     """시험용 — 프로세스 안에만 둔다."""
 
@@ -95,6 +127,10 @@ class MemoryCredentialStore:
 
 
 def default_store() -> CredentialStore:
+    import sys
+
+    if sys.platform == "darwin":
+        return MacKeychainStore()
     return WindowsCredentialStore()
 
 

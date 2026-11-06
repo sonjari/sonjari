@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><title>처음 한 번 여는 법</title>
+<style>
+  :root { --ink:#1d1d1f; --sub:#6e6e73; --line:#d2d2d7; --blue:#0a84ff; --red:#e5484d; --brand:#9384e0; --paper:#f5f5f7; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; color:var(--ink); background:#fff; }
+  .card { width:1200px; height:760px; padding:48px 56px; display:grid; grid-template-columns: 430px 1fr; gap:48px; background:linear-gradient(160deg,#fbfaff,#f2f0fb); }
+  .step { font-size:15px; font-weight:700; letter-spacing:.08em; color:var(--brand); }
+  h1 { margin:10px 0 18px; font-size:38px; line-height:1.25; letter-spacing:-.02em; }
+  p { margin:0 0 14px; font-size:20px; line-height:1.6; color:#3a3a3c; }
+  .warn { margin-top:22px; padding:16px 18px; border-radius:14px; background:#fff1f1; border:1.5px solid #ffc7c7; color:#b42318; font-size:19px; font-weight:600; line-height:1.5; }
+  .ok { margin-top:22px; padding:16px 18px; border-radius:14px; background:#eefaf2; border:1.5px solid #bfe8cd; color:#1b6b3a; font-size:19px; font-weight:600; }
+  .stage { position:relative; border-radius:22px; background:url('') , linear-gradient(135deg,#f6a24a,#e2532f 55%,#7a2e8e); overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  /* 맥 「열지 않음」 창 흉내 */
+  .dlg { width:300px; padding:22px 20px 18px; border-radius:16px; background:rgba(246,246,246,.97); box-shadow:0 30px 60px -20px rgba(0,0,0,.5); text-align:center; }
+  .dlg .icon { font-size:44px; line-height:1; }
+  .dlg b { display:block; margin:12px 0 8px; font-size:15px; }
+  .dlg small { display:block; font-size:12px; color:#555; line-height:1.5; }
+  .btns { display:flex; gap:8px; margin-top:16px; }
+  .btn { flex:1; padding:7px 0; border-radius:8px; font-size:13px; background:#e3e3e3; position:relative; }
+  .btn.blue { background:var(--blue); color:#fff; }
+  .ring { outline:4px solid #ffd60a; outline-offset:3px; }
+  .x::after { content:"✕ 누르지 마세요"; position:absolute; left:50%; top:calc(100% + 14px); transform:translateX(-50%); white-space:nowrap;
+              padding:5px 10px; border-radius:8px; background:var(--red); color:#fff; font-size:13px; font-weight:700; }
+  .x { opacity:.55; text-decoration:line-through; }
+  .tap::after { content:"여기 누르기"; position:absolute; left:50%; top:calc(100% + 14px); transform:translateX(-50%); white-space:nowrap;
+                padding:5px 10px; border-radius:8px; background:#ffd60a; color:#1d1d1f; font-size:13px; font-weight:700; }
+  /* 시스템 설정 흉내 */
+  .settings { width:600px; height:440px; border-radius:14px; background:#fff; box-shadow:0 30px 60px -20px rgba(0,0,0,.5); display:grid; grid-template-columns:190px 1fr; overflow:hidden; font-size:13px; }
+  .side { background:#f0f0f2; padding:40px 10px 10px; display:flex; flex-direction:column; gap:4px; color:#555; }
+  .side span { padding:6px 10px; border-radius:7px; }
+  .side .on { background:#d8d6f5; color:#1d1d1f; font-weight:600; }
+  .pane { padding:18px 20px; display:flex; flex-direction:column; gap:10px; }
+  .pane h3 { margin:0 0 4px; font-size:16px; }
+  .row { padding:10px 12px; border-radius:9px; background:#f5f5f7; display:flex; justify-content:space-between; align-items:center; gap:10px; color:#333; }
+  .row.hl { background:#fffbe6; border:1.5px solid #ffd60a; }
+  .pill { padding:5px 12px; border-radius:7px; background:#e3e3e3; font-size:12px; white-space:nowrap; position:relative; }
+  /* 터미널 흉내 */
+  .term { width:600px; border-radius:12px; background:#1e1e1e; color:#e6e6e6; font:14px/1.7 Menlo,Consolas,monospace; box-shadow:0 30px 60px -20px rgba(0,0,0,.5); overflow:hidden; }
+  .term .bar { height:28px; background:#2d2d2d; display:flex; gap:7px; align-items:center; padding:0 12px; }
+  .term .bar i { width:11px; height:11px; border-radius:50%; background:#ff5f57; } .term .bar i+i { background:#febc2e; } .term .bar i+i+i { background:#28c840; }
+  .term pre { margin:0; padding:16px 18px; white-space:pre-wrap; }
+  .term .done { color:#7ee2a8; font-weight:700; }
+  .foot { position:absolute; right:16px; bottom:12px; color:rgba(255,255,255,.85); font-size:13px; }
+</style>
+
+<section class="card" id="c1">
+  <div>
+    <div class="step">처음 한 번만 · 1 / 3</div>
+    <h1>「손자리 설치」를<br>두 번 누르면<br>「열지 않음」 창이 뜹니다</h1>
+    <p>애플이 아직 손자리를 확인하지 않은 앱이라 처음 한 번 막는 것입니다. 손자리는 이 맥 안에서만 일합니다.</p>
+    <p><b>[완료]</b>를 누르세요.</p>
+    <div class="warn">[휴지통으로 이동]은 누르지 마세요.<br>누르면 설치 파일이 지워집니다.</div>
+  </div>
+  <div class="stage">
+    <div class="dlg">
+      <div class="icon">⚠️</div>
+      <b>'손자리 설치.command'을(를)<br>열지 않음</b>
+      <small>Apple은 '손자리 설치.command'에 사용자의 Mac에 손상을 입히거나 사용자의 개인정보에 침입할 수 있는 악성 코드가 없음을 확인할 수 없습니다.</small>
+      <div class="btns"><span class="btn ring tap">완료</span><span class="btn blue x">휴지통으로 이동</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="card" id="c2">
+  <div>
+    <div class="step">처음 한 번만 · 2 / 3</div>
+    <h1>시스템 설정에서<br>「그래도 열기」</h1>
+    <p>화면 맨 왼쪽 위의 <b>사과 모양</b> → <b>시스템 설정</b> → <b>개인정보 보호 및 보안</b>.</p>
+    <p>오른쪽을 아래로 내리면 「보안」 칸에 「손자리 설치.command」 줄이 있습니다. 그 줄의 <b>[그래도 열기]</b>를 누르세요.</p>
+    <p>맥이 암호(또는 손가락)를 물으면 넣어 주세요.</p>
+  </div>
+  <div class="stage">
+    <div class="settings">
+      <div class="side"><span>알림</span><span>사운드</span><span>집중 모드</span><span>스크린 타임</span><span>잠금 화면</span><span class="on">개인정보 보호 및 보안</span><span>로그인 암호</span><span>사용자 및 그룹</span></div>
+      <div class="pane">
+        <h3>개인정보 보호 및 보안</h3>
+        <div class="row"><span>위치 접근 리포트</span><span>켬 ›</span></div>
+        <div style="font-weight:600;margin-top:6px">보안</div>
+        <div class="row"><span>다음에서 응용 프로그램 허용</span><span>App Store 및 알려진 개발자</span></div>
+        <div class="row hl"><span>「손자리 설치.command」이(가) 차단되었습니다</span><span class="pill ring tap">그래도 열기</span></div>
+        <div class="row" style="margin-top:34px"><span>FileVault</span><span>끔 ›</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="card" id="c3">
+  <div>
+    <div class="step">처음 한 번만 · 3 / 3</div>
+    <h1>설치 창이 이어서<br>끝까지 갑니다</h1>
+    <p>검은 창(터미널)에 [1/5] 부터 [5/5] 까지 한 줄씩 지나갑니다. 처음엔 부품을 받느라 몇 분 걸릴 수 있습니다.</p>
+    <div class="ok">「설치 끝」이 뜨면 손자리가 열립니다.<br>검은 창은 닫아도 됩니다.</div>
+    <p style="margin-top:22px">다음부터는 이 과정 없이 손자리를 바로 엽니다.</p>
+  </div>
+  <div class="stage">
+    <div class="term">
+      <div class="bar"><i></i><i></i><i></i></div>
+<pre>[1/5] 손자리 파일을 놓는 중
+[2/5] 필요한 부품을 까는 중 (처음엔 몇 분 걸립니다)
+[3/5] 처음 설정을 만드는 중
+[4/5] 맥을 켜면 손자리도 같이 켜지게 하는 중
+[5/5] 손자리가 켜지기를 기다리는 중
+손자리가 켜졌습니다.
+
+<span class="done">설치 끝 · Sonjari 가 열립니다. 이 창은 닫아도 됩니다.</span></pre>
+    </div>
+  </div>
+</section>
+</html>

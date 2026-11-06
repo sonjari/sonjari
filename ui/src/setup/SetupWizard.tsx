@@ -18,6 +18,7 @@
  * - 지침 가져오기(P4)는 3단계 왼쪽이 고르고 누르는 곳, 오른쪽이 「어디를 여는지」와 걷은 결과.
  */
 import { lang, setLang, t } from "../i18n";
+import { isMac } from "../platform";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri, loadBootstrap } from "../backend";
@@ -33,6 +34,7 @@ import { ImportPanel } from "./ImportPanel";
 import { ImportPreview } from "./ImportPreview";
 import { AboutMeCard } from "./AboutMeCard";
 import { MemoryRuler } from "./MemoryRuler";
+import { ModelPlaceBar } from "./ModelPlace";
 import { HfPicker, type HfPick } from "./HfPicker";
 import { pollUnlessBusy } from "./poll";
 import { useInstructionImport, type ImportState } from "./useInstructionImport";
@@ -91,6 +93,8 @@ export default function SetupWizard() {
   const [step, setStep] = useState<Step>(0);
   const [profile, setProfile] = useState<PcProfile | null>(null);
   const [rec, setRec] = useState<Recommendation | null>(null);
+  // 모델 자리가 집 PC 면 이 PC 의 모델 카드 · 적용을 쓰지 않는다 — 눌러도 백엔드가 거절한다(2026-11-03).
+  const sat = rec?.mode === "satellite";
   const [models, setModels] = useState<CatalogModel[]>([]);
   const [error, setError] = useState("");
   const [retrying, setRetrying] = useState(false);
@@ -502,7 +506,17 @@ export default function SetupWizard() {
             2·3단계까지 따라왔고, 걸음이 쌓이며 버튼과 진행 막대를 화면 밖으로 밀어냈다. */}
         {step === 0 && <DemoReel />}
         {step === 1 && (
-          <StepModelText rec={rec} asked={asked} said={said} onAsk={askAssistant} />
+          <>
+            {sat ? (
+              <div className="setup-say">
+                <h1>{t("모델은 집 PC 에서 돕니다")}</h1>
+                <p className="setup-lead">{t("집 PC 의 그래픽카드로 돌립니다. 오른쪽에서 쓸 모델을 고르거나, 그대로 다음으로 넘어가셔도 됩니다.")}</p>
+              </div>
+            ) : (
+              <StepModelText rec={rec} asked={asked} said={said} onAsk={askAssistant} />
+            )}
+            {!sat && <ModelPlaceBar api={api} onChanged={() => void recheck()} />}
+          </>
         )}
         {step === 2 && api && (
           <div className="setup-say">
@@ -540,7 +554,7 @@ export default function SetupWizard() {
 
         {/* 진행 줄은 버튼 **위**에 — 아래에 두면 긴 화면에서 밀려나 받는 중인지 안 보였다(2026-09-16 노트북). */}
         {/* Ollama 가 없으면 설치 칸을 **여기에도** 둔다 — 아래 실패 글이 「위의 『Ollama 설치』」를 가리킨다(2026-10-06). */}
-        {step === 1 && <FirstRunPanel api={api} onOllamaReady={() => void recheck()} ollamaOnly />}
+        {step === 1 && !sat && <FirstRunPanel api={api} onOllamaReady={() => void recheck()} ollamaOnly />}
         {step === 1 && held && <HeldLine ollama={ollamaNow} />}
         {step === 1 && <GpuFixLine fix={gpuFix} />}
         {(step === 1 || ((step === 2 || step === 3) && (pull?.status === "pulling" || applying))) && (
@@ -607,12 +621,12 @@ export default function SetupWizard() {
               {t("모델 직접 고르기")}
             </button>
           )}
-          {step === 1 && applied?.ok && (
+          {step === 1 && (applied?.ok || sat) && (
             <button type="button" className="setup-btn-go" onClick={() => setStep(2)}>
               {t("쓰임 고르기")}
             </button>
           )}
-          {step === 1 && !applied?.ok && (
+          {step === 1 && !applied?.ok && !sat && (
             <>
               <button
                 type="button"
@@ -665,9 +679,12 @@ export default function SetupWizard() {
       </section>
 
       <section className="setup-machine">
-        {card ? (
+        {card && !(sat && step > 0) ? (
           <MemoryRuler card={card} model={step === 0 ? null : rulerModel}
             ctx={step === 0 ? null : hfPick && source === "hf" ? 32768 : picked?.ctx} />
+        ) : profile && rec?.mode === "satellite" ? (
+          // 집 PC 의 모델을 빌린다 — 이 PC 에 그래픽카드가 없어도 된다(2026-11-03 대표: 경고를 내지 않는다).
+          <p className="setup-nocard">{t("집 PC 의 모델을 빌려 씁니다 — 이 PC 에는 그래픽카드가 없어도 됩니다.")}</p>
         ) : profile ? (
           <p className="setup-nocard">
             {t("AI 모델을 올릴 그래픽카드가 보이지 않습니다. Sonjari는 그래픽카드 메모리 8GB 이상을 권합니다.")}
@@ -705,7 +722,8 @@ export default function SetupWizard() {
             <div><dt>{t("나중에")}</dt><dd>{t("설정 › 스킬에서 언제든 바꿉니다")}</dd></div>
           </dl>
         )}
-        {step === 1 && focused && (
+        {step === 1 && sat && <ModelPlaceBar api={api} onChanged={() => void recheck()} />}
+        {step === 1 && !sat && focused && (
           <>
             <ModelGallery
               plain
@@ -730,7 +748,7 @@ export default function SetupWizard() {
             </button>
           </>
         )}
-        {step === 1 && !focused && (
+        {step === 1 && !sat && !focused && (
           <>
             <div className="model-source" role="tablist" aria-label={t("모델을 고르는 길")}>
               {([
@@ -828,7 +846,7 @@ function StepCheckText({ profile, rec, onRecheck, rechecking }: {
                 ? t("이 PC 에서 모델을 돌릴 수 있습니다. 다만 우리가 직접 잰 모델은 이 카드에 안 들어가 외부 평가 모델을 권합니다.")
                 : t("이 PC 에서 모델을 직접 돌릴 수 있습니다.")
               : rec?.mode === "satellite"
-                ? t("이 PC 는 본체 PC 의 모델을 빌려 씁니다.")
+                ? t("집 PC 의 모델을 빌려 씁니다.")
                 : rec?.mode === "too_small"
                   ? t("이 PC 의 그래픽카드 메모리로는 Sonjari가 권하는 모델이 여유 있게 안 들어갑니다.")
                   : t("이 PC 에는 AI 모델을 올릴 그래픽카드가 없습니다.")}
@@ -1231,7 +1249,7 @@ function HeldLine({ ollama }: { ollama: OllamaStatus | null }) {
     <p ref={line} className="setup-reason" role="status">{t("Ollama 를 설치하는 중입니다 — 끝나는 대로 이어서 받습니다. 이 화면을 그대로 두세요.")}</p>
   ) : (
     <p ref={line} className="setup-warn" role="status">
-      {t("Ollama 가 아직 없어 받기를 시작하지 않았습니다 — 바로 위의 「Ollama 설치」를 누르면 끝나는 대로 이어서 받습니다. 이미 깔았다면 시작 메뉴에서 Ollama 를 켜 주세요.")}
+      {isMac ? t("Ollama 가 아직 없어 받기를 시작하지 않았습니다 — 바로 위의 「Ollama 설치」를 누르면 끝나는 대로 이어서 받습니다. 이미 깔았다면 응용 프로그램 폴더에서 Ollama 를 켜 주세요.") : t("Ollama 가 아직 없어 받기를 시작하지 않았습니다 — 바로 위의 「Ollama 설치」를 누르면 끝나는 대로 이어서 받습니다. 이미 깔았다면 시작 메뉴에서 Ollama 를 켜 주세요.")}
     </p>
   );
 }
@@ -1249,7 +1267,16 @@ function PullFailure({ pull }: { pull: PullState }) {
 
 function Facts({ profile }: { profile: PcProfile | null }) {
   if (!profile) return <div className="setup-facts is-loading" aria-hidden="true" />;
-  const rows: [string, string][] = [
+  const apple = profile.gpus.find((gpu) => gpu.unified && gpu.memory);
+  const remote = Boolean(profile.ollama_remote);
+  const rows: [string, string][] = apple?.memory ? [
+    // 애플 칩(2026-11-03 대표): 「이 앱이 돌아가면 이 정도 더 든다」를 숫자 셋으로 — 이 맥 메모리 / 손자리가 쓰는 몫 / 모델에 남는 몫.
+    [t("이 맥"), apple.name],
+    [t("이 맥 메모리"), `${apple.memory.total_gb.toFixed(0)}GB`],
+    [t("손자리가 쓰는 몫"), t("약 {0}GB (실측 · 백엔드 + 크롬)", apple.memory.self_gb.toFixed(1))],
+    [t("다른 앱이 지금 쓰는 몫"), apple.memory.others_source === "unknown" ? t("못 쟀습니다") : t("약 {0}GB", apple.memory.others_gb.toFixed(1))],
+    [t("모델에 남는 몫"), t("약 {0}GB (GPU 상한 {1}GB)", apple.memory.model_share_gb.toFixed(1), apple.memory.gpu_limit_gb.toFixed(1))],
+  ] : [
     ...profile.gpus.map((gpu): [string, string] => [
       t("그래픽카드 {0}", gpu.index + 1),
       gpu.integrated
@@ -1257,10 +1284,18 @@ function Facts({ profile }: { profile: PcProfile | null }) {
         : t("{0} · {1}GB{2}", gpu.name.replace(/^NVIDIA GeForce /, ""), gpu.vram_total_gb.toFixed(0), gpu.source === "registry" ? "" : gpu.display_active ? t(" · 화면 출력") : ""),
     ]),
     [t("시스템 메모리"), profile.ram_gb ? `${profile.ram_gb.toFixed(0)}GB` : t("못 쟀습니다")],
-    [t("디스크 여유"), profile.disk_free_gb !== null ? `${profile.disk_free_gb.toFixed(0)}GB` : t("못 쟀습니다")],
-    ["Ollama", profile.ollama.reachable ? t("켜져 있음 · {0}", profile.ollama.version) : t("꺼져 있거나 설치되지 않았습니다")],
-    [t("받아 둔 모델"), profile.ollama.installed.length ? t("{0}개", profile.ollama.installed.length) : t("없음")],
   ];
+  rows.push(
+    [t("디스크 여유"), profile.disk_free_gb !== null ? `${profile.disk_free_gb.toFixed(0)}GB` : t("못 쟀습니다")],
+    // 집 PC 를 빌리면 이 값은 집 PC 의 것이다 — 이 PC 것처럼 보이지 않게 이름에 밝힌다(2026-11-03).
+    [remote ? t("Ollama · 집 PC") : "Ollama", profile.ollama.reachable ? t("켜져 있음 · {0}", profile.ollama.version) : t("꺼져 있거나 설치되지 않았습니다")],
+    [remote ? t("받아 둔 모델 · 집 PC") : t("받아 둔 모델"), profile.ollama.installed.length ? t("{0}개", profile.ollama.installed.length) : t("없음")],
+  );
+  if (remote && profile.local_ollama) {
+    rows.push([t("Ollama · 이 PC"), profile.local_ollama.reachable
+      ? t("켜져 있음 · {0} · 모델 {1}개", profile.local_ollama.version, profile.local_ollama.installed.length)
+      : t("꺼져 있거나 설치되지 않았습니다")]);
+  }
   return (
     <dl className="setup-facts">
       {rows.map(([label, value]) => (
@@ -1770,7 +1805,7 @@ export function outOfMemoryReason(users?: { used_gb?: number; total_gb?: number;
   const used = users?.used_gb != null && users?.total_gb ? t(" 지금 그래픽카드 메모리 {0}GB / {1}GB 를 다른 프로그램이 쓰고 있습니다.", users.used_gb, users.total_gb) : "";
   const apps = users?.apps?.length ? t(" 쓰는 프로그램: {0}.", users.apps.join(" · ")) : "";
   const ollama = users?.apps?.some((name) => /ollama|llama-server/i.test(name))
-    ? t(" 예전에 깐 다른 Ollama(위성 등)가 모델을 쥐고 있을 수 있습니다 — 작업 표시줄 오른쪽 Ollama 아이콘에서 끄거나 그 프로그램을 지운 뒤")
+    ? (isMac ? t(" 예전에 깐 다른 Ollama 가 모델을 쥐고 있을 수 있습니다 — 화면 위 메뉴 막대의 Ollama 아이콘에서 끄거나 그 프로그램을 지운 뒤") : t(" 예전에 깐 다른 Ollama(위성 등)가 모델을 쥐고 있을 수 있습니다 — 작업 표시줄 오른쪽 Ollama 아이콘에서 끄거나 그 프로그램을 지운 뒤"))
     : t(" 게임·영상 편집처럼 그래픽카드를 쓰는 프로그램을 닫은 뒤");
   return t("그래픽카드 메모리가 모자라 모델을 올리지 못했습니다. 기존 모델을 그대로 둡니다 — 다시 설치해도 풀리지 않습니다.{0}{1}{2} 다시 적용해 주세요.", used, apps, ollama);
 }

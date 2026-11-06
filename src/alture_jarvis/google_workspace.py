@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
+
 import base64
 import ctypes
 import hashlib
@@ -106,8 +108,8 @@ class TokenVault:
             return data
         source, source_buffer = TokenVault._blob(data)
         output = _DataBlob()
-        crypt32 = ctypes.windll.crypt32
-        kernel32 = ctypes.windll.kernel32
+        crypt32 = winapi.crypt32
+        kernel32 = winapi.kernel32
         _ = source_buffer
         if not crypt32.CryptProtectData(
             ctypes.byref(source),
@@ -130,8 +132,8 @@ class TokenVault:
             return data
         source, source_buffer = TokenVault._blob(data)
         output = _DataBlob()
-        crypt32 = ctypes.windll.crypt32
-        kernel32 = ctypes.windll.kernel32
+        crypt32 = winapi.crypt32
+        kernel32 = winapi.kernel32
         _ = source_buffer
         if not crypt32.CryptUnprotectData(
             ctypes.byref(source), None, None, None, None, 0, ctypes.byref(output)

@@ -77,8 +77,6 @@ CODE_CORE_TOOL_NAMES = frozenset(
 )
 CODE_RESEARCH_TOOL_NAMES = frozenset(
     {
-        "naver_news",
-        "naver_web",
         "github_search",
         "reddit_hot",
         "hackernews_top",
@@ -234,7 +232,7 @@ _CODE_TOOL_DETOURS: tuple[tuple[frozenset[str], str], ...] = (
     (
         frozenset({
             "browser_search", "browser_open", "browser_extract", "browser_site_search",
-            "browser_open_result", "naver_web", "naver_news", "github_search",
+            "browser_open_result", "github_search",
         }),
         "이 판은 조사 갈래가 아니다 — 저장소 안에서 답을 찾으려면 `local_grep` 과 "
         "`local_search_files` 를 써라. 밖을 조사해야 하면 사람에게 무엇을 조사할지 말하고 "
@@ -797,8 +795,6 @@ _QWEN_DESCRIPTIONS = {
     ),
     "sandbox_run": "Run isolated scratch code; it does not verify the selected repository.",
     "sandbox_fetch": "Fetch a previously generated sandbox artifact.",
-    "naver_news": "Find current Korean news sources by query. Read-only research.",
-    "naver_web": "Find Korean web sources with titles, snippets, and URLs. Read-only research.",
     "github_search": "Search public GitHub repositories and return stars, descriptions, and URLs.",
     "reddit_hot": "Read current hot posts from one public subreddit.",
     "hackernews_top": "Read current top Hacker News technology posts.",

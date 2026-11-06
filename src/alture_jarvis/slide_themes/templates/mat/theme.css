@@ -33,21 +33,21 @@
         /* ── Typography ──────────────────────────────────────────────────── */
         /* Display/Heading: Bricolage Grotesque — heavy, rounded, mixed case.
            The defining font of this template. Weight 700–800 at display scale. */
-        --f-display: 'Segoe UI', 'Malgun Gothic', sans-serif;
-        --f-heading: 'Segoe UI', 'Malgun Gothic', sans-serif;
+        --f-display: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+        --f-heading: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
         /* Body: DM Sans — neutral, readable, lets the display type breathe */
-        --f-body: 'Segoe UI', 'Malgun Gothic', sans-serif;
+        --f-body: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
         /* Mono: DM Mono — for kickers, labels, metadata, rotated edge tags */
-        --f-mono: Consolas, 'Malgun Gothic', monospace;
+        --f-mono: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
 
         /* ── Type Scale ──────────────────────────────────────────────────── */
         /* vw units = responsive to viewport width */
-        --sz-display: 'Segoe UI', 'Malgun Gothic', sans-serif; /* hero cover title — massive, commanding        */
+        --sz-display: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; /* hero cover title — massive, commanding        */
         --sz-h1: 7vw; /* chapter / end slide headline                  */
         --sz-h2: 4vw; /* content slide headline                        */
         --sz-h3: 2.4vw; /* sub-headline, compare panel title             */
         --sz-lead: 1.5vw; /* lead paragraph — slightly larger than body    */
-        --sz-body: 'Segoe UI', 'Malgun Gothic', sans-serif; /* body text, bullets                            */
+        --sz-body: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; /* body text, bullets                            */
         --sz-caption: 0.82vw; /* image captions, footnotes                     */
         --sz-label: 0.7vw; /* chrome labels, kickers, mono tags             */
 

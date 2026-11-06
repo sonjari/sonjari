@@ -434,11 +434,18 @@ def _platform_scoped_tool_definitions(
     tools: list[dict[str, Any]], request_text: str, *, compact: bool = False,
     planned: frozenset[str] | set[str] = frozenset(),
 ) -> list[dict[str, Any]]:
-    """요청에 없는 서비스에 올리는 손을 모델 표면에서 뺀다. `compact` 면(작은 컨텍스트) 이야기가 안 나온 도구 가족도 뺀다."""
+    """`compact`(작은 컨텍스트)일 때만 요청에 없는 서비스에 올리는 손과 이야기가 안 나온 도구 가족을 모델 표면에서 뺀다.
+
+    ★ 2026-11-06 판 첫 걸음 44.8초(대표 실사용 · 모델 서버 기록): 블로그를 말한 판은 144개, 안 한 판은 138개(네이버 블로그 손 6개)였다.
+      맨 뒤에 둬서 앞부분은 98% 같았지만(22,858 / 31,199토큰), 이 모델(Swift 27B)은 **서버가 찍어 둔 저장점에서만** 이어 읽는다 —
+      저장점은 보관된 대화의 끝 근처에만 있어 갈라진 자리 앞으로 되돌아가지 못하고 3만 토큰을 통째로 다시 읽었다(29.6초 + 저장 15초).
+      10-24 「올리기 손은 맨 뒤」는 이 모델에서는 효과가 없다. **목록을 요청마다 바꾸지 않는다.** 말하지 않은 서비스에 올리는 것은
+      목록에서 빼는 대신 부르면 되돌려 보낸다(`_platform_write_unrequested` → `platform_write_not_requested` · 09-18 사고의 안전은 그대로).
+    """
     kept: list[dict[str, Any]] = []
     for tool in tools:
         name = str((tool.get("function") or {}).get("name") or "")
-        if _platform_write_unrequested(name, request_text, planned):
+        if compact and _platform_write_unrequested(name, request_text, planned):
             continue
         if compact and name not in _ALWAYS_ON_TOOLS and _compact_family_unrequested(name, request_text):
             continue

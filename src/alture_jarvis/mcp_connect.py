@@ -42,7 +42,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Callable
 
-from . import msix
+from . import macos, msix
 from .brand import LEGACY_MCP_SERVER_NAMES, MCP_SERVER_NAME
 from .brand import MCP_ALIAS as BRAND_MCP_ALIAS
 
@@ -294,6 +294,10 @@ class ConnectService:
         return server_entry(self.config, python=self._python_override)
 
     def desktop_paths(self) -> list[Path]:
+        if macos.is_mac():
+            # ★ 2026-11-03 맥판(전수조사 C2): 예전엔 맥에서도 `~/AppData/Roaming/Claude/…` 를 봤다 — 그 폴더가 없으면
+            #   「설치 안 됨」, 누가 만들어 두면 **엉뚱한 자리에 써 놓고 성공**으로 보였다. 맥 자리는 맥미니에서 확인.
+            return [self.home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"]
         paths = [self.appdata / "Claude" / "claude_desktop_config.json"]
         paths += [Path(p) for p in glob.glob(str(
             self.localappdata / "Packages" / "Claude_*" / "LocalCache" / "Roaming" / "Claude" / "claude_desktop_config.json"))]
@@ -308,6 +312,8 @@ class ConnectService:
             return [str(p.info.get("exe") or "") for p in psutil.process_iter(["exe"])]
         except Exception:
             pass
+        if macos.is_mac():
+            return [exe for _, exe in macos.processes(self.run)]
         try:
             done = self.run(["powershell", "-NoProfile", "-Command",
                              "Get-CimInstance Win32_Process | ForEach-Object { $_.ExecutablePath }"],
@@ -323,7 +329,12 @@ class ConnectService:
     _CLI_CLAUDE_PARTS = ("\\claude-code\\", "\\npm\\", "\\node_modules\\", "\\.local\\", "\\.claude\\")
 
     def _is_desktop_exe(self, exe: str) -> bool:
-        low = str(exe or "").replace("/", "\\").lower()
+        raw = str(exe or "")
+        # 맥: 데스크톱 앱은 `/…/Claude.app/Contents/MacOS/Claude`. 클로드 코드 CLI 는 같은 모양에 소문자 `claude` 라
+        # **대소문자를 가려** 본다(`macos.DESKTOP_EXE_TAIL`).
+        if raw.endswith(macos.DESKTOP_EXE_TAIL):
+            return "/claude-code/" not in raw
+        low = raw.replace("/", "\\").lower()
         return low.endswith("\\claude.exe") and not any(part in low for part in self._CLI_CLAUDE_PARTS)
 
     def desktop_exes(self) -> list[str]:
@@ -385,6 +396,10 @@ class ConnectService:
         found = self.which("claude")
         if found:
             return found
+        if macos.is_mac():
+            # 맥: 따로 깐 것(`~/.local/bin` · brew) 다음에 데스크톱 앱이 들고 있는 CLI(맥미니 확인 — 2.1.309).
+            mac_found = macos.claude_cli_candidates(self.home)
+            return str(mac_found[0]) if mac_found else None
         # ★ 2026-10-06 스토어판 첫 설치(노트북): 클로드 코드를 **따로 깐** PC 인데 「명령을 찾지 못함」이 떴다.
         #   따로 깐 것은 사용자 폴더의 `.local/bin/claude.exe` 에 있고(위 `_CLI_CLAUDE_PARTS` 가 이미 아는 자리),
         #   npm 으로 깐 것은 AppData 의 `npm/claude.cmd` 다. PATH 는 앱이 켜진 때의 것이라, 설치 뒤 다시
@@ -570,6 +585,8 @@ class ConnectService:
 
     def _desktop_pids(self) -> list[int]:
         """켜져 있는 데스크톱 앱 프로세스의 번호. 클로드 코드(CLI)는 뺀다."""
+        if macos.is_mac():
+            return [pid for pid, exe in macos.processes(self.run) if self._is_desktop_exe(exe)]
         try:
             import psutil  # type: ignore
 
@@ -595,12 +612,29 @@ class ConnectService:
         """데스크톱 앱을 끈다. 창을 닫는 신호로는 안 꺼진다(작업 표시줄 구석으로 숨는다) — 프로세스를 끝낸다.
         그 앱이 띄운 것(코드 탭의 작업)은 같이 끝난다(`/T`). 터미널에서 따로 연 클로드 코드는 그 앱의 자식이 아니다."""
         for pid in self._desktop_pids():
+            if macos.is_mac():
+                # 맥은 본 프로세스에 끝내기 신호(SIGTERM)를 주면 일렉트론이 도우미까지 정리하고 나간다.
+                # `osascript quit app` 은 「자동화」 허락 창을 띄우므로 쓰지 않는다.
+                try:
+                    os.kill(pid, 15)
+                except OSError:
+                    pass
+                continue
             try:
                 self.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, text=True, timeout=15)
             except Exception:  # noqa: BLE001 — 이미 끝난 프로세스
                 continue
 
     def _launch_desktop(self, exes: list[str]) -> bool:
+        if macos.is_mac():
+            bundles = [macos.app_bundle_of(exe) for exe in exes]
+            bundle = next((b for b in bundles if b), "")
+            if not bundle:
+                return False
+            try:
+                return self.run(["open", bundle], capture_output=True, text=True, timeout=15).returncode == 0
+            except Exception:  # noqa: BLE001
+                return False
         script = desktop_reopen_script(exes)
         if not script:
             return False
