@@ -15,6 +15,7 @@
   <img alt="Windows 10/11 x64" src="https://img.shields.io/badge/Windows-10%20%7C%2011%20x64-0078D4">
   <a href="https://apps.microsoft.com/detail/9N458V8HPTR2"><img alt="Microsoft Store" src="https://img.shields.io/badge/Microsoft%20Store-free-107C10"></a>
   <img alt="Runs on your GPU" src="https://img.shields.io/badge/runs%20on-your%20GPU-76B900">
+  <a href="https://glama.ai/mcp/servers/sonjari/sonjari"><img alt="sonjari MCP server on Glama" src="https://glama.ai/mcp/servers/sonjari/sonjari/badges/score.svg" height="20"></a>
 </p>
 
 <p align="center">
