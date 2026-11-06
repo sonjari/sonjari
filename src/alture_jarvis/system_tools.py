@@ -183,9 +183,10 @@ def register_system_tools(config: JarvisConfig, gateway: ToolGateway) -> None:
         url = str(arguments.get("url", "")).strip()
         if not url.startswith(("https://", "http://127.0.0.1", "http://localhost")):
             raise ValueError("url_not_allowed")
-        if os.name != "nt":
+        from .file_open import open_folder_or_url
+
+        if not open_folder_or_url(url):  # 윈도우 · 맥(2026-11-03)
             raise RuntimeError("windows_only")
-        os.startfile(url)  # type: ignore[attr-defined]
         return {"opened": url}
 
     gateway.register(

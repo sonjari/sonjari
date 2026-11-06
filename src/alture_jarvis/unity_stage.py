@@ -17,6 +17,8 @@
 
 from __future__ import annotations
 
+from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
+
 import ctypes
 import hashlib
 import io
@@ -32,11 +34,11 @@ _DPI_PER_MONITOR_V2 = ctypes.c_void_p(-4)
 
 
 def _user32() -> Any:
-    return ctypes.windll.user32  # type: ignore[attr-defined]
+    return winapi.user32  # type: ignore[attr-defined]
 
 
 def _process_name(pid: int) -> str:
-    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+    kernel32 = winapi.kernel32  # type: ignore[attr-defined]
     handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
     if not handle:
         return ""
@@ -111,7 +113,7 @@ def capture(hwnd: int, max_width: int = 1600, quality: int = 72) -> tuple[bytes,
     from PIL import Image
 
     user32 = _user32()
-    gdi32 = ctypes.windll.gdi32  # type: ignore[attr-defined]
+    gdi32 = winapi.gdi32  # type: ignore[attr-defined]
 
     class RECT(ctypes.Structure):
         _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
@@ -157,7 +159,7 @@ def capture(hwnd: int, max_width: int = 1600, quality: int = 72) -> tuple[bytes,
 def bring_to_front(hwnd: int) -> bool:
     """사람이 「직접 하기」를 눌렀을 때만. 최소화돼 있으면 되살리고 앞으로."""
     user32 = _user32()
-    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+    kernel32 = winapi.kernel32  # type: ignore[attr-defined]
     if user32.IsIconic(hwnd):
         user32.ShowWindow(hwnd, 9)  # SW_RESTORE
     foreground = user32.GetForegroundWindow()
@@ -269,7 +271,7 @@ def measure_focus(stage: UnityStage, seconds: float = 20.0, *, sample_sec: float
         info = LASTINPUTINFO()
         info.cbSize = ctypes.sizeof(LASTINPUTINFO)
         user32.GetLastInputInfo(ctypes.byref(info))
-        return int(ctypes.windll.kernel32.GetTickCount() - info.dwTime)  # type: ignore[attr-defined]
+        return int(winapi.kernel32.GetTickCount() - info.dwTime)  # type: ignore[attr-defined]
 
     unity = {row["hwnd"] for row in unity_windows()}
     changes: list[dict[str, Any]] = []

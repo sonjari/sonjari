@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
+
 import json
 import os
 import secrets
@@ -43,7 +45,7 @@ def _process_elevated(pid: int) -> bool | None:
     import ctypes  # noqa: PLC0415
     from ctypes import wintypes  # noqa: PLC0415
 
-    kernel32, advapi32 = ctypes.windll.kernel32, ctypes.windll.advapi32
+    kernel32, advapi32 = winapi.kernel32, winapi.advapi32
     handle = kernel32.OpenProcess(0x1000, False, int(pid))  # PROCESS_QUERY_LIMITED_INFORMATION
     if not handle:
         return None
@@ -85,7 +87,7 @@ def _private_working_sets() -> list[tuple[int, str, int]]:
     for _ in range(6):
         buffer = ctypes.create_string_buffer(size)
         needed = wintypes.ULONG()
-        status = ctypes.windll.ntdll.NtQuerySystemInformation(5, buffer, size, ctypes.byref(needed)) & 0xFFFFFFFF
+        status = winapi.ntdll.NtQuerySystemInformation(5, buffer, size, ctypes.byref(needed)) & 0xFFFFFFFF
         if status == 0xC0000004:  # STATUS_INFO_LENGTH_MISMATCH — 그사이 프로세스가 늘었다
             size = max(size * 2, needed.value + 65536)
             continue

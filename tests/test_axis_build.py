@@ -114,6 +114,11 @@ _NOT_AN_AXIS = {
     "os_trust.py",
     # 가장 새 C++ 런타임을 먼저 올리는 기동 한 줄(2026-09-24). winrt 의 옛 msvcp140 때문에 음성에서 백엔드가 죽었다.
     "msvc_runtime.py",
+    "pairing.py",         # 2026-11-03 짝짓기(6자리 코드 · 기기 토큰 · 모델 빌려 주기). model_place 와 같은 설치 쪽
+    "pair_door.py",       # 2026-11-04 짝짓기 전용 문(8092) — 집 PC 가 바깥에 내놓는 유일한 문
+    "tailnet.py",         # 2026-11-04 밖에서도 쓰기 — 테일스케일 CLI 를 부르는 유일한 곳(체크 목록 · 짝짓기 문 serve)
+    "model_place.py",     # 2026-11-03 모델 자리 이 맥 / 집 PC(설계_짝짓기_모델자리). model_setup 과 같은 설치 쪽
+    "macos.py",           # 2026-11-03 맥판 OS 층(프로세스 목록 · 열기 · 알림 · 창 숨김). msvc_runtime 과 같은 기동 · OS 쪽
     # 기동 때 이 프로세스가 볼 GPU 를 정하는 한 줄(2026-09-28). 판단·걸음을 안 바꾸고, 기동 경로에 따라 음성·비전이
     # 모델 전용 카드로 새던 것을 막는다 — os_trust·msvc_runtime 과 같은 기동 쪽.
     "gpu_policy.py",
@@ -179,6 +184,7 @@ _NOT_AN_AXIS = {
     "skill_hygiene.py",   # W4 — 스킬 본문의 승인 건너뛰기 문장을 걷는다. skills.py 와 같은 자리
     "settings.py",        # W3 — 설정 화면 값의 저장 층. config.py 와 같은 설치·설정 쪽
     "diagnostics.py",     # W3 — 진단 파일 만들기. 판이 하는 일을 바꾸지 않는다
+    "winapi.py",  # 2026-11-03 — 윈도우 API 값 크기를 한 곳에서 정한다(백엔드 0xc0000005 사고). 판이 하는 일을 바꾸지 않는다
     "process_census.py",  # 2026-10-14 — 프로세스가 쥔 것을 센다(읽기만). 판이 하는 일을 바꾸지 않는다
     "observations.py",
     "watch.py",

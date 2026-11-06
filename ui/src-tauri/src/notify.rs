@@ -280,7 +280,26 @@ pub fn show(toast: &Toast, on_click: OnClick) -> Result<(), String> {
     imp::show(toast, on_click)
 }
 
-#[cfg(not(target_os = "windows"))]
+/// 맥(2026-11-03): `osascript` 의 알림 센터 한 줄. 허락 창 없이 뜬다(짐작 — 맥미니에서 확인한다).
+/// ★ 윈도우와 다른 점: 누르면 결과가 열리는 동작이 없다(osascript 알림은 누름을 앱에 돌려주지 않는다). 그림 · 단추도 없다.
+#[cfg(target_os = "macos")]
+pub fn show(toast: &Toast, _on_click: OnClick) -> Result<(), String> {
+    fn quoted(text: &str) -> String {
+        format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
+    }
+    let mut script = format!("display notification {} with title {}", quoted(&toast.body), quoted(&toast.title));
+    if !toast.attribution.trim().is_empty() {
+        script.push_str(&format!(" subtitle {}", quoted(&toast.attribution)));
+    }
+    std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(script)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub fn show(_toast: &Toast, _on_click: OnClick) -> Result<(), String> {
     Err("windows_only".into())
 }

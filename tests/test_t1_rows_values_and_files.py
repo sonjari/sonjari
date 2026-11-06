@@ -329,3 +329,16 @@ def test_a_header_only_file_filled_later_by_cell_edits_stays_quiet() -> None:
              {"tool": "local_edit_spreadsheet", "ok": True, "evidence": {"output_path": path}}]
 
     assert BrowserAgent._empty_table_artifact_check(steps) == ""
+
+
+def test_a_summary_answer_over_a_full_raw_file_is_not_flagged(tmp_path: Path) -> None:
+    """11-04 잉 배치 판: 답의 표는 요약(「총 폴더 18 · 확신 높음 4」), 파일엔 18줄 원자료 — 「값이 하나도 없다」는 헛경고였다."""
+    full = tmp_path / "잉_모션_배치.xlsx"
+    book = openpyxl.Workbook()
+    book.active.append(["폴더 이름", "원래 파일 이름", "프레임", "루프", "목록", "상태"])
+    for k in range(18):
+        book.active.append([f"B_NPC_B_Idle{k}_230324_01", f"NPC_B_Idle{k}_230324_01", "0-160 (30fps)", "루프", "기본 모션", "대기"])
+    book.save(full)
+    answer = "| 구분 | 개수 |\n|---|---|\n| 총 폴더 | 18 |\n| 확신 높음 | 4 |\n| 확신 낮음 | 14 |\n| 상태 비움(애매) | 8 |"
+    steps = [{"tool": "local_write_document", "ok": True, "evidence": {"path": str(full)}}]
+    assert BrowserAgent._answer_missing_from_artifact(answer, steps) == ""

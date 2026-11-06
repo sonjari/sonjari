@@ -1327,6 +1327,49 @@ class OllamaClient:
                 front = None
         return front
 
+    def refresh_front(self, tools: list[dict[str, Any]] | None, system_must_contain: str = "") -> str:
+        """재시작 뒤 첫 데우기 전에 한 번 — 기억한 앞부분이 **지금 코드가 보낼 앞부분**과 맞는지 본다(2026-11-06).
+
+        ★ 11-06 13:54 대표 판 첫 걸음 30.3초: 코드를 고쳐(도구 138 → 150 · 지침 문장 변경) 다시 켰는데, 데우기는 파일에 남은
+          **옛 앞부분**을 데웠다. 새 판의 첫 일은 맞는 저장점이 없어 3만 3천 토큰을 통째로 읽었다(이 모델은 저장점에서만 이어 읽는다).
+        - 도구 목록이 다르면 지금 목록으로 갈아 끼운다(시스템 글은 판마다 같은 부분이라 그대로 — 실제로 나간 것).
+        - 고정 지침이 시스템 글에 없으면(지침이 바뀌었다) 데우지 않는다 — 맞지 않는 것을 데워 봐야 헛일이다.
+        돌려주는 값: "same" · "tools_updated" · "stale_system" · "none".
+        """
+        front = self._front_or_load()
+        if front is None:
+            return "none"
+        content = str((front.get("system") or {}).get("content") or "")
+        if system_must_contain and system_must_contain not in content:
+            self.__dict__["_front"] = None
+            self.__dict__["_front_dirty"] = False          # 이번 켬에는 데우지 않는다 — 첫 큰 일이 새 앞부분을 기억한다
+            return "stale_system"
+        if not tools:
+            return "same"
+
+        def names(items: list[dict[str, Any]]) -> list[str]:
+            return [str((t.get("function") or {}).get("name") or "") for t in items]
+
+        if names(front.get("tools") or []) == names(tools):
+            return "same"
+        import hashlib
+
+        front = dict(front)
+        front["tools"] = tools
+        options = dict(front.get("options") or {})
+        front["key"] = hashlib.sha1(json.dumps(
+            [front.get("model"), tools, front.get("system"), front.get("think"), options.get("num_ctx")],
+            ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
+        self.__dict__["_front"] = front
+        try:
+            path = self._front_path()
+            temp = path.with_name(path.name + ".tmp")
+            temp.write_text(json.dumps(front, ensure_ascii=False), encoding="utf-8")
+            temp.replace(path)
+        except OSError:
+            pass
+        return "tools_updated"
+
     # ── 노는 시간 일(서기 · 2026-10-21) ──────────────────────────────────────────
     def background_chat(self, system: str, user: str, *, model: str, options: dict[str, Any],
                         rewarm: bool = True) -> str | None:

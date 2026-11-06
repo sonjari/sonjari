@@ -57,7 +57,9 @@ def test_the_prompt_routes_korean_blog_research_to_the_browser_not_the_api() -> 
     assert 'tab="blog"' in AGENT_SYSTEM_PROMPT
     # API 를 "먼저" 쓰라고 남아 있으면 브라우저 경로가 통째로 우회된다.
     assert "먼저 naver_web" not in AGENT_SYSTEM_PROMPT
-    assert "폴백이다" in AGENT_SYSTEM_PROMPT
+    # 11-06 대표: 네이버 검색 API 는 뺐다 — 안내문에 남으면 모델이 없는 도구를 부른다
+    assert "naver_web" not in AGENT_SYSTEM_PROMPT and "naver_news" not in AGENT_SYSTEM_PROMPT
+    assert 'tab="news"' in AGENT_SYSTEM_PROMPT
 
 
 def test_the_prompt_names_the_whole_drill_in_loop() -> None:
@@ -80,7 +82,7 @@ def test_the_prompt_forbids_answering_a_different_question() -> None:
     assert "다른 주제로 바꿔 답하지 마라" in AGENT_SYSTEM_PROMPT
 
 
-def test_plopfit_agent_catalog_reuses_naver_and_github_without_tavily(tmp_path: Path) -> None:
+def test_plopfit_agent_catalog_keeps_github_drops_the_naver_api_and_tavily(tmp_path: Path) -> None:
     tools = PlopfitTools(
         JarvisConfig(
             runtime_root=tmp_path,
@@ -89,7 +91,8 @@ def test_plopfit_agent_catalog_reuses_naver_and_github_without_tavily(tmp_path: 
             plopfit_enabled=True,
         )
     )
-    assert {"naver_web", "naver_news", "github_search"} <= tools.names
+    assert "github_search" in tools.names
+    assert not ({"naver_web", "naver_news"} & tools.names)        # 11-06 대표: 막혀서 결국 브라우저로 간다 — 목록만 길다
     assert "tavily_search" not in tools.names
 
 

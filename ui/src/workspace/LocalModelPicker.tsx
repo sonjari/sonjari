@@ -25,10 +25,13 @@
  * 눌렸나?」가 된다 — 화면이 뜰 때 한 번 미리 읽어 두고, 열면 바로 그린다.
  */
 import { t } from "../i18n";
-import { AlertTriangle, Check, ChevronDown, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { CodeUpgrade, ModelPickerView, ModelRole, PickerModel, SetupApi } from "../setup/setupApi";
 import { ContextCeilingPanel } from "./ContextCeilingPanel";
+import { ModelPlaceBar, PlaceMark, placeKind, useModelPlace } from "../setup/ModelPlace";
+import { isMac } from "../platform";
+import { ctxShort, friendlyModelName } from "../setup/modelNames";
 import type { ClaudeAgentStatus } from "../types";
 import { CLAUDE_AGENT, CLAUDE_MODELS, claudeButtonLabel, isClaudeBrain, type Brain } from "../claudeAgent/brain";
 
@@ -68,21 +71,22 @@ function sizeLabel(gb: number): string {
   return gb > 0 ? `${gb.toFixed(1)}GB` : "";
 }
 
-/** 목록 안 → 목록 밖 → 못 고르는 것. 지금 쓰는 것은 맨 위. */
+/** 지금 쓰는 것 → 검증된 것 → 아직 안 잰 것(받아 둔 것 먼저) → 못 고르는 것. */
 function order(row: PickerModel): number {
   if (row.current) return 0;
-  if (row.blocked) return 4;
-  if (row.listed && row.installed) return 1;
-  if (row.listed) return 2;
-  return 3;
+  if (row.blocked) return 9;
+  if (row.grade.measured) return row.installed ? 1 : 2;
+  return row.installed ? 3 : 4;
 }
 
-export function LocalModelPicker({ api, role, label, context, onChanged, claude }: {
+export function LocalModelPicker({ api, role, label, context, contextLength, onChanged, claude }: {
   api: SetupApi | null;
   role: ModelRole;
   /** 칩에 적을 이름 — 이미 예쁘게 다듬은 것이 들어온다. */
   label: string;
   context: string;
+  /** 지금 창 크기(토큰) — 칩이 아니라 창 안 머리에 「창 128K」로 적는다(11-04 대표). */
+  contextLength?: number;
   onChanged?: () => void;
   /** 있으면 메뉴에 「Claude Agent」 무리가 생긴다(앱 안 · 대화마다). */
   claude?: ClaudeChoice;
@@ -97,6 +101,9 @@ export function LocalModelPicker({ api, role, label, context, onChanged, claude 
   // 30분 감시(백엔드)가 「잴 때와 카드 사정이 바뀌었다」고 하면 칩에 작은 점 — 깜빡이지 않는다(제품 결정).
   const [cardChanged, setCardChanged] = useState(false);
   const shell = useRef<HTMLDivElement>(null);
+  // 모델 자리(Mac / Satellite) — 칩의 작은 표시와 창 안 자리 막대가 같은 답을 나눠 쓴다.
+  const place = useModelPlace(api);
+  const [pairing, setPairing] = useState(false);
 
   const load = useCallback(async () => {
     if (!api) return;
@@ -109,6 +116,13 @@ export function LocalModelPicker({ api, role, label, context, onChanged, claude 
 
   // 화면이 뜰 때 · 역할이 바뀔 때 미리 한 번. 누르는 순간의 0.8초를 없앤다.
   useEffect(() => { void load(); }, [load]);
+
+  // 모델이나 모델 자리가 바뀌면(설정 › 모델 · 마법사 · 다른 창 · 백엔드 사건) 다시 읽는다 — 칩이 옛 판정에 굳지 않게.
+  useEffect(() => {
+    const reload = () => { void load(); void place.load(); };
+    window.addEventListener("ontelic:model-changed", reload);
+    return () => window.removeEventListener("ontelic:model-changed", reload);
+  }, [load, place.load]);
 
   useEffect(() => {
     if (!api || role !== "chat") return;
@@ -162,16 +176,29 @@ export function LocalModelPicker({ api, role, label, context, onChanged, claude 
     }
   };
 
-  // 위성은 본체의 모델을 빌려 쓴다 — 여기서 바꿀 수 있는 척하면 안 된다.
-  if (!api || view?.satellite) {
-    return <span className="model-chip" title={context}>{label || t("모델 확인 중")}</span>;
+  // ★ 2026-11-04 대표(맥미니 스크린샷): 위쪽 칩이 「Qwen3.5 · 9B · 128K」 글자뿐이라 모델을 못 바꿨다 — 판정을 화면이 뜰 때 한 번만
+  //   읽었다. 이제 모델 · 자리가 바뀌면 다시 읽고, Satellite 여도 칩은 단추다.
+  // ★ 같은 날 대표 설계: 칩엔 이름만(「9B · 128K」 숫자는 창 안으로) · 앞에 자리 표시 ● / ●━● / ●┄○ · 「이 맥」 대신 Mac.
+  const kind = placeKind(place.view);
+  const satellite = Boolean(view?.satellite) || kind !== "here";
+  // 이 기기 목록 · 창 크기 재기 · 「그래픽카드에 다 올라갔을 때만」 안내는 Satellite(짝짓는 중 포함)에선 숨긴다 — 이 기기 이야기다.
+  const thisDeviceHidden = satellite || pairing;
+  const currentRow = view?.models.find((row) => row.current);
+  const name = satellite && place.view?.chat_model
+    ? friendlyModelName(place.view.chat_model)
+    : currentRow?.name || label;
+  const chipName = claudeOn && claude && isClaudeBrain(claude.brain) ? claudeButtonLabel(claude.brain) : name || t("모델 확인 중");
+  const ctx = satellite ? ctxShort(place.view?.num_ctx ?? 0) : ctxShort(contextLength ?? 0);
+  const facts = [ctx && t("창 {0}", ctx), !satellite && view && view.budget_gb > 0 ? t("{0}GB 가용", view.budget_gb.toFixed(1)) : ""].filter(Boolean);
+
+  if (!api) {
+    return <span className="model-chip" title={context}>{chipName}</span>;
   }
 
+  // 지금 쓰는 것 → 검증된 것 → 「아직 안 잰 모델」 → 「지금은 고를 수 없는 모델」.
+  // ★ 11-04 대표: 줄마다 붙은 ⚠ 「능력을 잰 적 없음」을 소제목 하나로 묶는다. 잰 줄은 짧은 「검증됨」 표시.
   const rows = [...(view?.models ?? [])].sort((a, b) => order(a) - order(b));
-  // ★ 2026-09-21 실물에서 잡음: 지금 쓰는 모델이 목록 밖 것이면 맨 윗줄이 되는데,
-  //   머리말을 그 앞에 붙이면 **목록이 제목으로 시작하고** 쓰는 모델이 「직접 받아 두신
-  //   모델」 아래로 들어간다. 쓰는 것은 어느 무리에도 속하지 않는다 — 맨 위 한 줄이다.
-  const firstUnlisted = rows.findIndex((row) => !row.listed && !row.blocked && !row.current);
+  const firstUntested = rows.findIndex((row) => !row.current && !row.blocked && !row.grade.measured);
   const firstBlocked = rows.findIndex((row) => Boolean(row.blocked));
 
   return (
@@ -184,8 +211,8 @@ export function LocalModelPicker({ api, role, label, context, onChanged, claude 
         aria-haspopup="listbox"
         title={context}
       >
-        {claude && <i className={`brain-dot ${claudeOn ? "claude" : "local"}`} aria-hidden />}
-        <span>{claudeOn && claude && isClaudeBrain(claude.brain) ? claudeButtonLabel(claude.brain) : label || t("모델 확인 중")}</span>
+        {claudeOn ? <i className="brain-dot claude" aria-hidden /> : <PlaceMark kind={kind} />}
+        <span>{chipName}</span>
         {!claudeOn && cardChanged && <i className="model-chip-dot" title={t("잰 뒤로 그래픽카드 사정이 바뀌었습니다 — 눌러서 다시 재 보세요")} />}
         <ChevronDown size={12} aria-hidden />
       </button>
@@ -197,34 +224,36 @@ export function LocalModelPicker({ api, role, label, context, onChanged, claude 
               <strong>{claude ? t("이 대화의 두뇌") : role === "code" ? t("코드 작업 모델") : t("대화 모델")}</strong>
               <small>
                 {claude
-                  ? t("내 PC 모델은 앱 전체에 · Claude Agent 는 이 대화에만")
+                  ? (satellite ? t("Satellite 모델은 앱 전체에 · Claude Agent 는 이 대화에만") : isMac ? t("Mac 모델은 앱 전체에 · Claude Agent 는 이 대화에만") : t("내 PC 모델은 앱 전체에 · Claude Agent 는 이 대화에만"))
                   : role === "code"
                     ? t("Code 탭에서만 씁니다 — 대화 모델은 그대로입니다")
                     : t("대화와 일반 작업에 씁니다")}
               </small>
             </div>
-            {view && view.budget_gb > 0 && <span>{view.budget_gb.toFixed(1)}{t("GB 가용")}</span>}
+            {facts.length > 0 && <span>{facts.join(" · ")}</span>}
           </div>
-          {role === "code" && view?.suggestion && (
+          <div className="local-model-body">
+          {/* 모델 자리 [Mac | Satellite] — Satellite 면 연결 띠와 집 PC 모델이 여기 나오고 아래 Mac 목록은 숨는다. */}
+          <ModelPlaceBar api={api} place={place} onSatellite={setPairing} onChanged={() => { void load(); onChanged?.(); }} />
+          {role === "code" && view?.suggestion && !satellite && (
             <CodeUpgradeOffer api={api} offer={view.suggestion} budget={view.budget_gb}
               pull={view.pulls[view.suggestion.tag]} onDone={async () => { await load(); onChanged?.(); }} onPoll={load} />
           )}
           {!view ? (
-            <p className="local-model-loading"><Loader2 size={13} className="spin" /> {t("이 PC 의 모델을 읽는 중입니다")}</p>
-          ) : (
+            <p className="local-model-loading"><Loader2 size={13} className="spin" /> {isMac ? t("Mac 모델을 읽는 중입니다") : t("이 PC 의 모델을 읽는 중입니다")}</p>
+          ) : thisDeviceHidden ? null : (
             <div className="pilot-model-options local-model-options">
               {claude && (
-                <p className="local-model-divider brain-group"><span>{t("내 PC 모델 · 무료")}</span><em>{t("일은 전부 이 PC")}</em></p>
+                <p className="local-model-divider brain-group"><span>{isMac ? t("Mac 모델 · 무료") : t("내 PC 모델 · 무료")}</span><em>{isMac ? t("일은 전부 이 Mac") : t("일은 전부 이 PC")}</em></p>
               )}
               {/* ★ 2026-09-21: 여기를 `<div>` 로 감쌌더니 줄이 가로로 겹쳐 쏟아졌다.
                   `.pilot-model-options > button` 규칙이 **직계 자식**만 보는데 버튼이
                   손자가 돼 버려 `display:flex; width:100%` 가 통째로 안 걸린 것이다.
-                  `display:contents` 는 배치만 바꾸고 선택자 매칭은 못 바꾼다.
                   Fragment 는 DOM 을 안 만들어 버튼이 직계 자식으로 남는다. */}
               {rows.map((row, index) => (
                 <Fragment key={row.tag}>
-                  {index === firstUnlisted && firstUnlisted >= 0 && (
-                    <p className="local-model-divider">{t("이 PC 에 직접 받아 두신 모델")}</p>
+                  {index === firstUntested && firstUntested >= 0 && (
+                    <p className="local-model-divider" title={t("능력을 잰 적 없는 모델 — 써 볼 수는 있습니다")}>{t("아직 안 잰 모델")}</p>
                   )}
                   {index === firstBlocked && firstBlocked >= 0 && (
                     <p className="local-model-divider">{t("지금은 고를 수 없는 모델")}</p>
@@ -236,32 +265,23 @@ export function LocalModelPicker({ api, role, label, context, onChanged, claude 
                     disabled={Boolean(row.blocked) || busy !== "" || (row.current && !claudeOn)}
                     className={`${row.current && !claudeOn ? "selected" : ""} ${row.blocked ? "unavailable" : ""}`}
                     onClick={() => void choose(row)}
-                    title={row.blocked || row.grade.detail}
+                    title={row.blocked || row.grade.detail || row.grade.label}
                   >
                     <span className="pilot-model-copy">
                       <strong>
-                        {row.name}
+                        {row.listed || row.name !== row.tag ? row.name : friendlyModelName(row.tag) || row.name}
                         {!row.listed && <em className="local-model-tag">{t("내 모델")}</em>}
+                        {row.grade.measured && !row.blocked && (
+                          <em className="local-model-verified" title={row.grade.label}><Check size={10} aria-hidden />{t("검증됨")}</em>
+                        )}
                       </strong>
-                      <small>
-                        {row.blocked
-                          ? row.blocked
-                          : row.grade.measured
-                            ? row.grade.label
-                            : row.current
-                              // 쓰는 중인 모델에게 「써 볼 수는 있습니다」는 말이 안 된다 — 이미 쓰고 있다.
-                              ? t("{0} · 지금 쓰는 중", row.grade.label)
-                              : t("{0} · 써 볼 수는 있습니다", row.grade.label)}
-                      </small>
+                      {row.blocked && <small>{row.blocked}</small>}
                     </span>
                     <span className="pilot-model-meta">
                       {busy === row.tag
                         ? <Loader2 size={14} className="spin" />
                         : <small>{row.installed ? sizeLabel(row.size_gb) : t("받기 {0}", sizeLabel(row.size_gb))}</small>}
                       {row.current && !claudeOn && <Check size={15} aria-label={t("쓰는 중")} />}
-                      {!row.blocked && !row.grade.measured && !row.current && (
-                        <AlertTriangle size={13} className="local-model-untested" aria-label={t("능력 안 쟀음")} />
-                      )}
                     </span>
                   </button>
                 </Fragment>
@@ -305,13 +325,14 @@ export function LocalModelPicker({ api, role, label, context, onChanged, claude 
               컨텍스트를 쓴다(`num_ctx_for`) — 두 곳에서 따로 재면 러너가 둘이 된다.
               ★ 09-29: 대표가 연 것은 Code 탭 고르개였고 거기엔 칸이 없었다. 이제 양쪽에 보이되 **한 값**이다 —
               같은 모델이면 코드 쪽에서 골라도 대화와 같이 바뀌고(패널이 그렇게 적는다), 다른 모델이면 그렇다고만 적는다. */}
-          {view && view.current && !claudeOn && (
+          {view && view.current && !claudeOn && !thisDeviceHidden && (
             <ContextCeilingPanel api={api} model={view.current} onApplied={onChanged} role={role} />
           )}
-          <p>
+          {!thisDeviceHidden && <p className="local-model-footnote">
             {t("바꾸면 실제로 한 번 돌려 보고, 그래픽카드에 다 올라갔을 때만 바꿉니다.")}
             {role === "code" && t(" 이어받기·폴더 쓰기 같은 센 권한은 능력을 잰 모델에만 열립니다.")}
-          </p>
+          </p>}
+          </div>
         </div>
       )}
     </div>
@@ -392,7 +413,7 @@ function reasonText(error: string | undefined, row: PickerModel): string {
     case "ollama_runner_missing":
       return t("Ollama 가 반쪽만 깔려 있습니다 — 설정 › 모델에서 고칠 수 있습니다");
     case "satellite_uses_brain_models":
-      return t("이 PC 는 본체의 모델을 빌려 씁니다 — 본체에서 바꿔 주세요");
+      return t("지금은 집 PC 의 모델을 씁니다 — 설정 › 모델에서 「집 PC」 목록으로 고르거나 「이 맥 · 이 PC」로 바꿔 주세요");
     default:
       return error || t("바꾸지 못했습니다");
   }

@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 import pytest
 import starlette.testclient
@@ -56,6 +57,9 @@ if _REAL_LOCAL_APP_DATA:
     os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", os.path.join(_REAL_LOCAL_APP_DATA, "ms-playwright"))
 _TEST_LOCAL_APP_DATA = _tempfile.mkdtemp(prefix="sonjari-tests-localappdata-")
 os.environ["LOCALAPPDATA"] = _TEST_LOCAL_APP_DATA
+# 맥은 앱 데이터 자리가 `~/Library/Application Support` 다 — 같은 임시 폴더로 돌린다(11-04 맥 첫 전체 회귀: 설치된 손자리의
+# 진짜 설정 · 짝 기억을 읽어 `satellite == primary` 같은 실패가 났다).
+os.environ["SONJARI_APP_SUPPORT"] = _TEST_LOCAL_APP_DATA
 _atexit.register(_shutil.rmtree, _TEST_LOCAL_APP_DATA, ignore_errors=True)
 
 
@@ -201,16 +205,52 @@ def _tests_leave_playing_media_alone() -> None:
 # 코드 쪽은 이미 고쳤다(잡이 없으면 안 띄운다). 그래도 이 그물을 둔다 —
 # 다음에 누가 `os.startfile` 을 다른 자리에 붙여도 검사에서는 안 뜨고,
 # **띄우려 했다는 사실은 남는다**(막기만 하고 침묵하면 그게 더 나쁘다).
+def _launches_on_mac(monkeypatch, launched: list[str]) -> None:
+    import subprocess
+    from types import SimpleNamespace
+
+    real_popen, real_run = subprocess.Popen, subprocess.run
+
+    def launching(args) -> bool:  # type: ignore[no-untyped-def]
+        first = args[0] if isinstance(args, (list, tuple)) and args else str(args or "").split(" ")[0]
+        return os.path.basename(str(first)) in {"open", "osascript"}
+
+    # 함수가 아니라 Popen 을 이어받은 클래스로 — mcp 부품처럼 `subprocess.Popen[bytes]` 형 표기를 읽는 곳이 있다
+    # (11-04: 함수로 바꿔 끼웠더니 「'function' object is not subscriptable」 로 mcp 시험 셋이 떨어졌다).
+    class GuardedPopen(real_popen):  # type: ignore[misc, valid-type]
+        def __new__(cls, args, *a, **k):  # type: ignore[no-untyped-def]
+            if not launching(args):
+                return real_popen(args, *a, **k)
+            launched.append(" ".join(map(str, args)))
+            return SimpleNamespace(pid=0, returncode=0, wait=lambda *a, **k: 0, poll=lambda: 0,
+                                   communicate=lambda *a, **k: ("", ""), kill=lambda: None, terminate=lambda: None)
+
+    popen = GuardedPopen
+
+    def run(args, *a, **k):  # type: ignore[no-untyped-def]
+        if not launching(args):
+            return real_run(args, *a, **k)
+        launched.append(" ".join(map(str, args)))
+        return subprocess.CompletedProcess(args, 0, "" if k.get("text") or k.get("encoding") else b"", "" if k.get("text") or k.get("encoding") else b"")
+
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    monkeypatch.setattr(subprocess, "run", run)
+
+
 @pytest.fixture(autouse=True)
 def _never_launch_apps_during_tests(monkeypatch, request):
-    if not hasattr(os, "startfile"):  # pragma: no cover - 윈도우 밖
-        return
     launched: list[str] = []
-    monkeypatch.setattr(os, "startfile", lambda path, *a, **k: launched.append(str(path)))
-    # ★ 「이 확장자를 여는 프로그램이 있나」도 기계마다 다르다(2026-10-06). 워드가 없는 깨끗한 기계에서는
-    #   `.docx` 가 탐색기로 빠져 **진짜 창**이 떴고, `os.startfile` 을 기다리던 시험 넷이 떨어졌다.
-    #   시험에서는 늘 「있다」로 둔다 — 없는 경우는 `open_file(associated=…)` 로 직접 재는 시험이 따로 있다.
-    monkeypatch.setattr("alture_jarvis.file_open._ask_windows", lambda suffix: "app")
+    if hasattr(os, "startfile"):
+        monkeypatch.setattr(os, "startfile", lambda path, *a, **k: launched.append(str(path)))
+        # ★ 「이 확장자를 여는 프로그램이 있나」도 기계마다 다르다(2026-10-06). 워드가 없는 깨끗한 기계에서는
+        #   `.docx` 가 탐색기로 빠져 **진짜 창**이 떴고, `os.startfile` 을 기다리던 시험 넷이 떨어졌다.
+        #   시험에서는 늘 「있다」로 둔다 — 없는 경우는 `open_file(associated=…)` 로 직접 재는 시험이 따로 있다.
+        monkeypatch.setattr("alture_jarvis.file_open._ask_windows", lambda suffix: "app")
+    if sys.platform == "darwin":
+        # ★ 2026-11-04 맥 첫 전체 회귀: 예전엔 윈도우가 아니면 yield 전에 return 해서 **모든 시험이 준비 단계에서 오류**
+        #   (9,360개 「did not yield a value」)였다. 맥에서 앱을 띄우는 길은 `open` · `osascript` 다 — 사용자님이 맥을 쓰는 중에도
+        #   시험이 화면을 건드리지 않게 그 둘만 가로채 기록한다(다른 명령은 그대로 돈다).
+        _launches_on_mac(monkeypatch, launched)
     yield
     if launched:
         request.node.add_report_section(
@@ -613,6 +653,28 @@ def pytest_terminal_summary(terminalreporter):  # type: ignore[no-untyped-def]
 
 
 @pytest.fixture(autouse=True)
+def _documents_folder_is_never_the_real_one(monkeypatch, tmp_path_factory):
+    """★ 2026-11-04 맥 첫 전체 회귀: 시험 246개가 진짜 `~/Documents/Sonjari/skillpacks` 를 만들려다 맥 보안에 막혀 떨어졌다.
+    윈도우에서는 막는 것이 없어 **시험이 사람 문서 폴더에 빈 skillpacks 폴더를 만들어 왔다**(레시피만 따로 막고 있었다).
+    문서 폴더 자리를 정하는 `documents_product_dir` 가 진짜 문서 폴더를 받으면 시험마다 빈 임시 폴더를 준다 —
+    시험이 따로 준 자리(임시 home 등)는 그대로 둔다."""
+    from alture_jarvis import brand, config, guide_skill, local_computer
+
+    real = brand.documents_product_dir
+    holder: list[_Path] = []
+
+    def isolated(documents):  # type: ignore[no-untyped-def]
+        if not _under_real_documents(documents):
+            return real(documents)
+        if not holder:
+            holder.append(tmp_path_factory.mktemp("documents") / real(_Path("x")).name)
+        return holder[0]
+
+    for module in (brand, config, guide_skill, local_computer):
+        monkeypatch.setattr(module, "documents_product_dir", isolated)
+
+
+@pytest.fixture(autouse=True)
 def _learned_recipes_stay_out_of_the_real_documents(monkeypatch, tmp_path_factory, request):
     from alture_jarvis import site_recipes
     from alture_jarvis.config import JarvisConfig
@@ -640,3 +702,113 @@ def _learned_recipes_stay_out_of_the_real_documents(monkeypatch, tmp_path_factor
         return real_load(directory)
 
     monkeypatch.setattr(site_recipes, "load_recipes", guarded_load)
+
+# ── 윈도우에서만 뜻이 있는 시험 · 맥에서 아직 모자란 것 (2026-11-04 맥 첫 전체 회귀) ─────────────────────────────
+# 맥에서 처음 전체 회귀를 돌리자 윈도우를 전제한 시험이 떨어졌다. 시험 파일마다 흩어 표시하지 않고 **여기 한 곳**에 까닭과 함께 둔다 —
+# 「맥에서 왜 안 도나」를 한 눈에 보고, 맥 쪽을 고치면 여기서 지운다. 실패를 숨기려고 늘리는 목록이 아니다:
+#   WINDOWS_ONLY  — 윈도우 부품 · 경로 문법 · 프로세스 API 를 재는 시험. 맥 제품은 다른 길로 같은 일을 한다(또는 그 기능이 윈도우 전용).
+#   MAC_GAPS      — 맥 제품이 실제로 모자란 것. 건너뛰지 않고 「알려진 실패(xfail strict)」로 남겨 고치면 바로 드러나게 한다.
+_WIN = "윈도우 전용 — "
+WINDOWS_ONLY: dict[str, str] = {
+    # 셸 · 경로 문법(역슬래시 · 드라이브 문자 · PowerShell)
+    "test_a_real_shell_with_a_brake.py::test_it_actually_runs_and_reads_korean": _WIN + "PowerShell 명령을 실제로 돌린다",
+    "test_a_real_shell_with_a_brake.py::test_it_runs_in_the_work_folder": _WIN + "PowerShell Get-Location",
+    "test_shell_probe.py::test_an_allowed_command_actually_runs": _WIN + "PowerShell · cmd 를 실제로 돌린다",
+    "test_shell_probe.py::test_shell_characters_are_literal_not_interpreted": _WIN + "PowerShell · cmd 를 실제로 돌린다",
+    "test_artifact_and_scope_symptoms_1027.py::test_missing_file_still_fails": _WIN + "윈도우 운영 기록의 역슬래시 경로를 그대로 읽는다",
+    "test_artifact_and_scope_symptoms_1027.py::test_written_and_verified_xlsx_counts_as_artifact": _WIN + "윈도우 운영 기록의 역슬래시 경로를 그대로 읽는다",
+    "test_code_mode_has_room_to_work.py::test_a_script_outside_the_workspace_is_still_refused": _WIN + "역슬래시 상대 경로(..\\)",
+    "test_game_pack_bench_bugs.py::test_a_pattern_glued_into_the_path_is_split": _WIN + "역슬래시로 붙은 경로 쪼개기",
+    "test_quoted_examples_and_relative_paths_1009.py::test_a_full_path_a_home_path_and_an_env_path_are_left_alone": _WIN + "C:\\ 경로 문법",
+    "test_quoted_examples_and_relative_paths_1009.py::test_lists_and_the_working_directory_are_anchored_too": _WIN + "C:\\ 경로 문법",
+    "test_my_documents_means_the_real_folder.py::test_a_bare_file_name_goes_to_the_folder_the_request_named": _WIN + "C:\\ 경로 문법",
+    # 파일 · 앱 열기(os.startfile · explorer.exe) — 맥은 `open` 으로 연다(file_open._open_on_mac)
+    "test_open_output_on_pc.py::test_a_file_in_the_job_ledger_opens_with_the_default_app": _WIN + "os.startfile",
+    "test_open_output_on_pc.py::test_reveal_points_explorer_at_the_file": _WIN + "explorer.exe /select",
+    "test_opening_must_not_lock_the_work.py::test_a_failure_to_open_is_not_a_failure_to_make": _WIN + "os.startfile 을 갈아 끼워 잰다",
+    "test_opening_must_not_lock_the_work.py::test_a_locked_file_is_written_beside_it_and_said_so": _WIN + "os.startfile 을 갈아 끼워 잰다",
+    "test_opening_must_not_lock_the_work.py::test_a_tool_called_outside_a_job_opens_nothing": _WIN + "os.startfile 을 갈아 끼워 잰다",
+    "test_opening_must_not_lock_the_work.py::test_it_opens_once_when_the_run_is_over": _WIN + "os.startfile 을 갈아 끼워 잰다",
+    "test_opening_must_not_lock_the_work.py::test_making_a_document_does_not_open_it_yet": _WIN + "os.startfile 을 갈아 끼워 잰다",
+    "test_opening_must_not_lock_the_work.py::test_the_same_file_can_be_rewritten_during_the_run": _WIN + "os.startfile 을 갈아 끼워 잰다",
+    "test_sandbox_deliverables.py::test_the_answer_carries_the_content_not_just_a_path": _WIN + "os.startfile 을 갈아 끼워 잰다",
+    "test_computer_use_first_try_1017.py::test_a_file_opens_in_the_named_app_without_a_shell": _WIN + "윈도우 앱 이름으로 열기 · USERPROFILE",
+    # 크롬 창(윈도우 창 API)
+    "test_newborn_chrome_windows_are_hidden.py::test_the_offscreen_position_is_beyond_every_monitor": _WIN + "모니터 밖 창 위치 — 맥은 앱 숨김(⌘H)",
+    "test_quiet_capture_never_blocks.py::test_settling_is_signalled_when_the_browser_is_ready": _WIN + "최소화한 창 되살리기 — 맥은 앱 숨김",
+    "test_browser_never_touches_other_windows.py::test_the_watcher_can_be_turned_off_in_one_line": _WIN + "새 크롬 창 감시는 윈도우에서만 돈다",
+    "test_foreign_cdp_port_does_not_force_launched.py::test_another_ontelics_chrome_is_refused": _WIN + "chrome.exe 명령줄",
+    # 클로드 데스크톱 연결 · MSIX · 프로세스 시각
+    "test_mcp_connect.py::test_a_broken_json_config_is_refused_not_overwritten": _WIN + "윈도우 클로드 데스크톱(claude.exe · AppData · 스토어판) 자리",
+    "test_mcp_connect.py::test_a_separately_installed_claude_code_is_found_even_when_path_does_not_have_it": _WIN + "윈도우 클로드 데스크톱(claude.exe · AppData · 스토어판) 자리",
+    "test_mcp_connect.py::test_an_npm_installed_claude_code_is_found_by_its_place": _WIN + "윈도우 클로드 데스크톱(claude.exe · AppData · 스토어판) 자리",
+    "test_mcp_connect.py::test_claude_desktop_bundled_claude_code_is_used_when_there_is_no_cli_on_path": _WIN + "윈도우 클로드 데스크톱(claude.exe · AppData · 스토어판) 자리",
+    "test_mcp_connect.py::test_desktop_both_store_and_classic_paths_get_only_our_key": _WIN + "윈도우 클로드 데스크톱(claude.exe · AppData · 스토어판) 자리",
+    "test_mcp_connect.py::test_desktop_is_not_touched_while_the_app_runs_and_is_connected_once_it_closes": _WIN + "윈도우 클로드 데스크톱(claude.exe · AppData · 스토어판) 자리",
+    "test_mcp_connect.py::test_the_bundled_claude_code_is_not_mistaken_for_the_desktop_app": _WIN + "윈도우 클로드 데스크톱(claude.exe · AppData · 스토어판) 자리",
+    "test_mcp_connect.py::test_the_separately_installed_one_wins_over_the_copy_inside_claude_desktop": _WIN + "윈도우 클로드 데스크톱(claude.exe · AppData · 스토어판) 자리",
+    "test_desktop_close_connect_reopen_1012.py::test_a_config_we_cannot_write_is_found_before_the_app_is_closed": _WIN + "윈도우 클로드 데스크톱 닫기 · 다시 열기",
+    "test_desktop_close_connect_reopen_1012.py::test_claude_code_in_a_terminal_is_never_closed": _WIN + "윈도우 클로드 데스크톱 닫기 · 다시 열기",
+    "test_desktop_close_connect_reopen_1012.py::test_if_the_app_does_not_close_the_config_is_left_alone": _WIN + "윈도우 클로드 데스크톱 닫기 · 다시 열기",
+    "test_desktop_close_connect_reopen_1012.py::test_running_desktop_is_closed_then_connected_then_reopened": _WIN + "윈도우 클로드 데스크톱 닫기 · 다시 열기",
+    "test_desktop_close_connect_reopen_1012.py::test_the_wait_for_close_watcher_ends_once_we_are_connected": _WIN + "윈도우 클로드 데스크톱 닫기 · 다시 열기",
+    "test_desktop_close_connect_reopen_1012.py::test_when_desktop_is_not_running_it_just_connects": _WIN + "윈도우 클로드 데스크톱 닫기 · 다시 열기",
+    "test_desktop_connect_survives_restart.py::test_a_separately_installed_claude_code_is_not_the_desktop_app": _WIN + "윈도우 클로드 데스크톱",
+    "test_desktop_connect_survives_restart.py::test_the_wait_survives_an_app_restart": _WIN + "윈도우 클로드 데스크톱",
+    "test_msix_paths.py::test_packaged_desktop_without_a_config_file_asks_for_paste": _WIN + "MSIX 클로드",
+    "test_store_owner.py::test_a_real_second_process_is_refused": _WIN + "윈도우 프로세스 태어난 시각(맥은 「모름」 = 막지 않음)",
+    "test_store_owner.py::test_a_reused_process_number_is_not_the_owner": _WIN + "윈도우 프로세스 태어난 시각(맥은 「모름」 = 막지 않음)",
+    "test_store_owner.py::test_another_process_is_refused_while_the_owner_lives": _WIN + "윈도우 프로세스 태어난 시각(맥은 「모름」 = 막지 않음)",
+    "test_store_owner.py::test_every_open_leaves_one_line_and_no_values": _WIN + "윈도우 프로세스 태어난 시각(맥은 「모름」 = 막지 않음)",
+    "test_store_owner.py::test_the_refusal_comes_before_the_file_is_touched": _WIN + "윈도우 프로세스 태어난 시각(맥은 「모름」 = 막지 않음)",
+    "test_store_owner.py::test_the_server_is_never_refused_and_takes_the_seat": _WIN + "윈도우 프로세스 태어난 시각(맥은 「모름」 = 막지 않음)",
+    "test_store_owner.py::test_the_server_writes_itself_down_as_the_owner": _WIN + "윈도우 프로세스 태어난 시각(맥은 「모름」 = 막지 않음)",
+    "test_store_owner.py::test_when_we_cannot_tell_we_do_not_refuse": _WIN + "윈도우 프로세스 태어난 시각(맥은 「모름」 = 막지 않음)",
+    "test_paths_outside_app_data.py::test_outside_a_package_the_folder_already_in_use_is_kept": _WIN + "%LOCALAPPDATA% 옛 프로필 이어 쓰기",
+    "test_tests_do_not_write_into_the_users_app_folder.py::test_playwright_still_finds_the_browsers_it_downloaded": _WIN + "%LOCALAPPDATA% 의 ms-playwright",
+    # 윈도우용 Ollama 설치 파일(ollama-windows-amd64.zip) — 맥은 install_mac 길
+    "test_ollama_install.py::test_a_download_url_outside_the_official_release_is_refused": _WIN + "윈도우 설치 파일",
+    "test_ollama_install.py::test_a_good_install_in_the_old_place_is_moved_instead_of_downloaded_again": _WIN + "윈도우 설치 파일",
+    "test_ollama_install.py::test_a_half_install_in_the_old_place_is_not_moved": _WIN + "윈도우 설치 파일",
+    "test_ollama_install.py::test_a_half_install_is_reported_and_can_be_repaired_even_while_ollama_answers": _WIN + "윈도우 설치 파일",
+    "test_ollama_install.py::test_a_healthy_running_install_still_hides_the_button": _WIN + "윈도우 설치 파일",
+    "test_ollama_install.py::test_a_zip_without_the_runner_is_not_accepted_as_installed": _WIN + "윈도우 설치 파일",
+    "test_ollama_install.py::test_hash_mismatch_deletes_the_download_and_never_runs_it": _WIN + "윈도우 설치 파일",
+    "test_ollama_install.py::test_release_and_api_digest_must_agree": _WIN + "윈도우 설치 파일",
+    "test_ollama_install.py::test_repair_stops_our_old_server_moves_the_files_and_starts_from_the_new_place": _WIN + "윈도우 설치 파일",
+    "test_ollama_install.py::test_verified_zip_is_extracted_and_served": _WIN + "윈도우 설치 파일",
+    "test_ollama_install.py::test_zip_without_ollama_exe_is_not_installed": _WIN + "윈도우 설치 파일(ollama.exe)",
+    "test_ollama_install_survives_a_blocked_move.py::test_a_move_that_fails_at_first_is_tried_again": _WIN + "윈도우 설치 파일 · 잠긴 폴더 옮기기",
+    "test_ollama_install_survives_a_blocked_move.py::test_a_move_that_never_works_still_ends_in_a_working_install": _WIN + "윈도우 설치 파일 · 잠긴 폴더 옮기기",
+    "test_ollama_install_survives_a_blocked_move.py::test_installing_again_does_not_extract_over_the_folder_in_use": _WIN + "윈도우 설치 파일 · 잠긴 폴더 옮기기",
+    "test_ollama_install_without_github_api.py::test_a_rate_limited_api_falls_back_to_the_release_page": _WIN + "윈도우 설치 파일",
+    # 그래픽카드(nvidia-smi) · 음악 멈추기(winrt) · 애니메이터(3ds Max)
+    "test_model_stall_auto_resume_1027.py::test_a_full_card_warns_before_the_model_is_even_loaded": _WIN + "nvidia-smi — 맥은 통합 메모리를 읽는다",
+    "test_model_stall_auto_resume_1027.py::test_a_full_card_warns_even_when_ps_says_everything_is_loaded": _WIN + "nvidia-smi",
+    "test_model_stall_auto_resume_1027.py::test_the_late_hint_blames_the_card_only_when_the_card_is_full_or_unreadable": _WIN + "nvidia-smi",
+    "test_memory_media.py::test_media_controller_resumes_only_sessions_it_paused": _WIN + "윈도우 미디어 세션(맥 첫 판에서 끈 기능)",
+    "test_settings_consumers.py::test_saved_setting_reaches_its_consumer": _WIN + "media_pause_enabled 를 쓰는 곳이 윈도우 미디어 세션뿐",
+    "test_animator_pack_1102.py::test_scripts_have_no_placeholders_and_balanced_parens": _WIN + "애니메이터(3ds Max) · 맥 임시 폴더 이름에 __ 가 든다",
+    "test_animator_v1_1103.py::test_frame_folders_skip_leftover_files": _WIN + "애니메이터 · cv2(맥에 안 깖)",
+}
+MAC_GAPS: dict[str, str] = {
+    "test_google_local_tools.py::test_token_vault_round_trip":
+        "맥 빈틈 — 구글 토큰 파일이 맥에서는 평문이다(윈도우는 DPAPI). 키체인으로 옮길 것",
+    "test_project_venv_install.py::test_install_goes_into_a_project_venv_that_still_sees_our_tools":
+        "맥 빈틈 — --system-site-packages 가 손자리 가상환경이 아닌 바탕 파이썬(uv)을 가리켜 우리 pytest 가 안 보인다",
+}
+
+
+def pytest_collection_modifyitems(config, items):  # type: ignore[no-untyped-def]
+    if sys.platform == "win32":
+        return
+    for item in items:
+        nodeid = item.nodeid.split("/")[-1].split("[")[0]
+        for key, why in WINDOWS_ONLY.items():
+            if nodeid == key or (key.endswith("::") and nodeid.startswith(key)):
+                item.add_marker(pytest.mark.skip(reason=why))
+                break
+        else:
+            gap = MAC_GAPS.get(nodeid)
+            if gap and sys.platform == "darwin":
+                item.add_marker(pytest.mark.xfail(reason=gap, strict=True))

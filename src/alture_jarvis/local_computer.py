@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
+
 import contextlib
 import ctypes
 import fnmatch
 import hashlib
 import json
 import os
+import signal
+import unicodedata
 import re
 import secrets
 import shutil
@@ -111,6 +115,15 @@ EDIT_PREVIEW_LINES = 40
 # 결과에 실어 보낸다.
 LISTING_DEFAULT_ITEMS = 80
 
+def _nfc(text: str) -> str:
+    """한글 이름을 조합형(NFC)으로 (2026-11-03 맥판 · 전수조사 C7).
+
+    ★ 맥 파인더가 만든 한글 파일 이름은 자모가 풀린 꼴(NFD)이다. 맥미니에서 `계약서_최종.txt`(NFD)를 NFC 「계약서」로
+      찾으니 0건이었다. 비교 · 모델에게 보여 주는 이름은 NFC 로 맞춘다 — 맥 APFS 는 여는 경로의 정규화를 가리지 않는다.
+    """
+    return unicodedata.normalize("NFC", text) if text and not text.isascii() else text
+
+
 SKIP_DIRECTORIES = {
     ".git",
     ".idea",
@@ -155,6 +168,29 @@ def _token_metric_name(lowered_name: str) -> bool:
         and bool(_TOKEN_METRIC_WORD.search(lowered_name))
         and not _TOKEN_SECRET_WORD.search(lowered_name)
     )
+
+
+#: 이어진 경로 조각으로만 가려지는 비밀 자리 (2026-11-03 맥판).
+#  ★ 맥은 브라우저 프로필 · 키체인 · 앱 쿠키가 `~/Library` 아래 있고, 윈도우의 `User Data` 처럼 한 낱말로 걸리는
+#    이름이 없다 — 읽기 범위가 홈 전체(`read_roots`)라 맥에서는 크롬 쿠키 · 키체인 · 클로드 앱 쿠키가 그대로 열려 있었다.
+#    낱말 하나(`chrome`)로 막으면 사용자 문서 폴더 이름까지 걸리므로 **이어진 조각**으로만 본다. 윈도우 클로드 앱 자리도 같은 처지라 같이.
+SENSITIVE_PATH_RUNS: tuple[tuple[str, ...], ...] = (
+    ("library", "keychains"),
+    ("library", "cookies"),
+    ("library", "application support", "google", "chrome"),
+    ("library", "application support", "microsoft edge"),
+    ("library", "application support", "bravesoftware"),
+    ("library", "application support", "firefox"),
+    ("library", "application support", "claude"),
+    ("appdata", "roaming", "claude"),
+)
+#: 이름이 **정확히** 이것이면 비밀(브라우저의 쿠키 · 자동 완성 DB). 조각으로 막으면 `cookies_policy.md` 까지 걸린다.
+SENSITIVE_EXACT_NAMES = frozenset({"cookies", "cookies-journal", "web data", "web data-journal", "login data"})
+
+
+def _has_run(parts: tuple[str, ...], run: tuple[str, ...]) -> bool:
+    width = len(run)
+    return any(parts[index:index + width] == run for index in range(len(parts) - width + 1))
 
 
 SENSITIVE_NAME_FRAGMENTS = (
@@ -218,6 +254,8 @@ def run_captured(
     process = subprocess.Popen(
         executable, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         shell=False, creationflags=creationflags,
+        # 맥 · 리눅스: 따로 된 프로세스 무리로 띄워 끊을 때 손자까지 같이 끝낸다(`kill_process_tree` · 전수조사 C5).
+        start_new_session=os.name != "nt",
     )
     sinks: dict[str, list[bytes]] = {"out": [], "err": []}
 
@@ -310,6 +348,13 @@ def kill_process_tree(process: "subprocess.Popen[bytes]") -> None:
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), check=False,
             )
         except (OSError, subprocess.SubprocessError):
+            pass
+    else:
+        # 맥 · 리눅스(2026-11-03 · 전수조사 C5): 예전엔 뿌리만 죽여 손자(시험이 띄운 서버 등)가 남았다 — 윈도우에서 겪은
+        # 「통로를 쥔 손자 때문에 14분 매달림」과 같은 모양. 띄울 때 새 세션이라 무리 번호 = 뿌리 pid.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (OSError, AttributeError):
             pass
     try:
         process.kill()
@@ -1138,6 +1183,10 @@ _SHELL_READ_ONLY = frozenset({
     "join-path", "compare-object", "sort-object", "select-object", "format-table",
     "get-process", "get-service", "systeminfo", "ver", "python", "py", "node",
     "npm", "pnpm", "yarn", "cargo", "git", "pytest", "ruff", "mypy",
+    # 맥 · 리눅스 셸(2026-11-03 맥판 · 전수조사 B3). 보기만 하는 것. `env` · `printenv` 는 환경변수의 비밀을 찍으니 넣지 않는다.
+    # `rg`(--pre 로 아무 프로그램이나 돌림) · `uniq`(두 번째 인자 파일에 씀)는 보기만 하는 명령이 아니라 넣지 않는다(11-03 코드 검토).
+    "grep", "egrep", "head", "tail", "wc", "file", "stat", "du", "uname", "sw_vers", "date",
+    "sort", "basename", "dirname", "realpath",
 })
 
 #: 폴더만 옮기는 명령 — 이어 붙인 명령에서 이 조각은 판정에서 뺀다(아무것도 안 바꾼다).
@@ -1408,7 +1457,7 @@ def _visible_windows() -> dict[int, str]:
     if os.name != "nt":
         return {}
     found: dict[int, str] = {}
-    user32 = ctypes.windll.user32
+    user32 = winapi.user32
     callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
 
     def collect(hwnd: Any, _param: Any) -> bool:
@@ -1912,15 +1961,22 @@ class LocalComputerTools:
             ),
             self._function(
                 "local_run_shell",
-                "작업 폴더에서 PowerShell 명령 한 줄을 돌린다(창은 뜨지 않는다). "
-                "둘러보기에 쓴다: dir, Get-ChildItem, Select-String, Get-Content, git log, --version. "
+                (
+                    # 맥은 `/bin/sh -c` 로 돈다(`run_shell`). PowerShell 이라고 말하면 모델이 Get-ChildItem 을 써 「command not found」(전수조사 B3).
+                    "작업 폴더에서 셸(zsh/sh) 명령 한 줄을 돌린다(창은 뜨지 않는다). "
+                    "둘러보기에 쓴다: ls, grep -rn, head, cat, git log, --version. "
+                    if sys.platform == "darwin" else
+                    "작업 폴더에서 PowerShell 명령 한 줄을 돌린다(창은 뜨지 않는다). "
+                    "둘러보기에 쓴다: dir, Get-ChildItem, Select-String, Get-Content, git log, --version. "
+                ) +
                 "보기만 하는 명령은 바로 돌고, 만들기·지우기·설치·네트워크는 사용자 승인 카드가 뜬다. "
                 "보안 설정·시스템 폴더는 어떤 경우에도 거부된다. "
                 "시험·린트처럼 정해진 것은 local_run_project_command 가 더 낫다.",
                 {
                     "command": {
                         "type": "string",
-                        "description": "PowerShell 한 줄. 예: Get-ChildItem -Recurse -Filter *.py",
+                        "description": ("셸 한 줄. 예: grep -rn \"def main\" src" if sys.platform == "darwin"
+                                        else "PowerShell 한 줄. 예: Get-ChildItem -Recurse -Filter *.py"),
                     },
                     "timeout_sec": {"type": "integer", "minimum": 5, "maximum": 600},
                 },
@@ -2095,6 +2151,11 @@ class LocalComputerTools:
         lowered_parts = {part.lower() for part in path.parts}
         lowered_name = path.name.lower()
         if lowered_parts & SENSITIVE_PARTS:
+            return True
+        if lowered_name in SENSITIVE_EXACT_NAMES:
+            return True
+        ordered = tuple(part.lower() for part in path.parts)
+        if any(_has_run(ordered, run) for run in SENSITIVE_PATH_RUNS):
             return True
         if lowered_name == ".env" or lowered_name.startswith(".env."):
             return True
@@ -2449,9 +2510,46 @@ class LocalComputerTools:
         appdata = (home / "AppData").resolve(strict=False)
         if path == appdata or path.parent == appdata:
             return "AppData 는 앱들의 설정·토큰이 모인 자리라 통째로 받지 않습니다."
+        if sys.platform == "darwin":
+            reason = self._too_broad_on_mac(path, home)
+            if reason:
+                return reason
         data_dir = getattr(self.config, "data_dir", None)
         if data_dir is not None and self._inside(Path(data_dir).resolve(strict=False), path):
             return "손자리 자기 데이터(대화·토큰)가 든 폴더는 받지 않습니다."
+        return ""
+
+    #: 맥의 시스템 · 프로그램 자리 (2026-11-03). 윈도우의 `SystemRoot` · `ProgramFiles` 환경변수가 맥엔 없어
+    #  위 목록이 통째로 건너뛰어졌다(전수조사 B15). `/private` 은 `/etc` · `/var` · `/tmp` 의 진짜 자리다.
+    _MAC_SYSTEM_ROOTS = ("/System", "/Library", "/Applications", "/usr", "/bin", "/sbin", "/opt", "/cores",
+                         "/private/etc", "/private/var/db", "/private/var/root", "/private/var/log")
+    #: `/private` 아래 임시 자리는 윈도우 `AppData\Local\Temp\my-repo` 처럼 **깊은 곳은 허락**한다(11-03 코드 검토: `/private`
+    #  통째로 막았더니 /tmp/my-repo 도 「시스템 폴더」로 거절됐다). `/tmp` 는 그 자체만, `/var/folders` 는 맥이 사용자마다 만드는
+    #  세 단계(`ab/cd/T`)까지만 막고, 그 밖의 `/private` · `/private/var` 아래는 시스템 자리로 막는다.
+    _MAC_TMP = "/private/tmp"
+    _MAC_VAR_FOLDERS = "/private/var/folders"
+
+    def _too_broad_on_mac(self, path: Path, home: Path) -> str:
+        for raw in self._MAC_SYSTEM_ROOTS:
+            if self._inside(path, Path(raw).resolve(strict=False)):
+                return "시스템·프로그램 폴더는 작업 자리로 받지 않습니다."
+        tmp = Path(self._MAC_TMP).resolve(strict=False)
+        folders = Path(self._MAC_VAR_FOLDERS).resolve(strict=False)
+        private = Path("/private").resolve(strict=False)
+        if path == tmp:
+            return "임시 폴더 통째는 작업 자리로 받지 않습니다. 그 안의 저장소 폴더를 골라 주세요."
+        if self._inside(path, folders):
+            if len(path.relative_to(folders).parts) <= 3:
+                return "임시 폴더 통째는 작업 자리로 받지 않습니다. 그 안의 저장소 폴더를 골라 주세요."
+        elif self._inside(path, private) and not self._inside(path, tmp):
+            return "시스템·프로그램 폴더는 작업 자리로 받지 않습니다."
+        # 바깥 디스크 통째(`/Volumes/USB`)는 윈도우의 드라이브 통째와 같다.
+        if path.parent == Path("/Volumes").resolve(strict=False):
+            return "디스크 전체는 작업 자리로 받지 않습니다. 저장소 폴더를 골라 주세요."
+        # `~/Library` 는 윈도우 AppData 와 같은 뜻 — 그 자체와 바로 아래만 막는다(깊은 작업 폴더는 고를 수 있게).
+        library = (home / "Library").resolve(strict=False)
+        if path == library or path.parent == library:
+            return "~/Library 는 앱들의 설정·토큰이 모인 자리라 통째로 받지 않습니다."
         return ""
 
     def authorize_code_workspace(self, job_id: str, raw_root: str) -> Path:
@@ -3671,7 +3769,7 @@ class LocalComputerTools:
         for item in sorted(path.iterdir(), key=lambda value: (not value.is_dir(), value.name.lower())):
             if item.name.startswith(".") or self._is_sensitive(item):
                 continue
-            if pattern and not fnmatch.fnmatch(item.name.lower(), pattern.lower()):
+            if pattern and not fnmatch.fnmatch(_nfc(item.name).lower(), _nfc(pattern).lower()):
                 continue
             stat = item.stat()
             # 항목 하나를 최대한 짧게. `extension`·`modified_at` 은 이름에서 알 수
@@ -3787,7 +3885,7 @@ class LocalComputerTools:
           ripgrep `rg --files` 는 전부 훑는 데 49.9초 — 전체 훑기는 2배 빠르지만 디스크가 병목이라 「파일 하나 찾기」를 빠르게 하는 것은
           엔진이 아니라 **얕은 곳부터 · 찾으면 멈춤 · 본 것을 다시 안 봄**이었다.
         """
-        query = str(arguments.get("query") or "").strip().lower()
+        query = _nfc(str(arguments.get("query") or "").strip()).lower()
         if not query:
             raise ValueError("query_required")
         root_raw = str(arguments.get("root") or "").strip()
@@ -3814,7 +3912,9 @@ class LocalComputerTools:
             for name, is_dir in names:
                 if len(results) >= maximum:
                     return
-                if query not in name.lower():
+                # 비교만 NFC 로 — 돌려주는 이름 · 경로는 **원본 그대로**(NTFS · ext4 는 정규화를 가려서, NFC 로 바꾼 경로로는
+                # 맥에서 옮겨 온 NFD 파일을 못 연다 · 11-03 코드 검토).
+                if query not in _nfc(name).lower():
                     continue
                 # 건너뛰는 폴더(.git·node_modules …)와 숨은 폴더는 속을 안 보는 것처럼 이름도 결과로 내지 않는다(예전과 같다).
                 if is_dir and (name.lower() in SKIP_DIRECTORIES or name.startswith(".")):
@@ -4940,7 +5040,13 @@ class LocalComputerTools:
         maximum = max(1, min(int(arguments.get("max_results") or 100), 400))
         found: list[dict[str, Any]] = []
         truncated = False
-        for item in root.glob(pattern):
+        # 맥 NFD 이름은 NFC 무늬로 안 걸린다 — 두 꼴로 찾아 합친다(같은 파일은 한 번만).
+        variants = dict.fromkeys([pattern, unicodedata.normalize("NFD", pattern)] if not pattern.isascii() else [pattern])
+        seen_paths: set[str] = set()
+        for item in (hit for variant in variants for hit in root.glob(variant)):
+            if str(item) in seen_paths:
+                continue
+            seen_paths.add(str(item))
             if any(part.lower() in SKIP_DIRECTORIES or part.startswith(".") for part in item.parts):
                 continue
             if self._is_sensitive(item) or not item.is_file():
@@ -5782,7 +5888,7 @@ class LocalComputerTools:
         if os.name != "nt" or not self.config.windows_control_enabled:
             raise RuntimeError("windows_control_unavailable")
         maximum = max(1, min(int(arguments.get("max_results") or 50), 100))
-        user32 = ctypes.windll.user32
+        user32 = winapi.user32
         windows: list[dict[str, Any]] = []
         callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
 
@@ -5834,7 +5940,7 @@ class LocalComputerTools:
         if os.name != "nt" or not self.config.windows_control_enabled:
             raise RuntimeError("windows_control_unavailable")
         window_id = int(arguments.get("window_id") or 0)
-        user32 = ctypes.windll.user32
+        user32 = winapi.user32
         if not window_id or not user32.IsWindow(window_id):
             raise ValueError("window_not_found")
         length = int(user32.GetWindowTextLengthW(window_id))

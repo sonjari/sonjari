@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Observation, StepRow } from "./workspace/observation";
 import type { HealthOllama } from "./workspace/readiness";
 import type { ModelLoading } from "./workspace/ModelLoadLine";
-import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, UsageShowStatus, WhatsNewStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, ScribeStatus, BackupSummary, PackInfo, PacksView, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem, SavingsReceipt, WeeklyReceipt, ReceiptImageSaved } from "./types";
+import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, UsageShowStatus, WhatsNewStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, ScribeStatus, BackupSummary, PackInfo, PacksView, McpServerRow, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem, SavingsReceipt, WeeklyReceipt, ReceiptImageSaved } from "./types";
 
 declare global {
   interface Window {
@@ -231,7 +231,7 @@ export class JarvisClient {
   }
 
   async getState(): Promise<{ state: string }> {
-    return this.request("/v1/state", { method: "GET" }, false);
+    return this.request("/v1/state", { method: "GET" });
   }
 
   /** 지금 「배우는 중」인가(`/레시피`) — 사건을 놓쳤어도(앱을 다시 켬) 칸이 맞게 뜨도록 처음 붙을 때 묻는다. */
@@ -240,7 +240,7 @@ export class JarvisClient {
   }
 
   getConfig(): Promise<JarvisPublicConfig> {
-    return this.request("/v1/config", { method: "GET" }, false);
+    return this.request("/v1/config", { method: "GET" });
   }
 
   getGoogleStatus(verify = false): Promise<GoogleStatus> {
@@ -508,6 +508,32 @@ export class JarvisClient {
   }
 
   // ── 분야 팩 (0판) — 켜고 끄는 것은 사람이 화면에서 누른 것이 동의다 ───────────────
+  // ── MCP 서버 꽂기(2026-11-04) — 사람만 꽂고 뺀다 ──
+  listMcpServers(): Promise<{ servers: McpServerRow[] }> {
+    return this.request("/v1/mcp/servers", { method: "GET" });
+  }
+
+  /** 클로드 데스크톱 `mcpServers` 모양을 그대로 받는다(`{"mcpServers": {...}}`). */
+  addMcpServers(config: unknown): Promise<{ added: string[]; skipped: { name: string; why: string }[]; servers: McpServerRow[] }> {
+    return this.request("/v1/mcp/servers", { method: "POST", body: JSON.stringify(config) });
+  }
+
+  importMcpFromClaude(): Promise<{ added: string[]; skipped: { name: string; why: string }[]; servers: McpServerRow[] }> {
+    return this.request("/v1/mcp/import-claude", { method: "POST", body: "{}" });
+  }
+
+  testMcpServer(name: string): Promise<{ name: string; tools: { name: string; description: string; risk: string }[] }> {
+    return this.request(`/v1/mcp/servers/${encodeURIComponent(name)}/test`, { method: "POST", body: "{}" });
+  }
+
+  setMcpServerEnabled(name: string, on: boolean): Promise<{ servers: McpServerRow[] }> {
+    return this.request(`/v1/mcp/servers/${encodeURIComponent(name)}/${on ? "enable" : "disable"}`, { method: "POST", body: "{}" });
+  }
+
+  removeMcpServer(name: string): Promise<{ servers: McpServerRow[] }> {
+    return this.request(`/v1/mcp/servers/${encodeURIComponent(name)}`, { method: "DELETE" });
+  }
+
   listPacks(): Promise<PacksView> {
     return this.request("/v1/packs", { method: "GET" });
   }
@@ -660,7 +686,7 @@ eceipts` 에 저장한다 — 경로는 백엔드가 정한다. */
   }
 
   getCapabilities(): Promise<Capabilities> {
-    return this.request("/v1/capabilities", { method: "GET" }, false);
+    return this.request("/v1/capabilities", { method: "GET" });
   }
 
   // ── 만든 것 · 되돌리기 (R4) ────────────────────────────────────────────
@@ -842,7 +868,7 @@ eceipts` 에 저장한다 — 경로는 백엔드가 정한다. */
   }
 
   getBrowserStatus(): Promise<BrowserStatus> {
-    return this.request("/v1/browser/status", { method: "GET" }, false);
+    return this.request("/v1/browser/status", { method: "GET" });
   }
 
   /**
@@ -855,9 +881,11 @@ eceipts` 에 저장한다 — 경로는 백엔드가 정한다. */
   async getBrowserFrame(): Promise<BrowserFrame> {
     const read = (response: Response, name: string) => decodeURIComponent(response.headers.get(name) ?? "");
     try {
+      // 11-04: 브라우저 화면 그림은 열쇠가 있어야 준다(이 PC 안의 다른 프로그램 · 테일넷 기기가 못 읽게).
       const response = await fetch(`${this.bootstrap.baseUrl}/v1/browser/frame.jpg`, {
         method: "GET",
         cache: "no-store",
+        headers: this.bootstrap.controlToken ? { "X-JARVIS-TOKEN": this.bootstrap.controlToken } : undefined,
       });
       const frame: BrowserFrame = {
         ok: response.ok,

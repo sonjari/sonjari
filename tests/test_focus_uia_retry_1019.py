@@ -93,6 +93,7 @@ def _local_tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, foreground_
     fake_ctypes = SimpleNamespace(windll=SimpleNamespace(user32=user32),
                                   create_unicode_buffer=real_ctypes.create_unicode_buffer)
     monkeypatch.setattr(local_computer, "ctypes", fake_ctypes)
+    monkeypatch.setattr(local_computer, "winapi", SimpleNamespace(user32=user32))  # 11-03: 윈도우 API 는 winapi 로 부른다
     monkeypatch.setattr(window_view, "desktop", lambda: FakeDesk())
     monkeypatch.setattr(UserPresence, "wait_until_idle", lambda self, **kw: True)
     monkeypatch.setattr(window_view.time, "sleep", lambda _s: None)

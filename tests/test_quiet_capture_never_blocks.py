@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -357,3 +358,114 @@ def test_a_window_already_filling_the_work_area_is_left_alone() -> None:
     BrowserWorker._send_window_to_back(user32, 1)
     flags = user32.calls[0][1][-1]
     assert flags & 0x0001 and flags & 0x0002
+
+
+def test_on_mac_the_new_window_is_hidden_not_minimized(tmp_path: Path, monkeypatch) -> None:
+    """11-04 대표(맥미니): 「크롬이 켜졌다가 휴지 뽑히듯 들어간다」 — 최소화는 독으로 빨려 드는 지니 효과가 보인다.
+    맥은 앱 숨김(⌘H)으로 내리고, 크롬 창을 최소화(Browser.setWindowBounds minimized)하지 않는다."""
+    import sys as _sys
+
+    from alture_jarvis import macos
+
+    worker = _quiet_worker(tmp_path, _HiddenTab())
+    worker.config.browser_headless = False
+    worker._browser_is_ours = lambda: True  # type: ignore[method-assign]
+    worker._may_take_foreground = lambda: False  # type: ignore[method-assign]
+    worker._mac_main_pid = lambda: 4242  # type: ignore[method-assign]
+    states: list[str] = []
+    worker._set_window_state = lambda _page, state: states.append(state)  # type: ignore[method-assign]
+    hidden: list[int] = []
+    monkeypatch.setattr(_sys, "platform", "darwin")
+    monkeypatch.setattr(macos, "app_is_hidden", lambda pid: pid in hidden)
+    monkeypatch.setattr(macos, "hide_app", lambda pid: hidden.append(pid) or True)
+
+    worker._yield_new_window(worker._page)
+    assert hidden == [4242] and states == []
+    worker._yield_new_window(worker._page)  # 이미 숨겨져 있으면 또 숨기지 않는다
+    assert hidden == [4242] and states == []
+
+
+# ── 11-05 대표(맥미니): 「크롬이 반짝하듯 떴다 들어간다」 — 창 없이 띄워 숨긴 뒤 첫 창을 화면 끝에 ─────────────
+
+def test_on_mac_chrome_starts_without_a_window_and_the_first_window_waits_for_hiding() -> None:
+    """띄운 뒤 숨기면 창이 먼저 그려진다(운영판 36+132ms). 창 0개일 때 숨기고, 첫 창은 숨긴 **뒤에** CDP 로."""
+    source = (Path(__file__).resolve().parents[1] / "src" / "alture_jarvis" / "browser.py").read_text(encoding="utf-8")
+    block = source[source.index("        if mac_quiet:\n            arguments +="):][:1600]
+    assert '"--no-startup-window"' in block and "self._first_window_pending = True" in block
+    opener = source[source.index('if getattr(self, "_first_window_pending", False):'):][:400]
+    assert opener.index("self._mac_wait_hidden()") < opener.index("self._open_first_window_background(info)")
+
+
+def test_on_mac_showing_chrome_moves_the_window_into_view_before_unhiding(monkeypatch) -> None:
+    """첫 창은 화면 오른쪽 끝(40px)에 있다 — 사람에게 보여 줄 때 끝 띠만 보이면 안 된다. 옮긴 **뒤에** 숨김을 푼다."""
+    from alture_jarvis import macos
+
+    worker = BrowserWorker.__new__(BrowserWorker)
+    worker._mac_guard_pid = 4242
+    worker._mac_guard_on = True
+    order: list[str] = []
+    worker._mac_bring_windows_into_view = lambda: order.append("move") or 1  # type: ignore[method-assign]
+    monkeypatch.setattr(macos, "unhide_app", lambda pid: order.append(f"unhide:{pid}") or True)
+    monkeypatch.setattr(macos, "activate_app", lambda pid: order.append(f"activate:{pid}") or True)
+
+    assert worker._mac_release_hide(activate=True) is True
+    assert order == ["move", "unhide:4242", "activate:4242"]
+    assert worker._mac_guard_on is False
+
+
+def test_mac_wait_hidden_returns_once_the_guard_has_hidden_chrome(monkeypatch) -> None:
+    from alture_jarvis import macos
+
+    worker = BrowserWorker.__new__(BrowserWorker)
+    worker._mac_guard_pid = 7
+    worker._mac_guard_on = True
+    answers = iter([False, False, True])
+    monkeypatch.setattr(macos, "app_is_hidden", lambda pid: next(answers))
+    assert worker._mac_wait_hidden(timeout=2.0) is True
+    worker._mac_guard_on = False  # 감시가 멈췄으면(사람이 크롬을 봄) 기다리지 않는다
+    assert worker._mac_wait_hidden(timeout=2.0) is False
+
+
+def test_mac_bring_windows_into_view_centers_only_windows_off_the_screen(monkeypatch) -> None:
+    import websockets.sync.client as ws_client
+
+    from alture_jarvis import macos
+
+    windows = {"A": (1, {"left": 1880, "top": 25, "width": 1600, "height": 1000, "windowState": "normal"}),
+               "A2": (1, {"left": 1880, "top": 25, "width": 1600, "height": 1000, "windowState": "normal"}),
+               "B": (2, {"left": 100, "top": 60, "width": 1200, "height": 800, "windowState": "normal"})}
+    sent: list[tuple[str, dict]] = []
+
+    class _Socket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def send(self, raw: str) -> None:
+            message = json.loads(raw)
+            sent.append((message["method"], message["params"]))
+            self.last = message
+
+        def recv(self, timeout: float = 0) -> str:
+            method, params = self.last["method"], self.last["params"]
+            if method == "Target.getTargets":
+                result = {"targetInfos": [{"type": "page", "targetId": key} for key in windows]
+                          + [{"type": "service_worker", "targetId": "SW"}]}
+            elif method == "Browser.getWindowForTarget":
+                window_id, bounds = windows[params["targetId"]]
+                result = {"windowId": window_id, "bounds": bounds}
+            else:
+                result = {}
+            return json.dumps({"id": self.last["id"], "result": result})
+
+    monkeypatch.setattr(ws_client, "connect", lambda *_a, **_k: _Socket())
+    monkeypatch.setattr(macos, "main_screen_bounds", lambda: (0, 0, 1920, 1080))
+    worker = BrowserWorker.__new__(BrowserWorker)
+    worker._cdp_port_in_use = 9333
+    worker._probe_cdp = lambda port: {"webSocketDebuggerUrl": f"ws://127.0.0.1:{port}/devtools/browser/x"}  # type: ignore[method-assign]
+
+    assert worker._mac_bring_windows_into_view() == 1
+    moves = [params for method, params in sent if method == "Browser.setWindowBounds"]
+    assert moves == [{"windowId": 1, "bounds": {"left": 160, "top": 25 + (1055 - 1000) // 2, "width": 1600, "height": 1000}}]

@@ -157,7 +157,7 @@ def test_state_endpoint_reports_a_reconciled_state(tmp_path) -> None:
     _park_on_approval(runtime, expires_in=-1)
 
     with TestClient(app) as client:
-        assert client.get("/v1/state").json()["state"] == JarvisState.IDLE.value
+        assert client.get("/v1/state", headers={"X-JARVIS-TOKEN": "test-token"}).json()["state"] == JarvisState.IDLE.value
 
 
 def test_toggle_endpoint_round_trips(tmp_path) -> None:

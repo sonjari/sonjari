@@ -363,6 +363,8 @@ def _gpu_agent(tmp_path: Path, monkeypatch, model: Any, smi: Any) -> BrowserAgen
     monkeypatch.setattr(agent_module, "read_card", gpu_pressure.read_card)  # conftest 가 막아 둔 것을 이 시험에서만 되돌린다
     agent, _store = _agent(tmp_path, model)
     agent._nvidia_run = smi
+    # 11-03: 이 PC 에 실제로 3ds Max 가 켜져 있으면 「켜져 있어 나눠 씁니다」가 섞여 시험이 깨졌다 → 실제 프로그램 목록을 보지 않는다
+    agent._heavy_running = lambda: []
     return agent
 
 

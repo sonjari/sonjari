@@ -6,6 +6,7 @@
  * 두 벌은 반드시 갈린다.
  */
 import { t } from "../i18n";
+import { isMac } from "../platform";
 import type { BackendBootstrap, SkillDomainsView } from "../types";
 
 export interface GpuCard {
@@ -19,10 +20,14 @@ export interface GpuCard {
   reserve_gb: number;
   usable_gb: number;
   /** M1: NVIDIA 밖의 카드도 본다. 레지스트리에서 온 카드는 화면 출력 여부를 몰라 보수적으로 잡는다. */
-  vendor?: "nvidia" | "amd" | "intel" | "other";
+  vendor?: "nvidia" | "amd" | "intel" | "other" | "apple";
   integrated?: boolean;
-  backend?: "cuda" | "rocm" | "vulkan";
-  source?: "nvidia-smi" | "registry";
+  backend?: "cuda" | "rocm" | "vulkan" | "metal";
+  source?: "nvidia-smi" | "registry" | "apple";
+  /** 애플 칩(2026-11-03 맥판): 그래픽카드 메모리가 따로 없어 통합 메모리를 「모델에 남는 몫」으로 센다(`apple_memory_card`). */
+  unified?: boolean;
+  memory?: { total_gb: number; gpu_limit_gb: number; others_gb: number; self_gb: number; model_share_gb: number;
+             limit_source: string; others_source: string; swap_used_gb?: number | null };
 }
 
 export interface PcProfile {
@@ -40,6 +45,11 @@ export interface PcProfile {
   };
   disk_free_gb: number | null;
   ollama: { reachable: boolean; version: string; installed: string[]; vulkan_enabled: boolean; vulkan_setting?: "" | "on" | "off" };
+  /** 위성이면 위 `ollama` 는 **본체 PC** 의 것이다 — 이 PC 의 Ollama 는 `local_ollama`(2026-11-03 맥 마법사가 둘을 섞어 보였다). */
+  ollama_remote?: boolean;
+  ollama_host?: string;
+  local_ollama?: { reachable: boolean; version: string; installed: string[] } | null;
+  apple?: boolean;
 }
 
 export interface ModelLink {
@@ -324,7 +334,7 @@ export function pushedOutReason(seen?: string[]): string {
 
 export function pullFailureText(pull: PullState): string {
   if (pull.reason === "ollama_not_running") {
-    return t("Ollama 가 켜져 있지 않아 받지 못했습니다 — 위의 「Ollama 설치」를 먼저 눌러 주세요. 이미 깔았다면 시작 메뉴에서 Ollama 를 켠 뒤 다시 누르세요. ")
+    return (isMac ? t("Ollama 가 켜져 있지 않아 받지 못했습니다 — 위의 「Ollama 설치」를 먼저 눌러 주세요. 이미 깔았다면 응용 프로그램 폴더에서 Ollama 를 켠 뒤 다시 누르세요. ") : t("Ollama 가 켜져 있지 않아 받지 못했습니다 — 위의 「Ollama 설치」를 먼저 눌러 주세요. 이미 깔았다면 시작 메뉴에서 Ollama 를 켠 뒤 다시 누르세요. "))
       + t("회사 PC 라면 보안 프로그램이 Ollama 실행을 막았을 수 있습니다.");
   }
   if (pull.reason === "disk_full") {
@@ -723,6 +733,22 @@ export interface SetupApi {
   /** `eyes: false` — 그림 부속을 뺀 「글만 읽기」로 올린다. 안 주면 예전 그대로 그림을 읽게 올린다. */
   apply(modelKey: string, numCtx: number, eyes?: boolean): Promise<ApplyResult>;
   installedModels(): Promise<{ models: InstalledModel[] }>;
+  /** 모델 자리 — 이 맥(이 PC) / 집 PC. 옛 백엔드엔 없다(2026-11-03 설계_짝짓기_모델자리 순서 1). */
+  modelPlace?(): Promise<ModelPlaceView>;
+  setModelPlace?(place: "this_pc" | "home_pc"): Promise<ModelPlaceResult>;
+  setHomeModel?(tag: string, numCtx?: number): Promise<ModelPlaceResult>;
+  /** 짝짓기(2026-11-03 설계_짝짓기_모델자리 순서 2). 집 PC 쪽: 띠 · 연결된 기기. 이 맥 쪽: 찾기 · 청하기 · 코드 넣기 · 끊기. */
+  pairPending?(): Promise<{ requests: PairRequestView[] }>;
+  pairReject?(requestId: string): Promise<{ ok: boolean }>;
+  pairDevices?(): Promise<{ devices: PairedDevice[] }>;
+  pairRevoke?(deviceId: string): Promise<{ ok: boolean }>;
+  pairDiscover?(address?: string): Promise<{ found: FoundHome[] }>;
+  pairStart?(home: FoundHome): Promise<{ ok: boolean; error?: string; expires_in?: number }>;
+  pairFinish?(code: string): Promise<ModelPlaceResult & { tries_left?: number }>;
+  pairForget?(): Promise<ModelPlaceResult>;
+  /** 밖에서도 쓰기 — 테일스케일 체크 목록(설계_밖에서도쓰기_테일스케일 §2-2). */
+  outsideStatus?(): Promise<OutsideStatus>;
+  outsideStep?(step: OutsideStepName): Promise<{ ok: boolean; url?: string; error?: string }>;
   /** 머리의 모델 이름을 눌렀을 때 — 카탈로그 + 이 PC 가 받아 둔 것을 합친 한 번의 답. */
   modelPicker(role: ModelRole): Promise<ModelPickerView>;
   selectModel(tag: string, role: ModelRole, numCtx?: number): Promise<SelectResult>;
@@ -787,6 +813,19 @@ export function createSetupApi(bootstrap: BackendBootstrap): SetupApi {
     profile: (fresh = false) => call(`/v1/setup/profile${fresh ? "?fresh=true" : ""}`),
     recommendation: () => call("/v1/setup/recommendation"),
     models: () => call("/v1/setup/models"),
+    modelPlace: () => call("/v1/model-place"),
+    setModelPlace: (place) => call("/v1/model-place", { method: "POST", body: JSON.stringify({ place }) }),
+    setHomeModel: (tag, numCtx = 0) => call("/v1/model-place/home-model", { method: "POST", body: JSON.stringify({ tag, num_ctx: numCtx }) }),
+    pairPending: () => call("/v1/pair/pending"),
+    pairReject: (requestId) => call("/v1/pair/reject", { method: "POST", body: JSON.stringify({ request_id: requestId }) }),
+    pairDevices: () => call("/v1/pair/devices"),
+    pairRevoke: (deviceId) => call("/v1/pair/revoke", { method: "POST", body: JSON.stringify({ device_id: deviceId }) }),
+    pairDiscover: (address = "") => call("/v1/pair/discover", { method: "POST", body: JSON.stringify({ address }) }),
+    pairStart: (home) => call("/v1/pair/start", { method: "POST", body: JSON.stringify(home) }),
+    pairFinish: (code) => call("/v1/pair/finish", { method: "POST", body: JSON.stringify({ code }) }),
+    pairForget: () => call("/v1/pair/forget", { method: "POST", body: "{}" }),
+    outsideStatus: () => call("/v1/outside/status"),
+    outsideStep: (step) => call(`/v1/outside/step/${step}`, { method: "POST", body: "{}" }),
     pull: (modelKey, applyCtx, eyes) =>
       call("/v1/setup/models/pull", { method: "POST", body: JSON.stringify({ model_key: modelKey, apply_ctx: applyCtx ?? 0, ...(eyes === undefined ? {} : { eyes }) }) }),
     apply: (modelKey, numCtx, eyes) =>
@@ -857,4 +896,99 @@ export function createSetupApi(bootstrap: BackendBootstrap): SetupApi {
 /** `131072` → `128K`. 화면 어디서나 같은 표기. */
 export function ctxLabel(ctx: number): string {
   return `${Math.round(ctx / 1024)}K`;
+}
+
+export interface ModelPlaceView {
+  place: "this_pc" | "home_pc";
+  /** 집 PC 를 아는가 — 모르면 자리 고르기가 없다. */
+  home_known: boolean;
+  /** 짝지은 집 PC 인가(옛 위성 설치본이면 false). */
+  paired?: boolean;
+  home_gpu?: string;
+  home_host: string;
+  /** 이 기기가 집 PC 에서 쓸 모델(고른 적 없으면 집 PC 가 쓰는 것). */
+  home_model: string;
+  home_model_chosen_here: boolean;
+  /** 지금 대화에 쓰는 모델 — 자리를 따른다. */
+  chat_model: string;
+  num_ctx: number;
+  satellite?: boolean;
+  home?: {
+    reachable: boolean;
+    models: HomeModel[];
+    error?: string;
+    /** 어느 길로 닿았나 — 집 와이파이(lan) · 테일스케일(tailnet). */
+    via?: "lan" | "tailnet" | "";
+    /** 밖에서 안 닿을 때 까닭(테일넷 길을 아는 기기만). */
+    why?: OutsideWhy;
+  };
+}
+
+export interface HomeModel {
+  tag: string;
+  gb: number;
+  family: string;
+  params: string;
+  quant: string;
+  /** 집 PC 가 지금 쓰는 대화 모델(11-04 · 목록에서 「집 PC 기본」). */
+  home_default?: boolean;
+}
+
+export interface ModelPlaceResult extends Partial<ModelPlaceView> {
+  ok: boolean;
+  /** 일하는 중이라 그 일이 끝난 뒤 바뀐다. */
+  pending?: boolean;
+  error?: string;
+}
+
+export interface PairRequestView {
+  request_id: string;
+  child_name: string;
+  code: string;
+  expires_at: number;
+}
+
+export interface PairedDevice {
+  device_id: string;
+  name: string;
+  paired_at: number;
+  last_used: number;
+}
+
+export interface FoundHome {
+  address: string;
+  name: string;
+  gpu: string;
+  version: string;
+  remembered: boolean;
+  via?: "lan" | "tailnet";
+}
+
+export type OutsideStage = "idle" | "install" | "login" | "same_account" | "door" | "reach" | "done";
+export type OutsideReason =
+  | "" | "pc_unknown" | "not_installed_mac" | "not_installed_pc" | "sign_in_mac" | "sign_in_pc"
+  | "turn_on_mac" | "turn_on_pc" | "different_account" | "serve_failed";
+export type OutsideWhy = "" | "tailscale_off" | "sign_in_again" | "pc_asleep" | "pc_not_answering";
+export type OutsideStepName = "start" | "later" | "install" | "login" | "switch_account" | "turn_on" | "recheck";
+
+export interface OutsideSide {
+  installed: boolean;
+  signed_in: boolean;
+  state: string;
+  tailnet_id: string;
+  dns_name: string;
+}
+
+/** 백엔드가 정한 단계 — 화면은 이것만 그린다(누른다고 앞서 가지 않는다). mac · pc 는 체크 목록의 두 칸. */
+export interface OutsideStatus {
+  role: "mac" | "pc";
+  stage: OutsideStage;
+  reason: OutsideReason;
+  mac: OutsideSide | null;
+  pc: OutsideSide | null;
+  other_name?: string;
+  offer?: boolean;
+  later?: boolean;
+  started?: boolean;
+  pc_answered?: boolean;
 }

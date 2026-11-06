@@ -313,7 +313,8 @@ def main() -> None:
     # ★ 코드가 아니라 **자료**가 빠지는 사고 (2026-09-16). recipes/·skills/ 가 통째로 안 들어갔는데
     #   앱은 멀쩡히 떴다 — 없다고 죽지 않고 **검토된 절차 대신 모델이 더듬는다.** 그날 이어받기 판이
     #   사람인 검색칸을 못 찾아 손으로 채우다 끝났고, 원인은 그 레시피가 거기 없던 것이었다.
-    abilities = call(base, "GET", "/v1/capabilities")
+    # 11-04 보안 고침으로 /v1/capabilities 도 열쇠 필수가 됐다 — 열쇠 없이 부르던 이 줄이 베타 올리기를 401 로 막았다.
+    abilities = call(base, "GET", "/v1/capabilities", token)
     recipe_sites = [str(r.get("site") or r.get("name") or "") for r in (abilities.get("recipes") or [])]
     skills_view = call(base, "GET", "/v1/skills/domains", token)
     step("data_shipped", {"recipes": len(recipe_sites), "sites": recipe_sites[:6],

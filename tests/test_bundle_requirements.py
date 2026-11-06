@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import ast
+import re
 import pytest
 import sys
 from pathlib import Path
@@ -91,7 +92,8 @@ def test_data_folders_the_checker_looks_at_are_the_ones_config_uses() -> None:
     config = JarvisConfig()
     assert config.site_recipe_dir.parent == data_root()
     assert config.skills_dir.parent == data_root()
-    assert set(REQUIRED_DATA) == {config.site_recipe_dir.name, config.skills_dir.name}
+    assert config.packs_dir.parent == data_root()
+    assert set(REQUIRED_DATA) == {config.site_recipe_dir.name, config.skills_dir.name, config.packs_dir.name}
 
 
 def test_this_repo_actually_has_the_data_the_package_needs() -> None:
@@ -120,3 +122,36 @@ def test_what_the_settings_screen_calls_available_is_actually_shipped() -> None:
                 f"설정 화면이 {key} 를 켤 수 있다고 말하는데 포장본은 {module} 를 안 싣는다 — "
                 "check_bundle.REQUIRED 에 넣거나 그 설정을 내려라"
             )
+
+
+# ── 맥 설치 · dmg 도 같은 자료를 옮기는가 (2026-11-03 맥미니 「쓰임」 단계 「스킬 0개」) ─────────────────────
+_ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.parametrize("script", ["scripts/mac/install_mac.sh", "scripts/mac/build_mac_dmg.sh", "packaging/msix/build_app_package.ps1"])
+def test_every_package_path_copies_every_data_folder(script):
+    """REQUIRED_DATA 의 폴더 하나하나가 세 포장 길(윈도우 MSIX · 맥 설치 · 맥 dmg)에서 다 옮겨지고, 초안은 빠진다."""
+    text = (_ROOT / script).read_text(encoding="utf-8")
+    for folder in check_bundle.REQUIRED_DATA:
+        assert re.search(rf"\b{folder}\b", text), f"{script} 가 {folder}/ 를 옮기지 않는다"
+    for excluded in check_bundle.DATA_EXCLUDES:
+        assert excluded in text, f"{script} 가 {excluded} 를 빼지 않는다"
+
+
+def test_mac_install_runs_the_bundle_check_and_dmg_carries_it():
+    install = (_ROOT / "scripts/mac/install_mac.sh").read_text(encoding="utf-8")
+    dmg = (_ROOT / "scripts/mac/build_mac_dmg.sh").read_text(encoding="utf-8")
+    assert "packaging/msix/check_bundle.py" in install and "exit 1" in install
+    assert "packaging/msix/check_bundle.py" in dmg
+
+
+def test_not_on_mac_never_skips_the_core():
+    """맥에서 건너뛰는 것은 윈도우 연동 · 맥 첫 판에서 끈 기능뿐 — 브라우저 · 문서 · MCP 는 맥에서도 필수다."""
+    assert check_bundle.NOT_ON_MAC <= set(REQUIRED)
+    for core in ("playwright.sync_api", "mcp", "fastapi", "openpyxl", "docx", "pptx", "httpx"):
+        assert core not in check_bundle.NOT_ON_MAC
+
+
+def test_packs_are_counted_and_present_in_the_repo():
+    pattern, least, _ = REQUIRED_DATA["packs"]
+    assert len(list((_ROOT / "packs").glob(pattern))) >= least

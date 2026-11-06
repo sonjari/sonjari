@@ -59,6 +59,14 @@ fn default_token_path() -> PathBuf {
             .join("data")
             .join("control.token");
     }
+    // 맥: 백엔드 기본 자리(`~/Library/Application Support/Sonjari`, config.py `_default_runtime_root`)와 같은 곳.
+    // 예전엔 상대 경로 `data/control.token` 이라 화면을 띄운 폴더에 따라 백엔드에 못 붙었다(2026-11-03 · 전수조사 A1).
+    #[cfg(target_os = "macos")]
+    if let Some(home) = env::var_os("HOME") {
+        return package::runtime_dir(&PathBuf::from(home).join("Library").join("Application Support"))
+            .join("data")
+            .join("control.token");
+    }
     PathBuf::from("data").join("control.token")
 }
 
@@ -182,7 +190,11 @@ fn paint_title_bar(window: &tauri::WebviewWindow) {
 fn paint_title_bar(_window: &tauri::WebviewWindow) {}
 
 /// 앱 바탕과 같은 흑연 — 창이 뜨는 첫 순간(웹뷰가 그리기 전)에 파란 기가 비치지 않게.
+#[cfg(not(target_os = "macos"))]
 const WINDOW_GROUND: tauri::webview::Color = tauri::webview::Color(14, 13, 11, 255);
+// 맥은 #181613 보다 짙은 회색이 디더링 물결로 보인다(11-04 · tokens.css :root[data-os="mac"]) — 화면이 칠하기 전 바탕도 같은 값.
+#[cfg(target_os = "macos")]
+const WINDOW_GROUND: tauri::webview::Color = tauri::webview::Color(24, 22, 19, 255);
 
 fn open_setup_window(app: &AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("setup") {
@@ -798,7 +810,11 @@ fn open_external_url(url: String) -> Result<(), String> {
             .map(|_| ())
             .map_err(|error| error.to_string())
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open").arg(&url).spawn().map(|_| ()).map_err(|error| error.to_string())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         Command::new("xdg-open").arg(&url).spawn().map(|_| ()).map_err(|error| error.to_string())
     }
@@ -809,6 +825,11 @@ fn open_outputs(paths: &[PathBuf]) {
         #[cfg(target_os = "windows")]
         {
             let _ = Command::new("explorer.exe").arg(path).spawn();
+        }
+        // 맥: 기본 앱으로 연다(윈도우 `explorer.exe <파일>` 과 같은 뜻). 예전엔 아무것도 안 했다(전수조사 A1).
+        #[cfg(target_os = "macos")]
+        {
+            let _ = Command::new("open").arg(path).spawn();
         }
     }
 }
@@ -1573,7 +1594,14 @@ fn pilot_cancel(app: AppHandle, job_id: String) -> Result<bool, String> {
             .map_err(|error| error.to_string())?;
         return Ok(status.success());
     }
-    #[cfg(not(target_os = "windows"))]
+    // 맥(2026-11-03): 자식부터(`pkill -P`) 끝내고 그 프로세스를 끝낸다 — 윈도우 `taskkill /T` 와 같은 뜻.
+    #[cfg(target_os = "macos")]
+    {
+        let _ = Command::new("pkill").args(["-TERM", "-P", &pid.to_string()]).status();
+        let status = Command::new("kill").args(["-TERM", &pid.to_string()]).status().map_err(|error| error.to_string())?;
+        return Ok(status.success());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     Ok(false)
 }
 
@@ -1803,7 +1831,7 @@ fn open_workspace_with(app: &AppHandle, draft: Option<&str>) -> Result<(), Strin
     } else {
         "Sonjari"
     };
-    let window = WebviewWindowBuilder::new(
+    let builder = WebviewWindowBuilder::new(
         app,
         "workspace",
         WebviewUrl::App(workspace_url(draft).into()),
@@ -1813,8 +1841,11 @@ fn open_workspace_with(app: &AppHandle, draft: Option<&str>) -> Result<(), Strin
     // 작업 화면을 옆에 좁게 띄워 두고 쓸 수 있게(인수인계 H2-C, 2026-09-16) — 좁으면 사이드바는 아이콘만, 컴퓨터 칸은 눌렀을 때 덮는다.
     .min_inner_size(420.0, 560.0)
     .resizable(true)
-    .decorations(true)
-    .transparent(false)
+    .decorations(true);
+    // 맥에서 `transparent` 는 `macos-private-api` 기능을 켜야만 있다(2026-11-03 맥 빌드에서 걸림). 값이 기본(false)과 같으니 맥에선 안 부른다.
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.transparent(false);
+    let window = builder
     .background_color(WINDOW_GROUND)
     // ★ 파일 드롭을 **웹뷰가 받게** 한다 (2026-08-23).
     //

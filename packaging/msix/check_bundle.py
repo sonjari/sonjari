@@ -45,6 +45,10 @@ REQUIRED = {
     "lxml": "PPT 만들기(python-pptx 가 데려온다) · PPTX 글꼴 목록 쓰기",
     "brotli": "장표 글꼴 — woff2 를 풀어 PPTX 에 심는다(2026-10-26). 없으면 PPTX 가 앱 글꼴 없이 나간다",
     "hwpx": "한글 문서",
+    # 2026-11-04 첫 베타 굽기: 운영 파이썬에만 깔고 개발 파이썬(패키지가 복사하는 쪽)엔 안 깔아 「없어도 됨」으로 조용히 빠졌다.
+    #   앱은 없어도 돌지만(예전 길) 그날 고친 게 판에서 안 먹는다 → 빠지면 굽기를 멈춘다.
+    "tree_sitter": "파이썬이 아닌 코드를 함수 단위로 자르기(code_syntax.py)",
+    "xlrd": "옛 엑셀(.xls) 읽기",
     "pypdf": "PDF 읽기",
     "pypdfium2": "PDF 그림",
     "PIL": "이미지",
@@ -63,6 +67,9 @@ REQUIRED = {
     "supertonic": "음성 출력 — 포장본에서는 우리가 직접 서버를 켠다(alture_jarvis.tts_server)",
     "keyboard": "누르고 말하기 단축키 — 설정에 그 칸이 있으니 판에도 있어야 한다",
     "cv2": "카메라 영상 — 노트북 포장본에서 빠졌다",
+    # 2026-11-03 애니메이터 팩 관절 읽기(animator/pose_onnx.py)가 직접 import 한다. 새 부품이 아니다 —
+    #   faster_whisper · supertonic 이 이미 데려온다(pip show: Required-by). 모델 파일은 포장본에 넣지 않는다(사용자가 받는다).
+    "onnxruntime": "음성(받아쓰기 · 출력)이 데려오는 추론기 · 애니메이터 관절 읽기",
     "winrt.windows.foundation": "윈도우 미디어 연동의 비동기 기반",
     "winrt.windows.foundation.collections": "윈도우 미디어 연동의 컬렉션 기반",
     "winrt.windows.media.control": "말할 때 음악 멈추기 — 실제 하위 모듈까지 검사한다",
@@ -99,7 +106,24 @@ REQUIRED_DATA = {
     # 폴더로는 차 보인다 — 실제로 붙는 것은 SKILL.md 다.
     "recipes": ("*.json", 1, "사람이 검토한 사이트 절차 — 없으면 모델이 셀렉터를 더듬는다"),
     "skills": ("**/SKILL.md", 20, "밖에서 가져온 지식 — 없으면 일에 안 붙는다"),
+    # ★ 2026-11-03 맥미니 마법사 「쓰임」 단계에서 분야마다 「스킬 0개」 — 맥 설치(install_mac.sh)와 dmg 가 src 만 옮겼다.
+    #   9-16 윈도우 포장본과 같은 꼴이다. 분야 팩(애니메이터 · 게임 · 영상)도 같이 빠져 있었다.
+    "packs": ("*/pack.json", 3, "분야 팩(애니메이터 · 게임 · 영상) — 없으면 설정에 팩이 안 보인다"),
 }
+
+#: 포장에서 빼는 것 — 이 PC 에서 앱이 쓰다 남긴 초안(`recipes/drafts`, 2026-10-07 스토어 포장에 셋이 실려 나갔다)과 바이트코드.
+#: 윈도우 포장(`build_app_package.ps1` 의 robocopy /XD)과 맥(`scripts/mac/*.sh` 의 rsync --exclude)이 같은 것을 뺀다 — 시험이 붙잡는다.
+DATA_EXCLUDES = ("drafts", "__pycache__")
+
+#: 맥에는 원래 없는 모듈 — 윈도우 연동이거나, 맥 첫 판에서 끈 기능(음성 · 카메라 · 디스코드 다리 · 음악 멈추기).
+#: 맥에서 검사기를 돌리면 이것만 건너뛴다. 나머지(브라우저 · 문서 · MCP …)는 맥에서도 필수다.
+NOT_ON_MAC = frozenset({
+    "pywinauto", "comtypes.client", "win32com", "win32cred",
+    "winrt.windows.foundation", "winrt.windows.foundation.collections", "winrt.windows.media.control",
+    "faster_whisper", "ctranslate2", "av", "sounddevice", "supertonic", "keyboard", "cv2",
+    # 11-04: 애니메이터 팩(3ds Max 관절 읽기 · 윈도우 전용)과 윈도우 음성이 데려오는 추론기 — 맥은 둘 다 안 쓴다.
+    "onnxruntime",
+})
 
 
 def data_root() -> Path:
@@ -115,7 +139,12 @@ def main() -> int:
         _prepare_windows_cache()
     except Exception as exc:  # noqa: BLE001
         missing.append(f"  COM 캐시 준비 — {type(exc).__name__}: {exc}")
+    skipped = sorted(NOT_ON_MAC) if sys.platform == "darwin" else []
+    if skipped:
+        print("mac: skip Windows-only / off-on-mac modules: " + ", ".join(skipped))
     for name, why in REQUIRED.items():
+        if name in skipped:
+            continue
         try:
             importlib.import_module(name)
         except Exception as exc:  # noqa: BLE001 — 이유까지 보여 준다
@@ -143,7 +172,7 @@ def main() -> int:
         missing.append(f"  (코드 도구 목록을 못 읽었다) — {type(exc).__name__}: {exc}")
     off = [f"{name}({why})" for name, why in OPTIONAL.items()
            if not _importable(name)]
-    print(f"required {len(REQUIRED) - len(missing)}/{len(REQUIRED)} ok")
+    print(f"required {len(REQUIRED) - len(skipped) - len(missing)}/{len(REQUIRED) - len(skipped)} ok")
     if off:
         print("optional off: " + ", ".join(off))
 

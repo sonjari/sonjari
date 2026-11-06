@@ -895,6 +895,17 @@ export interface PackInfo {
   work?: Record<string, string>;
 }
 
+/** 설정 › 연결(MCP) 한 줄 — 비밀 값은 오지 않는다(백엔드 `McpHub.public_list`). */
+export interface McpServerRow {
+  name: string;
+  transport: "stdio" | "http" | string;
+  enabled: boolean;
+  command: string;
+  url: string;
+  tools: number;
+  listed_at: number | null;
+}
+
 export interface PacksView {
   packs: PackInfo[];
   problems: string[];

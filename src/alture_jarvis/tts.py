@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import os
+import subprocess
+import sys
 from pathlib import Path
 import time
 from typing import Any
@@ -117,6 +119,10 @@ class SupertonicTTS:
 
     @staticmethod
     def play(path: Path) -> None:
+        if sys.platform == "darwin":
+            # 맥(2026-11-03 · 전수조사 B8): 기본으로 깔린 `afplay` 로 끝날 때까지 튼다(윈도우 winsound 처럼 막고 기다림).
+            subprocess.run(["afplay", str(path)], check=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))  # noqa: S603,S607 — 우리가 만든 WAV 하나
+            return
         if os.name != "nt":
             return
         import winsound

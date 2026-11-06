@@ -70,7 +70,7 @@ def test_summary_view_carries_the_row_without_the_body(tmp_path) -> None:
     runtime = app.state.jarvis
     with TestClient(app) as client:
         job_id = _heavy_job(runtime)
-        rows = client.get("/v1/jobs?view=summary").json()
+        rows = client.get("/v1/jobs?view=summary", headers={"X-JARVIS-TOKEN": "test-token"}).json()
 
     assert len(rows) == 1
     row = rows[0]
@@ -96,8 +96,8 @@ def test_summary_is_an_order_of_magnitude_smaller(tmp_path) -> None:
     with TestClient(app) as client:
         for _ in range(5):
             _heavy_job(runtime)
-        full = len(client.get("/v1/jobs").content)
-        summary = len(client.get("/v1/jobs?view=summary").content)
+        full = len(client.get("/v1/jobs", headers={"X-JARVIS-TOKEN": "test-token"}).content)
+        summary = len(client.get("/v1/jobs?view=summary", headers={"X-JARVIS-TOKEN": "test-token"}).content)
 
     assert summary * 10 < full, f"full={full}B summary={summary}B — 목록이 아직 무겁다"
 
@@ -108,7 +108,7 @@ def test_default_view_is_unchanged(tmp_path) -> None:
     runtime = app.state.jarvis
     with TestClient(app) as client:
         _heavy_job(runtime)
-        row = client.get("/v1/jobs").json()[0]
+        row = client.get("/v1/jobs", headers={"X-JARVIS-TOKEN": "test-token"}).json()[0]
 
     assert row["payload"]["prompt"] == "크몽에서 시장 조사를 해줘"
     assert row["result"]["completion_state"] == "complete"

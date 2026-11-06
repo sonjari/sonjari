@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import sys
 import difflib
 import hashlib
 import json
@@ -124,6 +125,10 @@ from .unity_schedule import RecipeSchedule
 from .unity_stage import UnityStage
 from .unity_tools import UnityTools
 from .video_tools import VideoTools
+from .animator_tools import AnimatorTools
+from .mcp_hub import McpHub
+from .mcp_tools import McpTools
+from .image_look import ImageLookTools
 from .packs import PackError, PackRegistry
 from .tts import SupertonicTTS
 from . import tts_server
@@ -1134,6 +1139,20 @@ class JarvisRuntime:
         # 영상 팩(2026-11-02) — 레퍼런스 영상 읽기. 팩이 꺼져 있으면 목록에 안 끼고 불러도 거절한다.
         self.video_tools = VideoTools(self.config, self.browser, packs=self.packs)
         self.video_tools.register(self.gateway)
+        # 애니메이터 팩(2026-11-02) — 3ds Max 엇박자 루프. 클로드 · 코덱스 전용 문(손자리 모델 목록엔 안 낀다).
+        self.animator_tools = AnimatorTools(self.config, packs=self.packs)
+        self.animator_tools.register(self.gateway)
+        # MCP 서버 꽂기(2026-11-04) — 사람이 설정에 꽂은 MCP 서버를 찾기 · 부르기 두 도구로. 꽂힌 게 없으면 모델 목록에 안 낀다.
+        self.mcp_hub = McpHub(self.config.data_dir)
+        self.mcp_tools = McpTools(self.mcp_hub)
+        self.mcp_tools.register(self.gateway)
+        # 이 PC 의 그림 파일을 모델이 직접 본다(11-04 · 「사진을 보라」 해도 볼 도구가 없었다). 경로 검사는 파일 도구와 같은 함수.
+        self.image_look = ImageLookTools(
+            lambda raw: self.local_computer._resolve(raw, must_exist=True),
+            self._look_at_file,
+            self._model_cannot_read_pictures,
+        )
+        self.image_look.register(self.gateway)
         # 열린 유니티 창을 온텔릭 화면에 비춘다(2단계). 창을 움직이지 않고 그림만 복사한다 — 모델에게는 안 간다.
         self.unity_stage = UnityStage()
         self.project_discovery = ProjectDiscovery(
@@ -1339,6 +1358,8 @@ class JarvisRuntime:
             self.camera_tools,
             self.person_tools,
             self.inhouse,
+            self.mcp_tools,
+            self.image_look,
             # ★ 게이트웨이에 등록하는 것과 **에이전트 카탈로그에 넣는 것은 다른
             #   일이다.** 2026-08-21: `self_check` 를 게이트웨이에 등록해 두고
             #   여기 안 넣어서, 강제 호출이 `unknown_tool` 로 죽었다. 라우팅을
@@ -1692,6 +1713,17 @@ class JarvisRuntime:
             temperature=0.0,
             think=False,
             num_predict=page_look.LOOK_ANSWER_TOKENS,
+        )
+        return str(message.get("content") or "").strip()
+
+    def _look_at_file(self, jpeg: bytes, prompt: str) -> str:
+        """`local_view_image` — 모델이 고른 그림 파일(들)을 묶은 한 장을 보여 주고 질문에 답을 받는다. 온도 0 · 생각 끔."""
+        message = self.ollama.chat_message(
+            prompt,
+            images=[base64.b64encode(jpeg).decode("ascii")],
+            temperature=0.0,
+            think=False,
+            num_predict=900,
         )
         return str(message.get("content") or "").strip()
 
@@ -2166,14 +2198,31 @@ class JarvisRuntime:
         # 화면은 15초마다 묻는다 — 앞 물음이 띄운 검사가 아직 돌면 겹쳐 돌지 않고 지난 결과를 준다(`boot_check` 주석).
         return self.self_care.boot_check(include_model=self._setup_completed(), wait=False)
 
+    def _front_now(self) -> list[dict[str, Any]] | None:
+        """지금 코드가 보통 판(큰 창)에 보낼 도구 목록 — 에이전트와 같은 순서 · 같은 거르기(`_stable_tool_order` → 올리기 손 거르기)."""
+        try:
+            from .tool_roster import _platform_scoped_tool_definitions, _stable_tool_order
+
+            return _platform_scoped_tool_definitions(_stable_tool_order(self.agent.tools.ollama_tools), "")
+        except Exception:  # noqa: BLE001 — 못 만들면 맞추지 않는다(예전처럼 기억한 것을 데운다)
+            return None
+
     def _front_prime_loop(self) -> None:
         """한가할 때 고정 앞부분을 데워 둔다(`ollama.prime_front` 머리말). 일하는 중에는 하지 않고, 진짜 요청이 오면 그쪽이 끊는다."""
+        refreshed = False
         while not self._warmup_stop.wait(3.0):
             try:
                 if not getattr(self.config, "front_prime_enabled", False):
                     continue
                 if self.state.snapshot().state != JarvisState.IDLE:
                     continue
+                if not refreshed:
+                    # 켠 뒤 처음 한 번 — 기억한 앞부분을 지금 코드의 목록에 맞춘다(11-06 · `ollama.refresh_front`).
+                    refreshed = True
+                    from .agent import AGENT_SYSTEM_PROMPT
+
+                    outcome = self.ollama.refresh_front(self._front_now(), AGENT_SYSTEM_PROMPT)
+                    self.events.publish("front_prime_refreshed", {"outcome": outcome})
                 if self.ollama.front_prime_due():
                     self.ollama.prime_front("idle")
             except Exception:  # noqa: BLE001 — 데워 두기는 덤이다
@@ -2645,13 +2694,15 @@ class JarvisRuntime:
         target = self.job_output_file(job_id, path)
         if not target.is_file():
             raise ValueError("output_missing")
-        if os.name != "nt":
+        if os.name != "nt" and sys.platform != "darwin":
             return {"ok": False, "error": "not_windows", "path": str(target)}
         from .msix import external_path
 
         real = external_path(target)
         if reveal:
-            subprocess.Popen(["explorer.exe", f"/select,{real}"])  # noqa: S603,S607 — 장부에 있는 파일 하나
+            from .file_open import reveal_file
+
+            reveal_file(real)  # 장부에 있는 파일 하나 — 탐색기 · 파인더에서 짚는다(맥 2026-11-03)
         else:
             from .file_open import open_file
 
@@ -5876,7 +5927,7 @@ class JarvisRuntime:
         payload = job["payload"]
         query = str(payload.get("query", "")).strip()
         session_id = self._session_id(payload)
-        source = str(payload.get("source", "naver_web"))
+        source = str(payload.get("source", "browser_search"))
         self._move(JarvisState.WORKING, "research")
         args: dict[str, Any] = {"query": query}
         if source in {"naver_news", "naver_web"}:

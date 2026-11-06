@@ -5,8 +5,8 @@
   --surface: #2d3229; --track: #30352c; --bar: #6f6a5c; --tile-b: #d0772f; --tile-b-ink: #1c1f19;
   --field: #ece3cf; --field-ink: #1d211a; --field-accent: #b5591a; --field-soft: #3f4238; --field-faint: #77746a;
   --field-rule: #cfc5ae; --field-surface: #e0d6bf; --field-track: #ddd2bb; --field-bar: #a39c8a; --field-kicker: #b5591a;
-  --sans: 'Pretendard', 'Malgun Gothic', sans-serif; --display: 'SUIT', 'Segoe UI', 'Malgun Gothic', sans-serif; --display-weight: 700;
-  --quote: 'SUIT', 'Segoe UI', 'Malgun Gothic', sans-serif; --quote-weight: 700; --figure: 'SUIT', Bahnschrift, 'Segoe UI', 'Malgun Gothic', sans-serif; --figure-weight: 600;
+  --sans: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; --display: 'SUIT', 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; --display-weight: 700;
+  --quote: 'SUIT', 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; --quote-weight: 700; --figure: 'SUIT', Bahnschrift, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; --figure-weight: 600;
 }
 section:not(.field) { background-image: linear-gradient(rgba(236,227,207,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(236,227,207,0.035) 1px, transparent 1px); background-size: 64px 64px; }
 section:not(.field):not(.split):not(.section) h2::before { content: ""; display: block; width: 56px; height: 5px; background: var(--accent); margin-bottom: 20px; }

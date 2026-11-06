@@ -6,6 +6,7 @@ import base64
 import html
 import os
 import subprocess
+import sys
 from typing import Any
 
 from .events import EventBus
@@ -19,6 +20,8 @@ class NotificationService:
         title = title.strip()[:100] or _brand.NAME
         message = " ".join(message.split())[:240] or "작업이 완료되었습니다."
         self.events.publish("desktop_notification", {"title": title, "message": message})
+        if sys.platform == "darwin":
+            return self._notify_mac(title, message)
         if os.name != "nt":
             return {"ok": False, "reason": "windows_only"}
         title_xml = html.escape(title)
@@ -40,4 +43,21 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
             )
             return {"ok": True}
         except Exception as exc:
+            return {"ok": False, "error": str(exc)[:200]}
+
+    @staticmethod
+    def _notify_mac(title: str, message: str) -> dict[str, Any]:
+        """맥(2026-11-03 · 전수조사 B7): 알림 센터 한 줄(`osascript display notification`).
+
+        ★ 윈도우와 다른 점: 알림의 보낸 이가 「스크립트 편집기」로 보이고, 누르면 결과가 열리는 동작이 없다.
+          알림 허락은 맥이 처음 한 번 묻는다(대표가 누름).
+        """
+        def quoted(text: str) -> str:
+            return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+        script = f"display notification {quoted(message)} with title {quoted(title)}"
+        try:
+            subprocess.Popen(["osascript", "-e", script], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))  # noqa: S603,S607 — 고정된 명령 · 글은 따옴표로 감쌈
+            return {"ok": True, "via": "osascript"}
+        except Exception as exc:  # noqa: BLE001
             return {"ok": False, "error": str(exc)[:200]}

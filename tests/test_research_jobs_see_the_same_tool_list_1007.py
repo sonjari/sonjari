@@ -201,19 +201,17 @@ def test_ordering_keeps_every_tool_and_the_order_inside_each_group(tmp_path) -> 
 
 
 def test_the_extra_is_measured_on_what_is_actually_sent() -> None:
-    """올리기 손은 바로 다음에 빠진다 — 그것까지 세어 128K 조사 판을 좁히지 않는다(10-24: 11,434 대 실제 9,397토큰)."""
+    """11-06: 큰 창은 올리기 손도 늘 보낸다 — 목록이 요청마다 바뀌면 이 모델(저장점에서만 이어 읽는다)은 판 첫 걸음에 3만 토큰을 다시 읽었다.
+    그래서 「실제로 보낼 목록」은 큰 창에서 통째 목록과 같고, 넓이 재기도 그 목록으로 한다(10-24 의 재기 원칙은 그대로)."""
     from alture_jarvis.tool_roster import _platform_scoped_tool_definitions
 
     inside = [_tool(f"browser_tool_{i}") for i in range(80)]
-    outside = [_tool(f"camera_tool_{i}", "x" * 400) for i in range(50)]          # 보내는 차 ≈ 8,600토큰 · 128K 의 6.6%
-    posting = [_tool(f"naver_blog_step_{i}", "x" * 1500) for i in range(10)]     # 말 안 하면 빠지는 손 ≈ 5,300토큰
+    outside = [_tool(f"camera_tool_{i}", "x" * 400) for i in range(50)]
+    posting = [_tool(f"naver_blog_step_{i}", "x" * 1500) for i in range(10)]
     whole = inside + outside + posting
-    scoped = _route_scoped_tool_definitions(whole, web_only=True)
     said = "책 세 권 쪽수 조사해 줘"
-    sent_whole = _platform_scoped_tool_definitions(whole, said)
-    sent_scoped = _platform_scoped_tool_definitions(scoped, said)
-    assert _route_hands(sent_whole, sent_scoped, window=131_072, refused=0) is not None
-    assert _route_hands(whole, scoped, window=131_072, refused=0) is None, "옛 재기로는 좁혔다 — 이 시험이 보려는 빈칸"
+    assert _platform_scoped_tool_definitions(whole, said) == whole
+    assert _platform_scoped_tool_definitions(whole, "블로그에 올려 줘") == whole       # 말해도 안 해도 같은 목록
 
 
 def test_the_run_loop_orders_the_list_and_measures_the_sent_lists() -> None:

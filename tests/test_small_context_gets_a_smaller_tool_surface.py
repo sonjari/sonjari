@@ -176,5 +176,5 @@ def test_the_loop_actually_uses_it() -> None:
     """만들어 놓고 부르는 자리가 없으면 아무 일도 안 일어난다."""
     source = inspect.getsource(BrowserAgent.run)
 
-    assert "self._compact_tool_surface(model_role)" in source
+    assert "self._compact_tool_surface(model_role, window=window_for_job)" in source   # 11-06 판 안에서는 같은 창
     assert "compact=compact_surface" in source and "_compact_tool_descriptions(available_model_tools)" in source

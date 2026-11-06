@@ -6,6 +6,7 @@
  * 모양은 가져오기 칸(`imp-*`)을 그대로 쓴다 — 같은 화면 안에서 두 칸이 달라 보이면 안 된다.
  */
 import { t } from "../i18n";
+import { isMac } from "../platform";
 import { Plug } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { pollUnlessBusy } from "./poll";
@@ -24,7 +25,7 @@ import type {
 function errorText(result: ConnectResult): string {
   switch (result.error) {
     case "claude_desktop_did_not_close":
-      return t("Claude 가 꺼지지 않았습니다. 작업 표시줄 오른쪽 구석의 Claude 아이콘을 오른쪽 클릭해 「종료」를 누른 뒤 다시 눌러 주세요.");
+      return (isMac ? t("Claude 가 꺼지지 않았습니다. 화면 위 메뉴 막대의 「Claude」 메뉴에서 「Quit Claude」(⌘Q)로 완전히 끈 뒤 다시 눌러 주세요.") : t("Claude 가 꺼지지 않았습니다. 작업 표시줄 오른쪽 구석의 Claude 아이콘을 오른쪽 클릭해 「종료」를 누른 뒤 다시 눌러 주세요."));
     case "claude_desktop_running":
       return t("Claude Desktop 이 켜져 있어 지금 바꾸면 앱이 종료하면서 덮어씁니다. 앱을 완전히 종료(트레이 아이콘까지)한 뒤 「다시 확인」을 눌러 주세요.");
     case "cli_missing":

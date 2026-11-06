@@ -46,7 +46,7 @@
 
   /* ─── TYPE SYSTEM ──────────────────────────────────────────── */
   .disp {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     line-height: 0.92;
     letter-spacing: -0.01em;
@@ -174,7 +174,7 @@
     line-height: 1;
   }
   .s-cover .title {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     text-transform: uppercase;
     font-size: clamp(54.67px, min(8.8vw, 15vh), 120px);
@@ -231,7 +231,7 @@
   }
   .s-cover .big-edition-lab {
     margin-top: clamp(5.33px, 1vh, 10.67px);
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 700;
     text-transform: uppercase;
     font-size: clamp(10px, 1.1vw, 12px);
@@ -273,7 +273,7 @@
     color: var(--ink);
   }
   .s-manifesto .left .h {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     text-transform: uppercase;
     font-size: clamp(48px, min(7.6vw, 13vh), 106.67px);
@@ -325,7 +325,7 @@
     gap: 20px;
   }
   .s-index .topbar .h {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     text-transform: uppercase;
     font-size: clamp(37.33px, min(6vw, 10vh), 80px);
@@ -373,7 +373,7 @@
     margin-left: auto;
   }
   .s-index .card .nm {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     text-transform: uppercase;
     font-size: clamp(18.67px, 2.4vw, 29.33px);
@@ -430,7 +430,7 @@
     color: var(--ink);
   }
   .s-featured .left .ttl {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     text-transform: uppercase;
     font-size: clamp(40px, min(6.4vw, 10.5vh), 93.33px);
@@ -478,7 +478,7 @@
     letter-spacing: 0.16em;
   }
   .s-featured .right .info-row .v {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 700;
     text-transform: uppercase;
     font-size: clamp(13.33px, 1.6vw, 18.67px);
@@ -523,7 +523,7 @@
     color: var(--ink);
   }
   .s-menu .top-row .h {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     text-transform: uppercase;
     font-size: clamp(32px, min(5vw, 8.4vh), 66.67px);
@@ -554,7 +554,7 @@
     display: flex; flex-direction: column; gap: 2.67px;
   }
   .s-menu .course .item .nm {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 700;
     text-transform: uppercase;
     font-size: clamp(13.33px, 1.5vw, 18.67px);
@@ -607,7 +607,7 @@
     color: var(--ink);
   }
   .s-quote .right .qbody {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 700;
     text-transform: uppercase;
     font-size: clamp(26.67px, min(4.4vw, 7.4vh), 64px);
@@ -630,7 +630,7 @@
     align-items: center;
   }
   .s-quote .right .who-row .who-tag {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 700;
     text-transform: uppercase;
     font-size: clamp(10px, 1.05vw, 12px);
@@ -663,7 +663,7 @@
     gap: 20px;
   }
   .s-cal .topbar .h {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     text-transform: uppercase;
     font-size: clamp(37.33px, min(6vw, 10vh), 80px);
@@ -713,7 +713,7 @@
     color: var(--ink);
   }
   .s-cal .row .city-tag {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 700;
     text-transform: uppercase;
     font-size: clamp(12px, 1.3vw, 16px);
@@ -778,7 +778,7 @@
     color: var(--ink);
   }
   .s-closing .left .h {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 800;
     text-transform: uppercase;
     font-size: clamp(40px, min(6.4vw, 10vh), 86.67px);

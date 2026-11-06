@@ -2412,5 +2412,6 @@
  "장표를 그리는 중": "Drawing the slides",
  "막혀서 지금부터 깊게 생각합니다": "Got stuck — thinking more carefully from here",
  "{0} 이(가) 켜져 있어 그래픽카드를 나눠 씁니다 — 모델이 느려질 수 있습니다. 그 프로그램을 닫거나 모델 이름 버튼에서 더 작은 모델을 써 보세요. 손자리는 다른 프로그램을 끄지 않습니다": "{0} is open and shares the graphics card, so the model may run slowly - close it, or pick a smaller model under the model name button. I do not close other programs",
- "이 PC 에 {0} 이(가) 깔려 있습니다 — 같이 켜고 일할 때를 위해 {1} 도 받아 두세요. 나중에 대화창에 「빠른 모델 받기」라고 쳐도 받습니다.": "{0} is installed on this PC - also download {1} for when you work with it open. You can also type \"download the fast model\" in the chat later."
+ "이 PC 에 {0} 이(가) 깔려 있습니다 — 같이 켜고 일할 때를 위해 {1} 도 받아 두세요. 나중에 대화창에 「빠른 모델 받기」라고 쳐도 받습니다.": "{0} is installed on this PC - also download {1} for when you work with it open. You can also type \"download the fast model\" in the chat later.",
+ "16GB 맥(M4)에서 그림 읽기를 끄고 창 48K 로 전부 올라가는 것을 쟀습니다(초당 16.3토큰). 조사 세 과제를 한 판씩 맡겨 하나를 맞혔습니다 — 무거운 일은 본체 PC 모델 빌려 쓰기를 권합니다.": "Measured on a 16GB Mac (M4): with picture reading off it fits fully at a 48K window (16.3 tokens/s). Given three research tasks once each, it got one right - for heavy work, borrowing the main PC's model is recommended."
 }

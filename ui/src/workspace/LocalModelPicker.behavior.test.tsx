@@ -111,24 +111,35 @@ it("대화 탭에서 누르면 대화 모델을 바꾼다", async () => {
 });
 
 // ── ② 사용자가 직접 받은 모델 ────────────────────────────────────────────────
-it("직접 받은 모델은 「내 모델」로 보이고 능력을 잰 적 없다고 적는다", async () => {
+it("직접 받은 모델은 「내 모델」로 보이고 「아직 안 잰 모델」 소제목 아래에 든다 — 줄마다 경고를 달지 않는다", async () => {
+  // ★ 11-04 대표: 줄마다 붙은 ⚠ 「능력을 잰 적 없음」 → 소제목 하나로.
   await openPicker();
-  const row = optionFor("mistral-small3.2:24b");
+  const row = optionFor("Mistral Small 3.2 24B");
   expect(row.textContent).toContain("내 모델");
-  expect(row.textContent).toContain("능력을 잰 적 없음");
+  expect(row.textContent).not.toContain("능력을 잰 적 없음");
   expect(row.disabled).toBe(false);
+  const dividers = [...container.querySelectorAll(".local-model-divider")].map((d) => d.textContent);
+  expect(dividers.filter((d) => d === "아직 안 잰 모델")).toHaveLength(1);
+  // 소제목은 잰 모델 뒤 · 안 잰 모델 앞에 있다
+  const kids = [...container.querySelector(".local-model-options")!.children];
+  const at = kids.findIndex((el) => el.textContent === "아직 안 잰 모델");
+  expect(kids.slice(0, at).some((el) => el.textContent?.includes("Qwen 3.5 9B"))).toBe(true);
+  expect(kids.slice(at).some((el) => el.textContent?.includes("Mistral Small 3.2 24B"))).toBe(true);
 });
 
-it("실측한 모델에는 「안 쟀음」 경고를 달지 않는다", async () => {
+it("잰 모델에는 짧은 「검증됨」 표시만 — 「사슬 벤치 9/10 실측」 긴 글은 줄에 쓰지 않는다", async () => {
   await openPicker();
-  expect(optionFor("Qwen 3.5 9B").querySelector(".local-model-untested")).toBeNull();
-  expect(optionFor("mistral-small3.2:24b").querySelector(".local-model-untested")).not.toBeNull();
+  const verified = optionFor("Qwen 3.5 9B");
+  expect(verified.querySelector(".local-model-verified")?.textContent).toContain("검증됨");
+  expect(verified.textContent).not.toContain("사슬 벤치");
+  expect(optionFor("Mistral Small 3.2 24B").querySelector(".local-model-verified")).toBeNull();
+  expect(container.querySelector(".local-model-untested")).toBeNull();
 });
 
 // ── ③ 못 고르는 것 ──────────────────────────────────────────────────────────
 it("도구를 못 부르는 모델은 사라지지 않고 이유를 달고 못 눌린다", async () => {
   await openPicker();
-  const row = optionFor("translategemma:4b");
+  const row = optionFor("Translategemma 4B");
   expect(row.textContent).toContain("도구를 부를 수 없어");
   expect(row.disabled).toBe(true);
 
@@ -154,18 +165,67 @@ it("쓰는 중인 모델이 목록 밖 것이어도 머리말 아래로 들어�
   await openPicker();
   const first = container.querySelector(".local-model-options")!.firstElementChild!;
   expect(first.querySelector(".local-model-divider")).toBeNull();
-  expect(first.textContent).toContain("mistral-small3.2:24b");
-  expect(first.textContent).toContain("지금 쓰는 중");
+  expect(first.textContent).toContain("Mistral Small 3.2 24B");
+  expect(first.classList.contains("selected")).toBe(true);
 });
 
-it("위성 PC 에서는 고르개가 아니라 글씨로 남는다", async () => {
-  api.modelPicker = vi.fn(async (role: ModelRole) => ({ ...VIEW, role, satellite: true }));
+it("칩에는 이름만 — 창 크기는 창 안 머리에 적는다", async () => {
+  // ★ 11-04 대표: 「9B · 128K」 숫자는 창 안으로 옮기고 칩엔 이름만.
   await act(async () => {
-    root.render(<LocalModelPicker api={api} role="chat" label="Qwen3.6 · 128K" context="맥락" />);
+    root.render(<LocalModelPicker api={api} role="chat" label="Qwen 3.6 35B" contextLength={131072} context="맥락" />);
   });
   await act(async () => { await Promise.resolve(); });
-  expect(container.querySelector(".pilot-model-trigger")).toBeNull();
-  expect(container.querySelector(".model-chip")?.textContent).toContain("Qwen3.6");
+  const chip = container.querySelector(".pilot-model-trigger")!;
+  expect(chip.textContent).toContain("Qwen 3.6 35B-A3B");
+  expect(chip.textContent).not.toContain("128K");
+  expect(chip.querySelector(".place-mark-here")).not.toBeNull();
+  await act(async () => { (chip as HTMLButtonElement).click(); });
+  expect(container.querySelector(".pilot-model-popover-head")?.textContent).toContain("창 128K");
+});
+
+// ★ 2026-11-04 대표(맥미니): 예전엔 집 PC 자리면 칩이 누를 수 없는 글씨였고, 그 판정을 화면이 뜰 때 한 번만 읽었다.
+const PLACE = {
+  paired: true, home_gpu: "RTX 3090 24GB", place: "home_pc", home_known: true, home_host: "HOME-PC",
+  home_model: "swift:27b", home_model_chosen_here: false, chat_model: "swift:27b", num_ctx: 131072,
+  home: { reachable: true, models: [{ tag: "swift:27b", gb: 13, family: "qwen", params: "27B", quant: "IQ3_S" }] },
+};
+
+it("Satellite 여도 칩은 단추다 — ●━● 표시 · 집 PC 모델 이름 · 누르면 [PC | Satellite] 와 집 PC 모델, 이 기기 목록은 숨는다", async () => {
+  api.modelPicker = vi.fn(async (role: ModelRole) => ({ ...VIEW, role, satellite: true }));
+  const placed: string[] = [];
+  Object.assign(api, {
+    modelPlace: vi.fn(async () => PLACE),
+    setModelPlace: vi.fn(async (place: string) => { placed.push(place); return { ok: true, pending: false, ...PLACE, place }; }),
+  });
+  await openPicker();
+  await act(async () => { await Promise.resolve(); });
+  const chip = container.querySelector(".pilot-model-trigger")!;
+  expect(chip.querySelector(".place-mark-satellite")).not.toBeNull();
+  expect(chip.textContent).toContain("Swift 27B");
+  expect(container.querySelector('[role="radiogroup"]')?.textContent).toContain("Satellite");
+  expect(container.querySelector(".place-link.is-connected")?.textContent).toContain("Connected");
+  expect(container.querySelector(".local-model-options")).toBeNull();
+  expect(options().map((o) => o.textContent)).toEqual([expect.stringContaining("Swift 27B")]);
+  const here = [...container.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((b) => b.getAttribute("aria-checked") === "false")!;
+  await act(async () => { here.click(); });
+  expect(placed).toEqual(["this_pc"]);
+});
+
+it("모델 · 자리가 바뀌었다는 소식이 오면 다시 읽는다 — 집 PC 때 연 칩이 이 맥으로 바뀐 뒤 목록을 보인다", async () => {
+  let satellite = true;
+  api.modelPicker = vi.fn(async (role: ModelRole) => ({ ...VIEW, role, satellite }));
+  await act(async () => {
+    root.render(<LocalModelPicker api={api} role="chat" label="Qwen3.5 · 9B · 128K" context="맥락" />);
+  });
+  await act(async () => { await Promise.resolve(); });
+  satellite = false;
+  const before = vi.mocked(api.modelPicker).mock.calls.length;
+  await act(async () => { window.dispatchEvent(new Event("ontelic:model-changed")); });
+  await act(async () => { await Promise.resolve(); });
+  expect(vi.mocked(api.modelPicker).mock.calls.length).toBe(before + 1);
+  await act(async () => { container.querySelector<HTMLButtonElement>(".pilot-model-trigger")!.click(); });
+  expect(options().length).toBeGreaterThan(0);
+  expect(optionFor("Qwen 3.5 9B")).toBeTruthy();
 });
 
 it("백엔드가 거절하면 까닭을 사람 말로 보여 주고 목록을 닫지 않는다", async () => {

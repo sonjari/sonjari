@@ -223,6 +223,7 @@ def _local_tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, desk: FakeDesk
     fake_ctypes = SimpleNamespace(windll=SimpleNamespace(user32=_FakeUser32(foreground_ok=foreground_ok)),
                                   create_unicode_buffer=real_ctypes.create_unicode_buffer)
     monkeypatch.setattr(local_computer, "ctypes", fake_ctypes)
+    monkeypatch.setattr(local_computer, "winapi", SimpleNamespace(user32=fake_ctypes.windll.user32))  # 11-03
     monkeypatch.setattr(window_view, "desktop", lambda: desk)
     monkeypatch.setattr(UserPresence, "wait_until_idle", lambda self, **kw: True)
     monkeypatch.setattr(window_view.time, "sleep", lambda _s: None)
@@ -294,6 +295,7 @@ def test_the_window_list_marks_only_off_screen_windows(tmp_path: Path, monkeypat
                                   WINFUNCTYPE=lambda *a: (lambda fn: fn), c_bool=None, c_void_p=None,
                                   byref=lambda value: value)
     monkeypatch.setattr(local_computer, "ctypes", fake_ctypes)
+    monkeypatch.setattr(local_computer, "winapi", SimpleNamespace(user32=fake_ctypes.windll.user32))  # 11-03
     config = JarvisConfig(runtime_root=tmp_path, data_dir=tmp_path / "data", output_dir=tmp_path / "outputs")
     windows = {row["window_id"]: row for row in local_computer.LocalComputerTools(config).list_open_windows({})["windows"]}
     assert "off_screen" not in windows[11]

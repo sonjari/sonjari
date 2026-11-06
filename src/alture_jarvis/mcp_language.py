@@ -17,6 +17,8 @@
 
 from __future__ import annotations
 
+from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
+
 import locale
 import os
 import sys
@@ -31,15 +33,36 @@ def os_language() -> str:
         try:
             import ctypes
 
-            primary = int(ctypes.windll.kernel32.GetUserDefaultUILanguage()) & 0x3FF
+            primary = int(winapi.kernel32.GetUserDefaultUILanguage()) & 0x3FF
             return "ko" if primary == 0x12 else "en"
         except Exception:  # noqa: BLE001 — 못 읽으면 아래 로캘로
             pass
+    if sys.platform == "darwin":
+        # ★ 2026-11-03 맥미니 확인(전수조사 C8): 표시 언어는 ko-KR 인데 launchd · 클로드가 띄운 파이썬의 로캘은 ('C', 'UTF-8') —
+        #   아래 로캘로만 보면 한국어 맥을 en 으로 읽었다. 시스템 설정의 언어 목록 첫 칸을 본다.
+        first = _mac_first_language()
+        if first:
+            return "ko" if first.lower().startswith("ko") else "en"
     try:
         name = (locale.getlocale()[0] or "").lower()
     except Exception:  # noqa: BLE001
         name = ""
     return "ko" if name.startswith(("ko", "korean")) else "en"
+
+
+def _mac_first_language() -> str:
+    """맥 시스템 설정 「선호하는 언어」의 첫 칸(`defaults read -g AppleLanguages` → `ko-KR`). 못 읽으면 빈 값."""
+    import subprocess
+
+    try:
+        out = subprocess.run(["defaults", "read", "-g", "AppleLanguages"], capture_output=True, text=True, timeout=5, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+    except Exception:  # noqa: BLE001
+        return ""
+    for line in out.splitlines():
+        cleaned = line.strip().strip(",").strip().strip('"')
+        if cleaned and cleaned not in ("(", ")"):
+            return cleaned
+    return ""
 
 
 def pick_language(base_url: str, token: str, *, env: dict[str, str] | None = None, client: Any = None) -> str:

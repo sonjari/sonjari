@@ -14,7 +14,7 @@
     --ink:#7A1F35;
   }
   html, body { margin:0; padding:0; background:#7A1F35; }
-  body { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; color: var(--ink); }
+  body { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; color: var(--ink); }
 
   deck-stage section {
     width:1280px; height:720px;
@@ -23,22 +23,22 @@
     box-sizing:border-box;
   }
 
-  .mono { font-family:Consolas, 'Malgun Gothic', monospace; }
+  .mono { font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; }
   .serif { font-family:Georgia, 'Batang', serif; font-weight:400; }
-  .grotesk { font-family:'Segoe UI', 'Malgun Gothic', sans-serif; }
+  .grotesk { font-family:'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }
 
   .pill {
     display:inline-flex; align-items:center; justify-content:center;
     padding: 0.35em 0.9em;
     border-radius: 666px;
-    font-family:'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family:'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight:500;
     line-height:1;
     white-space:nowrap;
   }
 
   .label {
-    font-family:Consolas, 'Malgun Gothic', monospace;
+    font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
     font-size:16px;
     letter-spacing: 0.15em;
     text-transform: uppercase;
@@ -47,7 +47,7 @@
   .footer {
     position:absolute; left:42.67px; right:42.67px; bottom:24px;
     display:flex; justify-content:space-between; align-items:center;
-    font-family:Consolas, 'Malgun Gothic', monospace;
+    font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
     font-size:10.67px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -69,7 +69,7 @@
   .s-cover .wordmark {
     position:absolute;
     left:42.67px; right:42.67px; bottom:53.33px;
-    font-family:'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family:'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight:800;
     font-size: 200px;
     line-height: 0.82;
@@ -83,7 +83,7 @@
   .s-cover .meta {
     position:absolute; top:42.67px; left:42.67px; right:42.67px;
     display:flex; justify-content:space-between;
-    font-family:Consolas, 'Malgun Gothic', monospace;
+    font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
     font-size:16px; letter-spacing:0.15em; text-transform:uppercase;
   }
 
@@ -103,14 +103,14 @@
   }
   .s-manifesto .chapter sup { font-size: 0.35em; vertical-align: super; opacity:0.6; }
   .s-manifesto .lede {
-    font-family:'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family:'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-size: 37.33px; line-height:1.05;
     font-weight:500; letter-spacing:-0.02em;
     max-width: 480px;
   }
   .s-manifesto .lede em { font-family:Georgia, 'Batang', serif; font-weight:400; color:var(--terracotta); }
   .s-manifesto .right h3 {
-    font-family:Consolas, 'Malgun Gothic', monospace;
+    font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
     font-size: 16px; letter-spacing:0.18em; text-transform:uppercase;
     margin: 0 0 21.33px; color: var(--butter); font-weight:500;
   }
@@ -127,7 +127,7 @@
   .s-grid { background: var(--pink); padding: 48px 42.67px 53.33px; }
   .s-grid h2 {
     margin:0 0 21.33px; font-size: 50.67px; line-height:1;
-    font-family:'Segoe UI', 'Malgun Gothic', sans-serif; font-weight:700;
+    font-family:'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-weight:700;
     letter-spacing:-0.02em; color: var(--burgundy);
     max-width: 733.33px;
   }
@@ -144,7 +144,7 @@
     position:relative; overflow:hidden;
   }
   .s-grid .card .num {
-    font-family:Consolas, 'Malgun Gothic', monospace;
+    font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
     font-size: 16px; letter-spacing:0.15em;
     opacity:0.7;
   }
@@ -159,12 +159,12 @@
   /* ========== SLIDE 4: BIG STAT / EDITORIAL ========== */
   .s-stat { background: var(--burgundy); color: var(--cream); padding: 64px 42.67px; position:relative; }
   .s-stat .toprow { display:flex; justify-content:space-between; align-items:flex-start; }
-  .s-stat .kicker { font-family:Consolas, 'Malgun Gothic', monospace; font-size:16px; letter-spacing:0.18em; text-transform:uppercase; color: var(--butter); }
+  .s-stat .kicker { font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size:16px; letter-spacing:0.18em; text-transform:uppercase; color: var(--butter); }
   .s-stat .swatches { display:flex; gap:6.67px; }
   .s-stat .swatches i { width:24px; height:24px; border-radius:666px; display:block; }
   .s-stat .figure {
     margin-top: 13.33px;
-    font-family:'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family:'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight:700;
     font-size: 360px;
     line-height: 0.78;
@@ -184,10 +184,10 @@
     font-size: 16px;
   }
   .s-stat .breakdown .row:last-child { border-bottom: 1px solid rgba(246,237,220,0.25); }
-  .s-stat .breakdown .row .lbl { font-family:Consolas, 'Malgun Gothic', monospace; font-size:16px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.7; }
+  .s-stat .breakdown .row .lbl { font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size:16px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.7; }
   .s-stat .breakdown .row .bar { height:6.67px; border-radius:666px; background: rgba(246,237,220,0.15); position:relative; overflow:hidden; }
   .s-stat .breakdown .row .bar i { display:block; height:100%; border-radius:666px; }
-  .s-stat .breakdown .row .val { font-family:Consolas, 'Malgun Gothic', monospace; font-size:16px; text-align:right; }
+  .s-stat .breakdown .row .val { font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size:16px; text-align:right; }
 
   /* ========== SLIDE 5: TIMELINE ========== */
   .s-timeline { background: var(--butter); padding: 64px 53.33px; }
@@ -198,7 +198,7 @@
     max-width: 733.33px;
   }
   .s-timeline .head h2 em { font-family:Georgia, 'Batang', serif; font-weight:400; color: var(--burgundy); }
-  .s-timeline .head .meta { font-family:Consolas, 'Malgun Gothic', monospace; font-size:16px; letter-spacing:0.15em; text-transform:uppercase; text-align:right; line-height:1.5; color: var(--burgundy); flex-shrink:0; }
+  .s-timeline .head .meta { font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size:16px; letter-spacing:0.15em; text-transform:uppercase; text-align:right; line-height:1.5; color: var(--burgundy); flex-shrink:0; }
   .s-timeline .head .meta span { display:block; opacity:0.55; margin-top: 2.67px; }
   .s-timeline .track {
     position:relative;
@@ -237,7 +237,7 @@
     border-radius: 666px;
     padding: 16px 29.33px;
     display:flex; justify-content:space-between; align-items:center;
-    font-family:Consolas, 'Malgun Gothic', monospace; font-size: 16px; letter-spacing:0.15em; text-transform:uppercase;
+    font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size: 16px; letter-spacing:0.15em; text-transform:uppercase;
   }
   .s-timeline .ribbon strong { font-family:Georgia, 'Batang', serif; font-weight:400; font-size:20px; letter-spacing:0; text-transform:none; color: var(--pink); }
 
@@ -255,7 +255,7 @@
   }
   .s-chart .l .legend .item { display:flex; align-items:center; gap: 9.33px; font-size:16px; }
   .s-chart .l .legend .item i { width:9.33px; height:9.33px; border-radius:2.67px; display:block; }
-  .s-chart .l .legend .item .cat { font-family:Consolas, 'Malgun Gothic', monospace; font-size:16px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.7; margin-left:auto; }
+  .s-chart .l .legend .item .cat { font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size:16px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.7; margin-left:auto; }
   .s-chart .r {
     background: var(--cream); color: var(--ink);
     border-radius: 21.33px;
@@ -265,9 +265,9 @@
   }
   .s-chart .r .head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 21.33px; }
   .s-chart .r .head .ttl { font-family:Georgia, 'Batang', serif; font-size: 26.67px; }
-  .s-chart .r .head .unit { font-family:Consolas, 'Malgun Gothic', monospace; font-size:16px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.6; }
+  .s-chart .r .head .unit { font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size:16px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.6; }
   .s-chart svg.chart { width:100%; flex:0 0 auto; max-height: 320px; }
-  .s-chart .r .xax { display:grid; grid-template-columns: repeat(6, 1fr); margin-top: 8px; font-family:Consolas, 'Malgun Gothic', monospace; font-size:16px; opacity:0.6; letter-spacing:0.1em; }
+  .s-chart .r .xax { display:grid; grid-template-columns: repeat(6, 1fr); margin-top: 8px; font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size:16px; opacity:0.6; letter-spacing:0.1em; }
 
   /* ========== SLIDE 7: QUOTE / EDITORIAL SPLIT ========== */
   .s-quote { background: var(--lime); color: var(--ink); padding: 0; display:grid; grid-template-columns: 0.95fr 1fr; }
@@ -281,11 +281,11 @@
     color: var(--ink);
     max-width: 506.67px;
   }
-  .s-quote .l blockquote b { font-family:'Segoe UI', 'Malgun Gothic', sans-serif; font-style:normal; font-weight:600; color: var(--burgundy); }
+  .s-quote .l blockquote b { font-family:'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-style:normal; font-weight:600; color: var(--burgundy); }
   .s-quote .l .attribution { display:flex; align-items:center; gap:13.33px; }
   .s-quote .l .avatar { width:48px; height:48px; border-radius:666px; background: var(--burgundy); border:2px solid var(--burgundy); }
   .s-quote .l .who { font-size:17.33px; font-weight:600; }
-  .s-quote .l .who small { display:block; font-family:Consolas, 'Malgun Gothic', monospace; font-size:16px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; font-weight:400; margin-top:2.67px; }
+  .s-quote .l .who small { display:block; font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size:16px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; font-weight:400; margin-top:2.67px; }
   .s-quote .r {
     background: var(--burgundy); color: var(--butter);
     padding: 64px 53.33px;
@@ -307,10 +307,10 @@
   /* ========== SLIDE 8: CLOSER / INDEX ========== */
   .s-closer { background: var(--ink); color: var(--cream); padding: 64px 42.67px; position:relative; }
   .s-closer .top { display:flex; justify-content:space-between; align-items:flex-start; }
-  .s-closer .top .kicker { font-family:Consolas, 'Malgun Gothic', monospace; font-size:16px; letter-spacing:0.18em; text-transform:uppercase; color: var(--lime); }
+  .s-closer .top .kicker { font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size:16px; letter-spacing:0.18em; text-transform:uppercase; color: var(--lime); }
   .s-closer .big {
     margin-top: 26.67px;
-    font-family:'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family:'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight:700;
     font-size: 213.33px;
     line-height: 0.82;
@@ -326,7 +326,7 @@
   }
   .s-closer .grid .col h6 {
     margin: 0 0 10.67px;
-    font-family:Consolas, 'Malgun Gothic', monospace;
+    font-family:Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
     font-size:16px; letter-spacing:0.15em; text-transform:uppercase;
     color: var(--lime); font-weight:500;
   }

@@ -43,21 +43,21 @@
         /* Barlow: the defining typeface. Condensed grotesque. Always heavy.
            Used at max weight — 900 for display, 800 for h1, 700 for h2.
            Noto Sans SC provides full CJK coverage at matching weights. */
-        --f-display: 'Segoe UI', 'Malgun Gothic', sans-serif;
-        --f-heading: 'Segoe UI', 'Malgun Gothic', sans-serif;
-        --f-body: 'Segoe UI', 'Malgun Gothic', sans-serif;
+        --f-display: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+        --f-heading: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+        --f-body: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
         /* Mono: IBM Plex Mono for chrome labels, metadata, slide numbers */
-        --f-mono: Consolas, 'Malgun Gothic', monospace;
+        --f-mono: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
 
         /* ── Type Scale ───────────────────────────────────────────────────── */
         /* Broadside's defining trait: TYPE IS MASSIVE. Display is 13vw —
            on a 960px screen that is ~124.67px. Words become graphic elements. */
-        --sz-display: 'Segoe UI', 'Malgun Gothic', sans-serif; /* the whole point — nearly abstract at full size */
+        --sz-display: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; /* the whole point — nearly abstract at full size */
         --sz-h1: 7.5vw; /* chapter title — still enormous                */
         --sz-h2: 4.5vw; /* slide headline                                */
         --sz-h3: 2.8vw; /* sub-headline                                  */
         --sz-lead: 1.6vw; /* lead paragraph                                */
-        --sz-body: 'Segoe UI', 'Malgun Gothic', sans-serif; /* body text                                     */
+        --sz-body: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; /* body text                                     */
         --sz-caption: 0.9vw; /* captions, footnotes                           */
         --sz-label: 0.72vw; /* chrome labels, slide numbers, metadata        */
 
@@ -534,7 +534,7 @@
         justify-content: center;
         background: rgba(255, 255, 255, 0.04);
         border: 1px dashed var(--c-border);
-        font-family: Consolas, 'Malgun Gothic', monospace;
+        font-family: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
         font-size: 0.85rem;
         font-weight: 500;
         color: var(--c-fg-2, var(--c-fg));

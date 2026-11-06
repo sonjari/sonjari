@@ -12,8 +12,11 @@
 """
 from __future__ import annotations
 
+from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
+
 import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Callable
 
@@ -38,7 +41,7 @@ def associated_app(suffix: str) -> str:
 
         size = wintypes.DWORD(1024)
         buffer = ctypes.create_unicode_buffer(size.value)
-        result = ctypes.windll.shlwapi.AssocQueryStringW(  # type: ignore[attr-defined]
+        result = winapi.shlwapi.AssocQueryStringW(  # type: ignore[attr-defined]
             _ASSOCF_NONE, _ASSOCSTR_EXECUTABLE, suffix, None, buffer, ctypes.byref(size))
     except Exception:  # noqa: BLE001 — 못 물어보면 「있다」로 보고 예전대로 연다(아래 open_file)
         return "unknown"
@@ -62,6 +65,8 @@ def open_file(
 ) -> str:
     """파일(이나 폴더)을 띄운다. 돌려주는 값: `app`(연결된 프로그램) · `notepad` · `revealed`(탐색기에서 짚음)."""
     target = str(path)
+    if sys.platform == "darwin" and startfile is None:
+        return _open_on_mac(target, popen=popen if popen is not subprocess.Popen else None)
     launch = startfile or getattr(os, "startfile")
     ask = associated or _ask_windows
     if Path(target).is_dir() or ask(Path(target).suffix.lower()):
@@ -72,3 +77,44 @@ def open_file(
         return "notepad"
     popen(["explorer.exe", f"/select,{target}"])  # noqa: S603,S607
     return "revealed"
+
+
+def _open_on_mac(target: str, *, popen: Callable[..., Any] | None = None,
+                 run: Callable[..., Any] | None = None) -> str:
+    """맥(2026-11-03 · 전수조사 B6): `open` 이 연결된 앱으로 연다. 여는 앱이 없으면 `open` 이 실패하니(오류 창 없음)
+    글 파일은 텍스트 편집기로, 그 밖은 파인더에서 짚어 보여 준다 — 윈도우의 메모장 · 탐색기 갈래와 같은 뜻."""
+    popen = popen or subprocess.Popen
+    done = (run or subprocess.run)(["open", target], capture_output=True, text=True, timeout=15)  # noqa: S603,S607
+    if getattr(done, "returncode", 1) == 0:
+        return "app"
+    if Path(target).suffix.lower() in TEXT_LIKE:
+        popen(["open", "-e", target])  # noqa: S603,S607 — 맥에 늘 있는 텍스트 편집기
+        return "notepad"
+    popen(["open", "-R", target])  # noqa: S603,S607
+    return "revealed"
+
+
+def reveal_file(path: Path, *, popen: Callable[..., Any] | None = None) -> bool:
+    """파일을 탐색기(윈도우) · 파인더(맥)에서 **짚어** 보여 준다. 못 하는 OS 면 False."""
+    target = str(path)
+    # ★ 부를 때 찾는다 — 기본값으로 붙잡으면 시험이 갈아 끼운 가짜 대신 진짜 탐색기가 뜬다(11-03 실제로 한 번 떴다).
+    popen = popen or subprocess.Popen
+    if sys.platform == "darwin":
+        popen(["open", "-R", target])  # noqa: S603,S607
+        return True
+    if os.name == "nt":
+        popen(["explorer.exe", f"/select,{target}"])  # noqa: S603,S607
+        return True
+    return False
+
+
+def open_folder_or_url(target: str, *, popen: Callable[..., Any] | None = None) -> bool:
+    """폴더나 주소를 그 OS 의 기본 앱으로(윈도우 `os.startfile` · 맥 `open`). 못 하는 OS 면 False."""
+    popen = popen or subprocess.Popen
+    if sys.platform == "darwin":
+        popen(["open", target])  # noqa: S603,S607
+        return True
+    if os.name == "nt":
+        os.startfile(target)  # type: ignore[attr-defined]  # noqa: S606
+        return True
+    return False

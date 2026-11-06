@@ -93,7 +93,7 @@ class _JobClient:
         self.jobs = jobs
         self.posts: list[dict[str, Any]] = []
 
-    async def get(self, url: str) -> Any:
+    async def get(self, url: str, headers: dict[str, str] | None = None) -> Any:
         if url.endswith("/v1/tools"):
             return _Response([{"name": "browser_search", "risk_level": "L0", "enabled": True}])
         return _Response(self.jobs.pop(0) if len(self.jobs) > 1 else self.jobs[0])

@@ -19,6 +19,8 @@ Windows 가 아니면 판단할 수 없으니 「안 쓰는 중」으로 본다(
 
 from __future__ import annotations
 
+from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
+
 import ctypes
 import sys
 import time
@@ -31,6 +33,11 @@ __all__ = ["idle_seconds", "UserPresence"]
 
 def idle_seconds() -> float | None:
     """마지막 입력 뒤 지난 초. 잴 수 없으면 None."""
+    if sys.platform == "darwin":
+        # 2026-11-03 맥판(전수조사 B12): 예전엔 맥에서 늘 None(「모름」)이라 사람이 쓰는 중인지 못 가렸다.
+        from .macos import idle_seconds as mac_idle_seconds
+
+        return mac_idle_seconds()
     if sys.platform != "win32":
         return None
 
@@ -40,9 +47,9 @@ def idle_seconds() -> float | None:
     info = _LastInput()
     info.cbSize = ctypes.sizeof(_LastInput)
     try:
-        if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info)):
+        if not winapi.user32.GetLastInputInfo(ctypes.byref(info)):
             return None
-        now = ctypes.windll.kernel32.GetTickCount() & 0xFFFFFFFF
+        now = winapi.kernel32.GetTickCount() & 0xFFFFFFFF
     except Exception:  # noqa: BLE001 — 못 재면 판단하지 않는다
         return None
     # GetTickCount 는 49.7 일마다 0 으로 돈다. 차이도 같은 32비트로 계산한다.

@@ -47,7 +47,12 @@ def _mark_life(stream) -> None:
     stamp("시작")
     atexit.register(stamp, "정상 종료")
     try:
-        faulthandler.enable(file=stream, all_threads=True)
+        # ★ all_threads=False (2026-11-03). 윈도우의 faulthandler 는 **처리되는 예외에도** 반응한다 —
+        #   COM 상대가 사라졌다는 0x80010108(무해, 우리가 받아 처리)이 사흘에 252번 났고, 그때마다 모든 스레드 스택을 덤프했다.
+        #   덤프는 다른 스레드가 도는 중에 그 스택을 읽는다 → 11-01 · 11-02 · 11-03 두 번, 백엔드 충돌 4번이 **전부 덤프 도중**
+        #   (남의 스레드 `File "…` 줄 한가운데서 access violation). 켜기 전 10-30 이전엔 백엔드 충돌이 없었다.
+        #   지금 스레드만 덤프하면 자기 스택만 읽어 안전하고, 진짜로 죽을 때 어디서 죽었는지는 그대로 남는다.
+        faulthandler.enable(file=stream, all_threads=False)
     except Exception:
         pass
 

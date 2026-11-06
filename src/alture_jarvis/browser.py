@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
+
 import hashlib
 import gc
 import json
@@ -1150,7 +1152,7 @@ def _raise_for_human(user32: Any, hwnd: int) -> tuple[bool, bool]:
     """
     import ctypes
 
-    kernel32 = ctypes.windll.kernel32
+    kernel32 = winapi.kernel32
     _ensure_message_queue(user32)
     front = int(user32.GetForegroundWindow() or 0)
     if front == int(hwnd):
@@ -3127,6 +3129,8 @@ class BrowserWorker:
                     key: (list(value) if isinstance(value, list) else value)
                     for key, value in self._sink_report.items()
                 },
+                # 맥: 우리 크롬 숨기기 기록(몇 ms 에 숨겼나 · 다시 숨긴 횟수 · 멈춘 까닭). 윈도우에선 빈 값.
+                "mac_hide": dict(getattr(self, "_mac_guard_report", {}) or {}),
                 "last_restore_path": getattr(BrowserWorker, "_last_restore_path", ""),
                 "automation_flag": self._automation_flag,
                 "cdp_port": getattr(self, "_cdp_port_in_use", None) or self.config.browser_cdp_port,
@@ -4372,6 +4376,8 @@ class BrowserWorker:
             self._attached_is_ours = True
             if getattr(self, "_first_window_pending", False):
                 self._first_window_pending = False
+                if sys.platform == "darwin":
+                    self._mac_wait_hidden()  # 숨긴 **뒤에** 첫 창 — 숨기기 전에 만들면 그대로 번쩍인다
                 self._open_first_window_background(info)
         else:
             # ★ 2026-09-23: 그 포트의 크롬이 **다른 온텔릭**(다른 설치·시험판)의 자동화 크롬이면 붙지 않는다.
@@ -4391,6 +4397,12 @@ class BrowserWorker:
         browser = self._playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
         contexts = list(browser.contexts)
         if self._connect_mode == "attached" and self._attached_is_ours:
+            if sys.platform == "darwin" and not self.config.browser_headless and not self._may_take_foreground():
+                # 백엔드만 다시 켜진 판 — 남아 있던 우리 크롬의 본 프로세스(도우미 아닌 것)를 찾아 다시 지킨다.
+                mains = [pid for pid, line in self._chrome_scan(max_age_sec=0.0).items()
+                         if self._profile_arg_in(line) and "--type=" not in line]
+                if mains:
+                    self._start_mac_hide_guard(min(mains))
             self._park_existing_windows()
             if BrowserWorker._park_offscreen and not self.config.browser_headless:
                 # 백엔드만 다시 켜진 판(업데이트·재기동)도 감시가 있어야 한다 — 예전엔 새로 띄울 때만 세웠다.
@@ -4415,7 +4427,7 @@ class BrowserWorker:
             if sys.platform == "win32":
                 import ctypes
 
-                user32 = ctypes.windll.user32
+                user32 = winapi.user32
                 left = int(user32.GetSystemMetrics(76)) + int(user32.GetSystemMetrics(78)) + 200
                 top = int(user32.GetSystemMetrics(77))
             with connect(url, open_timeout=3, ping_interval=None) as socket:
@@ -4440,7 +4452,7 @@ class BrowserWorker:
         try:
             import ctypes
 
-            user32 = ctypes.windll.user32
+            user32 = winapi.user32
             parked = 0
             for hwnd in self._our_chrome_windows():
                 if user32.IsZoomed(hwnd) and int(user32.GetForegroundWindow() or 0) != int(hwnd):
@@ -4479,6 +4491,8 @@ class BrowserWorker:
         그래서 둘 다 없어도 되게 한다: psutil 이 있으면 쓰고(빠르다, 실측 27개 10ms), 없으면
         **파워셸 한 번**으로 전체를 받는다(pid 마다 부르면 감시 스레드가 초당 50번 프로세스를 만든다).
         """
+        if sys.platform == "darwin":
+            return self._chrome_scan_mac(max_age_sec=max_age_sec)
         if sys.platform != "win32":
             return {}
         now = time.time()
@@ -4511,6 +4525,26 @@ class BrowserWorker:
                 return self._chrome_scan_rows
         except Exception:  # noqa: BLE001
             return self._chrome_scan_rows
+        self._chrome_scan_rows = rows
+        self._chrome_scan_at = now
+        return rows
+
+    def _chrome_scan_mac(self, *, max_age_sec: float = 1.0) -> dict[int, str]:
+        """맥: `ps` 한 번으로 우리 브라우저 앱 번들(`…/Google Chrome.app/`) 안에서 도는 프로세스의 pid → 명령줄 (2026-11-03).
+
+        ★ 전수조사 B2: 예전엔 비윈도우면 빈 값이라 「우리 프로필의 크롬인가」를 못 가렸다 — 백엔드만 다시 켜면 남아 있던
+          우리 크롬을 남의 것으로 읽고 탭 정리 · 끄기를 안 했다. 맥 이름은 `chrome.exe` 가 아니라 번들 경로로 가린다(도우미 포함).
+        """
+        now = time.time()
+        if self._chrome_scan_at and now - self._chrome_scan_at < max_age_sec:
+            return self._chrome_scan_rows
+        from . import macos
+
+        bundle = macos.app_bundle_of(self._browser_exe())
+        rows: dict[int, str] = {}
+        if bundle:
+            marker = bundle + "/"
+            rows = {pid: command for pid, _ppid, command in macos.process_commands() if command.startswith(marker)}
         self._chrome_scan_rows = rows
         self._chrome_scan_at = now
         return rows
@@ -4583,6 +4617,8 @@ class BrowserWorker:
                 Path("/usr/bin/google-chrome"),
                 Path("/usr/bin/google-chrome-stable"),
                 Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                # 관리자 권한 없이 깐 맥 크롬은 사용자 응용 프로그램 폴더에 있다(전수조사 C4).
+                Path.home() / "Applications" / "Google Chrome.app" / "Contents" / "MacOS" / "Google Chrome",
             ]
         for path in candidates:
             if path.exists():
@@ -4602,6 +4638,12 @@ class BrowserWorker:
         for path in edge_candidates:
             if path.exists():
                 return str(path)
+        if sys.platform == "darwin":
+            edge_candidates += [Path("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
+                                Path.home() / "Applications" / "Microsoft Edge.app" / "Contents" / "MacOS" / "Microsoft Edge"]
+            for path in edge_candidates:
+                if path.exists():
+                    return str(path)
         found = shutil.which("msedge")
         if found:
             return found
@@ -4620,7 +4662,7 @@ class BrowserWorker:
 
     @property
     def _is_edge(self) -> bool:
-        return Path(self._browser_exe()).name.lower() == "msedge.exe"
+        return Path(self._browser_exe()).name.lower() in ("msedge.exe", "microsoft edge")
 
     @property
     def _exe_name(self) -> str:
@@ -4728,6 +4770,28 @@ class BrowserWorker:
             and not self.config.browser_headless
             and not self._may_take_foreground()
         )
+        # ★ 2026-11-03 맥판(설계 D3 · bench/macport/chrome_hide_probe.py): 맥은 화면 밖 좌표를 무시하고(창을 화면 안으로
+        #   끌어당김, 실측) 최소화 출생도 없다. 대신 **우리가 띄운 PID 만** 앱 숨기기(⌘H 와 같다)로 감춘다 — 허락 창 없음.
+        #   (처음 「앞 앱을 안 뺏는다 0ms」고 적은 것은 낡은 눈금이었다 — 뺏는다. 감시가 돌려준다 · `_mac_hide_guard`.) 숨겨도 타이머 · 그리기가 안 느려졌다(101ms · 2초 202번 = 보일 때와 같음, n=4). 그래서
+        #   `--disable-*` 는 덧대지 않는다. 소리만 막는다 — 안 보이는 크롬에서 영상 소리가 나면 최악이다(윈도우 09-26 과 같은 이유).
+        mac_quiet = (
+            sys.platform == "darwin"
+            and not self.config.browser_headless
+            and not self._may_take_foreground()
+        )
+        if mac_quiet:
+            arguments += ["--mute-audio", "--autoplay-policy=user-gesture-required"]
+            from . import macos
+
+            # 띄우기 **전에** 지금 앞 앱을 적어 둔다 — 크롬이 뜨며 쥔 키보드를 여기로 돌려준다.
+            self._mac_front_before = int(macos.frontmost_pid() or 0)
+            if bool(getattr(self.config, "browser_no_startup_window", True)):
+                # ★ 2026-11-05 대표(맥미니): 「크롬이 반짝하듯 떴다 들어간다」. 띄운 뒤 숨기면 창이 먼저 그려진다 —
+                #   운영판 실측 36+132ms(전체 크기 창 · 앞 앱도 뺏음). 창 없이 띄워 **창이 0개일 때** 앱을 숨기고, 첫 창은
+                #   CDP 로 화면 오른쪽 끝(크롬이 40px 만 남김)에 만든다(`_open_first_window_background` · 윈도우와 같은 길).
+                #   bench/macport/flash_probe.py n=4: 보인 시간 14~25ms · 그것도 화면 끝 40px 띠 · 앞 앱 안 뺏음.
+                arguments.append("--no-startup-window")
+                self._first_window_pending = True
         if self.config.browser_headless:
             arguments.append("--headless=new")
         elif not quiet_start:
@@ -4779,6 +4843,8 @@ class BrowserWorker:
             creationflags=creationflags,
             startupinfo=startupinfo,
         )
+        if mac_quiet:
+            self._start_mac_hide_guard(int(self._chrome_proc.pid))
         if quiet_start:
             # ★ 시작 플래그만으로는 못 막는다 (2026-09-16 실측). 크롬은 **자기를 다시 띄우므로**
             #   시작 플래그(`wShowWindow`)가 손자 프로세스까지 안 간다. 실제로 창이 뜬 순간 앞을 뺏겼다.
@@ -4789,6 +4855,220 @@ class BrowserWorker:
             self._sink_settled.clear()
             self._sunk_hwnds.clear()
             threading.Thread(target=self._sink_new_chrome_window, daemon=True).start()
+
+    # ── 맥: 우리 크롬 숨기기 (2026-11-03 · 설계 D3) ──────────────────────────────────────────────
+    #
+    # 실측(맥미니, bench/macport/chrome_hide_probe.py): 띄운 뒤 PID 로 숨기면 창은 약 0.02초 한 번 보였다가 사라진다(n=4).
+    # 새 **탭**(CDP background)은 숨김을 유지하고, 새 **창** · bringToFront 는 숨김을 푼다 — 그래서 띄운 뒤에도 지킨다.
+    # 사람이 독에서 크롬을 눌러 앞으로 가져오면(앞 앱 = 우리 크롬) 그 판은 **싸우지 않고 물러난다.**
+
+    _mac_guard_pid: int = 0
+    _mac_guard_on: bool = False
+    _mac_guard_report: dict[str, Any] = {}
+    _mac_front_before: int = 0
+    _mac_guard_gen: int = 0
+
+    def _profile_arg_in(self, line: str) -> bool:
+        """명령줄에 **우리 프로필** 인자가 있나 — 뒤가 빈칸이나 끝일 때만(`browser-profile-edge` 는 다른 프로필이다)."""
+        needle = f"--user-data-dir={self._profile_dir}"
+        at = line.find(needle)
+        while at >= 0:
+            end = at + len(needle)
+            if end == len(line) or line[end] in (" ", '"'):
+                return True
+            at = line.find(needle, end)
+        return False
+
+    def _start_mac_hide_guard(self, pid: int) -> None:
+        self._mac_guard_pid = int(pid or 0)
+        self._mac_guard_on = bool(pid)
+        # 세대 번호 — 새 크롬을 지키기 시작하면 앞 세대의 감시는 스스로 멈춘다(11-03 코드 검토: 둘이 같이 돌 수 있었다).
+        self._mac_guard_gen = int(getattr(self, "_mac_guard_gen", 0) or 0) + 1
+        self._mac_guard_report = {"pid": int(pid or 0), "hidden_ms": None, "rehides": 0, "stopped": "", "followed": [int(pid or 0)]}
+        if pid:
+            threading.Thread(target=self._mac_hide_guard, args=(int(pid),),
+                             kwargs={"gen": self._mac_guard_gen}, daemon=True).start()
+
+    def _mac_main_pid(self) -> int:
+        """맥: 우리 프로필 크롬의 **본 프로세스** pid(도우미 · 좀비 제외). 없으면 0."""
+        exe = self._browser_exe()
+        # 설정한 경로가 심볼릭 링크여도 ps 는 실제 경로를 보여 준다 — 둘 다 견준다(11-03 코드 검토).
+        heads = {exe + " ", os.path.realpath(exe) + " "} if exe else set()
+        for pid, line in sorted(self._chrome_scan(max_age_sec=0.0).items()):
+            if any(line.startswith(head) for head in heads) and self._profile_arg_in(line) and "--type=" not in line:
+                return pid
+        return 0
+
+    def _mac_hide_guard(self, pid: int, *, fast_sec: float = 15.0, every: float = 0.1, gen: int = 0) -> None:
+        """우리 크롬을 숨기고, 일하는 동안 숨긴 채로 지키며, **키보드를 원래 앱에 돌려준다.**
+
+        ★ 2026-11-03 맥미니 실측 (bench/macport/front_probe.py · lsappinfo 로 잼):
+          - 직접 띄운 크롬은 뜨자마자 **앞 앱**이 되고, 숨겨도 앞 앱으로 남는다(창은 0개인데 키보드는 크롬으로).
+            숨긴 뒤 원래 앞 앱을 다시 활성화하면 돌아가고, 크롬은 3초 뒤에도 다시 안 뺏었다(n=2).
+          - 새 **창** · `bring_to_front` 는 숨김을 푼다(새 탭 · 열기 · 찍기 · 누르기 · 글자는 안 푼다).
+        ★ 「사람이 보는 중」은 우리 크롬이 **숨김이 풀린 채** 앞 앱이고 1.5초 안에 키 · 마우스 입력이 있을 때만이다(독에서 누름).
+          숨겨진 채 앞 앱인 것은 사람 뜻이 아니다 — 크롬이 스스로 쥔 것이니 돌려준다.
+        ★ pid 하나가 아니라 우리 프로필의 본 프로세스를 따라간다(크롬은 자기를 다시 띄우기도 한다 — 윈도우 기록).
+        """
+        from . import macos
+
+        report = self._mac_guard_report
+        report.setdefault("followed", [pid])
+        state = {"current": int(pid), "give_back_to": int(getattr(self, "_mac_front_before", 0) or 0),
+                 "gone_since": None, "last_scan": 0.0, "last_front": 0.0}
+        started = time.monotonic()
+
+        def mine() -> bool:
+            return self._mac_guard_on and (not gen or self._mac_guard_gen == gen)
+
+        while mine():
+            now = time.monotonic()
+            fast = now - started < fast_sec
+            # 뜨는 순간이 가장 중요하다 — 처음 3초는 0.02초 간격(11-03: 0.1초로 늘렸더니 창이 0.6초 보였다 · 0.05초 땐 0).
+            time.sleep(0.02 if now - started < 3.0 else 0.05 if fast else every)
+            if not mine():
+                break
+            with macos.autorelease_pool():
+                if self._mac_guard_tick(macos, report, state, started, now, fast) == "stop":
+                    return
+        if not report.get("stopped"):
+            report["stopped"] = "released" if self._mac_guard_gen == gen or not gen else "replaced"
+
+    def _mac_guard_tick(self, macos: Any, report: dict[str, Any], state: dict[str, Any],
+                        started: float, now: float, fast: bool) -> str:
+        """감시 한 번. `state` 는 그 감시 스레드의 것(현재 pid · 돌려줄 앱 · 사라진 때 · 마지막 훑기) — 세대끼리 안 섞인다."""
+        current = state["current"]
+        hidden = macos.app_is_hidden(current) if current else None
+        if hidden is None or now - state["last_scan"] > (0.5 if fast else 2.0):
+            state["last_scan"] = now
+            main = self._mac_main_pid()
+            if main and main != current:
+                current = state["current"] = main
+                self._mac_guard_pid = main
+                report["followed"] = [*report.get("followed", []), main][-10:]
+                hidden = macos.app_is_hidden(current)
+            if not main:
+                state["gone_since"] = state["gone_since"] or now
+                if now - state["gone_since"] > 5.0:
+                    report["stopped"] = "chrome_gone"
+                    return "stop"
+                return ""
+            state["gone_since"] = None
+        if hidden is None:
+            return ""
+        if hidden and not fast and now - state["last_front"] < 1.0:
+            # 숨겨진 채로 조용하면 앞 앱은 1초에 한 번만 묻는다 — lsappinfo 를 매번 두 번씩 띄우지 않는다(11-03 코드 검토).
+            return ""
+        state["last_front"] = now
+        # ★ 11-05: 처음 2초(첫 창이 생기는 때)는 앞 앱을 묻지 않고 바로 숨긴다 — lsappinfo 두 번이 숨기기를 ~30ms 늦춰
+        #   그만큼 창이 보였다(맥미니 16 · 46 · 47ms). 사람이 독에서 누른 것인지는 2초 뒤에만 가린다(아래 조건과 같다).
+        front = macos.frontmost_pid() if hidden is not False or now - started > 2.0 else 0
+        if hidden is False:
+            if front == current and now - started > 2.0:
+                idle = macos.idle_seconds()
+                if idle is not None and idle < 1.5:
+                    # 사람이 방금 손을 움직여 우리 크롬을 앞으로 가져왔다 — 보고 싶은 것이다. 다시 숨기지 않는다.
+                    report["stopped"] = "person_looking"
+                    self._mac_guard_on = False
+                    report["moved_into_view"] = self._mac_bring_windows_into_view()
+                    return "stop"
+            macos.hide_app(current)
+            # `hide` 는 숨기면서도 거짓을 돌려줄 때가 있다 — 실제로 숨겨졌나를 다시 묻는다.
+            if macos.app_is_hidden(current):
+                if report.get("hidden_ms") is None:
+                    report["hidden_ms"] = round((time.monotonic() - started) * 1000)
+                else:
+                    report["rehides"] = int(report.get("rehides") or 0) + 1
+            front = macos.frontmost_pid()
+        elif report.get("hidden_ms") is None:
+            report["hidden_ms"] = round((time.monotonic() - started) * 1000)
+        if front and front != current:
+            state["give_back_to"] = front           # 사람이 지금 쓰는 앱 — 다음에 돌려줄 곳
+        elif front == current and state["give_back_to"] and state["give_back_to"] != current:
+            if macos.activate_app(state["give_back_to"]):
+                report["gave_back"] = int(report.get("gave_back") or 0) + 1
+        return ""
+
+    def _mac_release_hide(self, *, activate: bool) -> bool:
+        """맥: 사람에게 보여야 할 때(로그인 · 사람 확인 · 「크롬 창 보기」) 숨김을 풀고 지키기를 멈춘다."""
+        from . import macos
+
+        pid = int(getattr(self, "_mac_guard_pid", 0) or 0)
+        self._mac_guard_on = False
+        if not pid:
+            return False
+        # 첫 창은 화면 오른쪽 끝에 붙여 띄웠다 — 보여 줄 때는 화면 안으로(숨김을 풀기 **전에** 옮겨 끝 띠가 안 보이게).
+        self._mac_bring_windows_into_view()
+        shown = macos.unhide_app(pid)
+        if activate:
+            macos.activate_app(pid)
+        return shown
+
+    def _mac_wait_hidden(self, timeout: float = 3.0) -> bool:
+        """맥: 숨김 감시가 우리 크롬(아직 창 0개)을 숨길 때까지 기다린다. 못 숨겨도 시간이 지나면 그냥 간다(일이 먼저)."""
+        from . import macos
+
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            pid = int(getattr(self, "_mac_guard_pid", 0) or 0)
+            if not getattr(self, "_mac_guard_on", False):
+                return False
+            if pid and macos.app_is_hidden(pid):
+                return True
+            time.sleep(0.02)
+        return False
+
+    def _mac_bring_windows_into_view(self) -> int:
+        """맥: 화면 끝에 붙여 둔 우리 크롬 창을 주 화면 가운데로 옮긴다. 옮긴 창 수(못 하면 0).
+
+        Playwright 는 일하는 스레드에서만 부를 수 있어(숨김 감시는 다른 스레드) 브라우저 CDP 소켓으로 직접 한다.
+        """
+        from . import macos
+
+        screen = macos.main_screen_bounds()
+        port = int(getattr(self, "_cdp_port_in_use", 0) or getattr(self.config, "browser_cdp_port", 0) or 0)
+        info = self._probe_cdp(port) if port else None
+        url = str((info or {}).get("webSocketDebuggerUrl") or "")
+        if not screen or not url:
+            return 0
+        sx, sy, sw, sh = screen
+        menu = 25  # 메뉴 막대 아래부터
+        moved = 0
+        try:
+            from websockets.sync.client import connect
+
+            with connect(url, open_timeout=3, ping_interval=None) as socket:
+                counter = iter(range(1, 10_000))
+
+                def ask(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+                    number = next(counter)
+                    socket.send(json.dumps({"id": number, "method": method, "params": params or {}}))
+                    while True:
+                        reply = json.loads(socket.recv(timeout=5))
+                        if reply.get("id") == number:
+                            return dict(reply.get("result") or {})
+
+                seen: set[int] = set()
+                for target in ask("Target.getTargets").get("targetInfos", []):
+                    if target.get("type") != "page":
+                        continue
+                    window = ask("Browser.getWindowForTarget", {"targetId": target.get("targetId")})
+                    window_id, bounds = window.get("windowId"), dict(window.get("bounds") or {})
+                    if window_id is None or window_id in seen or bounds.get("windowState", "normal") != "normal":
+                        continue
+                    seen.add(window_id)
+                    left, width = int(bounds.get("left", 0)), int(bounds.get("width", 0))
+                    if sx <= left and left + width <= sx + sw:
+                        continue  # 이미 화면 안
+                    width = min(width or 1600, sw)
+                    height = min(int(bounds.get("height", 0)) or 1000, sh - menu)
+                    ask("Browser.setWindowBounds", {"windowId": window_id, "bounds": {
+                        "left": sx + max(0, (sw - width) // 2), "top": sy + menu + max(0, (sh - menu - height) // 2),
+                        "width": width, "height": height}})
+                    moved += 1
+        except Exception:  # noqa: BLE001 — 창을 못 옮겨도 숨김은 푼다(독에서 크롬을 누르면 끝 띠라도 보인다)
+            return moved
+        return moved
 
     def _sink_new_chrome_window(self, *, watch_sec: float = 8.0) -> None:
         """방금 띄운 크롬 창이 나타나면 **내리고, 앞창을 원래 주인에게 돌려준다.**
@@ -4813,7 +5093,7 @@ class BrowserWorker:
         try:
             import ctypes
 
-            user32 = ctypes.windll.user32
+            user32 = winapi.user32
             keep = user32.GetForegroundWindow()
             started = time.time()
             deadline = started + watch_sec
@@ -5034,9 +5314,9 @@ class BrowserWorker:
 
             info = LASTINPUTINFO()
             info.cbSize = ctypes.sizeof(LASTINPUTINFO)
-            if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info)):
+            if not winapi.user32.GetLastInputInfo(ctypes.byref(info)):
                 return False
-            idle_ms = (ctypes.windll.kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF
+            idle_ms = (winapi.kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF
             return idle_ms <= seconds * 1000
         except Exception:  # noqa: BLE001
             return False
@@ -5103,15 +5383,9 @@ class BrowserWorker:
             import ctypes
             import ctypes.wintypes as wt
 
-            user32 = ctypes.windll.user32
-            try:
-                user32.MonitorFromWindow.restype = ctypes.c_void_p
-                user32.GetForegroundWindow.restype = ctypes.c_void_p
-                user32.WindowFromPoint.restype = ctypes.c_void_p
-                user32.GetAncestor.restype = ctypes.c_void_p
-                user32.GetWindow.restype = ctypes.c_void_p
-            except AttributeError:
-                pass
+            # 11-03: 여기서 공용 user32 의 restype 을 실행 중에 바꿨다 — 다른 스레드가 부르는 도중 바꿔 끼워 백엔드가 죽었다.
+            # 크기는 winapi.py 가 처음 열 때 한 번만 정한다.
+            user32 = winapi.user32
             _ensure_message_queue(user32)
             last_other = 0       # 사람이 마지막으로 쓰던 (우리 것이 아닌) 앞창
             grabbed_at = 0.0     # 화면 밖 우리 크롬이 앞창이 된 시각
@@ -5215,7 +5489,7 @@ class BrowserWorker:
         """
         import ctypes
 
-        kernel32 = ctypes.windll.kernel32
+        kernel32 = winapi.kernel32
         returned = False
         attached = False
         if keep and user32.IsWindow(keep):
@@ -5263,13 +5537,7 @@ class BrowserWorker:
         import ctypes
         import ctypes.wintypes as wt
 
-        # 모니터 핸들은 64비트 값이다 — 기본 int 반환형이면 잘려 GetMonitorInfo 가 헛돈다.
-        try:
-            user32.MonitorFromRect.restype = ctypes.c_void_p
-            user32.MonitorFromWindow.restype = ctypes.c_void_p
-            user32.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-        except AttributeError:  # 시험용 가짜 user32
-            pass
+        # 모니터 핸들은 64비트 값이다 — 크기는 winapi.py 가 정한다(11-03: 여기서 부를 때마다 바꿔 끼우던 것을 뺐다).
         rect = wt.RECT()
         if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
             return None
@@ -5340,7 +5608,7 @@ class BrowserWorker:
             if user32 is None:
                 import ctypes
 
-                user32 = ctypes.windll.user32
+                user32 = winapi.user32
             left = int(user32.GetSystemMetrics(76))    # SM_XVIRTUALSCREEN
             top = int(user32.GetSystemMetrics(77))     # SM_YVIRTUALSCREEN
             width = int(user32.GetSystemMetrics(78))   # SM_CXVIRTUALSCREEN
@@ -5364,7 +5632,7 @@ class BrowserWorker:
             import ctypes
 
             # 백엔드가 죽어도 크롬은 산다 — 지난번 가드가 못 돌려놓은 투명한 창이 있으면 먼저 청소한다.
-            self._sweep_stuck_transparent(ctypes.windll.user32)
+            self._sweep_stuck_transparent(winapi.user32)
         except Exception:  # noqa: BLE001
             pass
         self._birth_guard_stop.clear()
@@ -5455,7 +5723,7 @@ class BrowserWorker:
         import ctypes
         import ctypes.wintypes as wt
 
-        user32 = ctypes.windll.user32
+        user32 = winapi.user32
         callback_type = ctypes.WINFUNCTYPE(None, wt.HANDLE, wt.DWORD, wt.HWND, wt.LONG, wt.LONG, wt.DWORD, wt.DWORD)
         pid_cache: dict[int, bool] = {}
         hook = None
@@ -5492,9 +5760,7 @@ class BrowserWorker:
 
         callback = callback_type(on_event)  # 참조를 쥐고 있어야 한다 — 놓으면 콜백이 가비지가 된다
         try:
-            user32.SetWinEventHook.restype = wt.HANDLE
-            user32.SetWinEventHook.argtypes = [wt.DWORD, wt.DWORD, wt.HMODULE, callback_type,
-                                               wt.DWORD, wt.DWORD, wt.DWORD]
+            # 반환 크기는 winapi.py · 인자는 콜백 모양이 파일마다 달라 정하지 않는다(11-03: 실행 중 argtypes 바꾸기 뺌)
             # 0x8000 CREATE ~ 0x800B LOCATIONCHANGE · WINEVENT_OUTOFCONTEXT(0) — 이 스레드가 메시지를 돌려야 콜백이 온다
             hook = user32.SetWinEventHook(0x8000, 0x800B, None, callback, 0, 0, 0)
             stats["hook"] = bool(hook)
@@ -5626,7 +5892,7 @@ class BrowserWorker:
             import ctypes
 
             buffer = ctypes.create_unicode_buffer(256)
-            ctypes.windll.user32.GetClassNameW(hwnd, buffer, 256)
+            winapi.user32.GetClassNameW(hwnd, buffer, 256)
             return buffer.value
         except Exception:  # noqa: BLE001
             return ""
@@ -5654,7 +5920,7 @@ class BrowserWorker:
         try:
             import ctypes
 
-            user32 = ctypes.windll.user32
+            user32 = winapi.user32
             enum_proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
 
             def visit(hwnd, _param):  # type: ignore[no-untyped-def]
@@ -5682,7 +5948,7 @@ class BrowserWorker:
         try:
             import ctypes
 
-            kernel32 = ctypes.windll.kernel32
+            kernel32 = winapi.kernel32
             handle = kernel32.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFORMATION
             if not handle:
                 return ""
@@ -5767,8 +6033,10 @@ class BrowserWorker:
         **명령줄로 찾는다.** 이름(`chrome.exe`)으로 고르면 사용자가 보고 있는 크롬까지
         같이 죽는다 — 우리 것은 `--user-data-dir` 이 우리 프로필인 것뿐이다.
 
-        (윈도우 전용. 다른 OS 에서는 0 을 돌려주고 아무것도 안 한다.)
+        (윈도우 · 맥. 다른 OS 에서는 0 을 돌려주고 아무것도 안 한다.)
         """
+        if sys.platform == "darwin":
+            return self._kill_profile_chromes_mac()
         if sys.platform != "win32":
             return 0
         profile = str(self._profile_dir)
@@ -5798,6 +6066,33 @@ class BrowserWorker:
         if pids:
             # 포트가 풀리는 데 잠깐 걸린다. 바로 다시 붙으면 아직 잡고 있는 것을 본다.
             time.sleep(1.5)
+        return len(pids)
+
+    def _kill_profile_chromes_mac(self) -> int:
+        """맥: 우리 프로필(`--user-data-dir`)을 쓰는 브라우저 프로세스만 끝낸다(2026-11-03 · 전수조사 B2).
+
+        끝내기 신호(SIGTERM) 뒤 3초 안에 안 끝난 것만 SIGKILL. 대표 크롬은 프로필이 달라 걸리지 않는다.
+        """
+        import signal
+
+        pids = [pid for pid, line in self._chrome_scan(max_age_sec=0.0).items() if self._profile_arg_in(line)]
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+        deadline = time.time() + 3.0
+        while pids and time.time() < deadline:
+            if not any(self._profile_arg_in(line) for line in self._chrome_scan(max_age_sec=0.0).values()):
+                break
+            time.sleep(0.2)
+        for pid in [pid for pid, line in self._chrome_scan(max_age_sec=0.0).items() if self._profile_arg_in(line)]:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+        if pids:
+            time.sleep(1.5)  # 포트가 풀리는 틈(윈도우와 같다)
         return len(pids)
 
     @staticmethod
@@ -6366,10 +6661,13 @@ class BrowserWorker:
             try:
                 import ctypes
 
-                user32 = ctypes.windll.user32
+                user32 = winapi.user32
                 keep = int(user32.GetForegroundWindow() or 0)
             except Exception:
                 user32 = None
+        if sys.platform == "darwin" and self._browser_is_ours():
+            # 맥: 숨김을 풀어 독의 크롬을 누르면 보이게 한다. 사람이 「크롬 창 보기」를 직접 눌렀을 때만 앞으로.
+            self._mac_release_hide(activate=activate)
         # 「크롬 창 보기」를 눌렀는데 창이 투명하면 안 된다 — 뜨는 동안 가드가 숨겨 둔 창을 먼저 돌려놓는다.
         self._birth_guard_stop.set()
         if user32 is not None:
@@ -6462,13 +6760,23 @@ class BrowserWorker:
                 self._sink_settled.set()
                 import ctypes
 
-                user32 = ctypes.windll.user32
+                user32 = winapi.user32
                 if str(self._sink_report.get("thread") or "") != "running":
                     self._restore_sunk_windows(user32)
                 for hwnd in self._our_chrome_windows():
                     self._send_window_to_back(user32, hwnd)
             except Exception:  # noqa: BLE001
                 pass
+            return
+        if sys.platform == "darwin":
+            # ★ 11-04 대표(맥미니): 「크롬이 켜졌다가 스르륵 휴지 뽑히듯 들어간다」 — 최소화는 독으로 빨려 들어가는 지니 효과가
+            #   화면에 보인다. 맥은 앱 숨김(⌘H 와 같음 · 애니메이션 없음)으로 내린다. 사용자 시스템 설정(최소화 효과)은 건드리지 않는다.
+            #   숨김 감시(_mac_guard)가 이미 같은 일을 하고 있으면 그대로 두고, 없을 때만 여기서 한 번 숨긴다.
+            from . import macos
+
+            pid = self._mac_main_pid()
+            if pid and not macos.app_is_hidden(pid):
+                macos.hide_app(pid)
             return
         self._set_window_state(page, "minimized")
 
@@ -8472,7 +8780,7 @@ class BrowserWorker:
             "search_engines_blocked:"
             + ",".join(item["engine"] for item in attempts)
             + " — 검색엔진이 봇 확인 화면을 띄웠습니다. 화면의 확인을 직접 통과해 주시면"
-            " 이어서 진행하겠습니다. 급하면 naver_web 같은 검색 API를 쓰는 편이 낫습니다."
+            " 이어서 진행하겠습니다. 급하면 다른 검색엔진(engine=\"google\" ↔ \"naver\")으로 바꿔 보는 편이 낫습니다."
         )
 
     @staticmethod

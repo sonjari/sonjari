@@ -1,0 +1,130 @@
+/* ── 모델 자리 [Mac | Satellite] + 연결 띠 (2026-11-04 대표 · 설계_짝짓기_모델자리 §9) ──────────────────
+   단추는 작게(24px · 12px) · 고른 쪽만 보라로 채움. 띠의 실 · 구슬은 쓰는 법 쇼(whatsNewShow.css)의 것을 그대로 쓴다. */
+
+.place { display: flex; flex-direction: column; gap: 8px; padding: 8px 9px 4px; }
+
+.place-seg { align-self: flex-start; display: inline-flex; height: 24px; padding: 2px; gap: 2px;
+  border: 1px solid rgb(var(--line)); border-radius: var(--r-pill); background: rgb(var(--text-1) / .03); }
+.place-seg-btn { height: 18px; padding: 0 11px; display: inline-flex; align-items: center; gap: 5px;
+  border: 0; border-radius: var(--r-pill); background: transparent; color: rgb(var(--text-4));
+  font: inherit; font-size: 12px; line-height: 1; letter-spacing: .01em; cursor: pointer;
+  transition: background .18s var(--ease), color .18s var(--ease); }
+.place-seg-btn:hover:not(.is-on):not(:disabled) { color: rgb(var(--text-1)); }
+.place-seg-btn.is-on { background: rgb(var(--brand)); color: #fff; font-weight: var(--fw-mid); }
+.place-seg-btn:focus-visible { outline: 2px solid rgb(var(--brand-bright)); outline-offset: 1px; }
+.place-seg-btn:disabled { cursor: default; }
+
+/* 연결 띠 — 「● Mac ━━●━━ ◉ PC」 */
+.place-link { display: flex; flex-direction: column; gap: 6px; padding: 9px 10px 8px;
+  border: 1px solid rgb(var(--line) / .8); border-radius: 10px; background: rgb(var(--text-1) / .025); }
+.place-link-row { display: grid; grid-template-columns: auto minmax(40px, 1fr) minmax(0, auto); align-items: center; gap: 8px; }
+.place-node { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: rgb(var(--text-2)); }
+.place-node b { font-weight: var(--fw-mid); }
+.place-node-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.place-node-text b, .place-node-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.place-node-text small { color: rgb(var(--text-4)); font-size: var(--fs-1); }
+.place-node-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.place-node-dot.is-here { background: rgb(var(--origin-claude)); }
+.place-node-dot.is-far { background: transparent; box-shadow: inset 0 0 0 1.5px rgb(var(--text-5) / .7); }
+.place-node-dot.is-far.is-on { background: rgb(var(--brand-bright)); box-shadow: 0 0 0 3px rgb(var(--brand) / .18); }
+
+.place-wire { position: relative; height: 14px; min-width: 40px; }
+.place-thread .wns-thread-rest { stroke-dasharray: 2 4; }
+.place-thread .place-thread-half.is-on { stroke-dashoffset: .5; }
+.place-thread-cut { stroke: rgb(var(--text-5) / .45); stroke-width: 2; stroke-linecap: round; }
+.place-link.is-finding .wns-thread-rest { animation: place-blink 1.6s ease-in-out infinite; }
+@keyframes place-blink { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+/* 짝 코드 — 실 가운데 숫자 6칸. 입력은 하나(보이지 않게 칸 위에 깐다). */
+.place-code { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: inline-flex; gap: 3px;
+  padding: 2px 4px; border-radius: 6px; background: rgb(var(--surface-3)); cursor: text; }
+.place-code input { position: absolute; inset: 0; width: 100%; opacity: 0; border: 0; font-size: 16px; cursor: text; }
+.place-code-cell { width: 15px; height: 20px; display: inline-grid; place-items: center; font-style: normal;
+  border-radius: 4px; border: 1px solid rgb(var(--line-strong)); color: rgb(var(--text-1));
+  font: 600 12px/1 var(--font-mono, ui-monospace, monospace); }
+.place-code:focus-within .place-code-cell.is-next { border-color: rgb(var(--brand-bright)); box-shadow: 0 0 0 2px rgb(var(--brand) / .25); }
+
+.place-link-status { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 12px; color: rgb(var(--text-3)); }
+.place-link-status small { flex-basis: 100%; color: rgb(var(--text-4)); font-size: var(--fs-1); line-height: 1.45; }
+.place-link-status .place-link-error { color: rgb(var(--danger, 224 112 112)); }
+.place-status-dot { width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--text-5) / .6); }
+.place-link.is-connected .place-status-dot { background: rgb(var(--ok-bright)); box-shadow: 0 0 0 3px rgb(var(--ok) / .2); }
+.place-link.is-connected .place-link-status { color: rgb(var(--ok-bright)); }
+.place-link.is-finding .place-status-dot { animation: place-blink 1.6s ease-in-out infinite; }
+.place-link.is-down { border-color: rgb(var(--line) / .6); }
+.place-link.is-down .place-node-dot.is-here { background: rgb(var(--text-5) / .7); }
+
+.place-link-actions, .place-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.place-act, .place-pick-btn { height: 24px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid rgb(var(--line)); border-radius: var(--r-pill); background: transparent; color: rgb(var(--text-2));
+  font: inherit; font-size: 12px; cursor: pointer; }
+.place-act:hover, .place-pick-btn:hover { color: rgb(var(--text-1)); border-color: rgb(var(--line-strong)); }
+.place-act.is-primary { border-color: rgb(var(--brand-bright) / .45); color: rgb(var(--brand-bright)); }
+.place-pick-btn small { color: rgb(var(--text-4)); font-size: var(--fs-1); }
+.place-act:focus-visible, .place-pick-btn:focus-visible, .place-model:focus-visible, .place-forget:focus-visible {
+  outline: 2px solid rgb(var(--brand-bright)); outline-offset: 1px; }
+
+/* 집 PC 모델 — 고르기 창의 다른 줄과 같은 결 */
+.place-models { display: flex; flex-direction: column; gap: 2px; }
+.place-model { width: 100%; min-height: 36px; padding: 6px 9px; display: flex; align-items: center; gap: 10px;
+  border: 1px solid transparent; border-radius: 9px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.place-model:hover:not(:disabled) { background: rgb(var(--text-1) / .045); }
+.place-model.is-on { border-color: rgb(var(--brand-bright) / .24); background: rgb(var(--brand) / .1); cursor: default; }
+.place-model-name { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px;
+  color: rgb(var(--text-1)); font-size: var(--fs-2); font-weight: var(--fw-mid); }
+.place-model-name .place-model-source { flex-basis: 100%; color: rgb(var(--text-4)); font-size: var(--fs-1); font-weight: 400;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.place-model-default { padding: 1px 6px; border-radius: var(--r-pill); color: rgb(var(--ok-bright)); background: rgb(var(--ok) / .12);
+  font-size: var(--fs-1); font-style: normal; font-weight: var(--fw-mid); }
+.place-model small { color: rgb(var(--text-4)); font-size: var(--fs-1); white-space: nowrap; }
+.place-note { margin: 2px 2px 0; color: rgb(var(--text-4)); font-size: var(--fs-1); line-height: 1.5; }
+.place-forget { align-self: flex-start; padding: 0; border: 0; background: none; color: rgb(var(--text-4));
+  font: inherit; font-size: var(--fs-1); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.place-forget:hover { color: rgb(var(--text-1)); }
+
+/* 칩의 작은 표시 — ● / ●━● / ●┄○ */
+.place-mark { flex: none; display: inline-block; vertical-align: middle; }
+.place-mark-here { width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--origin-claude)); }
+.place-mark-wire { stroke-width: 1.6; stroke-linecap: round; }
+.place-mark-satellite .place-mark-a { fill: rgb(var(--origin-claude)); }
+.place-mark-satellite .place-mark-b { fill: rgb(var(--brand-bright)); }
+.place-mark-down .place-mark-wire { stroke: rgb(var(--text-5)); stroke-dasharray: 1.5 2; }
+.place-mark-down .place-mark-a { fill: rgb(var(--text-5)); }
+.place-mark-down .place-mark-b { fill: none; stroke: rgb(var(--text-5)); stroke-width: 1.2; }
+
+/* 움직임 줄이기 — 쇼와 같이: 구슬 없이 색만, 깜빡임 없음. */
+@media (prefers-reduced-motion: reduce) {
+  .place-link .wns-bead { display: none; }
+  .place-link.is-finding .wns-thread-rest, .place-link.is-finding .place-status-dot { animation: none; }
+  .place-seg-btn { transition: none; }
+}
+
+/* ── 밖에서도 쓰기 — Outside home 체크 목록 (설계_밖에서도쓰기_테일스케일 §2-2 · 11-04) ──────────────────
+   띠와 같은 결: 작은 글자 · 얇은 선 · 지금 할 차례만 보라. ✓ 는 초록(연결됨과 같은 색). */
+.outside { display: flex; flex-direction: column; gap: 7px; padding: 9px 10px 9px;
+  border: 1px solid rgb(var(--line) / .8); border-radius: 10px; background: rgb(var(--text-1) / .02); font-size: 12px; }
+.outside-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.outside-head b { font-weight: var(--fw-mid); color: rgb(var(--text-1)); }
+.outside-head small { color: rgb(var(--text-4)); font-size: var(--fs-1); }
+.outside-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 5px 8px; }
+.outside-row { display: contents; }
+.outside-col { color: rgb(var(--text-3)); font-size: var(--fs-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outside-step { color: rgb(var(--text-3)); }
+.outside-row.is-now .outside-step { color: rgb(var(--text-1)); }
+.outside-cell { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: rgb(var(--text-4)); }
+.outside-cell.is-done { color: rgb(var(--ok-bright)); }
+.outside-cell.is-theirs { color: rgb(var(--brand-bright) / .85); }
+.outside-cell-btn { justify-self: start; height: 22px; }
+.outside-shared { margin: 2px 0 0; padding: 7px 0 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 14px;
+  border-top: 1px dashed rgb(var(--line) / .8); color: rgb(var(--text-4)); }
+.outside-shared li { display: inline-flex; align-items: center; gap: 5px; }
+.outside-shared li i { font-style: normal; }
+.outside-shared li.is-now { color: rgb(var(--text-1)); }
+.outside-shared li.is-done { color: rgb(var(--ok-bright)); }
+.outside-why { margin: 0; color: rgb(var(--text-2)); line-height: 1.5; }
+.outside-offer b { font-weight: var(--fw-mid); color: rgb(var(--text-1)); }
+.outside-offer p { margin: 0; color: rgb(var(--text-3)); line-height: 1.5; }
+.outside-done, .outside-off { margin: 0 2px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgb(var(--text-3)); }
+.outside-done { color: rgb(var(--ok-bright)); }
+.outside-done span { color: rgb(var(--text-3)); }
+.place-link-why { flex-basis: 100%; color: rgb(var(--text-3)); font-size: var(--fs-1); line-height: 1.45; }

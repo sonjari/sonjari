@@ -2004,3 +2004,51 @@
 .setup-ready-row.is-todo { color: rgb(var(--text-1)); }
 .setup-ready-row.is-todo .setup-ready-mark { color: rgb(var(--signal-bright)); }
 .setup-ready-row.is-skip { color: rgb(var(--text-4)); }
+
+/* ── 모델 자리 — 이 맥(이 PC) / 집 PC (2026-11-03 설계_짝짓기_모델자리 §3-1) ─────────────────── */
+.model-place { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 14px; }
+.model-place-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.model-place-label { font-size: var(--fs-2); color: rgb(var(--text-3)); font-weight: var(--fw-mid); }
+.model-place-options { display: inline-flex; gap: 6px; }
+.model-place-option, .model-place-model {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; font: inherit; font-size: var(--fs-3); font-weight: var(--fw-mid); text-align: left;
+  color: rgb(var(--text-2)); background: transparent; cursor: pointer;
+  border: 1px solid rgb(var(--line)); border-radius: var(--r-2);
+  transition: border-color var(--t-move) var(--ease), color var(--t-move) var(--ease);
+}
+.model-place-option:hover:not(:disabled), .model-place-model:hover:not(:disabled) { color: rgb(var(--text-1)); }
+.model-place-option.is-on, .model-place-model.is-on { color: rgb(var(--text-1)); border-color: rgb(var(--signal)); }
+.model-place-option:disabled, .model-place-model:disabled { cursor: default; }
+.model-place-line { margin: 0; font-size: var(--fs-2); color: rgb(var(--text-3)); line-height: 1.55; }
+.model-place-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.model-place-model { width: 100%; flex-direction: column; align-items: flex-start; gap: 2px; }
+.model-place-model small { font-size: var(--fs-1); font-weight: var(--fw-body); color: rgb(var(--text-4)); }
+.model-place-name { display: inline-flex; align-items: center; gap: 6px; word-break: break-all; }
+@media (prefers-reduced-motion: reduce) { .model-place-option, .model-place-model { transition: none; } }
+
+/* ── 짝짓기 (2026-11-03 설계_짝짓기_모델자리 §3-2) ─────────────────────────────────────────── */
+.pair-banner {
+  width: min(820px, 100%); margin: 0 auto 8px; padding: 10px 14px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  border: 1px solid rgb(var(--signal)); border-radius: var(--r-2); background: rgb(var(--surface-3));
+  color: rgb(var(--text-1));
+}
+.pair-banner p { flex: 1 1 260px; margin: 0; font-size: var(--fs-3); line-height: 1.5; }
+.pair-code { font-size: 1.6rem; letter-spacing: .12em; font-variant-numeric: tabular-nums; color: rgb(var(--signal-bright)); }
+.pair-reject, .pair-forget {
+  font: inherit; font-size: var(--fs-2); padding: 6px 10px; cursor: pointer; background: transparent;
+  color: rgb(var(--text-3)); border: 1px solid rgb(var(--line)); border-radius: var(--r-2);
+}
+.pair-forget { align-self: flex-start; }
+.pair-reject:hover, .pair-forget:hover:not(:disabled) { color: rgb(var(--text-1)); }
+.pair-flow { display: flex; flex-direction: column; gap: 8px; }
+.pair-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pair-address, .pair-code-input {
+  font: inherit; padding: 7px 10px; color: rgb(var(--text-1)); background: transparent;
+  border: 1px solid rgb(var(--line)); border-radius: var(--r-2);
+}
+.pair-address { min-width: 0; flex: 1 1 160px; font-size: var(--fs-2); }
+.pair-code-input { width: 9ch; font-size: 1.3rem; letter-spacing: .2em; text-align: center; font-variant-numeric: tabular-nums; }
+.pair-device { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--fs-3); }
+.pair-device small { color: rgb(var(--text-4)); }

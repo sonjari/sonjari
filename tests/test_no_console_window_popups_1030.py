@@ -16,7 +16,7 @@ CALLS = {"run", "Popen", "check_output", "check_call", "call"}
 
 #: 일부러 창을 보이는 호출 — (파일, 그 줄에 들어 있는 글자). 둘 다 GUI 프로그램이라 콘솔 창과 상관없다.
 VISIBLE_ON_PURPOSE = {
-    ("runtime.py", '"explorer.exe"'),          # 만든 파일을 탐색기에서 짚어 보이기
+    # 만든 파일을 탐색기에서 짚어 보이기는 2026-11-03 맥판에서 `file_open.reveal_file` 로 옮겼다(넘겨받은 popen 을 부른다).
     ("local_computer.py", "subprocess.Popen([exe"),  # 사람이 고른 앱으로 파일 열기(허용 목록의 실행 파일)
 }
 

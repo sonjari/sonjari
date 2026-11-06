@@ -105,3 +105,65 @@ def refusal(client_host: str) -> str:
         f"이 주소에서는 받지 않습니다: {client_host or '알 수 없음'}. "
         "제어 API 는 루프백과 테일넷에만 열려 있습니다."
     )
+
+
+# ── 같은 네트워크(사설 주소)에는 짝짓기 길만 (2026-11-03 설계_짝짓기_모델자리 §4-1 · §4-2) ─────────────────────
+#
+# 맥(자식)이 같은 와이파이에서 집 PC 를 찾고 · 짝을 청하고 · 모델을 빌리려면 이 길들이 사설 주소에서 닿아야 한다.
+# 나머지 제어 API(도구 · 브라우저 · 메일)는 위 규칙 그대로 루프백 · 테일넷만이다.
+#   - `/v1/pair/hello` · `request` · `confirm`: 토큰 없음. hello 는 이름 · 판 · 그래픽카드만, request 는 코드를 **돌려주지 않고**
+#     집 PC 화면에만 띄운다, confirm 은 그 코드를 사람이 옮겨 친 것이 허락이다(세 번 틀리면 닫힘).
+#   - `/v1/llm/…`: 짝지을 때 받은 **기기 토큰**이 있어야 한다(`pairing.PairingHost.verify`). 집 PC Ollama 를 네트워크에 열지 않고
+#     이 길로만 빌려 준다.
+_PRIVATE_LAN = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("fc00::/7"),
+)
+# /v1/pair/outside (11-04 · 밖에서도 쓰기): 짝지은 기기가 테일스케일 진행을 맞춰 보는 길 — 기기 열쇠가 있어야 답한다.
+PAIRING_PATHS = frozenset({"/v1/pair/hello", "/v1/pair/request", "/v1/pair/confirm", "/v1/pair/outside"})
+PAIRING_PREFIXES = ("/v1/llm/",)
+
+
+def is_pairing_path(path: str) -> bool:
+    path = str(path or "")
+    return path in PAIRING_PATHS or any(path.startswith(prefix) for prefix in PAIRING_PREFIXES)
+
+
+def is_private_lan(client_host: str) -> bool:
+    try:
+        address = ipaddress.ip_address(str(client_host or "").strip())
+    except ValueError:
+        return False
+    if getattr(address, "ipv4_mapped", None):
+        address = address.ipv4_mapped
+    for network in _PRIVATE_LAN:
+        try:
+            if address in network:
+                return True
+        except TypeError:
+            continue
+    return False
+
+
+def is_allowed_for(client_host: str, path: str, extra: Iterable[str] = ()) -> bool:
+    """이 주소 · 이 길을 받을 것인가 — 루프백 · 테일넷은 전부, 같은 네트워크는 짝짓기 길만."""
+    return is_allowed(client_host, extra) or (is_private_lan(client_host) and is_pairing_path(path))
+
+
+def is_loopback(client_host: str) -> bool:
+    """이 기기 안에서 온 요청인가 — 테일넷 · 같은 네트워크는 아니다."""
+    try:
+        address = ipaddress.ip_address(str(client_host or "").strip())
+    except ValueError:
+        return False
+    if getattr(address, "ipv4_mapped", None):
+        address = address.ipv4_mapped
+    for network in _LOOPBACK:
+        try:
+            if address in network:
+                return True
+        except TypeError:
+            continue
+    return False

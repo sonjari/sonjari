@@ -14,7 +14,7 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; height: 100%; background: #0a0a0a; }
   body {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     color: var(--ink);
     overflow: hidden;
   }
@@ -39,16 +39,16 @@
   /* Type system — kept on a small set of utility classes */
   .display      { font-family: Georgia, 'Batang', serif; font-weight: 400; line-height: 0.9; letter-spacing: -0.012em; }
   .display-it   { font-family: Georgia, 'Batang', serif; font-weight: 400; line-height: 1.04; letter-spacing: -0.005em; }
-  .micro-label  { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; }
-  .body-text    { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-weight: 400; line-height: 1.5; }
-  .mono-tab     { font-family: Consolas, 'Malgun Gothic', monospace; font-weight: 400; }
+  .micro-label  { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; }
+  .body-text    { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-weight: 400; line-height: 1.5; }
+  .mono-tab     { font-family: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-weight: 400; }
 
   /* Page number — single, bottom-right, on every slide */
   .pagenum {
     position: absolute;
     right: clamp(16px, 2.4vw, 32px);
     bottom: clamp(14.67px, 2.4vh, 28px);
-    font-family: Consolas, 'Malgun Gothic', monospace;
+    font-family: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
     font-size: clamp(7.33px, 0.85vw, 8.67px);
     color: var(--ink);
     letter-spacing: 0.08em;
@@ -61,7 +61,7 @@
     position: fixed;
     left: clamp(13.33px, 2vw, 24px);
     bottom: clamp(10.67px, 2vh, 18.67px);
-    font-family: Consolas, 'Malgun Gothic', monospace;
+    font-family: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace;
     font-size: clamp(6.67px, 0.75vw, 8px);
     color: var(--ink);
     letter-spacing: 0.08em;
@@ -126,7 +126,7 @@
   .s-cover .title em { }
   .s-cover .subline {
     margin-top: clamp(5.33px, 1vh, 12px);
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.18em;
@@ -154,12 +154,12 @@
     margin-bottom: 4px;
   }
   .s-cover .footer-row .ftxt {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-size: clamp(7.33px, 0.78vw, 8.67px);
     line-height: 1.45;
   }
   .s-cover .footer-row .fdesc {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-size: clamp(7.33px, 0.74vw, 8px);
     line-height: 1.5;
     color: var(--ink);
@@ -192,7 +192,7 @@
     position: absolute;
     left: clamp(26.67px, 4vw, 50.67px);
     bottom: clamp(37.33px, 6vh, 64px);
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.2em;
@@ -212,7 +212,7 @@
     display: flex; flex-direction: column; justify-content: space-between;
   }
   .s-programme .left .kicker {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 600; text-transform: uppercase; letter-spacing: 0.2em;
     font-size: clamp(7.33px, 0.85vw, 9.33px);
     color: var(--ink);
@@ -225,7 +225,7 @@
     letter-spacing: -0.018em;
   }
   .s-programme .left .meta {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-size: clamp(8.67px, 0.95vw, 10.67px);
     line-height: 1.5;
     max-width: 88%;
@@ -238,7 +238,7 @@
     display: flex; flex-direction: column; gap: clamp(12px, 2.2vh, 21.33px);
   }
   .s-programme .right .head {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em;
     font-size: clamp(7.33px, 0.85vw, 9.33px);
     border-bottom: 1px solid var(--ink);
@@ -271,7 +271,7 @@
   }
   .s-programme .strand p {
     margin: 0;
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-size: clamp(9.33px, 0.95vw, 10px);
     line-height: 1.5;
     color: var(--ink);
@@ -294,7 +294,7 @@
     top: 50%;
     transform: translateY(-50%) rotate(-90deg);
     transform-origin: 0 50%;
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.32em;
@@ -330,7 +330,7 @@
   }
   .s-chapter .lede {
     margin-top: clamp(12px, 2.2vh, 24px);
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
     font-size: clamp(10px, 1.05vw, 12px);
     line-height: 1.55;
     color: var(--ink);
@@ -354,20 +354,20 @@
     z-index: 4;
   }
   .s-data .head { grid-column: 1 / 3; display: flex; align-items: end; justify-content: space-between; gap: 21.33px; border-bottom: 1px solid var(--ink); padding-bottom: clamp(9.33px, 1.6vh, 16px); }
-  .s-data .head .lab { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.2em; font-size: clamp(7.33px, 0.85vw, 8.67px); color: var(--ink); }
+  .s-data .head .lab { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.2em; font-size: clamp(7.33px, 0.85vw, 8.67px); color: var(--ink); }
   .s-data .head .h { font-family: Georgia, 'Batang', serif; font-size: clamp(21.33px, min(3.6vw, 6vh), 37.33px); line-height: 1; color: var(--ink); }
 
   .s-data .col-a { display: flex; flex-direction: column; justify-content: center; gap: clamp(12px, 2vh, 21.33px); }
   .s-data .stat { display: flex; flex-direction: column; gap: 2.67px; }
   .s-data .stat .v { font-family: Georgia, 'Batang', serif; font-size: clamp(48px, min(7vw, 12vh), 96px); line-height: 0.92; color: var(--ink); letter-spacing: -0.01em; }
   .s-data .stat .v sup { font-size: 0.42em; vertical-align: super; opacity: 0.7; }
-  .s-data .stat .lab2 { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-weight: 500; text-transform: uppercase; letter-spacing: 0.18em; font-size: clamp(7.33px, 0.8vw, 8.67px); color: var(--ink); }
-  .s-data .stat .desc { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-size: clamp(9.33px, 0.95vw, 10px); line-height: 1.45; color: var(--ink); max-width: 32ch; margin-top: 2.67px; }
+  .s-data .stat .lab2 { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-weight: 500; text-transform: uppercase; letter-spacing: 0.18em; font-size: clamp(7.33px, 0.8vw, 8.67px); color: var(--ink); }
+  .s-data .stat .desc { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: clamp(9.33px, 0.95vw, 10px); line-height: 1.45; color: var(--ink); max-width: 32ch; margin-top: 2.67px; }
 
   .s-data .chart { display: flex; flex-direction: column; gap: clamp(5.33px, 1vh, 9.33px); justify-content: center; }
   .s-data .row { display: grid; grid-template-columns: 42.67px 1fr 53.33px; align-items: center; gap: clamp(8px, 1vw, 14.67px); }
-  .s-data .row .yr { font-family: Consolas, 'Malgun Gothic', monospace; font-size: clamp(8px, 0.85vw, 9.33px); color: var(--ink); letter-spacing: 0.04em; }
-  .s-data .row .val { font-family: Consolas, 'Malgun Gothic', monospace; font-size: clamp(8px, 0.85vw, 9.33px); color: var(--ink); text-align: right; letter-spacing: 0.02em; }
+  .s-data .row .yr { font-family: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size: clamp(8px, 0.85vw, 9.33px); color: var(--ink); letter-spacing: 0.04em; }
+  .s-data .row .val { font-family: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size: clamp(8px, 0.85vw, 9.33px); color: var(--ink); text-align: right; letter-spacing: 0.02em; }
   .s-data .bar { height: clamp(9.33px, 1.6vh, 14.67px); background: var(--ink); position: relative; }
   .s-data .bar.lit { background: var(--sun); border: 1px solid var(--ink); }
 
@@ -394,7 +394,7 @@
     z-index: 4;
   }
   .s-quote .qkicker {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-weight: 600;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.22em;
     font-size: clamp(7.33px, 0.82vw, 8.67px);
     color: var(--ink);
@@ -417,8 +417,8 @@
     border-top: 1px solid var(--ink);
     padding-top: clamp(6.67px, 1.4vh, 12px);
   }
-  .s-quote .qattr .who { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.16em; font-size: clamp(7.33px, 0.85vw, 8.67px); color: var(--ink); }
-  .s-quote .qattr .role { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-size: clamp(7.33px, 0.78vw, 8.67px); color: var(--ink); opacity: 0.75; }
+  .s-quote .qattr .who { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.16em; font-size: clamp(7.33px, 0.85vw, 8.67px); color: var(--ink); }
+  .s-quote .qattr .role { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: clamp(7.33px, 0.78vw, 8.67px); color: var(--ink); opacity: 0.75; }
   .s-quote .y-mark {
     position: absolute;
     right: clamp(26.67px, 4vw, 50.67px);
@@ -457,7 +457,7 @@
     line-height: 1;
     color: var(--ink);
   }
-  .s-cal .frame .topbar .lab { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.2em; font-size: clamp(7.33px, 0.82vw, 8.67px); color: var(--ink); }
+  .s-cal .frame .topbar .lab { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.2em; font-size: clamp(7.33px, 0.82vw, 8.67px); color: var(--ink); }
   .s-cal .ledger { flex: 1; display: flex; flex-direction: column; gap: 0; }
   .s-cal .row {
     display: grid;
@@ -467,13 +467,13 @@
     padding: clamp(6.67px, 1.3vh, 12px) 0;
     border-bottom: 1px solid rgba(27,37,102,0.2);
   }
-  .s-cal .row .date { font-family: Consolas, 'Malgun Gothic', monospace; font-size: clamp(8.67px, 0.95vw, 10.67px); color: var(--ink); letter-spacing: 0.02em; }
+  .s-cal .row .date { font-family: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size: clamp(8.67px, 0.95vw, 10.67px); color: var(--ink); letter-spacing: 0.02em; }
   .s-cal .row .ttl  { font-family: Georgia, 'Batang', serif; font-size: clamp(13.33px, 1.6vw, 20px); line-height: 1.15; color: var(--ink); }
   .s-cal .row .ttl em { }
-  .s-cal .row .ven  { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-size: clamp(9.33px, 0.92vw, 10px); color: var(--ink); }
-  .s-cal .row .dur  { font-family: Consolas, 'Malgun Gothic', monospace; font-size: clamp(8px, 0.84vw, 9.33px); color: var(--ink); text-align: right; letter-spacing: 0.04em; opacity: 0.78; }
+  .s-cal .row .ven  { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: clamp(9.33px, 0.92vw, 10px); color: var(--ink); }
+  .s-cal .row .dur  { font-family: Consolas, 'Malgun Gothic', 'Apple SD Gothic Neo', monospace; font-size: clamp(8px, 0.84vw, 9.33px); color: var(--ink); text-align: right; letter-spacing: 0.04em; opacity: 0.78; }
   .s-cal .row.headrow { border-bottom: 1px solid var(--ink); padding-bottom: 5.33px; }
-  .s-cal .row.headrow > div { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; font-size: clamp(6.67px, 0.7vw, 8px); color: var(--ink); }
+  .s-cal .row.headrow > div { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; font-size: clamp(6.67px, 0.7vw, 8px); color: var(--ink); }
 
   /* ──────────────────────────────────────────────────────────────────
      SLIDE 8 — COLOPHON (mirror of cover, inverted)
@@ -500,7 +500,7 @@
     max-width: 92%;
   }
   .s-colophon .ktag {
-    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-weight: 600; text-transform: uppercase;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-weight: 600; text-transform: uppercase;
     letter-spacing: 0.22em; font-size: clamp(7.33px, 0.82vw, 8.67px); color: var(--ink); margin-bottom: clamp(8px, 1.4vh, 14.67px);
   }
   .s-colophon .ttl {
@@ -527,7 +527,7 @@
     padding-top: clamp(6.67px, 1.2vh, 10.67px);
   }
   .s-colophon .colofo .ftag { text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; font-size: clamp(6.67px, 0.72vw, 8px); margin-bottom: 4px; color: var(--ink); }
-  .s-colophon .colofo .ftxt { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; font-size: clamp(7.33px, 0.78vw, 8.67px); line-height: 1.5; color: var(--ink); }
+  .s-colophon .colofo .ftxt { font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: clamp(7.33px, 0.78vw, 8.67px); line-height: 1.5; color: var(--ink); }
 
 html,body{margin:0!important;padding:0!important;width:1280px;height:720px;overflow:hidden}
 section{width:1280px!important;height:720px!important;word-break:keep-all}

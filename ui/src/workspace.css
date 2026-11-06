@@ -123,10 +123,16 @@
 /* ── 이 PC 의 모델 고르개 (2026-09-21) ──────────────────────────────────────
    Claude 고르개(.pilot-model-*)와 같은 옷을 입되, 로컬에만 있는 세 가지를 더 말한다:
    사용자가 직접 받은 모델 · 능력을 잰 적 없음 · 지금은 못 고르는 이유. */
-.local-model-popover { width: 366px; max-height: min(62vh, 520px); display: flex; flex-direction: column; overflow-y: auto; scrollbar-width: thin; }
-/* ★ 09-30: 컨텍스트 칸의 글이 줄을 꺾으며 길어지자 모델 목록이 0 높이로 눌려 사라졌다(min-height: 0). 목록은
-   최소 세 줄을 지키고, 넘치면 창 전체가 스크롤한다. */
-.local-model-options { flex: 0 0 auto; min-height: min(180px, 30vh); max-height: 240px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgb(var(--text-4) / .26) transparent; }
+/* ★ 11-04 대표: 「아래 Claude Agent 칸이 잘리고 스크롤이 겹친다」 — 창 전체와 모델 목록이 **따로** 스크롤했다(목록 240px 상한).
+   이제 머리는 고정, 그 아래(자리 · 목록 · Claude Agent · 창 크기)는 **한 스크롤**이다. 목록은 제 높이대로(09-30 눌림도 같이 막힘). */
+.local-model-popover { width: 366px; max-height: min(72vh, 600px); display: flex; flex-direction: column; overflow: hidden; }
+.local-model-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgb(var(--text-4) / .26) transparent; overscroll-behavior: contain; }
+.local-model-options { flex: none; }
+.local-model-footnote { margin: 5px 9px 7px; color: rgb(var(--text-4)); font-size: var(--fs-1); line-height: 1.5; }
+.local-model-options > button { min-height: 44px; }
+.local-model-verified { margin-left: 7px; padding: 1px 6px 1px 4px; display: inline-flex; align-items: center; gap: 3px; vertical-align: 1px;
+  border-radius: var(--r-pill); color: rgb(var(--ok-bright)); background: rgb(var(--ok) / .12); font-size: var(--fs-1); font-style: normal; font-weight: var(--fw-mid); }
+.local-model-picker .model-chip { display: inline-flex; align-items: center; gap: 7px; }
 .local-model-divider { margin: 9px 9px 4px; padding-top: 8px; border-top: 1px solid rgb(var(--line) / .7); color: rgb(var(--text-5)); font-size: var(--fs-1); }
 .local-model-tag { margin-left: 7px; padding: 1px 6px; border-radius: var(--r-pill); color: rgb(var(--signal-bright)); background: rgb(var(--signal) / .12); font-size: var(--fs-1); font-style: normal; font-weight: var(--fw-mid); }
 .local-model-untested { color: rgb(var(--warn-bright, var(--text-4))); }
@@ -2361,3 +2367,22 @@ button.code-think-raw:disabled { cursor: default; opacity: .6; }
 .message-quick-replies { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
 .message-quick-replies button { padding: 5px 14px; border: 1px solid rgb(var(--agent-a) / .5); border-radius: 999px; background: rgb(var(--agent-a) / .1); color: rgb(var(--text-1)); font: inherit; font-size: var(--fs-1); cursor: pointer; }
 .message-quick-replies button:hover { background: rgb(var(--agent-a) / .22); }
+
+/* ── 설정 › MCP 서버 꽂기 (2026-11-04) ── */
+.settings-block.mcp { display: flex; flex-direction: column; gap: 10px; }
+.mcp-draft { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-1); color: rgb(var(--text-3)); }
+.mcp-draft textarea { width: 100%; min-height: 96px; padding: 8px 10px; border: 1px solid rgb(var(--line)); border-radius: 8px;
+  background: rgb(var(--surface-1)); color: rgb(var(--text-1)); font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; resize: vertical; }
+.mcp-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.mcp-row { padding: 10px 12px; border: 1px solid rgb(var(--line)); border-radius: 10px; opacity: .72; }
+.mcp-row.is-on { opacity: 1; border-color: rgb(var(--brand-bright) / .28); }
+.mcp-row-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mcp-row-head code { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--text-4)); font-size: 12px; }
+.mcp-count { color: rgb(var(--text-4)); font-size: var(--fs-1); white-space: nowrap; }
+.mcp-row-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.mcp-tools { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.mcp-tools li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mcp-desc { color: rgb(var(--text-4)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mcp-risk { padding: 0 6px; border-radius: var(--r-pill); font-size: 11px; background: rgb(var(--text-1) / .06); color: rgb(var(--text-3)); white-space: nowrap; }
+.mcp-risk.risk-L0, .mcp-risk.risk-L1 { background: rgb(var(--ok) / .12); color: rgb(var(--ok-bright)); }
+.mcp-risk.risk-L3 { background: rgb(var(--stop) / .14); color: rgb(var(--stop-bright)); }

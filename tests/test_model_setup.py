@@ -115,6 +115,8 @@ def test_an_unmeasured_context_is_refused(tmp_path: Path) -> None:
 def test_a_satellite_does_not_touch_models(tmp_path: Path) -> None:
     config = _config(tmp_path)
     config.jarvis_role = "satellite"
+    # 모델 자리가 집 PC 일 때만 막는다(2026-11-03 model_place) — 집 PC 주소가 있어야 집 PC 자리다.
+    config.ollama_base_url = "http://192.0.2.10:11434"
     service = SetupService(config, post=_FakeOllama().post, get=_FakeOllama().get)
     assert service.apply("qwen3.5-9b", 65536)["error"] == "satellite_uses_brain_models"
     assert service.start_pull("qwen3.5-9b")["error"] == "satellite_uses_brain_models"
