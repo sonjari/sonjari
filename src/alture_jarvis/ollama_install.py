@@ -207,9 +207,11 @@ class OllamaInstaller:
         self.asset_name = MAC_ASSET_NAME if sys.platform == "darwin" else ASSET_NAME
         #: 맥에서 서명 · 공증을 확인하는 손(`verify_mac_app`). 시험은 가짜를 넣는다.
         self.verify_mac = verify_mac_app
-        #: 맥에서 앱을 켜는 손(`open -g -a`). 시험은 가짜를 넣는다.
+        #: 맥에서 앱을 켜는 손(`open -g -a … --args hidden`). 시험은 가짜를 넣는다.
+        #: ★ 11-08 대표: 「Ollama 창이 툭 앞으로 온다」 — `-g` 는 앞으로 끌지만 않을 뿐 Ollama 앱은 뜨면서 제 창을 연다.
+        #:   맥 로그인 항목이 쓰는 그대로 `hidden` 을 넘긴다(맥미니 ps: `/Applications/Ollama.app/Contents/MacOS/Ollama hidden`).
         self.mac_open: Callable[[Path], None] = lambda app: subprocess.run(
-            ["open", "-g", "-a", str(app)], check=False, capture_output=True, timeout=30,
+            ["open", "-g", "-a", str(app), "--args", "hidden"], check=False, capture_output=True, timeout=30,
             creationflags=CREATE_NO_WINDOW if os.name == "nt" else 0)
 
     # ── 상태 ───────────────────────────────────────────────────────────────
@@ -769,7 +771,11 @@ class OllamaInstaller:
         if needs_gpu_only():
             env["OLLAMA_VULKAN"] = "0"
         flags = (CREATE_NO_WINDOW | 0x00000008) if os.name == "nt" else 0  # DETACHED_PROCESS
-        process = self.popen([str(app)], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        # ★ 11-08 대표: 트레이 앱(`ollama app.exe`)은 켜질 때 제 창을 앞으로 띄운다. 같은 폴더의 서버(`ollama.exe serve`)만
+        #   창 없이 켠다 — 공식 설치 파일은 둘을 늘 같이 깐다(이 PC `%LOCALAPPDATA%\Programs\Ollama` 확인). 없으면 예전대로 앱.
+        server = app.with_name("ollama.exe")
+        command = [str(server), "serve"] if server.is_file() else [str(app)]
+        process = self.popen(command, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL, creationflags=flags, cwd=str(app.parent))
         deadline = time.monotonic() + wait_sec
         while time.monotonic() < deadline:
@@ -937,8 +943,15 @@ class OllamaKeeper:
         retry_sec: float = 20.0,
         give_up_after: int = 3,
         run: Callable[[Callable[[], None]], None] | None = None,
+        enabled: bool = True,
+        applies: Callable[[], bool] | None = None,
     ) -> None:
         self.installer = installer
+        #: 끄면 꺼진 Ollama 를 켜지 않는다(`JARVIS_OLLAMA_AUTOSTART=0` · 모델 주소가 다른 엔진일 때 · 2026-11-08).
+        self.enabled = enabled
+        #: 지금 「안 닿는다」는 것이 **이 기기 Ollama** 이야기인가. 아니면(위성 · 모델이 집 PC 에서 돈다) 켜지 않는다.
+        #: ★ 11-08 대표(맥 위성): 집 PC 가 잠깐 안 닿을 때마다 이 맥의 Ollama 앱이 켜지며 창이 튀어나왔다.
+        self.applies = applies
         self.clock = clock
         self.retry_sec = retry_sec
         self.give_up_after = give_up_after
@@ -964,6 +977,14 @@ class OllamaKeeper:
 
     def ensure(self) -> bool:
         """꺼져 있다고 알려졌을 때 부른다. 돌려주는 값 = 지금 「켜는 중」이라고 말해도 되나."""
+        if not self.enabled:
+            return False
+        if self.applies is not None:
+            try:
+                if not self.applies():
+                    return False
+            except Exception:  # noqa: BLE001 — 모르면 예전처럼 켠다
+                pass
         try:
             installed = self.installer.bundled_exe() is not None
             if not installed:

@@ -91,6 +91,23 @@
 .place-mark-down .place-mark-wire { stroke: rgb(var(--text-5)); stroke-dasharray: 1.5 2; }
 .place-mark-down .place-mark-a { fill: rgb(var(--text-5)); }
 .place-mark-down .place-mark-b { fill: none; stroke: rgb(var(--text-5)); stroke-width: 1.2; }
+/* ★ 11-08 상태 그림 — 노란 카드 대신. 색은 「사람이 봐야 한다」 호박색(--signal) 하나만 더 쓴다. */
+.place-mark-here-wait, .place-mark-here-off { width: 7px; height: 7px; border-radius: 50%; }
+.place-mark-here-wait { background: rgb(var(--origin-claude)); animation: place-breathe 1.6s var(--ease) infinite; }
+.place-mark-here-off { background: transparent; box-shadow: inset 0 0 0 1.4px rgb(var(--signal-bright)); }
+.place-mark-far-missing .place-mark-a { fill: rgb(var(--origin-claude)); }
+.place-mark-far-missing .place-mark-b { fill: none; stroke: rgb(var(--signal-bright)); stroke-width: 1.3; }
+@keyframes place-breathe { 50% { opacity: .35; transform: scale(.78); } }
+/* 문제가 **처음** 생길 때만 칩 둘레가 두 번 번진다 — 튀어나오는 카드 대신 「여기를 보세요」 한 번. */
+.model-chip.has-attention { animation: chip-attend 1.1s var(--ease) 2; }
+@keyframes chip-attend { 0% { box-shadow: 0 0 0 0 rgb(var(--signal) / .45); } 100% { box-shadow: 0 0 0 7px rgb(var(--signal) / 0); } }
+/* 모델 창 맨 위 한 줄 — 무엇이 문제인지 · 누를 것 하나. 카드가 아니라 머리 아래 얇은 띠. */
+.readiness-status { margin: 0 12px 10px; padding: 10px 12px; border-left: 2px solid rgb(var(--signal) / .8); border-radius: var(--r-1); background: rgb(var(--signal) / .07); }
+.readiness-status.is-ollama_starting, .readiness-status.is-home_unreachable { border-left-color: rgb(var(--text-5)); background: rgb(var(--text-1) / .035); }
+.readiness-status strong { display: block; color: rgb(var(--text-1)); font-size: var(--fs-2); font-weight: var(--fw-mid); }
+.readiness-status p { margin: 3px 0 0; color: rgb(var(--text-3)); font-size: var(--fs-1); line-height: 1.5; }
+.readiness-status .readiness-action { margin-top: 8px; }
+@media (prefers-reduced-motion: reduce) { .place-mark-here-wait, .model-chip.has-attention { animation: none; } }
 
 /* 움직임 줄이기 — 쇼와 같이: 구슬 없이 색만, 깜빡임 없음. */
 @media (prefers-reduced-motion: reduce) {

@@ -32,7 +32,7 @@ from .evidence import WRITE_EFFECTS, code_string_values, numbers_claimed_in, uns
 from .outbound import check_needs, clean_needs, receipt, refine
 from .url_privacy import safe_url
 
-__all__ = ["TASK_TOOL", "STATUS_TOOL", "GUIDE_TOOL", "STORY_TOOL", "DELEGATION_TOOLS", "summarize_job", "partial_work",
+__all__ = ["TASK_TOOL", "STATUS_TOOL", "CANCEL_TOOL", "GUIDE_TOOL", "STORY_TOOL", "DELEGATION_TOOLS", "summarize_job", "partial_work",
            "host_context_kept_out", "MAX_WAIT_SEC", "CLAUDE_CODE_MAX_WAIT_SEC", "is_claude_code"]
 
 MAX_WAIT_SEC = 50
@@ -133,7 +133,28 @@ STATUS_TOOL: dict[str, Any] = {
     },
 }
 
-DELEGATION_TOOLS: tuple[dict[str, Any], ...] = (TASK_TOOL, STATUS_TOOL)
+# ★ 2026-11-07 Glama 점수(Completeness 3/5): 「상태 도구는 cancelled 를 말하는데 멈출 문이 없다 — 잘못 맡긴 긴 일을 세울 길이 없다」.
+#   본체에는 취소 길(`/v1/jobs/{id}/cancel`)이 이미 있었다. 이 문은 **바깥 AI 가 맡긴 일(origin mcp)만** 세운다 —
+#   사람이 손자리 창에서 시킨 일은 job_id 를 알아도 못 세운다(신뢰는 「어느 문으로 들어왔나」로 가른다 · 사고 R).
+CANCEL_TOOL: dict[str, Any] = {
+    "name": "sonjari_task_cancel",
+    "description": (
+        "sonjari_task 로 맡긴 과제를 멈춥니다. 잘못 맡겼거나 사용자가 그만두라고 할 때 부르세요. "
+        "기다리는 중 · 일하는 중 · 승인 대기 중인 과제만 멈출 수 있고, 이미 끝난 과제는 그대로입니다. "
+        "바깥 AI 가 맡긴 과제만 멈춥니다(사람이 손자리 창에서 시킨 일은 못 멈춥니다). "
+        "멈춘 뒤에도 sonjari_task_status 로 멈추기 전까지 한 일(files · sources · resume)을 받을 수 있습니다."
+    ),
+    "risk_level": "L1",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "job_id": {"type": "string", "description": "멈출 과제의 job_id(sonjari_task 가 돌려준 것)"},
+        },
+        "required": ["job_id"],
+    },
+}
+
+DELEGATION_TOOLS: tuple[dict[str, Any], ...] = (TASK_TOOL, STATUS_TOOL, CANCEL_TOOL)
 
 # ★ 2026-09-17 제품 요청: Claude Desktop 은 스킬을 앱이 넣을 수 없다(업로드·조직 배포뿐 — 공식 문서). 채팅은 PC 폴더의
 #   스킬 파일도 스스로 못 읽는다. 그래서 **연결 자체가 가이드를 들고 간다** — 안내문이 「처음엔 이걸 불러 읽으라」고 하고,
@@ -234,6 +255,15 @@ _EN_DESCRIPTIONS: dict[str, dict[str, str]] = {
             f"{MAX_WAIT_SEC} s for other apps (larger values are cut to that app's limit). Leave it empty and do not "
             "ask often — every call re-reads the whole conversation."
         ),
+    },
+    CANCEL_TOOL["name"]: {
+        "": (
+            "Stop a task handed off with sonjari_task. Call it when the task was a mistake or the user asks to stop. "
+            "Only queued, running or approval-waiting tasks can be stopped; a finished task stays as it is. "
+            "It stops only tasks an outside AI handed off (not work a person started in the Sonjari window). "
+            "After stopping, sonjari_task_status still returns the work done before the stop (files, sources, resume)."
+        ),
+        "job_id": "The job_id of the task to stop (the one sonjari_task returned)",
     },
     GUIDE_TOOL["name"]: {
         "": (

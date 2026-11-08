@@ -48,7 +48,7 @@ import { UpdateBar } from "./workspace/UpdateBar";
 import { WhatsNewBar } from "./workspace/WhatsNewBar";
 import { UsageShowGate } from "./workspace/UsageShowGate";
 import { HealthBar } from "./workspace/HealthBar";
-import { ReadinessBanner } from "./workspace/ReadinessBanner";
+import { useReadiness } from "./workspace/ReadinessBanner";
 import { modelCaution, type AgentGrade } from "./workspace/readiness";
 import { JarvisMark } from "./workspace/JarvisMark";
 import { setUserLabel, userLabel } from "./workspace/userLabel";
@@ -398,6 +398,8 @@ export function WorkspaceApp() {
   const [outputs, setOutputs] = useState<Record<string, JobOutput[]>>({});
   const [undoOffers, setUndoOffers] = useState<UndoOffer[]>([]);
   const clientRef = useRef<JarvisClient | null>(null);
+  // 부탁 전 준비 상태 — 모델 칩의 자리 그림이 말한다(11-08 · 입력창 위 노란 카드 대신).
+  const readiness = useReadiness(clientRef.current, connected);
   // 창이 본체보다 먼저 떠서 첫 읽기가 연결 실패로 끝났는가 — 연결되면 다시 읽고 그 오류 줄을 지운다(2026-10-26 「Failed to fetch」가 남음).
   const bootFailedRef = useRef(false);
   // ── 앱 안의 Claude Agent (2026-10-26 · `claudeAgent/`) ─ 갈림은 모델 칸 하나 · 대화마다. 없으면(파일럿 · 브라우저 미리보기) 메뉴에 안 뜬다.
@@ -2332,6 +2334,7 @@ export function WorkspaceApp() {
                 context={claudeBrain ? t("이 대화는 Claude Agent 가 일합니다 · 내 API 키") : workspaceMode === "code" ? t("{0} · 코드 작업 전용", activeModel) : contextLabel}
                 onChanged={() => window.dispatchEvent(new Event("ontelic:model-changed"))}
                 claude={claudeChoice}
+                readiness={readiness}
               />
             )}
           </div>
@@ -2471,7 +2474,6 @@ export function WorkspaceApp() {
         </div>
 
         <footer className="workspace-composer-shell">
-          <ReadinessBanner client={clientRef.current} connected={connected} />
           {setupApi && codeOffer && codeOffer.sessionId === sessionId && workspaceMode === "code" && (
             <CodeUpgradeCard api={setupApi} offer={codeOffer.offer} onClose={() => setCodeOffer(null)}
               onChanged={() => window.dispatchEvent(new Event("ontelic:model-changed"))} />

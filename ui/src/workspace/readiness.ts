@@ -1,4 +1,5 @@
 import { t } from "../i18n";
+import { isMac } from "../platform";
 /**
  * 작업 화면에서 「지금 부탁해도 되는가」 (F2, 2026-09-15 제품 흐름 지도 G2).
  *
@@ -26,6 +27,8 @@ export interface HealthOllama {
    *  설정값이 아니라 이것이 진실이다 — 설정을 고쳐도 러너가 옛 값으로 떠 있으면
    *  화면이 거짓말한다. 머리의 「128K」는 이 값에서 온다. */
   context_length?: number;
+  /** 모델이 어디서 도나 — `this_pc` · `home_pc`(Satellite). 백엔드 `model_place.current`(11-08). */
+  place?: "this_pc" | "home_pc";
 }
 
 export interface AgentGrade {
@@ -49,15 +52,37 @@ export function modelCaution(grade: AgentGrade | null | undefined): string | nul
 }
 
 export interface ReadinessProblem {
-  kind: "ollama_down" | "ollama_starting" | "model_missing";
+  kind: "ollama_down" | "ollama_starting" | "model_missing" | "home_unreachable" | "home_model_missing";
   title: string;
   detail: string;
   /** 없으면 누를 것이 없다(저절로 풀린다). */
   action?: string;
 }
 
+/**
+ * ★ 11-08 대표(맥 Satellite): 집 PC 가 재부팅하는 사이 「대화 모델이 이 PC 에 없습니다 · 아직 받지 않았습니다」가 떴다.
+ *   모델은 집 PC 에서 돈다 — 「이 PC」도 「받기」도 틀린 말이다. 자리가 `home_pc` 면 집 PC 의 말로 가르고,
+ *   잠깐 안 닿는 것은 저절로 풀리니 받으라고 보내지 않는다.
+ */
 export function readinessProblem(ollama: HealthOllama | null | undefined): ReadinessProblem | null {
   if (!ollama) return null;
+  if (ollama.place === "home_pc") {
+    if (!ollama.ok) {
+      return {
+        kind: "home_unreachable",
+        title: t("집 PC 에 닿지 않습니다"),
+        detail: t("집 PC 가 꺼져 있거나 켜지는 중입니다. 다시 닿으면 저절로 이어집니다."),
+      };
+    }
+    if (ollama.model_available === false) {
+      return {
+        kind: "home_model_missing",
+        title: t("집 PC 에 모델이 떠 있지 않습니다"),
+        detail: t("집 PC 에서 {0} 이(가) 아직 보이지 않습니다. 집 PC 가 막 켜졌다면 잠시 뒤 저절로 풀립니다.", ollama.model ?? t("알 수 없음")),
+      };
+    }
+    return null;
+  }
   if (!ollama.ok && ollama.starting) {
     return {
       kind: "ollama_starting",
@@ -78,9 +103,10 @@ export function readinessProblem(ollama: HealthOllama | null | undefined): Readi
   if (ollama.model_available === false) {
     return {
       kind: "model_missing",
-      title: t("대화 모델이 이 PC 에 없습니다"),
-      detail: t("설정된 모델({0})을 아직 받지 않았습니다. 이 PC 에 맞는 모델을 고르면 받아서 확인한 뒤 적용합니다.", ollama.model ?? t("알 수 없음")),
-      action: t("모델 고르기"),
+      title: isMac ? t("대화 모델이 이 Mac 에 없습니다") : t("대화 모델이 이 PC 에 없습니다"),
+      detail: isMac
+        ? t("설정된 모델({0})을 아직 받지 않았습니다. 아래 목록에서 이 Mac 에 맞는 모델을 고르면 받아서 확인한 뒤 적용합니다.", ollama.model ?? t("알 수 없음"))
+        : t("설정된 모델({0})을 아직 받지 않았습니다. 아래 목록에서 이 PC 에 맞는 모델을 고르면 받아서 확인한 뒤 적용합니다.", ollama.model ?? t("알 수 없음")),
     };
   }
   return null;

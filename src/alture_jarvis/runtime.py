@@ -69,6 +69,7 @@ from .project_discovery import ProjectDiscovery
 from . import fact_extract, intent_shadow, updater
 from .media import MediaSessionController
 from . import check_notes, delegated_branch
+from . import model_place
 from .memory import DELEGATED_ROOM_PREFIX, RECALLED_MEMORY_HEADER, ConversationMemory, normalize_session_id
 from .outbound import outbound_record
 from .face_identity import FaceIdentity
@@ -137,6 +138,11 @@ from .vision import VisionService
 from .voice import HotkeyBridge, PushToTalkRecorder, SpeechToText
 from .watch_service import WatchService
 from .windows_automation import WindowsAutomationTools
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    """하위 상태 칸을 dict 로(터진 칸은 오류 dict)."""
+    return dict(value) if isinstance(value, dict) else {"ok": False, "error": str(value)}
 
 
 def _strip_deleted_output_claims(answer: str, steps: list[dict[str, Any]]) -> str:
@@ -1272,7 +1278,10 @@ class JarvisRuntime:
             prompt_cache_mib=int(getattr(self.config, "ollama_prompt_cache_mib", -1)),
         )
         # 꺼져 있으면 알아서 다시 켠다(2026-09-20). 시작 때 한 번만 켜던 것을 대신한다 — ollama_install.OllamaKeeper.
-        self.ollama_keeper = OllamaKeeper(self.ollama_installer)
+        self.ollama_keeper = OllamaKeeper(
+            self.ollama_installer, enabled=bool(getattr(self.config, "ollama_autostart", True)),
+            # 모델이 집 PC 에서 돌면(위성) 「안 닿음」은 집 PC 이야기다 — 이 기기 Ollama 를 켜지 않는다(11-08).
+            applies=lambda: model_place.current(self.config) != "home_pc")
         self.runner.add_terminal_listener(self.takeover.on_job_terminal)
         # 버릴 수 있는 상자. 호스트에서 임의 코드를 못 돌리는 규칙은 그대로 두고,
         # 되돌림이 성립하는 자리를 따로 판다(5차 C).
@@ -6622,7 +6631,9 @@ class JarvisRuntime:
             # 생각 번역: 정찰기가 있으면 실시간(live), 없으면 판이 끝난 뒤 사람이 누를 때(after). 인수인계 H3.
             "thinking_translation": "live" if getattr(self.config, "code_scout_enabled", False) else "after",
             # 꺼져 있으면 여기서 켜기를 걸고 `starting` 을 붙인다 — 화면이 「켜는 중」과 「고장」을 가른다.
-            "ollama": self.ollama_keeper.annotate(self._probe("ollama", self.ollama.health)),
+            # place: 모델이 어디서 도나(this_pc · home_pc) — 화면이 「이 PC 에 없다 · 받으세요」와 「집 PC 에 안 닿는다」를 가른다(11-08).
+            "ollama": {**_as_dict(self.ollama_keeper.annotate(self._probe("ollama", self.ollama.health))),
+                       "place": model_place.current(self.config)},
             "context": {
                 "num_ctx": self.config.ollama_num_ctx,
                 "by_role": {

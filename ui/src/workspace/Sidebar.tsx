@@ -1,5 +1,6 @@
 import { t } from "../i18n";
-import { BriefcaseBusiness, ChevronLeft, Code2, CirclePlay, Menu, MessageSquareText, Plus, Settings2, Trash2, Wrench } from "lucide-react";
+import { BriefcaseBusiness, Code2, CirclePlay, MessageSquareText, PanelLeftClose, PanelLeftOpen, Plus, Settings2, Trash2, Wrench } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { JarvisMark } from "./JarvisMark";
 import type { JarvisClient } from "../backend";
 import type { ConversationSummary, JarvisState, JobSummary, ScheduleRow, WorkspaceMode } from "../types";
@@ -61,6 +62,12 @@ export function Sidebar(props: {
   //   CSS 로 글자만 숨기면 버튼 폭 49px 에 「할 수 있는 일」이 세로로 부서졌다(개발 화면 480px 에서 확인).
   const narrow = useNarrow(RAIL_MAX_WIDTH);
   const open = props.open && !narrow;
+  // ★ 11-08 대표 「접기가 스르륵이 아니라 뚝」: 접힐 때 목록을 지웠다 다시 그려서 끊겼다. 이제 목록은 그대로 두고 흐리며 가린다 —
+  //   가린 동안 키보드 · 스크린리더가 들어가지 않게 `inert`(React 18 은 속성을 몰라 직접 켠다).
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.inert = !open;
+  }, [open]);
   const imported = props.sessions.filter((session) => props.handoffOrigins?.[session.session_id]);
   // 지금 도는 판의 방이 아직 목록에 없으면 맨 위에 한 줄을 세운다 — 「도는 중」 점이 붙을 자리다(`withLiveRooms`).
   const regular = withLiveRooms(
@@ -97,8 +104,8 @@ export function Sidebar(props: {
           onClick={() => props.onOpenConversation(session.session_id)}
         >
           <MessageSquareText size={15} />
-          {open && <span><strong>{sourceName && <em className="handoff-tool">{sourceName}</em>}{title}</strong><small>{timeLabel(session.updated_at)}</small></span>}
-          {open && liveMark(session.session_id)}
+          <span><strong>{sourceName && <em className="handoff-tool">{sourceName}</em>}{title}</strong><small>{timeLabel(session.updated_at)}</small></span>
+          {liveMark(session.session_id)}
         </button>
         {deletable && (
           <button
@@ -118,10 +125,12 @@ export function Sidebar(props: {
     <aside className={`workspace-sidebar ${open ? "" : "sidebar-collapsed"}`}>
       <div className="workspace-brand">
         <JarvisMark state={props.state} connected={connected} size={30} />
-        {open && <div><strong>Sonjari</strong></div>}
+        <div className="side-label brand-name"><strong>Sonjari</strong></div>
         {!narrow && (
-          <button onClick={props.onToggle} aria-label={open ? t("사이드바 접기") : t("사이드바 펼치기")}>
-            {open ? <ChevronLeft size={17} /> : <Menu size={17} />}
+          // 접혀 있으면 로고 위에 겹쳐 있다가 마우스를 올리면 보인다(로고가 「펼치기」로 바뀌어 보이게).
+          <button className="sidebar-toggle" onClick={props.onToggle} aria-label={open ? t("사이드바 접기") : t("사이드바 펼치기")}
+                  title={open ? t("사이드바 접기") : t("사이드바 펼치기")}>
+            {open ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
           </button>
         )}
       </div>
@@ -133,7 +142,7 @@ export function Sidebar(props: {
           title={t("대화·조사·문서 작업")}
           aria-label="Cowork"
         >
-          <BriefcaseBusiness size={15} />{open && <span>Cowork</span>}
+          <BriefcaseBusiness size={15} /><span className="side-label">Cowork</span>
         </button>
         <button
           type="button" role="tab" aria-selected={props.mode === "code"}
@@ -142,40 +151,39 @@ export function Sidebar(props: {
           title={t("저장소를 읽고 패치하는 코드 작업")}
           aria-label="Code"
         >
-          <Code2 size={16} />{open && <span>Code</span>}
+          <Code2 size={16} /><span className="side-label">Code</span>
         </button>
       </div>
       <button className="new-chat" onClick={props.onNewConversation} disabled={props.busy} title={t("새 대화")} aria-label={t("새 대화")}>
-        <Plus size={17} />{open && t("새 대화")}
+        <Plus size={17} /><span className="side-label">{t("새 대화")}</span>
       </button>
 
-      {/* 접힌 칸에서는 작업·대화 목록을 그리지 않는다(2026-09-27 요청) — 아이콘만 세로로 늘어서 무엇인지 알 수 없었다.
-          작업 중인지는 위 로고가 돌면서 보여 준다. 빈 칸이 아래 단추들을 바닥에 붙인다. */}
-      {!open && <div className="sidebar-spacer" aria-hidden="true" />}
-      {open && <div className="sidebar-scroll">
+      {/* 접힌 칸에서는 작업·대화 목록을 보이지 않는다(2026-09-27 요청) — 아이콘만 세로로 늘어서 무엇인지 알 수 없었다.
+          작업 중인지는 위 로고가 돌면서 보여 준다. ★ 11-08: 지우지 않고 흐리며 가린다(빈 칸이 아래 단추들을 바닥에 붙인다). */}
+      <div className="sidebar-scroll" ref={scrollRef} aria-hidden={!open}>
         <ScheduleList schedules={props.schedules} now={props.now} onCancelSchedule={props.onCancelSchedule} />
 
         {imported.length > 0 && <>
-          {open && <p className="sidebar-label">{t("이어온 대화")}</p>}
+          <p className="sidebar-label">{t("이어온 대화")}</p>
           <nav className="session-list">{imported.map(sessionButton)}</nav>
         </>}
-        {open && <p className="sidebar-label">{t("지난 대화")}</p>}
+        <p className="sidebar-label">{t("지난 대화")}</p>
         <nav className="session-list">{regular.map(sessionButton)}</nav>
-      </div>}
+      </div>
 
       {/* 무엇을 할 수 있는지 (R5). 도구 102개·레시피·아는 사이트가 코드 안에만
           있었다 — 쓸 수 있다는 걸 모르면 없는 기능과 같다. */}
       <button className="capabilities-open" onClick={props.onOpenCapabilities} type="button" title={t("할 수 있는 일")} aria-label={t("할 수 있는 일")}>
-        <Wrench size={15} />{open && <span>{t("할 수 있는 일")}</span>}
+        <Wrench size={15} /><span className="side-label">{t("할 수 있는 일")}</span>
       </button>
       {props.onOpenUsageShow && (
         <button className="capabilities-open" onClick={props.onOpenUsageShow} type="button" title={t("쓰는 법")} aria-label={t("쓰는 법")}>
-          <CirclePlay size={15} />{open && <span>{t("쓰는 법")}</span>}
+          <CirclePlay size={15} /><span className="side-label">{t("쓰는 법")}</span>
         </button>
       )}
       {props.onOpenSettings && (
         <button className="capabilities-open" onClick={props.onOpenSettings} type="button" title={t("설정")} aria-label={t("설정")}>
-          <Settings2 size={15} />{open && <span>{t("설정")}</span>}
+          <Settings2 size={15} /><span className="side-label">{t("설정")}</span>
         </button>
       )}
       {/* 밖으로 나가는 판(파일럿 — Claude API)일 때만 고지한다. 이 PC 에서 도는 판은 로고가 상태를 말한다. */}

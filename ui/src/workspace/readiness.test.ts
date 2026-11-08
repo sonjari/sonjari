@@ -56,3 +56,24 @@ describe("약한 모델에 권한을 줄 때는 화면이 먼저 말한다 (2026
     expect(modelCaution(undefined)).toBeNull();
   });
 });
+
+describe("Satellite(모델이 집 PC 에서 돈다)면 집 PC 의 말로 가른다 (11-08 대표 맥)", () => {
+  it("집 PC 에 모델이 안 보이면 「이 PC 에 없다 · 받으세요」가 아니다", () => {
+    const problem = readinessProblem({ ok: true, place: "home_pc", model: "strata/qwen3.8-flash-next-swift", model_available: false });
+    expect(problem?.kind).toBe("home_model_missing");
+    expect(problem?.title).toContain("집 PC");
+    expect(`${problem?.title} ${problem?.detail}`).not.toMatch(/이 PC|받지 않|받아서/);
+    expect(problem?.action).toBeUndefined(); // 저절로 풀린다 — 받기 화면으로 보내지 않는다
+  });
+
+  it("집 PC 에 닿지 않으면 엔진 설치로 보내지 않는다", () => {
+    const problem = readinessProblem({ ok: false, place: "home_pc", error: "relay_unreachable" });
+    expect(problem?.kind).toBe("home_unreachable");
+    expect(problem?.action).toBeUndefined();
+    expect(problem?.detail).not.toMatch(/설치/);
+  });
+
+  it("집 PC 쪽이 멀쩡하면 아무 말도 안 한다", () => {
+    expect(readinessProblem({ ok: true, place: "home_pc", model: "x", model_available: true })).toBeNull();
+  });
+});

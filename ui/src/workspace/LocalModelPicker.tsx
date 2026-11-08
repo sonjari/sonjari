@@ -29,7 +29,9 @@ import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { CodeUpgrade, ModelPickerView, ModelRole, PickerModel, SetupApi } from "../setup/setupApi";
 import { ContextCeilingPanel } from "./ContextCeilingPanel";
-import { ModelPlaceBar, PlaceMark, placeKind, useModelPlace } from "../setup/ModelPlace";
+import { ModelPlaceBar, PlaceMark, placeKind, statusKind, useModelPlace } from "../setup/ModelPlace";
+import type { ReadinessProblem } from "./readiness";
+import { ReadinessStatus, readinessTitle } from "./ReadinessBanner";
 import { isMac } from "../platform";
 import { ctxShort, friendlyModelName } from "../setup/modelNames";
 import type { ClaudeAgentStatus } from "../types";
@@ -79,7 +81,7 @@ function order(row: PickerModel): number {
   return row.installed ? 3 : 4;
 }
 
-export function LocalModelPicker({ api, role, label, context, contextLength, onChanged, claude }: {
+export function LocalModelPicker({ api, role, label, context, contextLength, onChanged, claude, readiness }: {
   api: SetupApi | null;
   role: ModelRole;
   /** 칩에 적을 이름 — 이미 예쁘게 다듬은 것이 들어온다. */
@@ -90,6 +92,8 @@ export function LocalModelPicker({ api, role, label, context, contextLength, onC
   onChanged?: () => void;
   /** 있으면 메뉴에 「Claude Agent」 무리가 생긴다(앱 안 · 대화마다). */
   claude?: ClaudeChoice;
+  /** 부탁 전 준비 상태(`useReadiness`) — 칩의 자리 그림과 창 맨 위 한 줄이 말한다(11-08 · 노란 카드 대신). */
+  readiness?: ReadinessProblem | null;
 }) {
   const claudeOn = Boolean(claude && isClaudeBrain(claude.brain));
   const [keyBusy, setKeyBusy] = useState(false);
@@ -179,7 +183,9 @@ export function LocalModelPicker({ api, role, label, context, contextLength, onC
   // ★ 2026-11-04 대표(맥미니 스크린샷): 위쪽 칩이 「Qwen3.5 · 9B · 128K」 글자뿐이라 모델을 못 바꿨다 — 판정을 화면이 뜰 때 한 번만
   //   읽었다. 이제 모델 · 자리가 바뀌면 다시 읽고, Satellite 여도 칩은 단추다.
   // ★ 같은 날 대표 설계: 칩엔 이름만(「9B · 128K」 숫자는 창 안으로) · 앞에 자리 표시 ● / ●━● / ●┄○ · 「이 맥」 대신 Mac.
-  const kind = placeKind(place.view);
+  // Claude Agent 가 일하는 대화는 로컬 모델 상태와 상관없다 — 그때는 그림을 바꾸지 않는다.
+  const problem = claudeOn ? null : readiness ?? null;
+  const kind = statusKind(placeKind(place.view), problem?.kind);
   const satellite = Boolean(view?.satellite) || kind !== "here";
   // 이 기기 목록 · 창 크기 재기 · 「그래픽카드에 다 올라갔을 때만」 안내는 Satellite(짝짓는 중 포함)에선 숨긴다 — 이 기기 이야기다.
   const thisDeviceHidden = satellite || pairing;
@@ -205,11 +211,12 @@ export function LocalModelPicker({ api, role, label, context, contextLength, onC
     <div className="pilot-model-picker local-model-picker" ref={shell}>
       <button
         type="button"
-        className={`model-chip pilot-model-trigger ${open ? "open" : ""}`}
+        className={`model-chip pilot-model-trigger ${open ? "open" : ""}${problem ? " has-attention" : ""}`}
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        title={context}
+        aria-label={problem ? `${chipName} · ${problem.title}` : undefined}
+        title={readinessTitle(problem) || context}
       >
         {claudeOn ? <i className="brain-dot claude" aria-hidden /> : <PlaceMark kind={kind} />}
         <span>{chipName}</span>
@@ -232,6 +239,7 @@ export function LocalModelPicker({ api, role, label, context, contextLength, onC
             </div>
             {facts.length > 0 && <span>{facts.join(" · ")}</span>}
           </div>
+          {problem && <ReadinessStatus problem={problem} />}
           <div className="local-model-body">
           {/* 모델 자리 [Mac | Satellite] — Satellite 면 연결 띠와 집 PC 모델이 여기 나오고 아래 Mac 목록은 숨는다. */}
           <ModelPlaceBar api={api} place={place} onSatellite={setPairing} onChanged={() => { void load(); onChanged?.(); }} />

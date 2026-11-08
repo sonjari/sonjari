@@ -33,7 +33,7 @@ def test_the_delegation_doors_are_listed_even_when_the_backend_is_down(monkeypat
     monkeypatch.setattr("alture_jarvis.mcp_server.asyncio.sleep", no_wait)
     bridge = JarvisMcpBridge("http://127.0.0.1:1", "t", client=_DownClient())
     names = [tool["name"] for tool in asyncio.run(bridge.list_tools())]
-    assert names == ["sonjari_task", "sonjari_task_status", "sonjari_guide"], "0개로 굳으면 그 세션은 끝까지 온텔릭을 못 쓴다"
+    assert names == ["sonjari_task", "sonjari_task_status", "sonjari_task_cancel", "sonjari_guide"], "0개로 굳으면 그 세션은 끝까지 온텔릭을 못 쓴다"
     assert bridge._allowed is None, "못 본 것을 「금지」로 굳히지 않는다 — 다음 호출 때 다시 본다"
 
 

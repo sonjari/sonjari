@@ -231,6 +231,7 @@ const TOOL_LABELS: Record<string, string> = {
   // ── Claude 가 통째로 맡기는 문 (MCP) ──
   sonjari_task: t("맡은 일 받기"),
   sonjari_task_status: t("맡은 일 결과 알려 주기"),
+  sonjari_task_cancel: t("맡은 일 멈추기"),
   sonjari_guide: t("Sonjari 사용법 읽기"),
   sonjari_story: t("Sonjari 서기 카드 읽기"),
   // 이름 2단계(2026-09-29) 전 기록 — 지난 작업을 다시 열어도 이름표가 나오게.

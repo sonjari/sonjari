@@ -275,6 +275,7 @@ NEUTRAL_TOOLS = frozenset(
         # 그 잡의 걸음(조사·쓰기)이 따로 세어진다. 여기서 또 세면 한 판이 두 번 들어간다.
         "sonjari_task",
         "sonjari_task_status",
+        "sonjari_task_cancel",  # 맡긴 잡을 멈추는 문(2026-11-07) — 잡 안 걸음이 아니다
         "sonjari_guide",  # 가이드 본문을 돌려주는 읽기 전용 문(2026-09-17) — 잡이 아니다
         "sonjari_story",  # 서기 카드를 돌려주는 읽기 전용 문(2026-10-21) — 잡이 아니다
         "unity_list_recipes",  # 레시피 목록(2026-09-27) — 무엇을 할 수 있나일 뿐, 읽은 근거가 아니다

@@ -51,7 +51,8 @@ import httpx
 from .brand import MCP_SERVER_NAME, NAME, NAME_KO
 from .outbound import clean_needs
 from .delegation import (
-    CLAUDE_CODE_MAX_WAIT_SEC, DELEGATION_TOOLS, GUIDE_TOOL, MAX_WAIT_SEC, STATUS_TOOL, STORY_TOOL, TASK_TOOL, is_claude_code,
+    CANCEL_TOOL, CLAUDE_CODE_MAX_WAIT_SEC, DELEGATION_TOOLS, GUIDE_TOOL, MAX_WAIT_SEC, STATUS_TOOL, STORY_TOOL, TASK_TOOL,
+    is_claude_code,
     localized_tool,
     summarize_job,
 )
@@ -442,7 +443,8 @@ class JarvisMcpBridge:
             tool for tool in runtime_tools if str(tool.get("name")) in pack_tools
         ] if lean_toolset() else [
             tool for tool in runtime_tools
-            if str(tool.get("name")) not in {TASK_TOOL["name"], STATUS_TOOL["name"], GUIDE_TOOL["name"], STORY_TOOL["name"]}
+            if str(tool.get("name")) not in {TASK_TOOL["name"], STATUS_TOOL["name"], CANCEL_TOOL["name"], GUIDE_TOOL["name"],
+                                             STORY_TOOL["name"]}
         ])
         self._allowed = {str(tool["name"]) for tool in allowed}
         return allowed
@@ -625,6 +627,8 @@ class JarvisMcpBridge:
             job_id = str(arguments.get("job_id") or "").strip()
             if not job_id:
                 return "job_id 가 비어 있습니다.", True
+            if name == CANCEL_TOOL["name"]:
+                return await self._cancel(client, headers, job_id)
             # ★ 클로드 코드는 한 번에 더 오래 기다린다 (2026-10-02 분업 실험 K-Startup 판). 974초 판에서 클로드가 상태를 18번
             #   물었고, 물을 때마다 그때까지의 대화(5~6만 토큰)를 캐시에서 다시 읽었다 — 대기가 곧 비용이었다. 클로드 코드는 MCP 호출을
             #   기본 28시간·stdio 무응답 30분까지 기다린다(code.claude.com/docs/en/mcp). 한도를 확인 안 한 호스트(코덱스·데스크톱)는 그대로.
@@ -692,6 +696,39 @@ class JarvisMcpBridge:
         except httpx.RequestError as exc:
             return f"손자리에 연결하지 못했습니다({self.base_url}). 손자리가 실행 중인지 확인해 주세요. 원인: {exc}", True
 
+    async def _cancel(self, client: Any, headers: dict[str, str], job_id: str) -> tuple[str, bool]:
+        """맡긴 과제를 멈춘다(2026-11-07). **바깥 AI 가 맡긴 일(origin mcp)만** — 사람이 창에서 시킨 일은 못 멈춘다."""
+        en = self.lang == "en"
+        response = await client.get(f"{self.base_url}/v1/jobs/{job_id}")
+        if response.status_code == 404:
+            return f"job_id '{job_id}' 를 찾지 못했습니다.", True
+        response.raise_for_status()
+        job = response.json()
+        payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+        if str(payload.get("origin") or "") != "mcp":
+            return (("This task was not handed off by an outside AI, so it cannot be stopped over this connection. "
+                     "Ask the user to stop it in the Sonjari window.") if en else
+                    ("이 과제는 바깥 AI 가 맡긴 일이 아니라 이 연결로는 멈출 수 없습니다. 사용자에게 손자리 창에서 멈춰 달라고 알리세요.")), True
+        status = str(job.get("status") or "")
+        stopped = await client.post(f"{self.base_url}/v1/jobs/{job_id}/cancel", headers=headers)
+        if stopped.status_code == 401:
+            return "손자리가 이 호출을 거부했습니다(토큰 불일치).", True
+        if stopped.status_code == 409:
+            # 이미 끝났거나 멈춘 판 — 오류가 아니라 상태를 그대로 알린다.
+            return self._dumps({
+                "job_id": job_id, "status": status, "cancelled": False,
+                "message": (f"Nothing to stop: the task is already {status}. Get its result with sonjari_task_status."
+                            if en else f"멈출 것이 없습니다 — 이미 {status} 상태입니다. 결과는 sonjari_task_status 로 받으세요."),
+            }), False
+        if stopped.status_code >= 400:
+            return ((f"Sonjari could not stop it ({stopped.status_code}): {stopped.text[:400]}") if en else
+                    f"손자리가 멈추지 못했습니다({stopped.status_code}): {stopped.text[:400]}"), True
+        return self._dumps({
+            "job_id": job_id, "status": "cancelled", "cancelled": True,
+            "message": ("Stopped. Work done before the stop (files, sources, resume) comes back with sonjari_task_status."
+                        if en else "멈췄습니다. 멈추기 전까지 한 일(files · sources · resume)은 sonjari_task_status 로 받을 수 있습니다."),
+        }), False
+
     async def call(self, name: str, arguments: dict[str, Any], *, caller: str = "") -> tuple[str, bool]:
         """도구를 부르고 (사람이 읽을 글, 오류인가) 를 돌려준다. `caller` 는 이 연결을 연 호스트의 이름(clientInfo).
 
@@ -716,7 +753,8 @@ class JarvisMcpBridge:
             return render_skill(tools, lang=self.lang) + self.say(await self._model_fit_note()) + await self._receipt_note(), False
         if name == STORY_TOOL["name"]:
             return await self._story(arguments or {})
-        if name in (TASK_TOOL["name"], STATUS_TOOL["name"]) and os.environ.get("JARVIS_MCP_DELEGATION", "1") != "0":
+        if name in (TASK_TOOL["name"], STATUS_TOOL["name"], CANCEL_TOOL["name"]) and os.environ.get(
+                "JARVIS_MCP_DELEGATION", "1") != "0":
             return await self._delegate(name, arguments or {}, caller=caller)
         if not await self._is_allowed(name):
             return (

@@ -1,11 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Cpu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { isTauri, type JarvisClient } from "../backend";
+import { t } from "../i18n";
 import { readinessProblem, type ReadinessProblem } from "./readiness";
 
-/** 부탁하기 전에 「모델 없음·엔진 꺼짐」을 말하고 첫 실행 화면으로 보낸다(F2 · G2). */
-export function ReadinessBanner({ client, connected }: { client: JarvisClient | null; connected: boolean }) {
+/**
+ * 부탁하기 전에 「모델 없음 · 엔진 꺼짐 · 집 PC 안 닿음」을 안다(F2 · G2) — 판정은 백엔드 `/health` 값만 읽는다.
+ *
+ * ★ 11-08 대표: 입력창 위에 툭 튀어나오던 노란 카드가 거슬린다 — 「이모티콘 말고 그림으로」.
+ *   그래서 카드를 없애고 **모델 칩의 자리 그림**(`PlaceMark`)이 상태를 말한다. 까닭과 단추는 칩을 누르면 펼쳐지는 창 맨 위에.
+ */
+export function useReadiness(client: JarvisClient | null, connected: boolean): ReadinessProblem | null {
   const [problem, setProblem] = useState<ReadinessProblem | null>(null);
   useEffect(() => {
     if (!client || !connected) {
@@ -22,52 +27,42 @@ export function ReadinessBanner({ client, connected }: { client: JarvisClient | 
       }
     };
     void check();
-    return () => {
-      alive = false;
-    };
-  }, [client, connected]);
-
-  // ★ 2026-09-20: 30초마다만 다시 봐서, 엔진이 켜진 뒤에도 경고가 최대 30초 남았다.
-  //   문제가 떠 있는 동안은 3초마다 본다(켜지는 순간 사라지게). 아무 문제 없을 때는 30초.
-  useEffect(() => {
-    if (!client || !connected) return;
-    let alive = true;
-    const timer = window.setInterval(async () => {
-      try {
-        const health = await client.getHealth();
-        if (alive) setProblem(readinessProblem(health.ollama));
-      } catch {
-        if (alive) setProblem(null);
-      }
-    }, problem ? 3_000 : 30_000);
+    // ★ 2026-09-20: 문제가 떠 있는 동안은 3초마다(풀리는 순간 사라지게) · 아무 문제 없을 때는 30초.
+    const timer = window.setInterval(check, problem ? 3_000 : 30_000);
     return () => {
       alive = false;
       window.clearInterval(timer);
     };
   }, [client, connected, problem?.kind]);
+  return problem;
+}
 
-  if (!problem) return null;
-  const openSetup = async () => {
-    if (isTauri()) {
-      try {
-        await invoke("open_setup");
-        return;
-      } catch {
-        /* 창을 못 열면 같은 창에서 연다 */
-      }
+export async function openSetupWindow(): Promise<void> {
+  if (isTauri()) {
+    try {
+      await invoke("open_setup");
+      return;
+    } catch {
+      /* 창을 못 열면 같은 창에서 연다 */
     }
-    window.location.search = "?mode=setup";
-  };
+  }
+  window.location.search = "?mode=setup";
+}
+
+/** 모델 창 맨 위 한 줄 — 무엇이 문제인지와(있으면) 누를 것 하나. */
+export function ReadinessStatus({ problem }: { problem: ReadinessProblem }) {
   return (
-    <div className="attention-banner readiness-banner" role="status">
-      <span className="attention-banner-icon"><Cpu size={16} /></span>
-      <div>
-        <strong>{problem.title}</strong>
-        <p>{problem.detail}</p>
-      </div>
+    <div className={`readiness-status is-${problem.kind}`} role="status">
+      <strong>{problem.title}</strong>
+      <p>{problem.detail}</p>
       {problem.action && (
-        <button type="button" className="readiness-action" onClick={() => void openSetup()}>{problem.action}</button>
+        <button type="button" className="readiness-action" onClick={() => void openSetupWindow()}>{problem.action}</button>
       )}
     </div>
   );
+}
+
+/** 칩 제목(마우스를 올렸을 때)에 붙일 한 줄. */
+export function readinessTitle(problem: ReadinessProblem | null): string {
+  return problem ? t("{0} — 눌러서 자세히", problem.title) : "";
 }

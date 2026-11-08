@@ -789,6 +789,9 @@ class JarvisConfig:
     scribe_style_file: str = ""
     # 손자리가 켜는 Ollama 에 넘기는 서버 보관함 한도(MiB). -1 = 이 PC 메모리에 맞춰 · 0 = 손대지 않음(`ollama_install.ollama_launch_env`).
     ollama_prompt_cache_mib: int = -1
+    #: 꺼진 Ollama 를 손자리가 알아서 켜나(2026-09-20 지킴이). 끄면 켜지 않는다 — 모델 주소가 Ollama 가 아닌 다른 엔진
+    #: (대표 PC 의 Strata 다리 :11435)일 때. 재부팅 뒤 다리보다 먼저 떠서 그 문에 Ollama 를 띄워 다리를 막았다(2026-11-08).
+    ollama_autostart: bool = True
     startup_warmup_retry_sec: int = 120
 
     conversation_session_id: str = "office-main"
@@ -1570,6 +1573,7 @@ class JarvisConfig:
             scribe_interval_sec=_int("JARVIS_SCRIBE_INTERVAL_SEC", 900),
             scribe_style_file=_env("JARVIS_SCRIBE_STYLE_FILE", ""),
             ollama_prompt_cache_mib=_int("JARVIS_OLLAMA_PROMPT_CACHE_MIB", -1),
+            ollama_autostart=_bool("JARVIS_OLLAMA_AUTOSTART", True),
             startup_warmup_retry_sec=_int("JARVIS_STARTUP_WARMUP_RETRY_SEC", 120),
             conversation_session_id=_env("JARVIS_CONVERSATION_SESSION_ID", "office-main"),
             workspace_presence_ttl_sec=_int("JARVIS_WORKSPACE_PRESENCE_TTL_SEC", 75),

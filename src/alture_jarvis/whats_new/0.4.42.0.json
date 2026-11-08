@@ -1,0 +1,60 @@
+{
+  "ko": {
+    "changes": "이번에 새로 생긴 것\n- 맡긴 일 멈추기: 클로드 · 코덱스가 손자리에게 맡긴 일을 그쪽에서 멈출 수 있습니다(sonjari_task_cancel). 손자리 창에서 사람이 직접 시킨 일은 바깥 AI 가 멈추지 못합니다. 이 도구를 보려면 클로드를 한 번 다시 켜 주세요.\n\n지난 판(0.4.41)에 들어온 것\n- 애니메이터 팩(3ds Max · 블렌더): 예전 작업 동작을 모션 창고에 쌓아 두고 말로 찾아 지금 캐릭터에 입힙니다. 체형이 다른 캐릭터는 보폭 · 팔 벌림으로 맞추고, 레퍼런스 영상에서 키포즈를 뽑아 블로킹 초안을 찍습니다(설정 › 팩).\n- MCP 서버 꽂기: 쓰시는 다른 MCP 서버를 손자리도 씁니다(설정 › MCP 서버 꽂기).\n- 그림 파일 보기 · 여러 언어 코드 읽기 · 첫 답 30~40초 걸리던 것 줄임 · 본체가 가끔 꺼지던 것 고침.",
+    "tour": "이미 되는데 잘 모르시는 것\n- 영상 팩 — 레퍼런스 영상의 컷 · 확대 · 자막 박자를 표 한 장으로(설정 › 팩).\n- 게임 팩 — 유니티 프로젝트 점검과 열린 에디터에서 만들고 바꾸기.\n- 클로드 · 코덱스에서 Sonjari 쓰기 — 웹 조사 · 파일 일을 손자리에게 맡겨 클로드 사용 한도를 아낍니다(설정 › 연결).",
+    "slides": [
+      {
+        "title": "애니메이터 팩",
+        "body": "쌓아 둔 동작을 말로 찾아 지금 캐릭터에 입히고, 레퍼런스 영상에서 키포즈를 뽑아 블로킹 초안을 찍습니다. 맥스에 적용은 늘 「해」 뒤에, 되돌리기는 한 번. 회사 파일은 이 PC 밖으로 나가지 않습니다.",
+        "try": "「돌진 공격 찾아서 지금 캐릭터에 입혀 줘」 — 설정 › 팩에서 애니메이터 팩을 먼저 켜세요"
+      },
+      {
+        "title": "블렌더에서는 손자리가 직접",
+        "body": "연결 부품 없이 손자리가 블렌더를 창 없이 띄워 팔이 몸을 뚫는 곳을 찾고 고친 뒤 새 파일로 저장합니다. 원본은 그대로입니다. 점검 · 자동 수정은 시험 중입니다.",
+        "try": "「이 .blend 에서 팔이 몸 뚫는 데 고쳐서 새 파일로 저장해 줘」",
+        "visual": {
+          "kind": "stat",
+          "label": "팔이 몸을 뚫은 프레임",
+          "before": 59,
+          "after": 1,
+          "unit": "프레임",
+          "basis": "공개 시험 캐릭터(2~3등신) · 영상에서 뽑은 블로킹 259프레임 · 이 PC · 블렌더 5.2 · 세 번 고침 8.8초 · 한 동작, 한 판."
+        }
+      },
+      {
+        "title": "맡긴 일, 클로드가 멈춥니다",
+        "body": "클로드 · 코덱스가 손자리에게 맡긴 일이 엉뚱하게 흘러가면 그쪽에서 바로 멈출 수 있습니다. 손자리 창에서 직접 시킨 일은 바깥에서 멈추지 못합니다.",
+        "try": "클로드에서 「아까 손자리에 맡긴 거 멈춰 줘」 — 클로드를 한 번 다시 켠 뒤"
+      }
+    ]
+  },
+  "en": {
+    "changes": "New in this update\n- Stop a handed-off task: Claude or Codex can now stop a task they handed to Sonjari (sonjari_task_cancel). Work you started yourself in the Sonjari window can't be stopped from outside. Restart Claude once to see the new tool.\n\nAdded in the last update (0.4.41)\n- Animator pack (3ds Max and Blender): keep past motions in a motion library, find them by describing them, and apply them to your character. For a different body it adjusts stride and arm spread, and it pulls key poses from a reference video into a blocking draft (Settings › Packs).\n- Plug in MCP servers: Sonjari can use the other MCP servers you already use (Settings › Plug in MCP servers).\n- Image files read by the model on this PC, code search in more languages, a faster first answer, and a fix for the backend sometimes shutting down.",
+    "tour": "Already works, but easy to miss\n- Video pack: reads cuts, zooms and caption rhythm of a reference video into one table (Settings › Packs).\n- Game pack: checks Unity projects and creates or changes things in the open editor.\n- Use Sonjari from Claude or Codex: hand web research and file work to Sonjari and save your Claude usage (Settings › Connections).",
+    "slides": [
+      {
+        "title": "Animator pack",
+        "body": "Find a stored motion by describing it and apply it to your character, or pull key poses from a reference video into a blocking draft. Changes to Max happen only after you say go, and undo is one step. Company files never leave this PC.",
+        "try": "\"Find the dash attack and apply it to this character\" — turn on the animator pack in Settings › Packs first"
+      },
+      {
+        "title": "In Blender, Sonjari does it itself",
+        "body": "No connector needed: Sonjari runs Blender in the background, finds where arms pass through the body, fixes them and saves a new file. The original stays as it was. Checking and fixing are in testing.",
+        "try": "\"Fix the arms passing through the body in this .blend and save it as a new file\"",
+        "visual": {
+          "kind": "stat",
+          "label": "Frames with arms through the body",
+          "before": 59,
+          "after": 1,
+          "unit": "frames",
+          "basis": "Public test character (2-3 heads tall) · 259-frame blocking pulled from a video · this PC · Blender 5.2 · three fix passes in 8.8 s · one motion, one run."
+        }
+      },
+      {
+        "title": "Claude can stop what it handed off",
+        "body": "If a task Claude or Codex handed to Sonjari goes the wrong way, they can stop it right there. Work you started in the Sonjari window can't be stopped from outside.",
+        "try": "In Claude: \"stop the task you gave Sonjari earlier\" — after restarting Claude once"
+      }
+    ]
+  }
+}

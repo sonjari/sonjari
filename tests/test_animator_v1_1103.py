@@ -357,7 +357,7 @@ def test_pick_finds_stillness_keeps_gaps_and_drops_lookalikes() -> None:
 
 
 def test_frame_folders_skip_leftover_files(tmp_path: Path) -> None:
-    cv2 = pytest.importorskip("cv2")   # opencv is an optional extra, not in [test]
+    import cv2
 
     for n in ("_chart.png", "f_0000.jpg", "f_0001.jpg"):
         cv2.imwrite(str(tmp_path / n), np.zeros((8, 8, 3), np.uint8))
