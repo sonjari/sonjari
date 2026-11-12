@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .hostname import on_domain
 from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
 
 import hashlib
@@ -551,7 +552,7 @@ _YOUTUBE_TRANSCRIPT_JS = """async () => {
 def _is_youtube_watch(url: str) -> bool:
     parsed = urlparse(str(url or ""))
     host = (parsed.hostname or "").lower()
-    return host.endswith("youtube.com") and parsed.path.startswith("/watch")
+    return on_domain(host, "youtube.com") and parsed.path.startswith("/watch")
 
 #: /레시피 배우기를 시작할 때 손자리 크롬에 띄우는 첫 화면(2026-10-30 대표).
 DEMO_START_URL = "https://www.google.com/"
@@ -8302,7 +8303,7 @@ class BrowserWorker:
         if not query:
             raise ValueError("query_required")
         host = _host_of_url(str(getattr(page, "url", "") or ""))
-        if not host or host.startswith("search.naver") or "bing.com" in host:
+        if not host or on_domain(host, "search.naver.com") or on_domain(host, "bing.com"):
             raise RuntimeError(
                 "not_on_a_site — 지금은 검색엔진 결과 화면이다. 먼저 browser_open_result 로"
                 " 그 사이트에 **들어간 뒤** 이 도구를 써라."
@@ -14864,7 +14865,9 @@ class BrowserWorker:
     })
     #: 이름이 이 꼴이면 **문서 파일을 받으려 한 것**이다 — 받은 것이 웹 화면이면 저장하지 않는다.
     _DOWNLOAD_DOCUMENT_SUFFIXES = _DOWNLOAD_READABLE | frozenset({".hwp", ".doc", ".xls", ".ppt", ".zip"})
-    _HTML_HEAD = re.compile(rb"^\s*(?:<!--.*?-->\s*)*<(?:!doctype\s+html|html|head|body)\b", re.I | re.S)
+    # ★ 2026-11-12 CodeQL redos(실측: `<!--` + `--><!--`×28 이 27초): 주석 안이 `-->` 를 건너뛸 수 있어 쪼개는 길이 지수로 늘었다.
+    #   주석 안은 `-->` 를 못 품게 — 받은 파일 앞머리는 남이 만든 글이다.
+    _HTML_HEAD = re.compile(rb"^\s*(?:<!--(?:[^-]|-(?!->))*-->\s*)*<(?:!doctype\s+html|html|head|body)\b", re.I | re.S)
     #: 받은 그 자리에서 결과에 싣는 본문 글자 수 — 기본은 `browser_extract` 와 같은 20,000. 위로는 도구 결과 한 건
     #: 상한(`transcript_policy._TOOL_RESULT_MAX_CHARS`)까지만 받는다. 그보다 크게 실으면 그 상한이 조용히 자른다(사고 Q).
     _DOWNLOAD_READ_CHARS = 20_000

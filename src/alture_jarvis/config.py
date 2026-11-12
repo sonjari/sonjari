@@ -225,6 +225,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         # 영어 요청을 읽는 규칙(2026-09-23 밤) — plan·runtime 과 같이 계획·갈래를 정한다.
         "english.py",
         "human_gate.py", "gate_watcher.py", "proof.py", "attention.py",
+        # 주소가 어느 사이트인가(2026-11-12 CodeQL) — 로그인 관문 · 출처 · 사이트 갈래 판정이 이걸로 갈린다.
+        "hostname.py",
         "claude_code.py", "code_runtime.py", "code_scout.py", "project_discovery.py",
         # 막힌 자리에서만 내 API 키로 클로드에게 한 번 묻는다(2026-10-26) — 조언이 루프에 끼어 판의 끝을 바꾼다. 넘기기와 같은 축.
         "api_escalation.py",

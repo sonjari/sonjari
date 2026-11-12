@@ -175,7 +175,9 @@ def design_tells(raw: str) -> list[dict[str, Any]]:
     return found
 
 
-_SCRIPT = re.compile(r"<script\b[^>]*>.*?</script\s*>|<script\b[^>]*/>", re.I | re.S)
+# ★ 2026-11-12 CodeQL bad-tag-filter: 브라우저는 `</script foo>` 도 닫는 태그로 읽는데 이 거름은 못 잡아 스크립트가 남았다.
+#   닫는 태그는 `</script` 뒤 무엇이든 `>` 까지 · 안 닫힌 `<script` 는 끝까지(브라우저도 끝까지 스크립트로 읽는다).
+_SCRIPT = re.compile(r"<script\b[^>]*>.*?</script\b[^>]*>|<script\b[^>]*/>|<script\b.*\Z", re.I | re.S)
 _EXTERNAL_LINK = re.compile(r"<link\b[^>]*>", re.I)
 _EVENT_ATTR = re.compile(r"\son[a-z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", re.I)
 _SIZE_LOCK = ("<style data-sonjari-size>html,body{width:1280px!important;height:720px!important;"

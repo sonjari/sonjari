@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import re
 
+from .hostname import on_domain
 from . import english as _en
 from .quantities import ROLE_CONSTRAINT, ROLE_INPUT, ROLE_OUTPUT, counted_object, lives_inside_a_page, quantity_role
 from dataclasses import dataclass, replace as dataclass_replace
@@ -1087,7 +1088,7 @@ _ADDRESS_HOST = re.compile(r"https?://([^/\s\"'<>)]+)")
 def _acts_on_another_site(compact: str, found: "list[Requirement]") -> bool:
     """이 요청이 **네이버가 아닌 곳**을 댔는가 — 적힌 주소의 호스트나, 이미 뽑힌 사이트 요구로 본다."""
     hosts = [host.lower().split(":")[0] for host in _ADDRESS_HOST.findall(compact)]
-    if any(not host.endswith("naver.com") for host in hosts):
+    if any(not on_domain(host, "naver.com") for host in hosts):
         return True
     for item in found:
         if item.kind != "site":
@@ -4110,6 +4111,8 @@ _FORMAT_AS_DESTINATION = re.compile(
 # 앞의 ``파일`` 과 뒤 문장의 ``만들어라`` 가 결합되어 xlsx/docx 두 개가 생겼다
 # (2026-09-02 라이브). 금지는 단순 선호가 아니라 도구 표면과 실행 관문이 함께
 # 지켜야 하는 계약이므로 한 곳에서 판정해 라우터·계획·에이전트가 같이 쓴다.
+# ★ 2026-11-12 CodeQL redos: 「검토」 사이의 구분자를 별표 두 개가 나눠 먹을 수 있어 「	검토」×25 에 6초 걸렸다.
+#   구분자는 앞 별표 하나만 먹게(와·및 뒤에만 둘째) — 같은 말을 잡고 갈래가 하나다.
 _WRITE_PROHIBITION = re.compile(
     r"(?:"
     r"(?:파일|문서|산출물)(?:을|를)?[^.!?\n]{0,18}"
@@ -4125,7 +4128,7 @@ _WRITE_PROHIBITION = re.compile(
     r"|(?:(?<![^\s.!?,])(?=(?:아무것도|절대로?|하나도|전혀)\s*(?:고치|수정하|바꾸|건드리|손대|변경하)))"
     r"(?:아무것도|절대로?|하나도|전혀)\s*(?:고치|수정하|바꾸|건드리|손대|변경하)(?:지는|지도|지)\s*(?:마|말)"
     r"|(?:^|(?<=[.!?,\n])\s*|(?<=[.!?,\n]\s))(?:고치|수정하|바꾸|건드리|손대|변경하)(?:지는|지도|지)\s*(?:마|말)"
-    r"|(?:조사|조회|분석|검토)(?:[·/&\s]*(?:와|및)?[·/&\s]*(?:조사|조회|분석|검토))*"
+    r"|(?:조사|조회|분석|검토)(?:[·/&\s]*(?:(?:와|및)[·/&\s]*)?(?:조사|조회|분석|검토))*"
     r"\s*만\s*(?:해|하라|해주세요)"
     r"|읽기\s*전용|read[ -]?only"
     r"|do\s+not\s+(?:write|modify|edit|create)\s+(?:any\s+)?files?"
@@ -4151,7 +4154,7 @@ _COMPLEMENT_QUALIFIER = re.compile(r"(?:밖|외|이외)의\s*$")
 
 #: 그 자체로 판 전체를 묶는 말. 대상이 아니라 **작업 성격**을 못 박는다.
 _JOB_WIDE_PROHIBITION = re.compile(
-    r"(?:조사|조회|분석|검토)(?:[·/&\s]*(?:와|및)?[·/&\s]*(?:조사|조회|분석|검토))*"
+    r"(?:조사|조회|분석|검토)(?:[·/&\s]*(?:(?:와|및)[·/&\s]*)?(?:조사|조회|분석|검토))*"
     r"\s*만\s*(?:해|하라|해주세요)"
     r"|읽기\s*전용|read[ -]?only"
     r"|do\s+not\s+(?:write|modify|edit|create)\s+(?:any\s+)?files?",

@@ -120,23 +120,18 @@ TASK_TOOL: dict[str, Any] = {
 
 STATUS_TOOL: dict[str, Any] = {
     "name": "sonjari_task_status",
+    # ★ 2026-11-12 Glama 간결함 3/5(「도구 설명보다 사용자에게 어떻게 말하라는 처방이 길다」) — 줄였다.
+    #   지킬 규칙(숫자 · 검증 안 된 말 · 남은 시간 · 하한 · 시간 절감)은 하나도 안 뺐고, 보기 문장과 되풀이만 뺐다.
     "description": (
-        "sonjari_task 로 맡긴 과제의 진행·결과를 받습니다. 끝나지 않았으면 최대 wait_sec 초 기다린 뒤 지금 상태를 "
-        "돌려줍니다 — 그러면 다시 부르세요.\n"
-        "status 가 needs_review 면 답이나 파일에 **도구가 준 적 없는 숫자**(unsupported_numbers)가 있다는 뜻입니다. "
-        "그 숫자를 사실로 전하지 말고 사용자에게 확인이 필요하다고 알리세요.\n"
-        "needs_approval 이면 되돌릴 수 없는 동작이 손자리 창의 승인 카드를 기다리는 중입니다 — 사용자에게 알리세요.\n"
-        "resume 이 있으면 과제가 덜 끝난 것입니다. resume.evidence 의 주소는 이미 읽은 것이니 **다시 열지 말고**, "
-        "resume.next 에 적힌 남은 칸만 이어서 하세요.\n"
-        "failed·cancelled 여도 files·sources·resume 이 있으면 실패하기 전까지 한 일이니 버리지 말고 쓰세요. "
-        "unverified_claim 은 검증되지 않은 마지막 말이라 사실로 전하지 마세요.\n"
-        "running 이면 progress.doing(지금 하는 일)과 progress.requested(시킨 것 n/m)를 사용자에게 한 줄로 전하세요 — "
-        "예: 「지금 사람인에서 공고를 읽는 중 — 시킨 것 2/3」. 남은 시간은 예측해 주지 않습니다(맞는지 재 본 적이 없습니다) — "
-        "지어 말하지 마세요.\n"
-        "cost 는 이 심부름을 이 PC 에서 처리한 기록입니다(걸린 초·로컬에서 읽은 페이지 수·센 값에서 나온 하한과 그 근거). "
-        "사용자에게 설명할 때 쓸 수 있고, 하한을 말할 때는 basis 를 같이 말하세요. "
-        "cost.host_context_kept_out.tokens_at_least 는 센 값에서 나온 **하한**입니다 — 「최소 N토큰 분량의 본문을 이 PC 에서 읽어 "
-        "이 대화에 싣지 않았다」고 전하고, 「약」·「배」로 부풀리지 마세요. 시간을 아꼈다는 말은 하지 마세요(로컬은 더 느릴 수 있습니다)."
+        "sonjari_task 로 맡긴 과제의 진행·결과를 받습니다. 안 끝났으면 최대 wait_sec 초 기다린 뒤 지금 상태를 돌려줍니다 — "
+        "그러면 다시 부르세요.\n"
+        "- needs_review: 답이나 파일에 도구가 준 적 없는 숫자(unsupported_numbers)가 있습니다. 사실로 전하지 말고 확인이 필요하다고 알리세요.\n"
+        "- needs_approval: 손자리 창의 승인 카드를 기다립니다. 사용자에게 알리세요.\n"
+        "- resume 이 있으면 덜 끝난 것입니다. resume.evidence 주소는 다시 열지 말고 resume.next 만 이으세요.\n"
+        "- failed·cancelled 여도 files·sources·resume 은 한 일이니 쓰세요. unverified_claim 은 사실로 전하지 마세요.\n"
+        "- running: progress.doing 과 progress.requested(n/m)를 한 줄로 전하세요. 남은 시간은 예측해 주지 않습니다 — 지어 말하지 마세요.\n"
+        "- cost.host_context_kept_out.tokens_at_least 는 하한입니다. 「최소 N토큰」으로 basis 와 함께 말하세요. "
+        "시간을 아꼈다는 말은 하지 마세요."
     ),
     "risk_level": "L1",
     "parameters": {
@@ -256,22 +251,16 @@ _EN_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "": (
             "Get the progress or result of a task handed off with sonjari_task. If it is not finished, it waits up "
             "to wait_sec seconds and returns the current state — then call it again.\n"
-            "status needs_review means the answer or a file contains **numbers no tool ever returned** "
-            "(unsupported_numbers). Do not pass those on as fact; tell the user they need checking.\n"
-            "needs_approval means an irreversible action is waiting for the approval card in the Sonjari window — "
-            "tell the user.\n"
-            "If resume is present, the task is not finished. The addresses in resume.evidence were already read — "
-            "**do not open them again**; continue only with what resume.next lists.\n"
-            "Even when failed or cancelled, files, sources and resume are work done before the failure — use them, "
-            "do not throw them away. unverified_claim is an unchecked last statement; do not pass it on as fact.\n"
-            "While running, pass progress.doing (what it is doing now) and progress.requested (requested n/m) to the "
-            "user in one line — e.g. \"reading job posts on the site now, requested 2/3\". It does not predict time "
-            "left (that has never been measured) — do not make one up.\n"
-            "cost is the record of this errand on this PC (seconds taken, pages read locally, a lower bound from "
-            "counted values and its basis). You can use it when explaining to the user; when you state the lower "
-            "bound, state its basis too. cost.host_context_kept_out.tokens_at_least is a **lower bound** from counted "
-            "values — say \"at least N tokens of page text were read on this PC and kept out of this conversation\", "
-            "and do not inflate it with \"about\" or \"x times\". Do not claim time was saved (local can be slower)."
+            "- needs_review: the answer or a file has numbers no tool ever returned (unsupported_numbers). Do not "
+            "pass them on as fact; say they need checking.\n"
+            "- needs_approval: an approval card is waiting in the Sonjari window. Tell the user.\n"
+            "- resume present: not finished. Do not reopen resume.evidence addresses; continue only with resume.next.\n"
+            "- Even when failed or cancelled, files, sources and resume are work done — use them. Do not pass "
+            "unverified_claim on as fact.\n"
+            "- running: pass progress.doing and progress.requested (n/m) in one line. It does not predict time left "
+            "— do not make one up.\n"
+            "- cost.host_context_kept_out.tokens_at_least is a lower bound. Say \"at least N tokens\" with its basis. "
+            "Do not claim time was saved."
         ),
         "job_id": "The job_id returned by sonjari_task",
         "wait_sec": (
