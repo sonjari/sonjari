@@ -52,8 +52,25 @@ def test_only_small_text_files_and_no_system_junk() -> None:
     for path in files:
         assert path.name not in {".DS_Store", "Thumbs.db", "desktop.ini"}
         assert path.stat().st_size < 256 * 1024, path
-        assert b"\0" not in path.read_bytes()[:8192], f"바이너리는 보류: {path}"
         assert not re.search(r'[:<>"|?*]|[ .]$', path.name), path
+        if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+            continue  # 완전한 그림 파일은 허용(체크리스트 「Files in the plugin folder」)
+        assert b"\0" not in path.read_bytes()[:8192], f"바이너리는 보류: {path}"
+
+
+def test_the_icon_is_a_square_png_the_directory_accepts() -> None:
+    """아이콘은 처음 저장 · 제출할 때 한 번만 정해진다(포털 경고 원문) — 제출 전에 있어야 한다. 512~2048px 정사각 · 2MB 미만."""
+    import struct
+
+    data = (PLUGIN / ".claude-plugin" / "icon.png").read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    width, height = struct.unpack(">II", data[16:24])
+    assert width == height and 512 <= width <= 2048 and len(data) < 2 * 1024 * 1024
+
+
+def test_readme_links_are_https_only() -> None:
+    """포털 경고(11-13): 「Use an https:// or mailto: URL」 — README 의 http:// 주소가 걸렸다."""
+    assert "http://" not in (PLUGIN / "README.md").read_text(encoding="utf-8")
 
 
 def test_the_skill_is_the_same_guide_the_app_installs() -> None:

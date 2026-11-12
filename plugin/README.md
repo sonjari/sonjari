@@ -28,7 +28,7 @@ Tools: `sonjari_task` (hand off one whole task), `sonjari_task_status` (get prog
 
 ## What it runs, sends and reads
 
-- The MCP server talks **only to the Sonjari app on this computer** (`http://127.0.0.1:8091`). It does not contact any other
+- The MCP server talks **only to the Sonjari app on this computer** (port 8091 on `127.0.0.1`). It does not contact any other
   host.
 - To authenticate to the app it reads the app's local token file (`%LOCALAPPDATA%\Sonjari\data\control.token` on Windows,
   `~/Library/Application Support/Sonjari/data/control.token` on macOS). The token is never printed or sent anywhere else.
