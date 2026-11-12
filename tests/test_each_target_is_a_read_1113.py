@@ -38,3 +38,9 @@ def test_the_count_only_counts_numbers_listed_before_each_place() -> None:
     assert plan._each_target_read_count("대상: ① 가 ② 나 ③ 다. 각 곳마다 직접 읽고 정리해.") == 3
     assert plan._each_target_read_count("각 사이트마다 직접 읽고 ① 조건 ② 금지 를 적어.") == 0
     assert plan._each_target_read_count("① 가 ② 나. 표로 만들어.") == 0
+
+
+def test_the_each_place_count_is_firm_so_the_stage_gate_respects_it() -> None:
+    """고친 뒤 다시 돌린 판(d119d58b): 6 이 「흐림」이라 차례 문이 무시해 막힘이 5 → 2 로만 줄었다. 확실이어야 한다."""
+    count = next(r for r in plan.extract(TASK_1113, must_observe=True, observe_from=("web",)) if r.kind == "count")
+    assert (count.label, count.grade, count.origin) == ("6개 이상 직접 열어 읽기", "firm", "ask")

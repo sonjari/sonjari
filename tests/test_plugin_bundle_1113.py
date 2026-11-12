@@ -78,3 +78,10 @@ def test_the_skill_is_the_same_guide_the_app_installs() -> None:
     saved = (PLUGIN / "skills" / "sonjari-guide" / "SKILL.md").read_text(encoding="utf-8")
     assert saved == _load_builder().render()
     assert saved.startswith("---\nname: sonjari-guide\ndescription: ")
+
+
+def test_the_manifest_links_a_privacy_policy_and_support() -> None:
+    """포털 경고(11-13 main 검증): 「No privacy policy URL found」 — 규정 준수 동의 둘째 줄이 처리방침을 전제로 한다."""
+    manifest = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    for key in ("privacyPolicyUrl", "supportUrl", "documentationUrl"):
+        assert manifest.get(key, "").startswith("https://"), key

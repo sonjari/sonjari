@@ -1643,6 +1643,12 @@ def _grade_one(
             value = _as_number(match.group(2))
             if value > 1 and (value == target or target % value == 0) and in_ask(match.start()):
                 return GRADE_FIRM, "ask"
+        # ★ 2026-11-13 맥 판 d119d58b(고친 뒤 다시 돌림): 「대상 ①…⑥ · 각 곳마다 … 읽고」로 센 6 이 숫자 낱말이 없어 흐림이 됐고,
+        #   차례 문 · 남은 읽기는 확실한 요구만 봐서 막힘이 5 → 2 로만 줄었다. 숫자를 **시키는 문장에서** 셌다는 같은 원칙 —
+        #   그 「각 곳마다 … 읽어」가 시키는 문장 안이고 늘어놓은 번호 수가 요구와 같으면 확실이다.
+        each = _EACH_TARGET_READ.search(compact)
+        if each and _each_target_read_count(compact) == target and in_ask(each.start()):
+            return GRADE_FIRM, "ask"
         return GRADE_SOFT, "mention"
     if kind == "artifact":
         for sentence in ask_sentences():

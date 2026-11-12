@@ -9,6 +9,9 @@
   },
   "homepage": "https://github.com/sonjari/sonjari",
   "repository": "https://github.com/sonjari/sonjari",
+  "privacyPolicyUrl": "https://sonjari.com/privacy/",
+  "supportUrl": "https://github.com/sonjari/sonjari/issues",
+  "documentationUrl": "https://github.com/sonjari/sonjari/blob/main/plugin/README.md",
   "license": "Apache-2.0",
   "keywords": ["local-ai", "subagent", "browser", "research", "gpu"]
 }
