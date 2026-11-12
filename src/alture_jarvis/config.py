@@ -518,6 +518,8 @@ class JarvisConfig:
             fresh=engine_dir(Path.home()) / "ollama",
         )
     )
+    # 깃허브 연결(2026-11-12 · github_link.py) — 우리가 받은 gh 와 그 설정 자리. gh 와 git 은 패키지 밖 프로그램이라 **앱 칸 밖**.
+    github_dir: Path = field(default_factory=lambda: engine_dir(Path.home()) / "gh")
     # 스토어판 「지금 업데이트」 도우미가 상태를 적는 자리. **앱 전용 칸 밖** — 도우미는 패키지 밖에서 돈다.
     store_update_dir: Path = field(default_factory=lambda: update_dir(Path.home()))
     # 위성이 갱신을 받아 올 본체. **비워 두는 것이 기본이다** —
@@ -1497,6 +1499,7 @@ class JarvisConfig:
             ),
             profile_max_chars=_int("JARVIS_PROFILE_MAX_CHARS", 6000),
             ollama_base_url=_env("JARVIS_OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+            github_dir=Path(_env("JARVIS_GITHUB_DIR", str(engine_dir(Path.home()) / "gh"))),
             ollama_install_dir=Path(_env("JARVIS_OLLAMA_INSTALL_DIR", str(_outside_app_data(
                 legacy=data_dir / "ollama", fresh=engine_dir(Path.home()) / "ollama")))),
             store_update_dir=Path(_env("JARVIS_STORE_UPDATE_DIR", str(update_dir(Path.home())))),

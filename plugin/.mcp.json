@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sonjari": {
+      "command": "sonjari-mcp",
+      "args": ["-m", "alture_jarvis.mcp_server"]
+    }
+  }
+}

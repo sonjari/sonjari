@@ -1,0 +1,14 @@
+{
+  "name": "sonjari",
+  "displayName": "Sonjari",
+  "version": "0.4.43",
+  "description": "Hand token-heavy work to a local AI on your own GPU: browsing in your logged-in Chrome, reading many pages, and narrow coding jobs in your repo. Only the answer and its sources come back. Needs the Sonjari desktop app (Windows, NVIDIA GPU).",
+  "author": {
+    "name": "Sonjari",
+    "url": "https://github.com/sonjari"
+  },
+  "homepage": "https://github.com/sonjari/sonjari",
+  "repository": "https://github.com/sonjari/sonjari",
+  "license": "Apache-2.0",
+  "keywords": ["local-ai", "subagent", "browser", "research", "gpu"]
+}

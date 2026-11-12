@@ -114,6 +114,9 @@ _NOT_AN_AXIS = {
     "file_open.py",
     # 받은 프로그램의 서명을 확인하고 들이는 자리 하나(2026-11-08). 도구 실행부라 판의 걸음 · 판정을 안 바꾼다.
     "app_install.py",
+    # 깃허브 연결 1단계(2026-11-12) — 설정 화면의 gh 받기 · 로그인. 판의 걸음을 안 바꾼다.
+    #   2단계(저장소 받기 · PR 도구)가 붙으면 위임 축으로 옮긴다.
+    "github_link.py",
     "backup.py",
     "setup_state.py",
     "ollama_install.py",
