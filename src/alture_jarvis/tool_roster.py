@@ -473,7 +473,7 @@ _SMALL_WINDOW_RESEARCH_BUNDLE = frozenset({
 
 def _small_window_research_tools(
     tools: list[dict[str, Any]], *, enabled: bool, compact: bool, web_research: bool,
-    planned: frozenset[str] | set[str] = frozenset(),
+    planned: frozenset[str] | set[str] = frozenset(), extra: tuple[str, ...] | frozenset[str] = (),
 ) -> list[dict[str, Any]]:
     """작은 창의 조사 판이면 묶음 · 늘 싣는 손 · 계획이 세운 손만 남긴다. 그 밖의 판은 받은 목록 그대로다.
 
@@ -481,7 +481,7 @@ def _small_window_research_tools(
     """
     if not (enabled and compact and web_research):
         return tools
-    keep = _SMALL_WINDOW_RESEARCH_BUNDLE | _ALWAYS_ON_TOOLS | frozenset(planned or ())
+    keep = _SMALL_WINDOW_RESEARCH_BUNDLE | _ALWAYS_ON_TOOLS | frozenset(planned or ()) | frozenset(extra or ())
     kept = [tool for tool in tools if str((tool.get("function") or {}).get("name") or "") in keep]
     return kept or tools
 

@@ -231,6 +231,7 @@ const TOOL_LABELS: Record<string, string> = {
   // ── Claude 가 통째로 맡기는 문 (MCP) ──
   sonjari_task: t("맡은 일 받기"),
   sonjari_task_status: t("맡은 일 결과 알려 주기"),
+  sonjari_task_cancel: t("맡은 일 멈추기"),
   sonjari_guide: t("Sonjari 사용법 읽기"),
   sonjari_story: t("Sonjari 서기 카드 읽기"),
   // 이름 2단계(2026-09-29) 전 기록 — 지난 작업을 다시 열어도 이름표가 나오게.
@@ -324,6 +325,8 @@ const TOOL_LABELS: Record<string, string> = {
   unity_editor_look: t("유니티 에디터 안 읽기"),
   unity_editor_change: t("유니티 에디터에서 바꾸기"),
   unity_editor_undo: t("유니티 에디터 되돌리기"),
+  unity_editor_launch: t("유니티 에디터 띄우기"),
+  unity_editor_refresh: t("유니티가 파일 다시 읽기"),
   clipboard_read: t("클립보드 읽기"),
   shell_probe: t("명령 확인"),
   sandbox_run: t("직접 계산해 보기"),
@@ -339,6 +342,7 @@ const TOOL_LABELS: Record<string, string> = {
   ask_user: t("선택지로 묻기"),
   local_preview_page: t("만든 화면 띄워 보기"),
   local_run_shell: t("명령 한 줄 돌려 보기"),
+  local_install_app: t("프로그램 들이기"),
   local_find_symbol: t("이 이름 어디서 쓰나 찾기"),
   windows_uia_snapshot: t("창 훑어보기"),
   windows_uia_preview: t("창에서 할 일 미리보기"),

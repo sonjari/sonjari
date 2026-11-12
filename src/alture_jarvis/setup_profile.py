@@ -413,6 +413,15 @@ def _apple_profile(local_ollama_url: str = "http://127.0.0.1:11434") -> dict[str
     return card
 
 
+def _ram_free_gb() -> float | None:
+    try:
+        from .ram_boost import ram_free_gb
+
+        return ram_free_gb()
+    except Exception:  # noqa: BLE001 — 못 재면 램 부스트 카드를 안 보인다
+        return None
+
+
 def _ram_gb() -> float | None:
     if sys.platform == "darwin":
         from . import macos
@@ -541,6 +550,8 @@ def detect(ollama_base_url: str = "http://127.0.0.1:11434") -> dict[str, Any]:
         "os": platform.platform(),
         "cpu": platform.processor() or "",
         "ram_gb": _ram_gb(),
+        # 지금 남은 램 — 「램 부스트」 카드를 보일지 정한다(2026-11-11 대표 · `ram_boost`).
+        "ram_free_gb": _ram_free_gb(),
         "gpus": gpus,
         "gpu_error": gpu_error,
         "gpu_error_detail": last_nvidia_smi_detail,
@@ -970,6 +981,10 @@ def recommend(profile: dict[str, Any], bench: dict[str, Any] | None = None) -> d
                                                            external["num_ctx"], external["download_gb"])
     if external is not None:
         picks.append(external)
+    boost = _ram_boost_pick(profile, card, [model.key for model, *_ in fits], installed)
+    if boost is not None:
+        picks.append(boost)
+        reasons.append(boost["reason"])
 
     if isinstance(disk, (int, float)) and not primary_installed and disk < download + DISK_MARGIN_GB:
         warnings.append(f"디스크 여유가 {disk:g}GB 입니다 — 받는 데 {download:g}GB 와 여유 2GB 가 필요합니다.")
@@ -994,6 +1009,62 @@ def recommend(profile: dict[str, Any], bench: dict[str, Any] | None = None) -> d
         # 추천이 「그림 부속을 뗀 채」 올리라는 것인가 — 화면이 이 값으로 「글만 읽기」를 골라 두고 그렇게 적용한다.
         "text_only": primary_text_only,
     }
+
+
+#: 램 부스트 카드를 보일 카드의 최소 크기(GB) — 노트북 3050 6GB 에서 돌아간 것이 근거(11-09 · n=1).
+RAM_BOOST_MIN_VRAM_GB = 5.5
+#: 램 부스트로 열리는 모델들(`ram_boost.BOOST_LADDER` 와 같은 값 — 여기서 늦게 가져오지 않으려고 적어 둔다 · 시험이 둘을 대조).
+_BOOST_KEYS = frozenset({"qwen3.6-35b-a3b", "qwen3.6-35b-iq2m"})
+#: 램 부스트로 올릴 창 — 6GB 노트북은 48K 로 쟀다(11-09), 그보다 큰 카드는 마법사 2비트 칸과 같은 64K.
+RAM_BOOST_SMALL_CARD_CTX = 49152
+RAM_BOOST_CTX = 65536
+
+
+def _ram_boost_pick(profile: dict[str, Any], card: dict[str, Any], fitting_keys: list[str],
+                    installed: set[str], only: str = "") -> dict[str, Any] | None:
+    """「램 부스트」 카드 (2026-11-11 대표) — 빠른 MoE 모델(Qwen 3.6 2비트)이 카드에 통째로 안 들어가도 남은 램이 받치면 보인다.
+
+    보이지 않는 때: 이미 카드에 통째로 들어간다(그 카드가 따로 있다) · NVIDIA 카드가 아니다 · 카드가 너무 작다 · 남은 램이 모자라다 ·
+    램을 못 쟀다. 숫자는 그 PC 에서 잰 남은 램과 필요한 램을 그대로 보인다.
+    """
+    from .ram_boost import BOOST_LADDER, need_ram_gb
+
+    if str(card.get("vendor") or "nvidia") != "nvidia" or str(card.get("backend") or "cuda") != "cuda":
+        return None
+    total = float(card.get("vram_total_gb") or 0)
+    if total < RAM_BOOST_MIN_VRAM_GB:
+        return None
+    # 큰 카드(16.5GB 넘음)는 램 부스트를 권하지 않는다 — 넘김 장치의 「큰 카드는 안 넘김」(11-02 대표)과 같은 선.
+    from .heavy_apps import SMALL_CARD_GB
+
+    if total > SMALL_CARD_GB:
+        return None
+    free = profile.get("ram_free_gb")
+    if not isinstance(free, (int, float)):
+        return None
+    # ★ 11-11 대표: 램 기준 비트 사다리 — 남은 램이 받치는 것 중 좋은 것(4비트)부터. 카드에 통째로 들어가는 것은 건너뛴다
+    #   (그때는 램 부스트가 필요 없다 · 그 카드가 따로 보인다).
+    model = need = None
+    for key in ([only] if only else BOOST_LADDER):
+        if key in fitting_keys:
+            continue
+        wanted = need_ram_gb(key)
+        candidate = by_key(key)
+        if wanted is not None and candidate is not None and float(free) >= wanted:
+            model, need = candidate, wanted
+            break
+    if model is None or need is None:
+        return None
+    ctx = RAM_BOOST_SMALL_CARD_CTX if total < 8.0 else RAM_BOOST_CTX
+    reason = (f"램 부스트: 그래픽카드가 작아도 남는 램({float(free):g}GB 중 {need:g}GB)으로 한 체급 큰 {model.name} 을 돌립니다. "
+              "첫 질문은 1분쯤 걸릴 수 있습니다.")
+    return {"kind": "ram_boost", "role": "ram_boost", "model_key": model.key, "name": model.name,
+            "ollama_tag": model.ollama_tag, "num_ctx": ctx, "ram_gb": need, "ram_free_gb": float(free),
+            "download_gb": model.download_gb, "installed": model.ollama_tag in installed,
+            # 6GB 노트북 한 판(11-09) 뿐이다 — 「잰 것」으로 부풀리지 않는다.
+            "confidence": "measured_once", "text_only": True,
+            "license": model.license, "license_open": is_open_license(model.license), "license_url": model.license_url,
+            "chain": None, "reason": reason}
 
 
 def _card_budget(profile: dict[str, Any]) -> float:
@@ -1035,8 +1106,21 @@ def catalog_view(profile: dict[str, Any]) -> list[dict[str, Any]]:
     # 애플 칩 맥이면 카드 설명을 맥에서 잰 문장으로 바꾼다(`CatalogModel.blurb_mac`).
     mac = any(str(card.get("vendor") or "") == "apple" for card in profile.get("gpus") or [])
     view = []
+    # 「램 부스트」로 열리는 칸(2026-11-11) — 카드에 통째로 안 들어가도 남는 램이 받치면 그 창 하나를 연다.
+    cards = _discrete(profile)
+    biggest = max(cards, key=lambda g: float(g.get("vram_total_gb") or 0)) if cards else None
     for model in CATALOG:
         fitting = [ctx for ctx, need in sorted(model.vram_gb.items(), reverse=True) if budget >= need]
+        if not fitting and not _text_only_fitting(model, budget) and biggest is not None and model.key in _BOOST_KEYS:
+            boost = _ram_boost_pick(profile, biggest, [], installed, only=model.key)
+            if boost is not None:
+                view.append({
+                    **model.public(),
+                    "installed": model.ollama_tag in installed,
+                    "fits": True, "largest_fitting_ctx": boost["num_ctx"], "text_only": True, "text_only_need_gb": None,
+                    "ram_boost": {"ctx": boost["num_ctx"], "ram_gb": boost["ram_gb"], "ram_free_gb": boost["ram_free_gb"]},
+                })
+                continue
         roomy = [ctx for ctx in fitting if budget - model.vram_gb[ctx] >= TIGHT_FIT_SPARE_GB]
         lean = _text_only_fitting(model, budget)
         text_only = bool(lean) and not roomy

@@ -144,6 +144,10 @@ MANIFEST: dict[str, _Spec] = {
     "unity_editor_look": _Spec(EFFECT_READ_LOCAL, TYPE_LISTING, ("what", "target"), (), "query"),
     "unity_editor_change": _Spec(EFFECT_WRITE_LOCAL, TYPE_MUTATION, ("op", "target", "name"), (), "path"),
     "unity_editor_undo": _Spec(EFFECT_WRITE_LOCAL, TYPE_MUTATION, ("project",), (), "path"),
+    # 에디터 띄우기(2026-11-11) — 다리 한 줄을 적고 앱을 띄운다. 무엇을 읽은 것이 아니라 바꾼 것이다.
+    "unity_editor_launch": _Spec(EFFECT_WRITE_LOCAL, TYPE_MUTATION, ("project",), (), "path"),
+    # 파일 다시 읽기 · 컴파일(2026-11-11) — 유니티 안 상태를 바꾸는 일이다(사람 작업은 그대로).
+    "unity_editor_refresh": _Spec(EFFECT_WRITE_LOCAL, TYPE_MUTATION, ("project",), (), "path"),
     "google_drive_search": _Spec(
         EFFECT_READ_WEB, TYPE_LISTING, ("query",), (), "query"
     ),

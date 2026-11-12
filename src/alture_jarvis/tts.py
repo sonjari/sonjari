@@ -32,7 +32,10 @@ class SupertonicTTS:
         if not self.config.tts_enabled:
             return {"ok": False, "enabled": False, "voice": self.config.supertonic_voice}
         try:
-            with httpx.Client(timeout=3.0) as client:
+            # ★ 2026-11-11: 상태 물음 시간의 30% 가 이 줄의 Client() 만들기였다(py-spy) — 만들 때마다 인증서 묶음을 새로 읽는다.
+            #   음성 서버는 이 PC 의 http:// 라 인증서가 쓰일 일이 없다 → http 면 인증서를 읽지 않는다.
+            plain = str(self.config.supertonic_base_url or "").startswith("http://")
+            with httpx.Client(timeout=3.0, verify=not plain) as client:
                 response = client.get(f"{self.config.supertonic_base_url}/v1/health")
                 if response.status_code >= 400:
                     response = client.get(f"{self.config.supertonic_base_url}/v1/styles")

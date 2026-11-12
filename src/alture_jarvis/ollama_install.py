@@ -185,6 +185,8 @@ class OllamaInstaller:
         self.install_root = Path(install_root)
         #: 서버 보관함 한도(`ollama_launch_env`). -1 = 메모리에 맞춰 · 0 = 손대지 않음 · 양수 = MiB.
         self.prompt_cache_mib = int(prompt_cache_mib)
+        #: 램 부스트 중 엔진에 더 줄 환경(`ram_boost.plan` 의 env · 2026-11-11). 비면 예전과 한 글자도 다르지 않다.
+        self.boost_env: dict[str, str] = {}
         #: 사람이 **공식 설치 파일로** 깐 Ollama 의 트레이 앱 자리. 우리 설치가 없을 때 이것을 켠다.
         self.system_apps = tuple(system_apps) if system_apps is not None else _system_app_candidates()
         #: 예전에 깔던 자리(앱 데이터 안). 거기 멀쩡한 설치가 있으면 **다시 받지 않고 옮겨 온다.**
@@ -207,9 +209,11 @@ class OllamaInstaller:
         self.asset_name = MAC_ASSET_NAME if sys.platform == "darwin" else ASSET_NAME
         #: 맥에서 서명 · 공증을 확인하는 손(`verify_mac_app`). 시험은 가짜를 넣는다.
         self.verify_mac = verify_mac_app
-        #: 맥에서 앱을 켜는 손(`open -g -a`). 시험은 가짜를 넣는다.
+        #: 맥에서 앱을 켜는 손(`open -g -a … --args hidden`). 시험은 가짜를 넣는다.
+        #: ★ 11-08 대표: 「Ollama 창이 툭 앞으로 온다」 — `-g` 는 앞으로 끌지만 않을 뿐 Ollama 앱은 뜨면서 제 창을 연다.
+        #:   맥 로그인 항목이 쓰는 그대로 `hidden` 을 넘긴다(맥미니 ps: `/Applications/Ollama.app/Contents/MacOS/Ollama hidden`).
         self.mac_open: Callable[[Path], None] = lambda app: subprocess.run(
-            ["open", "-g", "-a", str(app)], check=False, capture_output=True, timeout=30,
+            ["open", "-g", "-a", str(app), "--args", "hidden"], check=False, capture_output=True, timeout=30,
             creationflags=CREATE_NO_WINDOW if os.name == "nt" else 0)
 
     # ── 상태 ───────────────────────────────────────────────────────────────
@@ -679,6 +683,32 @@ class OllamaInstaller:
             self.publish("ollama_orphan_runners_cleared", {"pids": killed})
         return killed
 
+    def _launch_env(self) -> dict[str, str]:
+        """Ollama 를 켤 때 줄 환경 — 예전 것(`ollama_launch_env`)에 램 부스트 몫을 얹는다.
+
+        부스트 중에는 엔진의 대화 보관함을 줄인다(`ram_boost.lower_cache_ram`) — 전문가가 램을 먹는다. 사람이 정해 둔 값은 그대로.
+        """
+        env = ollama_launch_env(self.prompt_cache_mib)
+        if self.boost_env:
+            from .ram_boost import lower_cache_ram
+
+            if PROMPT_CACHE_ENV in env and PROMPT_CACHE_ENV not in os.environ:
+                try:
+                    env[PROMPT_CACHE_ENV] = str(lower_cache_ram(int(env[PROMPT_CACHE_ENV])))
+                except ValueError:
+                    pass
+            env.update(self.boost_env)
+        return env
+
+    def set_boost(self, env: dict[str, str] | None, *, wait_sec: float = 40.0) -> dict[str, Any]:
+        """램 부스트를 켜거나(env) 끄고(None) Ollama 를 그 환경으로 다시 켠다. 바뀐 것이 없으면 다시 켜지 않는다."""
+        wanted = dict(env or {})
+        if wanted == self.boost_env:
+            return {"ok": True, "restarted": "unchanged", "boost": bool(wanted)}
+        self.boost_env = wanted
+        result = self._restart_with_env({}, written=True, find_processes=None, kill=None, wait_sec=wait_sec)
+        return {**result, "boost": bool(wanted)}
+
     def serve(self, *, wait_sec: float = 30.0) -> dict[str, Any]:
         """우리 Ollama 를 켠다. **한 번에 한 사람만** (2026-10-05 AWS 영어 윈도우 첫 실행).
 
@@ -703,7 +733,7 @@ class OllamaInstaller:
                 return {"ok": False, "error": "not_installed"}
             return self._serve_system_app(app, wait_sec=wait_sec)
         # 사용자가 Ollama 를 위해 정해 둔 카드 제한은 **그대로** 돌려준다 — 온텔릭 자신은 그 값을 안 물려받았다(gpu_policy).
-        env = ollama_launch_env(self.prompt_cache_mib)
+        env = self._launch_env()
         host = self.base_url.split("://", 1)[-1]
         env["OLLAMA_HOST"] = host
         if needs_gpu_only():
@@ -765,11 +795,15 @@ class OllamaInstaller:
                     return {"ok": True, "external": True, "app": str(app)}
                 time.sleep(0.5)
             return {"ok": False, "error": "system_ollama_not_answering"}
-        env = ollama_launch_env(self.prompt_cache_mib)
+        env = self._launch_env()
         if needs_gpu_only():
             env["OLLAMA_VULKAN"] = "0"
         flags = (CREATE_NO_WINDOW | 0x00000008) if os.name == "nt" else 0  # DETACHED_PROCESS
-        process = self.popen([str(app)], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        # ★ 11-08 대표: 트레이 앱(`ollama app.exe`)은 켜질 때 제 창을 앞으로 띄운다. 같은 폴더의 서버(`ollama.exe serve`)만
+        #   창 없이 켠다 — 공식 설치 파일은 둘을 늘 같이 깐다(이 PC `%LOCALAPPDATA%\Programs\Ollama` 확인). 없으면 예전대로 앱.
+        server = app.with_name("ollama.exe")
+        command = [str(server), "serve"] if server.is_file() else [str(app)]
+        process = self.popen(command, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL, creationflags=flags, cwd=str(app.parent))
         deadline = time.monotonic() + wait_sec
         while time.monotonic() < deadline:
@@ -883,7 +917,7 @@ class OllamaInstaller:
         #   손자리 자신의 GPU 설정(`gpu_policy` — 모든 카드)이 Ollama 로 새었다. 컨텍스트를 적용하며 다시 켠 Ollama 가
         #   3090 + 3060(화면 카드) 두 장에 모델을 나눠 올렸고, 적재율을 못 읽어 다음 적용이 거절됐다.
         #   Ollama 를 켜는 다른 두 자리(`serve`·시스템 앱)는 이미 이 함수를 쓴다 — 세 번째 자리만 빠져 있었다.
-        env = {**ollama_launch_env(self.prompt_cache_mib), **env_updates}
+        env = {**self._launch_env(), **env_updates}
         flags = (CREATE_NO_WINDOW | 0x00000008) if os.name == "nt" else 0  # DETACHED_PROCESS
         command = [app] if app else [exe, "serve"]
         self.popen(command, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -937,8 +971,15 @@ class OllamaKeeper:
         retry_sec: float = 20.0,
         give_up_after: int = 3,
         run: Callable[[Callable[[], None]], None] | None = None,
+        enabled: bool = True,
+        applies: Callable[[], bool] | None = None,
     ) -> None:
         self.installer = installer
+        #: 끄면 꺼진 Ollama 를 켜지 않는다(`JARVIS_OLLAMA_AUTOSTART=0` · 모델 주소가 다른 엔진일 때 · 2026-11-08).
+        self.enabled = enabled
+        #: 지금 「안 닿는다」는 것이 **이 기기 Ollama** 이야기인가. 아니면(위성 · 모델이 집 PC 에서 돈다) 켜지 않는다.
+        #: ★ 11-08 대표(맥 위성): 집 PC 가 잠깐 안 닿을 때마다 이 맥의 Ollama 앱이 켜지며 창이 튀어나왔다.
+        self.applies = applies
         self.clock = clock
         self.retry_sec = retry_sec
         self.give_up_after = give_up_after
@@ -964,6 +1005,14 @@ class OllamaKeeper:
 
     def ensure(self) -> bool:
         """꺼져 있다고 알려졌을 때 부른다. 돌려주는 값 = 지금 「켜는 중」이라고 말해도 되나."""
+        if not self.enabled:
+            return False
+        if self.applies is not None:
+            try:
+                if not self.applies():
+                    return False
+            except Exception:  # noqa: BLE001 — 모르면 예전처럼 켠다
+                pass
         try:
             installed = self.installer.bundled_exe() is not None
             if not installed:

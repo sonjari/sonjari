@@ -243,7 +243,7 @@ def test_the_guide_travels_with_the_connection_for_claude_desktop() -> None:
     assert "sonjari_guide" in INSTRUCTIONS and len(INSTRUCTIONS) <= 1500
     bridge = JarvisMcpBridge(token="t", client=_JobClient([_job("끝", [])]))
     names = [tool["name"] for tool in asyncio.run(bridge.list_tools())]
-    assert names[:3] == ["sonjari_task", "sonjari_task_status", "sonjari_guide"]
+    assert names[:4] == ["sonjari_task", "sonjari_task_status", "sonjari_task_cancel", "sonjari_guide"]
 
     text, failed = asyncio.run(bridge.call("sonjari_guide", {}))
 
@@ -264,7 +264,7 @@ def test_the_lean_toolset_shows_only_the_delegation_doors(monkeypatch) -> None:
     monkeypatch.setenv("JARVIS_MCP_TOOLSET", "delegate")
     bridge = JarvisMcpBridge(token="t", client=_JobClient([_job("끝", [])]))
     names = [tool["name"] for tool in asyncio.run(bridge.list_tools())]
-    assert set(names) == {"sonjari_task", "sonjari_task_status", "sonjari_guide"}
+    assert set(names) == {"sonjari_task", "sonjari_task_status", "sonjari_task_cancel", "sonjari_guide"}
     text, failed = asyncio.run(bridge.call("browser_search", {"query": "x"}))
     assert failed
 
@@ -288,7 +288,7 @@ def test_the_default_toolset_is_the_delegation_doors(monkeypatch) -> None:
     monkeypatch.delenv("JARVIS_MCP_DELEGATION", raising=False)
     bridge = JarvisMcpBridge(token="t", client=_JobClient([_job("끝", [])]))
     names = [tool["name"] for tool in asyncio.run(bridge.list_tools())]
-    assert set(names) == {"sonjari_task", "sonjari_task_status", "sonjari_guide"}
+    assert set(names) == {"sonjari_task", "sonjari_task_status", "sonjari_task_cancel", "sonjari_guide"}
 
 
 def test_full_toolset_is_still_one_setting_away(monkeypatch) -> None:

@@ -440,9 +440,20 @@ class Sonjari:
         result = info.get("result") if isinstance(info.get("result"), dict) else {}
         trace = result.get("agent_trace") if isinstance(result.get("agent_trace"), dict) else {}
         steps = [step for step in trace.get("steps") or [] if isinstance(step, dict)]
+        numbers = list(range(1, len(steps) + 1))
+        if not steps:
+            # ★ 질문 카드에서 닫힌 판 · 제한에 걸린 판은 결과에 기록(trace)이 없다 → 「걸음 0」으로 찍혔다(11-10: 일하다 멈춘 판을
+            #   「한 걸음도 안 갔다」로 잘못 읽음). 걸음 목록은 판을 닫아도 남는다 — 거기서 센다. 페이지 본문도 같은 번호로 받는다.
+            try:
+                rows = (self.call(f"/v1/jobs/{job_id}/steps") or {}).get("items") or []
+            except Exception:  # noqa: BLE001
+                rows = []
+            rows = [row for row in rows if isinstance(row, dict)]
+            steps = [{"tool": row.get("tool"), "ok": bool(row.get("ok")), "error": row.get("error") or ""} for row in rows]
+            numbers = [int(row.get("step") or index) for index, row in enumerate(rows, 1)]
         check = trace.get("verification") if isinstance(trace.get("verification"), dict) else {}
         pages, sheets, docs = [], [], []
-        for number, step in enumerate(steps, 1):
+        for number, step in zip(numbers, steps):
             evidence = step.get("evidence") if isinstance(step.get("evidence"), dict) else {}
             if step.get("ok") and step.get("tool") in _READS:
                 try:
@@ -570,21 +581,42 @@ def measure(sonjari: Sonjari, *, only: str, rounds: int, rest_sec: int, idle_sec
                 + f"(파일 글 {verdict['third']['file_chars']}자) · 넷째 " + _marks(verdict["fourth"]))
             sleep(rest_sec)
     out["price_summary"] = price_summary(out["price"])
+    # ★ PC 정보는 덤이다 — 여기서 넘어져도 잰 판을 잃지 않는다(2026-11-10: 4시간 반 천장 측정이 이 블록의 int(dict) 하나로
+    #   결과 파일 없이 끝났다 · 손자리 /health 의 num_ctx 가 {"chat": …, "code": …} 로 바뀐 뒤).
+    try:
+        out["pc"] = _pc_info(sonjari, health, cards_before)
+    except Exception as error:  # noqa: BLE001
+        out["pc"] = {"error": f"{type(error).__name__}: {error}"[:200]}
+    out["finished"] = time.strftime("%Y-%m-%d %H:%M")
+    return out
+
+
+def _window_of(model: dict[str, Any], health: dict[str, Any]) -> int:
+    """올라간 모델의 창 → 없으면 손자리가 알린 창. 손자리 /health 의 num_ctx 는 숫자이거나 {"chat": …, "code": …}(11-10 확인)."""
+    for value in (model.get("context_length"), (health.get("ollama") or {}).get("num_ctx")):
+        if isinstance(value, dict):
+            value = value.get("chat") or max((v for v in value.values() if isinstance(v, (int, float))), default=0)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+            return int(value)
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+    return 0
+
+
+def _pc_info(sonjari: Sonjari, health: dict[str, Any], cards_before: list[dict[str, Any]]) -> dict[str, Any]:
     model = sonjari.loaded_model()
     cards_after = graphics_cards()
     vram = int(model.get("size_vram") or 0)
-    out["pc"] = {
+    return {
         "windows": platform.platform(), "cards": cards_after or cards_before,
         "cards_before_start": cards_before,
         "model": str(model.get("name") or (health.get("ollama") or {}).get("model") or "")[-60:],
-        "window": int(model.get("context_length") or (health.get("ollama") or {}).get("num_ctx") or 0),
+        "window": _window_of(model, health),
         "model_on_card_mb": vram // (1024 * 1024), "model_total_mb": int(model.get("size") or 0) // (1024 * 1024),
         "on_card_share": round(vram / int(model["size"]), 3) if model.get("size") else None,
         "screen_and_others_mb": screen_share_mb(cards_after, vram),
         "sonjari_build": str(health.get("build") or ""),
     }
-    out["finished"] = time.strftime("%Y-%m-%d %H:%M")
-    return out
 
 
 # 「이 차이를 가려내려면 조건마다 몇 판」을 말해 줄 차이들(온전한 줄 수).

@@ -51,7 +51,8 @@ import httpx
 from .brand import MCP_SERVER_NAME, NAME, NAME_KO
 from .outbound import clean_needs
 from .delegation import (
-    CLAUDE_CODE_MAX_WAIT_SEC, DELEGATION_TOOLS, GUIDE_TOOL, MAX_WAIT_SEC, STATUS_TOOL, STORY_TOOL, TASK_TOOL, is_claude_code,
+    CANCEL_TOOL, CLAUDE_CODE_MAX_WAIT_SEC, DELEGATION_TOOLS, GUIDE_TOOL, MAX_WAIT_SEC, STATUS_TOOL, STORY_TOOL, TASK_TOOL,
+    is_claude_code,
     localized_tool,
     summarize_job,
 )
@@ -442,7 +443,8 @@ class JarvisMcpBridge:
             tool for tool in runtime_tools if str(tool.get("name")) in pack_tools
         ] if lean_toolset() else [
             tool for tool in runtime_tools
-            if str(tool.get("name")) not in {TASK_TOOL["name"], STATUS_TOOL["name"], GUIDE_TOOL["name"], STORY_TOOL["name"]}
+            if str(tool.get("name")) not in {TASK_TOOL["name"], STATUS_TOOL["name"], CANCEL_TOOL["name"], GUIDE_TOOL["name"],
+                                             STORY_TOOL["name"]}
         ])
         self._allowed = {str(tool["name"]) for tool in allowed}
         return allowed
@@ -481,6 +483,16 @@ class JarvisMcpBridge:
         # 카드 본문은 사용자의 대화에서 나온 것이라 번역하지 않는다 — 머리말만 이 연결의 언어로.
         head = self.say(f"서기 카드 {payload['count']}줄 — 초안입니다. 중요한 줄은 (줄 번호)의 원문을 직접 확인하세요.")
         return head + "\n\n" + str(payload.get("card") or ""), False
+
+    async def _enabled_pack_ids(self, client: Any) -> set[str] | None:
+        """켜진 팩 id. 못 물어보면 None — 「모름」을 「전부 꺼짐」으로 치지 않는다(카드에 헛된 꺼짐 표시를 안 붙이게)."""
+        try:
+            response = await client.get(f"{self.base_url}/v1/packs", headers={"X-JARVIS-TOKEN": self.token})
+            if response.status_code != 200:
+                return None
+            return {str(pack.get("id")) for pack in response.json().get("packs") or [] if pack.get("enabled")}
+        except Exception:  # noqa: BLE001
+            return None
 
     async def _enabled_pack_tools(self, client: Any) -> set[str]:
         """켜진 팩의 도구 이름. 못 물어보면 빈 집합 — 모르는 것을 「켜져 있다」로 치지 않는다."""
@@ -610,6 +622,11 @@ class JarvisMcpBridge:
                 #   화면이 그 호스트의 출처 색 이음선과 이름을 두른다 — 이어온 대화와 같은 규칙(tokens.css `--origin-*`).
                 if caller:
                     body["caller"] = caller[:80]
+                # ★ 어느 컴퓨터의 호스트인가 (2026-11-12 대표: 맥 앞에서 「누가 끼어드노」 — 맥의 클로드인지 PC 의 클로드인지 몰랐다).
+                #   이름(`caller`)에 붙이지 않는다 — `is_claude_code` · 영수증이 그 이름을 그대로 맞춰 본다.
+                place = caller_place()
+                if place:
+                    body["caller_place"] = place
                 response = await client.post(f"{self.base_url}/v1/chat", json=body, headers=headers)
                 if response.status_code == 401:
                     return "손자리가 이 호출을 거부했습니다(토큰 불일치).", True
@@ -625,6 +642,8 @@ class JarvisMcpBridge:
             job_id = str(arguments.get("job_id") or "").strip()
             if not job_id:
                 return "job_id 가 비어 있습니다.", True
+            if name == CANCEL_TOOL["name"]:
+                return await self._cancel(client, headers, job_id)
             # ★ 클로드 코드는 한 번에 더 오래 기다린다 (2026-10-02 분업 실험 K-Startup 판). 974초 판에서 클로드가 상태를 18번
             #   물었고, 물을 때마다 그때까지의 대화(5~6만 토큰)를 캐시에서 다시 읽었다 — 대기가 곧 비용이었다. 클로드 코드는 MCP 호출을
             #   기본 28시간·stdio 무응답 30분까지 기다린다(code.claude.com/docs/en/mcp). 한도를 확인 안 한 호스트(코덱스·데스크톱)는 그대로.
@@ -692,6 +711,39 @@ class JarvisMcpBridge:
         except httpx.RequestError as exc:
             return f"손자리에 연결하지 못했습니다({self.base_url}). 손자리가 실행 중인지 확인해 주세요. 원인: {exc}", True
 
+    async def _cancel(self, client: Any, headers: dict[str, str], job_id: str) -> tuple[str, bool]:
+        """맡긴 과제를 멈춘다(2026-11-07). **바깥 AI 가 맡긴 일(origin mcp)만** — 사람이 창에서 시킨 일은 못 멈춘다."""
+        en = self.lang == "en"
+        response = await client.get(f"{self.base_url}/v1/jobs/{job_id}")
+        if response.status_code == 404:
+            return f"job_id '{job_id}' 를 찾지 못했습니다.", True
+        response.raise_for_status()
+        job = response.json()
+        payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+        if str(payload.get("origin") or "") != "mcp":
+            return (("This task was not handed off by an outside AI, so it cannot be stopped over this connection. "
+                     "Ask the user to stop it in the Sonjari window.") if en else
+                    ("이 과제는 바깥 AI 가 맡긴 일이 아니라 이 연결로는 멈출 수 없습니다. 사용자에게 손자리 창에서 멈춰 달라고 알리세요.")), True
+        status = str(job.get("status") or "")
+        stopped = await client.post(f"{self.base_url}/v1/jobs/{job_id}/cancel", headers=headers)
+        if stopped.status_code == 401:
+            return "손자리가 이 호출을 거부했습니다(토큰 불일치).", True
+        if stopped.status_code == 409:
+            # 이미 끝났거나 멈춘 판 — 오류가 아니라 상태를 그대로 알린다.
+            return self._dumps({
+                "job_id": job_id, "status": status, "cancelled": False,
+                "message": (f"Nothing to stop: the task is already {status}. Get its result with sonjari_task_status."
+                            if en else f"멈출 것이 없습니다 — 이미 {status} 상태입니다. 결과는 sonjari_task_status 로 받으세요."),
+            }), False
+        if stopped.status_code >= 400:
+            return ((f"Sonjari could not stop it ({stopped.status_code}): {stopped.text[:400]}") if en else
+                    f"손자리가 멈추지 못했습니다({stopped.status_code}): {stopped.text[:400]}"), True
+        return self._dumps({
+            "job_id": job_id, "status": "cancelled", "cancelled": True,
+            "message": ("Stopped. Work done before the stop (files, sources, resume) comes back with sonjari_task_status."
+                        if en else "멈췄습니다. 멈추기 전까지 한 일(files · sources · resume)은 sonjari_task_status 로 받을 수 있습니다."),
+        }), False
+
     async def call(self, name: str, arguments: dict[str, Any], *, caller: str = "") -> tuple[str, bool]:
         """도구를 부르고 (사람이 읽을 글, 오류인가) 를 돌려준다. `caller` 는 이 연결을 연 호스트의 이름(clientInfo).
 
@@ -705,6 +757,15 @@ class JarvisMcpBridge:
     async def _call(self, name: str, arguments: dict[str, Any], *, caller: str = "") -> tuple[str, bool]:
         # 옛 이름(ontelic_task 등)으로 불러도 받는다 — 옛 지침을 들고 있는 호스트가 한동안 그 이름을 부른다(이름 2단계).
         name = LEGACY_TOOL_NAMES.get(name, name)
+        if name == GUIDE_TOOL["name"] and str((arguments or {}).get("query") or "").strip():
+            # 기능 카드 찾기(2026-11-12) — 파일을 못 뒤지는 부모용. 꺼진 팩 카드엔 「사람이 켜야 함」을 붙인다.
+            from .capability_cards import render_search
+
+            try:
+                enabled = await self._enabled_pack_ids(await self._http())
+            except Exception:  # noqa: BLE001 — 팩 상태를 몰라도 카드는 준다(꺼짐 표시만 빠진다)
+                enabled = None
+            return render_search(str(arguments["query"]).strip()[:200], enabled_packs=enabled, lang=self.lang), False
         if name == GUIDE_TOOL["name"]:
             from .guide_skill import render_skill
 
@@ -716,7 +777,8 @@ class JarvisMcpBridge:
             return render_skill(tools, lang=self.lang) + self.say(await self._model_fit_note()) + await self._receipt_note(), False
         if name == STORY_TOOL["name"]:
             return await self._story(arguments or {})
-        if name in (TASK_TOOL["name"], STATUS_TOOL["name"]) and os.environ.get("JARVIS_MCP_DELEGATION", "1") != "0":
+        if name in (TASK_TOOL["name"], STATUS_TOOL["name"], CANCEL_TOOL["name"]) and os.environ.get(
+                "JARVIS_MCP_DELEGATION", "1") != "0":
             return await self._delegate(name, arguments or {}, caller=caller)
         if not await self._is_allowed(name):
             return (
@@ -835,6 +897,26 @@ async def _run() -> None:
             await server.run(read_stream, write_stream, server.create_initialization_options())
     finally:
         await bridge.aclose()
+
+
+#: 화면이 「다른 컴퓨터」로 옮기는 값 — 이 MCP 서버가 SSH 로 다른 컴퓨터에서 띄워졌다.
+CALLER_PLACE_SSH = "ssh"
+
+
+def caller_place(env: Any = None) -> str:
+    """이 연결을 연 호스트가 **어느 컴퓨터**에 있나 (2026-11-12).
+
+    - 설정 `JARVIS_MCP_FROM`(예: 「윈도우 PC」)이 있으면 그 이름 — 부르는 쪽이 SSH 명령에 붙여 준다.
+    - 없고 SSH 로 띄워졌으면(`SSH_CONNECTION` · `SSH_CLIENT`) `ssh` — 화면이 「다른 컴퓨터」로 적는다.
+    - 같은 컴퓨터면 빈 문자열(예전과 같다).
+    """
+    env = os.environ if env is None else env
+    named = str(env.get("JARVIS_MCP_FROM") or "").strip()
+    if named:
+        return named[:40]
+    if env.get("SSH_CONNECTION") or env.get("SSH_CLIENT"):
+        return CALLER_PLACE_SSH
+    return ""
 
 
 def caller_of(context: Any) -> str:

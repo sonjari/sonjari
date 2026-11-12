@@ -158,7 +158,8 @@ def test_meter_measures_the_block_actually_sent(tmp_path: Path) -> None:
 
 def test_meter_warns_above_ten_percent_of_the_window(tmp_path: Path) -> None:
     about, config, _ = _service(tmp_path, num_ctx=8192)
-    about.save("가" * 1500)  # ≈ 800 토큰 / 8192 ≈ 9.8%
+    # 2026-11-12: 머리말(`PROFILE_INTRO`)이 「말투 지시는 모든 답에 따른다」로 늘어 1,500자는 10.35% — 자는 실리는 글 그대로 잰다.
+    about.save("가" * 1400)  # 머리말 포함 9.74%
     assert about.view()["warn"] is False
     about.save("가" * 1800)  # ≈ 950 토큰 ≈ 11.6%
     view = about.view()

@@ -32,7 +32,7 @@ from .evidence import WRITE_EFFECTS, code_string_values, numbers_claimed_in, uns
 from .outbound import check_needs, clean_needs, receipt, refine
 from .url_privacy import safe_url
 
-__all__ = ["TASK_TOOL", "STATUS_TOOL", "GUIDE_TOOL", "STORY_TOOL", "DELEGATION_TOOLS", "summarize_job", "partial_work",
+__all__ = ["TASK_TOOL", "STATUS_TOOL", "CANCEL_TOOL", "GUIDE_TOOL", "STORY_TOOL", "DELEGATION_TOOLS", "summarize_job", "partial_work",
            "host_context_kept_out", "MAX_WAIT_SEC", "CLAUDE_CODE_MAX_WAIT_SEC", "is_claude_code"]
 
 MAX_WAIT_SEC = 50
@@ -40,6 +40,25 @@ MAX_WAIT_SEC = 50
 #: 2026-10-02 분업 실험: 50초씩 18번 물으며 매번 대화 5~6만 토큰을 다시 읽었다. 한도를 확인 안 한 호스트는 MAX_WAIT_SEC 그대로.
 CLAUDE_CODE_MAX_WAIT_SEC = 240
 
+
+
+#: 코드 낱말 — 「고쳐 · 짜」 같은 동사만으로는 「보고서 문장 고쳐 줘」도 걸린다(11-08 확인). 코드 낱말이 같이 있어야 코드 일로 본다.
+_CODE_NOUNS = re.compile(
+    r"(?i)(?:코드|스크립트|소스|함수|클래스|메서드|컴파일|빌드|테스트|단위\s*시험|저장소|리포지?토리|\brepo\b|\bC#|\bpytest\b"
+    r"|\.(?:py|cs|ts|tsx|js|jsx|go|rs|java|kt|cpp|c|h|swift|rb|php)\b|MonoBehaviour|NetworkBehaviour)"
+)
+
+
+def _looks_like_code_work(prompt: str) -> bool:
+    """맡긴 글이 코드를 짜거나 고치라는 일인가 — 모드 알림에만 쓴다(판을 막지 않는다)."""
+    from .plan import wants_code_action
+
+    # 「코드는 고치지 마」 · 「게임 코드는 아직 짜지 마」는 하지 말라는 말이다(11-08 밤 헛걸림 둘) — 그 구절은 빼고 본다.
+    asked = _DONT_TOUCH.sub(" ", prompt or "")
+    return bool(asked.strip()) and bool(_CODE_NOUNS.search(asked)) and wants_code_action(asked)
+
+
+_DONT_TOUCH = re.compile(r"[^.\n()]{0,40}?(?:고치|짜|수정하|건드리|바꾸|만들)지\s*(?:마|말)[^.\n()]*")
 
 def is_claude_code(caller: str) -> bool:
     """이 연결을 연 호스트가 클로드 코드인가 — MCP clientInfo 의 이름(`claude-code`)·제목(`Claude Code`)."""
@@ -133,7 +152,28 @@ STATUS_TOOL: dict[str, Any] = {
     },
 }
 
-DELEGATION_TOOLS: tuple[dict[str, Any], ...] = (TASK_TOOL, STATUS_TOOL)
+# ★ 2026-11-07 Glama 점수(Completeness 3/5): 「상태 도구는 cancelled 를 말하는데 멈출 문이 없다 — 잘못 맡긴 긴 일을 세울 길이 없다」.
+#   본체에는 취소 길(`/v1/jobs/{id}/cancel`)이 이미 있었다. 이 문은 **바깥 AI 가 맡긴 일(origin mcp)만** 세운다 —
+#   사람이 손자리 창에서 시킨 일은 job_id 를 알아도 못 세운다(신뢰는 「어느 문으로 들어왔나」로 가른다 · 사고 R).
+CANCEL_TOOL: dict[str, Any] = {
+    "name": "sonjari_task_cancel",
+    "description": (
+        "sonjari_task 로 맡긴 과제를 멈춥니다. 잘못 맡겼거나 사용자가 그만두라고 할 때 부르세요. "
+        "기다리는 중 · 일하는 중 · 승인 대기 중인 과제만 멈출 수 있고, 이미 끝난 과제는 그대로입니다. "
+        "바깥 AI 가 맡긴 과제만 멈춥니다(사람이 손자리 창에서 시킨 일은 못 멈춥니다). "
+        "멈춘 뒤에도 sonjari_task_status 로 멈추기 전까지 한 일(files · sources · resume)을 받을 수 있습니다."
+    ),
+    "risk_level": "L1",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "job_id": {"type": "string", "description": "멈출 과제의 job_id(sonjari_task 가 돌려준 것)"},
+        },
+        "required": ["job_id"],
+    },
+}
+
+DELEGATION_TOOLS: tuple[dict[str, Any], ...] = (TASK_TOOL, STATUS_TOOL, CANCEL_TOOL)
 
 # ★ 2026-09-17 제품 요청: Claude Desktop 은 스킬을 앱이 넣을 수 없다(업로드·조직 배포뿐 — 공식 문서). 채팅은 PC 폴더의
 #   스킬 파일도 스스로 못 읽는다. 그래서 **연결 자체가 가이드를 들고 간다** — 안내문이 「처음엔 이걸 불러 읽으라」고 하고,
@@ -141,8 +181,13 @@ DELEGATION_TOOLS: tuple[dict[str, Any], ...] = (TASK_TOOL, STATUS_TOOL)
 GUIDE_TOOL: dict[str, Any] = {
     "name": "sonjari_guide",
     "description": ("손자리 사용법 가이드(과제를 어떻게 적어 맡기는지·결과를 어떻게 전하는지·막히면 무엇을 하는지)를 돌려준다. "
-                    "처음 손자리에게 일을 맡기기 전에 한 번 불러 읽으세요. 읽기만 하고 아무것도 바꾸지 않습니다."),
-    "parameters": {"type": "object", "properties": {}},
+                    "처음 손자리에게 일을 맡기기 전에 한 번 불러 읽으세요. 읽기만 하고 아무것도 바꾸지 않습니다. "
+                    "query 를 주면 가이드 대신 그 낱말에 맞는 **기능 카드** 1~3장(되는 것 · 안 되는 것 · 맡기는 법)을 돌려줍니다 — "
+                    "「손자리가 이것도 되나?」를 알아볼 때."),
+    # ★ 2026-11-12 기능 카드(설계_기능카드): 찾기 문을 새로 만들지 않고 이 문에 칸 하나 — 도구 수가 곧 부모 기본 입력(09-23).
+    "parameters": {"type": "object", "properties": {
+        "query": {"type": "string", "description": "찾을 낱말(한국어든 영어든). 예: 「유니티 참조 잇기」 · 「unity reference」. 비우면 사용법 전체"},
+    }},
     "risk_level": "L0",
     "enabled": True,
 }
@@ -235,11 +280,23 @@ _EN_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "ask often — every call re-reads the whole conversation."
         ),
     },
+    CANCEL_TOOL["name"]: {
+        "": (
+            "Stop a task handed off with sonjari_task. Call it when the task was a mistake or the user asks to stop. "
+            "Only queued, running or approval-waiting tasks can be stopped; a finished task stays as it is. "
+            "It stops only tasks an outside AI handed off (not work a person started in the Sonjari window). "
+            "After stopping, sonjari_task_status still returns the work done before the stop (files, sources, resume)."
+        ),
+        "job_id": "The job_id of the task to stop (the one sonjari_task returned)",
+    },
     GUIDE_TOOL["name"]: {
         "": (
             "Returns the Sonjari guide (how to write and hand off a task, how to pass on the result, what to do when "
-            "stuck). Call it once before handing Sonjari its first task. Read-only; changes nothing."
+            "stuck). Call it once before handing Sonjari its first task. Read-only; changes nothing. With query, it returns "
+            "1-3 **capability cards** for that word instead (what works, what doesn't, how to hand it off) - use it to "
+            "check \"can Sonjari do this?\"."
         ),
+        "query": "Word to look up, in any language. E.g. \"unity reference\". Leave empty for the whole guide",
     },
     STORY_TOOL["name"]: {
         "": (
@@ -1079,6 +1136,12 @@ def summarize_job(
     summary["refined"] = refined
     summary["receipt"] = receipt(needs_checked, refined, host=str(payload.get("caller") or ""))
     notes: list[str] = []
+    # ★ 2026-11-08 대표: 맡긴 쪽(클로드)이 이 판이 **무슨 모드로 돌았는지** 늘 보게 한다. 유니티 일을 repo 없이 던져 코워크로 돈 것을
+    #   던진 쪽도 몰랐다. 코드를 짜거나 고치라는 글인데 repo 가 없으면 알리기만 한다(막지 않음 — 코워크로도 할 수 있는 일이 있다).
+    summary["mode"] = "code" if code_job else "cowork"
+    if not code_job and _looks_like_code_work(str(payload.get("prompt") or payload.get("task") or "")):
+        notes.append("이 판은 코워크로 돌았습니다(repo 없음). 코드를 짜거나 고치는 일이면 repo(저장소 폴더) · check(통과 명령)를 "
+                     "주고 맡기세요 — 새 가지에서 고치고 걸음 상한 없이 check 로 끝을 가립니다. git 이 아닌 폴더면 먼저 git init.")
     if unsupported:
         notes.append(f"도구가 준 적 없는 숫자 {len(unsupported)}개 — 사실로 전하기 전에 확인하세요.")
     login_claim = login_claim_without_gate(answer, steps, str(payload.get("prompt") or payload.get("task") or ""))

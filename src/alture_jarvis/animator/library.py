@@ -81,7 +81,9 @@ def lib_dir(root: Path) -> Path:
 PREFS_DEFAULT: dict[str, Any] = {
     "bookend": True,             # 「첫 번째, 마지막 포즈가 무조건 내가 지금 작업하는 캐릭터의 포즈」 — 입히기 전 자세를 첫 · 끝 키에
     "blend": 0.5,                # 섞는 비율은 사람이 고른다 — 안 정했을 때만 쓰는 값
-    "body_fit": {"stride": 0.5, "arm_spread": 35.0},   # 8등신 → 2~3등신 「보정 B」
+    # 8등신 → 2~3등신 「보정 B」(11-04 · 보폭 0.5 · 팔 35°)였다. ★ 11-12 현업 판정 「원본 그대로가 훨씬 낫다」 · 재현에서 보폭 0.5 가
+    #   붙은 발 미끄러짐을 7배로 → 대표 결정으로 **보폭은 기본에서 끈다**(1.0). 팔 벌림은 그대로. 등신 차가 클 때만 사람이 켠다.
+    "body_fit": {"stride": 1.0, "arm_spread": 35.0},
     "reference_query": "무기 + 무게감 + 성별 + 동작 (예: 한손검 여자 캐릭터 공격모션 · 무거운 양손검 남자 캐릭터 모션) 또는 정확한 캐릭터 이름",
     "source": "기준점(첫 현업 애니메이터 11-05) — 이 사람에게 아직 확인 안 함",
 }
@@ -497,6 +499,72 @@ fn sjBodyFit com S E stride spread = (
 '''
 
 
+FOOT_LOCK = r'''
+-- ★ 11-12 현업 판정(발이 뜨고 앞뒤로 밀림 · 보폭 보정이 미끄러짐 21→49) · 공개 CMU 걷기 재현으로 뿌리 확인:
+--   게임 모션의 발은 「땅에 고정」이 아니라 다리 각도로 받쳐 붙어 있다. 보폭 보정(몸통 이동만 줄임)과 첫끝 덮기(서 있는 자세를
+--   발까지 통째로)가 그 균형을 깨 붙은 발을 끌었다(재현: 보폭 0.5 → 밀림 1.3 → 9.5 · 첫끝 → 시작 · 끝 2프레임에 한 걸음 11).
+--   → 입힌 직후(보정 · 덮기 전) 발이 붙은 구간을 적어 두고, 다 고친 뒤 그 구간의 **원래 키 자리**에서 발을 그 자리로 되돌려
+--     고정한다(스텝 키와 같은 효과 · 자유 키 그대로). 키를 새로 촘촘히 찍지 않는다(구간 처음 · 끝만 더할 수 있다).
+fn sjFootSpans com S E = (
+  -- 붙은 구간: 프레임 사이 수평 속도 < 키의 1% 이고 높이가 (그 발 최저 + 키의 3.2%) 아래인 프레임이 4개 이상 이어진 곳
+  --   (11-12 맥스 · CMU 02_01 걷기 · 키 158 에서 다섯 구간을 정확히 잡은 값)
+  local h = try (com.controller.height) catch (100.0)
+  local spd = 0.01 * h
+  local up = 0.032 * h
+  local spans = #()
+  for sfx in #(" L Foot", " R Foot") do (
+    local n = getNodeByName (com.name + sfx) exact:true
+    if n != undefined do (
+      local zmin = 1e9
+      for f = S to E do zmin = amin zmin (at time f n.transform.pos.z)
+      local st = -1
+      for f = S to E do (
+        local p = at time f n.transform.pos
+        local q = at time (if f < E then f + 1 else f - 1) n.transform.pos
+        local ok = (distance [p.x, p.y, 0] [q.x, q.y, 0]) < spd and p.z < zmin + up
+        if ok and st < 0 do st = f
+        if (not ok or f == E) and st >= 0 do (
+          local en = if ok then f else f - 1
+          if en - st + 1 >= 4 do (
+            local ts = sjKeyTimes #(n.controller) st en
+            appendIfUnique ts st; appendIfUnique ts en; sort ts
+            local zs = for t in ts collect (at time t n.transform.pos.z)
+            local cx = 0.0; local cy = 0.0
+            for t = st to en do (local pp = at time t n.transform.pos; cx += pp.x; cy += pp.y)
+            local k = (en - st + 1) as float
+            append spans #(n, st, en, ts, zs, [cx / k, cy / k, 0])
+          )
+          st = -1
+        )
+      )
+    )
+  )
+  spans
+)
+fn sjFootLock com spans p0 stride = (
+  local nKey = 0
+  local keepT = sliderTime
+  for sp in spans do (
+    local tgt = [p0.x, p0.y, 0] + (sp[6] - [p0.x, p0.y, 0]) * stride
+    for i = 1 to sp[4].count do (
+      sliderTime = sp[4][i]
+      with animate on (biped.setTransform sp[1] #pos [tgt.x, tgt.y, sp[5][i]] true)
+      -- ★ 바이페드 「심은 키(setPlantedKey)」는 쓰지 않는다 — 11-12 맥스 실측에서 그 명령이 발을 다시 옮겨 고정 뒤 밀림이
+      --   0.07 → 3.57, 뜸 2.3 → 5.7 로 나빠졌다. 원래 키 자리에서 발 위치만 되돌린다(자유 키 그대로 · 다듬기 쉽게).
+      nKey += 1
+    )
+  )
+  sliderTime = keepT
+  local worst = 0.0
+  for sp in spans do (
+    local a = at time sp[2] sp[1].transform.pos
+    for f = sp[2] to sp[3] do (local p = at time f sp[1].transform.pos; worst = amax worst (distance [p.x, p.y, 0] [a.x, a.y, 0]))
+  )
+  "발 고정: 붙은 구간 " + (spans.count as string) + " · 키 " + (nKey as string) + "곳 · 고정 뒤 밀림 최대 " + (formattedPrint worst format:".2f")
+)
+'''
+
+
 POSE_FN = r'''
 fn sjBones com = (
   -- 부모가 먼저 오게(부모 회전을 먼저 고쳐야 자식이 그 위에서 계산된다)
@@ -664,7 +732,7 @@ fn sjBlend com bipB w SB EB = (
 def apply_script(bip: Path, biped: str = "", label: str = "", frames: tuple[int, int] | None = None,
                  *, match_height: bool = True, stride: float = 1.0, arm_spread: float = 0.0,
                  blend_bip: Path | None = None, blend: float = 0.0,
-                 blend_frames: tuple[int, int] | None = None, bookend: bool = True) -> str:
+                 blend_frames: tuple[int, int] | None = None, bookend: bool = True, foot_lock: bool = True) -> str:
     """지금 장면의 바이페드에 .bip 를 입힌다. 입히기 전에 holdMaxFile — 맘에 안 들면 편집 › 가져오기(Fetch)로 되돌린다.
 
     11-03 시험: loadBipFile 은 시간 구간을 바꾸지 않는다(78프레임 공격을 120프레임 대기 장면에 입히니 0~120 그대로) →
@@ -682,6 +750,10 @@ def apply_script(bip: Path, biped: str = "", label: str = "", frames: tuple[int,
         fit = '  local fitNote = "체형 보정 없음"\n'
     blend = max(0.0, min(float(blend or 0.0), 1.0))
     blending = blend_bip is not None and blend > 0
+    # 발 고정(11-12): 붙은 구간은 섞은 뒤 · 보정 전에 찾는다(보정 · 첫끝 덮기가 발을 끄는 것을 되돌리려고)
+    spans = ('  local footSpans = sjFootSpans com (animationRange.start.frame as integer) (animationRange.end.frame as integer)\n'
+             '  local footP0 = at time animationRange.start com.transform.pos\n') if foot_lock else ""
+    fit = spans + fit
     if blending:
         # 섞기는 체형 보정 전에 — 섞은 동작 위에 이 캐릭터 몸을 맞춘다
         sb, eb = (int(blend_frames[0]), int(blend_frames[1])) if blend_frames else (-1, -1)
@@ -690,8 +762,10 @@ def apply_script(bip: Path, biped: str = "", label: str = "", frames: tuple[int,
     if bookend:
         fit += ('  fitNote = fitNote + " · " + (sjBookend com cap (animationRange.start.frame as integer) '
                 '(animationRange.end.frame as integer))\n')
+    if foot_lock:
+        fit += f'  fitNote = fitNote + " · " + (sjFootLock com footSpans footP0 {stride:.3f})\n'
     return (
-        "-- 손자리 애니메이터 팩: 창고 동작 입히기(입히기 전 장면을 보관(Hold)한다)\n(\n" + _FIND_BIPED + COM_MATCH + BODY_FIT + POSE_FN + (BLEND if blending else "") +
+        "-- 손자리 애니메이터 팩: 창고 동작 입히기(입히기 전 장면을 보관(Hold)한다)\n(\n" + _FIND_BIPED + COM_MATCH + BODY_FIT + (FOOT_LOCK if foot_lock else "") + POSE_FN + (BLEND if blending else "") +
         r'''fn sjProbe = (
   local pts = #()
   for o in objects where (classof o.controller == BipSlave_Control) and (matchPattern o.name pattern:"*Hand" or matchPattern o.name pattern:"*Foot") do (

@@ -31,6 +31,17 @@ export function callerLabel(caller: string): string {
   return caller.trim();
 }
 
+/**
+ * 어느 컴퓨터의 호스트인가까지 붙인 이름 (2026-11-12 대표: 맥 앞에서 「누가 끼어드노」 — 맥의 클로드인지 PC 의 클로드인지 몰랐다).
+ * `ssh` 는 MCP 서버가 SSH 로 다른 컴퓨터에서 띄워졌다는 뜻(`mcp_server.caller_place`), 그 밖의 값은 부르는 쪽이 준 이름.
+ */
+export function callerName(caller: string, place?: string): string {
+  const label = callerLabel(caller);
+  const where = (place || "").trim();
+  if (!where) return label;
+  return t("{0}의 {1}", where === "ssh" ? t("다른 컴퓨터") : where, label);
+}
+
 /** MCP 과제의 보이는 문장 앞머리. 호스트 이름을 따로 두르므로 말풍선·목록에서는 떼어 낸다. */
 export const DELEGATED_PREFIX = t("바깥 AI 가 맡긴 일 · ");
 

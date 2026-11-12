@@ -554,16 +554,30 @@ class TaskScheduler:
             self._thread.join(timeout=3)
 
     def _run(self) -> None:
+        backoff = 1.0
         while not self._stop.is_set():
+            # ★ 2026-11-10 맥: 파일 열기 한도가 차자 `_claim_due` 의 DB 열기 오류로 이 스레드가 조용히 죽었다(일꾼과 같이).
+            #   한 바퀴의 오류는 바퀴 안에서 받고, 쉬었다 다시 돈다.
             try:
-                self._collect_delivered()
-            except Exception:  # noqa: BLE001 — 배달이 실패해도 예약은 계속 돈다
-                pass
-            row = self._claim_due()
-            if row:
-                self._dispatch(row)
+                try:
+                    self._collect_delivered()
+                except Exception:  # noqa: BLE001 — 배달이 실패해도 예약은 계속 돈다
+                    pass
+                row = self._claim_due()
+                if row:
+                    self._dispatch(row)
+                    backoff = 1.0
+                    continue
+                backoff = 1.0
+            except Exception as exc:  # noqa: BLE001
+                self.last_error = f"{type(exc).__name__}: {exc}"[:300]
+                self._stop.wait(backoff)
+                backoff = min(30.0, backoff * 2)
                 continue
             self._stop.wait(1.0)
+
+    def alive(self) -> bool:
+        return bool(self._thread and self._thread.is_alive())
 
     @staticmethod
     def _function(name: str, description: str, properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:

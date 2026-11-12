@@ -65,16 +65,17 @@ if nodes.count < 4 then (
 ) else (
   format "{\"ok\":true,\"bones\":[" to:fs
   for i = 1 to names.count do format "\"%\"%" names[i] (if i < names.count then "," else "") to:fs
-  -- 위팔 키 자리(고칠 때 그 자리에서만 고친다 — 키 수를 늘리지 않는다)
+  -- 고칠 뼈의 키 자리(고칠 때 그 자리에서만 고친다 — 키 수를 늘리지 않는다). "L" · "R" 은 위팔(11-06 판과 같은 이름)
   format "],\"keys\":{" to:fs
-  local sides = #("L", "R")
-  for k = 1 to 2 do (
-    local ua = getNodeByName (pre + " " + sides[k] + " UpperArm")
+  local kn = #("L", "R", "L Thigh", "R Thigh", "Spine")
+  local kt = #("L UpperArm", "R UpperArm", "L Thigh", "R Thigh", "Spine")
+  for k = 1 to kn.count do (
+    local ua = getNodeByName (pre + " " + kt[k])
     local ts = #()
     if ua != undefined do try (for i = 1 to ua.controller.keys.count do (local f = ua.controller.keys[i].time.frame as integer; if f >= S and f <= E do appendIfUnique ts f)) catch ()
-    format "\"%\":[" sides[k] to:fs
+    format "\"%\":[" kn[k] to:fs
     for i = 1 to ts.count do format "%%" ts[i] (if i < ts.count then "," else "") to:fs
-    format "]%" (if k == 1 then "," else "") to:fs
+    format "]%" (if k < kn.count then "," else "") to:fs
   )
   format "},\"start\":%,\"end\":%,\"ref\":%,\"frames\":[" S E R to:fs
   for f = S to E do (
@@ -90,32 +91,96 @@ if nodes.count < 4 then (
   local wasFig = false
   try (wasFig = root.controller.figureMode) catch ()
   local figOk = false
-  try (root.controller.figureMode = true; figOk = true) catch ()
+  -- 11-10 맥스 실측: 피겨 모드 켜고 끄기가 되돌리기 목록에 쌓이면, 「고침 → 다시 점검 → Ctrl+Z」에서 Ctrl+Z 가 고침 대신
+  -- 피겨 모드를 켜 동작이 사라진 것처럼 보였다 → 되돌리기 목록에 안 남긴다.
+  with undo off (try (root.controller.figureMode = true; figOk = true) catch ())
   format "],\"fig\":[%" (if figOk then 1 else 0) to:fs
   for n in nodes do format ",[%]" (sjM n.transform) to:fs
   format "],\"verts\":[" to:fs
   local first = true
   local nv = 0
-  (
+  -- 11-10: 점마다 가장 무거운 스킨 뼈(우리 뼈 꼬리 · 아니면 "x:이름" · 못 읽으면 "") — 머리카락 · 리본 · 장식을 몸 부피에서 가른다.
+  -- skinOps 는 수정 패널에서 그 Skin 이 열려 있어야 읽힌다 → 잠깐 고르고, 끝나면 원래 선택 · 패널로 되돌린다(장면은 안 바뀐다).
+  local labs = #()
+  local vmesh = #()
+  local mnames = #()
+  local xnames = #()
+  local oldSel = selection as array
+  local oldMode = getCommandPanelTaskMode()
+  fn sjClean s = (substituteString (substituteString s "\\" "/") "\"" "'")
+  fn sjLabel nm pre tails = (
+    if (findString nm (pre + " ")) == 1 then (
+      local t = substring nm (pre.count + 2) -1
+      if (findItem tails t) > 0 then t else ("x:" + nm)
+    ) else ("x:" + nm)
+  )
+  with undo off (
     for o in geometry where not (classOf o == Biped_Object) and not o.isHidden do (
       local deformed = false
-      for m in o.modifiers where (classOf m == Skin or classOf m == Physique) do deformed = true
+      local sk = undefined
+      for m in o.modifiers where (classOf m == Skin or classOf m == Physique) do (deformed = true; if classOf m == Skin do sk = m)
       if deformed do (
         local msh = snapshotAsMesh o
         local cnt = msh.numverts
         local step = if cnt > 6000 then (cnt / 6000 + 1) else 1
+        local useSk = false
+        if sk != undefined do try (
+          max modify mode
+          select o
+          modPanel.setCurrentObject sk
+          useSk = ((skinOps.GetNumberVertices sk) == cnt)   -- 위에 점 수를 바꾸는 수정자(터보스무스 등)가 있으면 못 맞춘다 → 가까운 뼈로
+        ) catch (useSk = false)
+        append mnames (sjClean o.name)
         for v = 1 to cnt by step do (
           local p = getVert msh v
           format "%[%,%,%]" (if first then "" else ",") (sjNum p.x) (sjNum p.y) (sjNum p.z) to:fs
           first = false
           nv += 1
+          local lab = ""
+          if useSk do try (
+            local bw = 0.0
+            local bid = 0
+            for i = 1 to (skinOps.GetVertexWeightCount sk v) do (
+              local w = skinOps.GetVertexWeight sk v i
+              if w > bw do (bw = w; bid = skinOps.GetVertexWeightBoneID sk v i)
+            )
+            if bid > 0 do (
+              local bn = skinOps.GetBoneName sk bid 0
+              lab = sjLabel bn pre tails
+              if (substring lab 1 2) == "x:" do appendIfUnique xnames bn
+            )
+          ) catch (lab = "")
+          append labs (sjClean lab)
+          append vmesh (mnames.count - 1)
         )
         delete msh
       )
     )
   )
-  try (root.controller.figureMode = wasFig) catch ()
-  format "]}" to:fs
+  with undo off (try (root.controller.figureMode = wasFig) catch ())
+  with undo off (try (if oldSel.count > 0 then select oldSel else clearSelection()) catch ())
+  try (setCommandPanelTaskMode oldMode) catch ()
+  format "],\"vbones\":[" to:fs
+  for i = 1 to labs.count do format "\"%\"%" labs[i] (if i < labs.count then "," else "") to:fs
+  format "],\"vmesh\":[" to:fs
+  for i = 1 to vmesh.count do format "%%" vmesh[i] (if i < vmesh.count then "," else "") to:fs
+  format "],\"meshes\":[" to:fs
+  for i = 1 to mnames.count do format "\"%\"%" mnames[i] (if i < mnames.count then "," else "") to:fs
+  -- 우리 뼈가 아닌 뼈 → 가장 가까운 우리 조상 뼈(꼬리). 몸(뱃살 · 가슴 출렁)인지 장식인지는 파이썬이 거리로 가른다
+  format "],\"xparent\":{" to:fs
+  for i = 1 to xnames.count do (
+    local anc = ""
+    local nd = getNodeByName xnames[i]
+    if nd != undefined do (
+      local q = nd.parent
+      while q != undefined and anc == "" do (
+        local t = sjLabel q.name pre tails
+        if (substring t 1 2) != "x:" then anc = t else q = q.parent
+      )
+    )
+    format "\"%\":\"%\"%" (sjClean xnames[i]) anc (if i < xnames.count then "," else "") to:fs
+  )
+  format "}}" to:fs
   close fs
   "손자리 점검 읽기: 뼈 " + (nodes.count as string) + " · 프레임 " + ((E - S + 1) as string) + " · 몸 점 " + (nv as string)
 )
@@ -170,6 +235,72 @@ def _seg_dist(p: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.linalg.norm(p - (a + t[:, None] * ab), axis=1)
 
 
+#: 우리 뼈가 아닌 뼈 · 다른 메시의 점이 본 몸 메시보다 이 배수 넘게 바깥이면 장식(머리카락 · 리본 · 치마)으로 친다.
+#: 11-10 시험 캐릭터 실측: 뱃살 출렁 뼈 1.07배(몸) · 똥머리 1.48배(장식). 표본 둘 — 다른 캐릭터로 다시 볼 것.
+DECOR_RATIO = 1.25
+_TORSO = [k for _c, members in BODY.values() for k in members]
+
+
+def _part_of(key: str) -> str:
+    return next((p for p, (_c, members) in BODY.items() if key in members), "")
+
+
+def _assign(dump: dict[str, Any], v: np.ndarray, keys: list[str], d: np.ndarray) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+    """점마다 (주인 뼈, 몸 부피에 쓸지, 보고).
+
+    스킨 가중치(vbones: 점마다 가장 무거운 뼈)가 있으면 그것으로 나눈다 — 11-06 까지는 「가장 가까운 뼈」라
+    아래팔 옆 뱃살이 팔로, 머리카락 · 장식이 머리 · 가슴으로 갔다. 가중치가 없거나(피지크 · 위상이 바뀐 메시) 빈 칸이면 예전처럼 가까운 뼈.
+    """
+    near = np.array(keys, dtype=object)[d.argmin(axis=1)]
+    labels = dump.get("vbones")
+    if not labels or len(labels) != len(v):
+        return near, np.ones(len(v), bool), {"skin_weights": False}
+    lab = np.array([str(x) for x in labels], dtype=object)
+    vmesh = np.array(dump.get("vmesh") or [0] * len(v))
+    meshes = list(dump.get("meshes") or [])
+    xparent = dict(dump.get("xparent") or {})
+    owner, keep = near.copy(), np.ones(len(v), bool)
+    ours = np.isin(lab, keys)
+    owner[ours] = lab[ours]
+    tcols = [keys.index(k) for k in keys if k in _TORSO]
+    dt = d[:, tcols].min(axis=1) if tcols else np.full(len(v), np.inf)
+    body = ours & np.isin(owner, _TORSO)
+    if not body.any():
+        return near, np.ones(len(v), bool), {"skin_weights": False, "why": "몸통 · 머리 뼈에 붙은 점이 없다"}
+    main = int(np.bincount(vmesh[body]).argmax())
+    ref = {}
+    for part, (_c, members) in BODY.items():
+        sel = body & (vmesh == main) & np.isin(owner, members)
+        if sel.sum() >= 12:
+            ref[part] = float(np.median(dt[sel]))
+    kept, decor = [], []
+    # ① 우리 뼈가 아닌 뼈(뱃살 출렁 · 똥머리 · 포니테일 · 리본 …): 조상이 몸통 · 머리면 거리로 가르고, 팔다리 밑이면 뺀다
+    for name in sorted({str(x)[2:] for x in lab if str(x).startswith("x:")}):
+        sel = lab == "x:" + name
+        anc = str(xparent.get(name) or "")
+        part = _part_of(anc)
+        far = float(np.median(dt[sel]))
+        if part and part in ref and anc in keys and far <= DECOR_RATIO * ref[part]:
+            owner[sel] = anc
+            kept.append({"bone": name, "as": part, "ratio": round(far / ref[part], 2)})
+        else:
+            keep[sel] = False
+            decor.append({"bone": name, "points": int(sel.sum()),
+                          **({"ratio": round(far / ref[part], 2)} if part in ref else {"under": anc or "없음"})})
+    # ② 본 몸 메시가 아닌 메시의 몸통 · 머리 점(머리카락 메시를 머리 뼈에 통째로 · 치마를 골반에): 같은 잣대
+    for mi in sorted(set(vmesh[body].tolist()) - {main}):
+        for part, (_c, members) in BODY.items():
+            sel = (vmesh == mi) & ours & np.isin(owner, members)
+            if sel.sum() >= 6 and part in ref and float(np.median(dt[sel])) > DECOR_RATIO * ref[part]:
+                keep[sel] = False
+                decor.append({"mesh": meshes[mi] if mi < len(meshes) else str(mi), "part": part, "points": int(sel.sum()),
+                              "ratio": round(float(np.median(dt[sel])) / ref[part], 2)})
+    blank = lab == ""
+    return owner, keep, {"skin_weights": True, "main_mesh": meshes[main] if main < len(meshes) else main,
+                         "kept_extra_bones": kept, "decoration": decor,
+                         **({"no_weight_points": int(blank.sum())} if blank.any() else {})}
+
+
 def body_volumes(dump: dict[str, Any]) -> dict[str, Any]:
     """기준 프레임의 메시 점 → 몸 부피(재는 뼈 자리의 타원체) · 팔 · 다리 굵기."""
     names = dump["bones"]
@@ -183,11 +314,11 @@ def body_volumes(dump: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("몸 메시 점이 너무 적다(스킨 · 피지크가 걸린 메시를 못 찾음) — 캐릭터 메시가 바이페드에 스킨돼 있는지 확인")
     keys = list(seg)
     d = np.stack([_seg_dist(v, *seg[k]) for k in keys], axis=1)
-    owner = np.array(keys)[d.argmin(axis=1)]
+    owner, keep, how = _assign(dump, v, keys, d)
     vols: dict[str, Any] = {}
     for part, (cands, members) in BODY.items():
         bone = next((c for c in cands if c in mats), None)
-        pts = v[np.isin(owner, members)]
+        pts = v[keep & np.isin(owner, members)]
         if bone is None or len(pts) < 12:
             continue
         local = (np.c_[pts, np.ones(len(pts))] @ np.linalg.inv(mats[bone]))[:, :3]
@@ -196,9 +327,9 @@ def body_volumes(dump: dict[str, Any]) -> dict[str, Any]:
                       "points": int(len(pts))}
     thick = {}
     for limb, bones in (("팔", ["L Forearm", "R Forearm"]), ("다리", ["L Thigh", "R Thigh", "L Calf", "R Calf"])):
-        ds = [d[owner == b, keys.index(b)] for b in bones if b in keys and (owner == b).sum() >= 6]
+        ds = [d[keep & (owner == b), keys.index(b)] for b in bones if b in keys and (keep & (owner == b)).sum() >= 6]
         thick[limb] = float(np.median(np.concatenate(ds))) if ds else 0.0
-    return {"volumes": vols, "thickness": thick}
+    return {"volumes": vols, "thickness": thick, "body_from": how}
 
 
 def _probe_points(seg: dict[str, tuple[np.ndarray, np.ndarray]]) -> dict[tuple[str, str], np.ndarray]:
@@ -209,7 +340,9 @@ def _probe_points(seg: dict[str, tuple[np.ndarray, np.ndarray]]) -> dict[tuple[s
             out[("팔", side)] = np.array([fa[0], (fa[0] + fa[1]) / 2, fa[1], (hd[0] + hd[1]) / 2, hd[1]])
         th, ca = seg.get(f"{s} Thigh"), seg.get(f"{s} Calf")
         if th and ca:
-            out[("다리", side)] = np.array([ca[0]])            # 무릎만 — 허벅지 가운데는 원래 골반 옆이라 늘 걸렸다(11-06)
+            # 무릎 + 정강이 1/4 · 1/2(11-10). 허벅지 쪽은 원래 골반 옆이라 서 있기만 해도 걸린다(11-06 · 11-10 시험 캐릭터 헛잡음 89~98%).
+            # 시험 캐릭터 발차기 콤보 1316프레임 메시 기준(정강이 점이 배 · 가슴 안 145프레임): 무릎만 놓침 81% → 셋 37% · 헛잡음 4%.
+            out[("다리", side)] = np.array([ca[0], ca[0] + 0.25 * (ca[1] - ca[0]), ca[0] + 0.5 * (ca[1] - ca[0])])
     return out
 
 
@@ -277,6 +410,7 @@ def check(dump: dict[str, Any]) -> dict[str, Any]:
     bad_calib = {k: v for k, v in calib.items() if v > 0}
     out = {"frames": total, "frames_with_any_hit": len(any_hit), "table": table,
            "body_measured": {k: {"bone": v["bone"], "points": v["points"]} for k, v in vols.items()},
+           "body_from": body["body_from"],
            "missing_body": [p for p in BODY if p not in vols], "ref_frame": ref,
            "measured_in": "피겨 모드" if fig and int(fig[0]) == 1 else f"{ref} 프레임"}
     if bad_calib:
@@ -376,7 +510,184 @@ def plan_fix(dump: dict[str, Any], max_deg: int = FIX_MAX_DEG) -> dict[str, Any]
     return out
 
 
-FIX_SCRIPT = r'''-- 손자리 애니메이터 팩: 팔 뚫림 자동 수정 (위팔 키 자리에서만 방향을 바꾼다 · Ctrl+Z 한 번 · 편집 › 가져오기)
+# ── 자동 수정 — 다리(무릎 · 정강이 → 배 · 가슴 · 11-10) ──────────────────────────────────────
+# 11-05 블렌더 kick_belly 실험의 규칙을 옮겼다: 상체를 뒤로 젖히거나 허벅지를 내린다. **둘 다 몸 좌우 축(골반 왼 → 오른)으로만** 돌려
+# 무릎이 앞뒤 · 위아래로만 움직인다 — 다리 바깥 벌림(기형)은 생길 수 없다. 두 발이 바닥이면 젖힘 15도까지 · 허벅지는 안 건드린다
+# (11-05: 45도까지 젖혔더니 쪼그린 장면에서 몸이 접혔다 · 디딘 발을 들면 발이 뜬다). 원래 키 자리에서만 · 키가 없는 뼈는 안 고친다.
+LEG_MAX_DEG = 30
+LEAN_MAX_DEG = 30
+LEAN_PLANTED_DEG = 15
+LEAN_BONE = "Spine"
+_UPPER = {"Spine", "Spine1", "Spine2", "Spine3", "Neck", "Head"}      # 젖힐 때 같이 도는 뼈(배 · 가슴 · 머리 부피가 붙는 뼈)
+
+
+def _turned(m: np.ndarray, R: np.ndarray, p: np.ndarray) -> np.ndarray:
+    out = m.copy()
+    out[:3, :3] = m[:3, :3] @ R.T
+    out[3, :3] = p + (m[3, :3] - p) @ R.T
+    return out
+
+
+def _unit(v: np.ndarray) -> np.ndarray:
+    return v / (np.linalg.norm(v) or 1.0)
+
+
+def _planted_fn(mats_all: list[dict[str, np.ndarray]]):
+    """발(발목) 높이가 동작 전체에서 가장 낮은 발 + 종아리 길이 20% 안이면 디딘 발."""
+    zs = [m[f"{s} Foot"][3, 2] for m in mats_all for s in "LR" if f"{s} Foot" in m]
+    calves = [np.linalg.norm(m[f"{s} Calf"][3, :3] - m[f"{s} Foot"][3, :3]) for m in mats_all[:1] for s in "LR"
+              if f"{s} Calf" in m and f"{s} Foot" in m]
+    if not zs or not calves:
+        return lambda m, s: False
+    ground, tol = min(zs), 0.2 * float(np.median(calves))
+    return lambda m, s: f"{s} Foot" in m and m[f"{s} Foot"][3, 2] - ground <= tol
+
+
+def _used(base: dict[str, Any] | None, dump: dict[str, Any], bone: str) -> dict[int, float]:
+    """원본(base) 대비 이미 돌아간 각도(프레임마다 · 도). 같은 뼈대 · 같은 기본 자세가 아니면 빈 것."""
+    if not base or base.get("bones") != dump.get("bones") or base.get("fig") != dump.get("fig") or bone not in dump["bones"]:
+        return {}
+    k = dump["bones"].index(bone) + 1
+    was = {int(r[0]): _unit(_mats(r[k])[0, :3]) for r in base["frames"]}
+    out = {}
+    for r in dump["frames"]:
+        f = int(r[0])
+        if f in was:
+            out[f] = float(np.degrees(np.arccos(np.clip(was[f] @ _unit(_mats(r[k])[0, :3]), -1, 1))))
+    return out
+
+
+def plan_fix_legs(dump: dict[str, Any], max_lean: int = LEAN_MAX_DEG, max_thigh: int = LEG_MAX_DEG,
+                  base: dict[str, Any] | None = None) -> dict[str, Any]:
+    """무릎 · 정강이가 배 · 가슴을 뚫은 프레임 → 척추(젖힘) · 허벅지(내림) 방향(키 자리마다). 장면은 안 바꾼다.
+
+    base = 고치기 전 원본 읽기. 주면 상한(젖힘 · 허벅지)을 **원본 대비 누적**으로 건다 — 11-10 시험 캐릭터 발차기에서 세 번 돌리니
+    한 번 30도 상한이 매번 새로 걸려 상체 68.8도 · 허벅지 70.9도까지 쌓였다(기형).
+    """
+    body = body_volumes(dump)
+    vols, thick = body["volumes"], body["thickness"]
+    names = dump["bones"]
+    rows = list(dump["frames"])
+    frames = [int(r[0]) for r in rows]
+    mats_all = [{n: _mats(m) for n, m in zip(names, r[1:])} for r in rows]
+    planted = _planted_fn([{n: _mats(m) for n, m in zip(base["bones"], r[1:])} for r in base["frames"]]
+                          if base and base.get("bones") == names else mats_all)
+    used = {b: _used(base, dump, b) for b in (LEAN_BONE, "L Thigh", "R Thigh")}
+    side_of = {"L": "왼", "R": "오른"}
+    n = len(rows)
+    lean = np.zeros((2, n))                                    # [+, -] 채널(팔과 같이 채널마다 부드럽게)
+    thigh = {s: np.zeros((2, n)) for s in "LR"}
+    hit = {"왼": 0, "오른": 0}
+    unsolved: list[int] = []
+    for i, m in enumerate(mats_all):
+        if "L Thigh" not in m or "R Thigh" not in m:
+            continue
+        probes = _probe_points(_segments(m))
+        checks = [vols[p] for p in LIMB_VS["다리"] if p in vols and vols[p]["bone"] in m]
+        if not checks:
+            continue
+
+        def depth(pts: np.ndarray, mm: dict[str, np.ndarray], checks=checks) -> float:
+            return max(_depth(pts, mm[v["bone"]], v, thick.get("다리", 0.0)) for v in checks)
+
+        sides = [s for s in "LR" if ("다리", side_of[s]) in probes and depth(probes[("다리", side_of[s])], m) > 0]
+        if not sides:
+            continue
+        for s in sides:
+            hit[side_of[s]] += 1
+        ax = _unit(m["R Thigh"][3, :3] - m["L Thigh"][3, :3])
+        pivot = m[LEAN_BONE][3, :3] if LEAN_BONE in m else None
+        cap_a = 0 if pivot is None else (min(max_lean, LEAN_PLANTED_DEG) if planted(m, "L") and planted(m, "R") else max_lean)
+        cap_a = max(0, int(cap_a - used[LEAN_BONE].get(frames[i], 0.0)))
+        sgn_a = 1
+        if pivot is not None:
+            # 젖히는 쪽 = 몸의 뒤쪽(좌우 축 × 척추 위 방향). 11-10 맥스 실측: 「가슴이 무릎에서 멀어지는 쪽」으로 고르면
+            # 상체를 숙인 채 무릎을 가슴보다 높이 든 장면에서 네 키 모두 「더 숙임」으로 계획했다 — 젖힘이 아니고 몸이 더 접힌다.
+            back = _unit(np.cross(ax, _unit(m[LEAN_BONE][0, :3])))
+            top = m["Spine2"][3, :3] if "Spine2" in m else pivot + m[LEAN_BONE][0, :3]
+            sgn_a = max((1, -1), key=lambda g: float(((top - pivot) @ _rot(ax, 10 * g).T) @ back))
+        sgn_t = {}
+        for s in sides:                                        # 허벅지를 내리는 쪽 = 무릎이 내려가는 쪽
+            hip, kn = m[f"{s} Thigh"][3, :3], m[f"{s} Calf"][3, :3]
+            sgn_t[s] = min((1, -1), key=lambda g: float((hip + (kn - hip) @ _rot(ax, 10 * g).T)[2]))
+        best = None
+        for a in range(0, cap_a + 1, FIX_STEP):
+            if best and a >= best[0]:
+                break
+            mm = m if a == 0 else {k: (_turned(v, _rot(ax, a * sgn_a), pivot) if k in _UPPER else v) for k, v in m.items()}
+            cost, ts = a, {}
+            for s in sides:
+                pts, hip = probes[("다리", side_of[s])], m[f"{s} Thigh"][3, :3]
+                cap_t = 0 if planted(m, s) else max(0, int(max_thigh - used[f"{s} Thigh"].get(frames[i], 0.0)))
+                t_ok = next((t for t in range(0, cap_t + 1, FIX_STEP)
+                             if depth(pts if t == 0 else hip + (pts - hip) @ _rot(ax, t * sgn_t[s]).T, mm) <= 0), None)
+                if t_ok is None:
+                    cost = None
+                    break
+                ts[s] = t_ok
+                cost += t_ok
+            if cost is not None and (best is None or cost < best[0]):
+                best = (cost, a, ts)
+        if best is None:
+            unsolved.append(frames[i])
+            continue
+        _c, a, ts = best
+        if a:
+            lean[0 if sgn_a > 0 else 1, i] = a
+        for s, t in ts.items():
+            if t:
+                thigh[s][0 if sgn_t[s] > 0 else 1, i] = t
+    keys = dump.get("keys") or {}
+    out: dict[str, Any] = {"legs": {}, "frames_hit": {f"{v} 다리": hit[v] for v in hit}, "unsolved": {}, "no_keys": []}
+
+    def at_keys(bone: str, chan: np.ndarray) -> None:
+        soft = np.stack([_soften(r) for r in chan])
+        net = soft[0] - soft[1]
+        if np.abs(net).max() < 0.5:
+            return
+        ks = [int(f) for f in keys.get(bone, [])]
+        if not ks:                                             # 키가 없는 뼈에 새 키를 만들지 않는다
+            out["no_keys"].append(bone)
+            return
+        plan = []
+        for f in ks:
+            if f not in frames:
+                continue
+            i = frames.index(f)
+            m = mats_all[i]
+            if bone not in m or "L Thigh" not in m or "R Thigh" not in m or abs(net[i]) < 0.5:
+                continue
+            # 부드럽게 이은 값이 옆 프레임에서 번져 와도 이 프레임의 상한을 넘지 않게(11-05: 45도 젖힘이 번져 쪼그린 몸이 접혔다)
+            if bone == LEAN_BONE:
+                cap = min(max_lean, LEAN_PLANTED_DEG) if planted(m, "L") and planted(m, "R") else max_lean
+            else:
+                cap = 0 if planted(m, bone[0]) else max_thigh
+            cap = max(0.0, cap - used[bone].get(f, 0.0))
+            deg = float(np.clip(net[i], -cap, cap))
+            if abs(deg) < 0.5:
+                continue
+            ax = _unit(m["R Thigh"][3, :3] - m["L Thigh"][3, :3])
+            d = _rot(ax, deg) @ _unit(m[bone][0, :3])
+            plan.append([f, [round(float(x), 5) for x in d], round(abs(deg), 1)])
+        if plan:
+            out["legs"][bone] = plan
+
+    at_keys(LEAN_BONE, lean)
+    for s in "LR":
+        at_keys(f"{s} Thigh", thigh[s])
+    if unsolved:
+        out["unsolved"]["다리"] = _ranges(unsolved)[:8]
+    return out
+
+
+def fix_items(plan: dict[str, Any]) -> list[list[Any]]:
+    """[뼈 꼬리, 프레임, 방향] — 척추 → 허벅지 → 위팔 순(같은 프레임에서 상체를 먼저 젖힌 뒤 팔을 맞춘다)."""
+    items = [[b, f, d] for b in (LEAN_BONE, "L Thigh", "R Thigh") for f, d, _deg in (plan.get("legs") or {}).get(b, [])]
+    items += [[f"{s} UpperArm", f, d] for s, rows in (plan.get("keys") or {}).items() for f, d, _deg in rows]
+    return items
+
+
+FIX_SCRIPT = r'''-- 손자리 애니메이터 팩: 뚫림 자동 수정 (위팔 · 허벅지 · 척추 키 자리에서만 방향을 바꾼다 · Ctrl+Z 한 번 · 편집 › 가져오기)
 (
 __ALIGN__
 local pre = "__PREFIX__"
@@ -387,7 +698,7 @@ local worst = 1.0
 undo "Sonjari fit fix" on (
   with animate on (
     for p in plan do (
-      local node = getNodeByName (pre + " " + p[1] + " UpperArm")
+      local node = getNodeByName (pre + " " + p[1])
       if node != undefined do at time p[2] (
         local d = sjAlign node p[3]
         if d < worst do worst = d
@@ -396,7 +707,7 @@ undo "Sonjari fit fix" on (
     )
   )
 )
-"손자리 팔 고침: 위팔 키 " + (n as string) + "곳 · 가장 덜 맞은 방향 " + (worst as string) + " (1 = 꼭 맞음) · 되돌리기: Ctrl+Z 또는 편집 › 가져오기"
+"손자리 뚫림 고침: 키 " + (n as string) + "곳 · 가장 덜 맞은 방향 " + (worst as string) + " (1 = 꼭 맞음) · 되돌리기: Ctrl+Z 또는 편집 › 가져오기"
 )
 '''
 
@@ -405,7 +716,7 @@ def write_fix_script(plan: dict[str, Any], prefix: str = "Bip001") -> str:
     from .refpose import _ALIGN_FN
 
     prefix = prefix.replace('"', "").replace("\\", "").strip() or "Bip001"
-    items = [f'#("{s}", {f}, [{d[0]},{d[1]},{d[2]}])' for s, rows in plan["keys"].items() for f, d, _deg in rows]
+    items = [f'#("{b}", {f}, [{d[0]},{d[1]},{d[2]}])' for b, f, d in fix_items(plan)]
     return (FIX_SCRIPT.replace("__ALIGN__", _ALIGN_FN).replace("__PREFIX__", prefix)
             .replace("__PLAN__", ", ".join(items)))
 

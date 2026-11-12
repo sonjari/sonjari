@@ -354,7 +354,8 @@ class AnimatorTools:
                                                    arm_spread=float(arguments.get("arm_spread") or 0.0),
                                                    blend_bip=Path(other["bip"]) if other else None, blend=blend,
                                                    blend_frames=(other["start"], other["end"]) if other and "start" in other and "end" in other else None,
-                                                   bookend=bookend))
+                                                   bookend=bookend,
+                                                   foot_lock=arguments.get("foot_lock", True) is not False))
         result = {"ok": True, "motion": self._brief(e), "run_line": run_line(script),
                   "next": "무엇을 어느 캐릭터에 입히는지 사람에게 말하고 「해」를 받은 뒤에만 run_line 을 보내라. "
                           "되돌리기는 맥스 편집 › 가져오기(Fetch)."}
@@ -458,7 +459,9 @@ class AnimatorTools:
         rep.unlink(missing_ok=True)
         script = write_script(d / "to_biped.ms", refpose.biped_fit_script(poses, prefix, start, spacing, rep, frames))
         (d / "lifted.json").write_text(json.dumps(poses, ensure_ascii=False), encoding="utf-8")
+        doubt = refpose.facing_report(poses)
         return {"ok": True, "sheet_id": d.name, "poses": [p["no"] for p in good],
+                **({"facing_unsure": doubt} if doubt else {}),
                 "missing": [p["no"] for p in poses if p.get("missing")],
                 "keys_at": frames, "timing": "영상 속 시각" if timing != "even" and frames != [start + i * spacing for i in range(len(good))] else f"{spacing}프레임 간격",
                 "run_line": run_line(script),
@@ -472,9 +475,17 @@ class AnimatorTools:
         self._check()
         base = self.root / "fitcheck"
         if arguments.get("check"):
-            out = fitcheck.check_file(self._fit_dump())
+            dump_path = self._fit_dump()
+            out = fitcheck.check_file(dump_path)
+            # 튐 점검(11-12 · 시험 중): 같은 읽기 파일로 몸통 · 허리 · 머리 · 손목의 갑작스러운 꺾임을 표로(고치기는 아직)
+            if arguments.get("jitter", True) is not False:
+                from .animator import jitter
+
+                out["jitter"] = {**jitter.scan(load_dump(dump_path)),
+                                 "note": "튐 점검(시험 중): 어디를 볼지 짚는 표다. 사람이 그 프레임을 재생해 진짜 튐인지 보게 해라 — "
+                                         "일부러 확 꺾는 동작(타격 순간)도 걸릴 수 있다. 자동으로 고치지는 않는다."}
             return {"ok": True, "status": "시험 중", **out,
-                    "note": "어디를 볼지 짚어 주는 표다. 머리카락 · 장식이 큰 캐릭터는 그것까지 몸으로 쳐서 많이 잡힌다 — "
+                    "note": "어디를 볼지 짚어 주는 표다. 장식은 스킨 가중치로 뺐지만(body_from) 얕은 뚫림은 놓칠 수 있다 — "
                             "숫자를 그대로 믿게 하지 말고, 사람이 그 프레임을 재생해 실제로 뚫렸는지 보게 해라."}
         folder = base / time.strftime("%Y%m%d_%H%M%S")
         dump = folder / "dump.json"
@@ -496,23 +507,53 @@ class AnimatorTools:
         return found[0]
 
     def fit_fix(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        """팔 뚫림 자동 수정(11-06 · 시험 중) — 계획은 fitcheck.plan_fix, 맥스는 위팔 키 자리에서만 방향을 바꾼다."""
+        """뚫림 자동 수정(11-06 팔 · 11-10 다리 · 시험 중) — 계획은 fitcheck.plan_fix · plan_fix_legs, 맥스는 키 자리에서만 방향을 바꾼다."""
         from .animator import fitcheck
 
         self._check()
         dump_path = self._fit_dump()
-        plan = fitcheck.plan_fix(load_dump(dump_path), max_deg=max(10, min(60, int(arguments.get("max_deg") or fitcheck.FIX_MAX_DEG))))
-        n = sum(len(v) for v in plan["keys"].values())
-        if n == 0:
-            return {"ok": True, "status": "시험 중", "keys": 0, "note": "고칠 팔 뚫림이 없다(가장 최근 점검 기준)."}
+        dump = load_dump(dump_path)
+        plan = fitcheck.plan_fix(dump, max_deg=max(10, min(60, int(arguments.get("max_deg") or fitcheck.FIX_MAX_DEG))))
+        base = self._fix_base(dump_path, dump)
+        legs = (fitcheck.plan_fix_legs(dump, base=base) if arguments.get("legs", True) is not False
+                else {"legs": {}, "frames_hit": {}, "unsolved": {}, "no_keys": []})
+        plan["legs"] = legs["legs"]
+        items = fitcheck.fix_items(plan)
+        if not items:
+            return {"ok": True, "status": "시험 중", "keys": 0, "note": "고칠 팔 · 다리 뚫림이 없다(가장 최근 점검 기준)."
+                    + (f" 키가 없어 못 고친 뼈: {legs['no_keys']}" if legs["no_keys"] else "")}
         script = write_script(dump_path.parent / f"fix_{time.strftime('%H%M%S')}.ms",
                               fitcheck.write_fix_script(plan, str(arguments.get("biped") or "Bip001")))
-        degs = [r[2] for rows in plan["keys"].values() for r in rows]
-        return {"ok": True, "status": "시험 중", "run_line": run_line(script), "from_check": str(dump_path),
-                "keys": {s: len(v) for s, v in plan["keys"].items()}, "max_deg_used": max(degs),
-                "frames_hit": plan["frames_hit"], "unsolved": plan["unsolved"],
-                "next": f"「위팔 키 {n}곳을 최대 {max(degs)}도까지 바꾼다 · Ctrl+Z 로 되돌림」을 사람에게 말하고 「해」를 받은 뒤 run_line 을 보내라. "
-                        "그다음 anim_fit_check 로 다시 재서 전후를 보여라. unsolved 는 이번에 못 푸는 곳(사람 몫)."}
+        arm_degs = [r[2] for rows in plan["keys"].values() for r in rows]
+        leg_degs = {b: max(r[2] for r in rows) for b, rows in plan["legs"].items()}
+        out = {"ok": True, "status": "시험 중", "run_line": run_line(script), "from_check": str(dump_path),
+               "keys": {**{f"{s} 위팔": len(v) for s, v in plan["keys"].items()}, **{b: len(v) for b, v in plan["legs"].items()}},
+               "max_deg_used": {"팔": max(arm_degs) if arm_degs else 0, **leg_degs},
+               "frames_hit": {**plan["frames_hit"], **legs["frames_hit"]}, "unsolved": {**plan["unsolved"], **legs["unsolved"]},
+               "how_legs": "다리는 상체(Spine)를 뒤로 젖히거나 허벅지를 내린다 — 몸 좌우 축으로만 돌려 다리를 옆으로 벌리지 않는다. "
+                           "두 발이 바닥이면 젖힘 15도까지 · 허벅지는 안 건드린다.",
+               "next": f"「키 {len(items)}곳(위팔 · 허벅지 · 척추)을 max_deg_used 만큼까지 바꾼다 · Ctrl+Z 로 되돌림」을 사람에게 말하고 「해」를 받은 뒤 run_line 을 보내라. "
+                       "그다음 anim_fit_check 로 다시 재서 전후를 보여라. unsolved 는 이번에 못 푸는 곳(사람 몫)."}
+        if legs["no_keys"]:
+            out["no_keys"] = {"bones": legs["no_keys"], "note": "이 뼈에는 키가 없어 고치지 않았다(새 키를 만들지 않는다)."}
+        return out
+
+    def _fix_base(self, dump_path: Path, dump: dict[str, Any]) -> dict[str, Any]:
+        """다리 상한을 원본 대비 누적으로 걸 기준 읽기. 직전 고침(같은 뼈대 · 같은 기본 자세 · 6시간 안)의 기준을 이어받고, 없으면 이 읽기.
+        고칠 때마다 fix_base.txt 에 기준 경로를 남긴다 — 「고침 → 다시 점검 → 또 고침」에서 각도가 쌓이지 않게(11-10)."""
+        base_path = dump_path
+        prev = sorted((p for p in (self.root / "fitcheck").glob("*/fix_base.txt") if p.parent != dump_path.parent),
+                      key=lambda p: p.stat().st_mtime, reverse=True)
+        if prev and time.time() - prev[0].stat().st_mtime < 6 * 3600:
+            cand = Path(prev[0].read_text(encoding="utf-8").strip())
+            try:
+                old = load_dump(cand)
+                if old.get("bones") == dump.get("bones") and old.get("fig") == dump.get("fig"):
+                    base_path = cand
+            except (OSError, ValueError):
+                pass
+        (dump_path.parent / "fix_base.txt").write_text(str(base_path), encoding="utf-8")
+        return dump if base_path == dump_path else load_dump(base_path)
 
     # ── 블렌더(11-06) — 손자리가 창 없는 블렌더를 직접 띄운다 · 계산은 맥스와 같은 fitcheck.py ─────────────
     @staticmethod
@@ -539,7 +580,7 @@ class AnimatorTools:
         work = self.root / "blender" / time.strftime("%Y%m%d_%H%M%S")
         got = self._blender_read(blend, arguments, work)
         out = {"ok": True, "status": "시험 중", "armature": got["info"]["armature"], "bone_map": got["dump"]["map"], **got["check"],
-               "note": "어디를 볼지 짚어 주는 표다. 머리카락 · 장식이 큰 캐릭터는 그것까지 몸으로 쳐서 많이 잡힌다."}
+               "note": "어디를 볼지 짚어 주는 표다. 장식은 스킨 가중치로 뺐다(body_from.decoration). 얕은 뚫림은 놓칠 수 있다 — 사람이 재생해 확인."}
         if got["dump"].get("constrained"):
             out["constrained"] = got["dump"]["constrained"]
         return out
@@ -552,31 +593,40 @@ class AnimatorTools:
         passes = max(1, min(3, int(arguments.get("passes") or 3)))
         max_deg = max(10, min(60, int(arguments.get("max_deg") or fitcheck.FIX_MAX_DEG)))
         work = self.root / "blender" / time.strftime("%Y%m%d_%H%M%S")
-        save = blend.with_name(f"{blend.stem}_sonjari_팔고침.blend")
-        cur, history = blend, []
+        save = blend.with_name(f"{blend.stem}_sonjari_뚫림고침.blend")
+        cur, history, base = blend, [], None
         for i in range(passes + 1):
             got = self._blender_read(cur, arguments, work / f"read{i}")
-            arm = sum(r["frames"] for r in got["check"]["table"] if "팔" in r["where"])
-            history.append({"pass": i, "arm_cells": arm, "frames_with_any_hit": got["check"]["frames_with_any_hit"]})
-            arm_bones = {got["dump"]["map"].get(k) for k in ("L UpperArm", "R UpperArm")}
-            locked = [b for b in got["dump"].get("constrained") or [] if b in arm_bones]
+            base = base or got["dump"]                       # 다리 상한은 원본 대비 누적(여러 번 돌아도 쌓이지 않게)
+            arm = sum(r["frames"] for r in got["check"]["table"] if " 팔 " in r["where"])
+            leg = sum(r["frames"] for r in got["check"]["table"] if " 다리 " in r["where"])
+            history.append({"pass": i, "arm_cells": arm, "leg_cells": leg, "frames_with_any_hit": got["check"]["frames_with_any_hit"]})
+            fix_bones = {got["dump"]["map"].get(k) for k in ("L UpperArm", "R UpperArm", "L Thigh", "R Thigh", "Spine")}
+            locked = [b for b in got["dump"].get("constrained") or [] if b in fix_bones]
             if i == 0 and locked:
-                raise ValueError("이 뼈대의 위팔 뼈에 제약(constraint)이 걸려 있다: " + ", ".join(locked)
+                raise ValueError("이 뼈대의 고칠 뼈(위팔 · 허벅지 · 척추)에 제약(constraint)이 걸려 있다: " + ", ".join(locked)
                                  + " — 키를 써도 제약이 덮는다. 컨트롤 리그 쪽 파일로 하거나 구운(bake) 뒤에 하라고 사람에게 말해라.")
-            if i == passes or arm == 0:
+            if i == passes or arm + leg == 0:
                 break
             plan = fitcheck.plan_fix(got["dump"], max_deg=max_deg)
-            if not any(plan["keys"].values()):
+            legs = fitcheck.plan_fix_legs(got["dump"], base=base)
+            plan["legs"] = legs["legs"]
+            history[-1]["unsolved"] = {**plan["unsolved"], **legs["unsolved"]}
+            if legs["no_keys"]:
+                history[-1]["no_keys"] = legs["no_keys"]
+            items = fitcheck.fix_items(plan)
+            if not items:
                 break
             res = bb.run(cur, bb.WRITE_FIX_PY, {"armature": got["dump"]["armature"], "map": got["dump"]["map"],
-                                                "keys": plan["keys"], "save": str(save)}, work / f"write{i}")
+                                                "items": items, "save": str(save)}, work / f"write{i}")
             history[-1]["keys_changed"] = res["keys"]
             cur = save
         changed = cur != blend
         return {"ok": True, "status": "시험 중", "saved": str(save) if changed else None, "original_untouched": str(blend),
                 "passes": history,
-                "note": ("전후 숫자를 그대로 전해라(팔이 뚫린 칸 = 팔 × 몸 부위 × 프레임). 자연스러운지는 사람이 재생해 본다. 남은 곳은 사람 몫."
-                         if changed else "고칠 팔 뚫림이 없었다 — 새 파일을 만들지 않았다.")}
+                "note": ("전후 숫자를 그대로 전해라(뚫린 칸 = 팔 · 다리 × 몸 부위 × 프레임). 다리는 상체를 젖히거나 허벅지를 내려 풀었다"
+                         "(옆으로 벌리지 않음). 자연스러운지는 사람이 재생해 본다. 남은 곳은 사람 몫."
+                         if changed else "고칠 팔 · 다리 뚫림이 없었다 — 새 파일을 만들지 않았다.")}
 
     def blender_block(self, arguments: dict[str, Any]) -> dict[str, Any]:
         from .animator import blender_bridge as bb
@@ -600,8 +650,10 @@ class AnimatorTools:
         res = bb.run(blend, bb.BLOCK_PY, {"armature": arguments.get("armature") or "", "candidates": bb.bone_candidates(),
                                           "poses": good, "frames": frames, "save": str(save)},
                      self.root / "blender" / time.strftime("%Y%m%d_%H%M%S"))
+        doubt = refpose.facing_report(good)
         return {"ok": True, "saved": res["saved"], "original_untouched": str(blend), "keys_at": res["frames"],
                 "missing": [p["no"] for p in poses if p.get("missing")], "fit": res["fit"],
-                "note": "척추 · 팔 · 다리 방향만 맞춘 블로킹 초안이다(1 = 영상 방향과 꼭 맞음). 손 · 발끝 · 머리 · 몸 위치는 사람이 다듬는다. "
-                        "옆모습은 앞 · 뒤가 뒤집힐 수 있다 — 그 장면은 사람이 확인."}
+                **({"facing_unsure": doubt} if doubt else {}),
+                "note": "척추 · 팔 · 다리 방향만 맞춘 블로킹 초안이다(1 = 영상 방향과 꼭 맞음 — 직접 돌려 맞췄으니 늘 1 에 가깝다, 눈금 아님). "
+                        "손 · 발끝 · 머리 · 몸 위치는 사람이 다듬는다. facing_unsure 의 장면은 몸 방향이 뒤집혔을 수 있다 — 사람이 영상과 견줘 확인."}
 

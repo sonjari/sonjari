@@ -575,7 +575,8 @@ class SetupService:
         self.last_bench = result
         return result
 
-    def start_pull(self, model_key: str, apply_ctx: int = 0, eyes: bool | None = None) -> dict[str, Any]:
+    def start_pull(self, model_key: str, apply_ctx: int = 0, eyes: bool | None = None,
+                   applier: Callable[[], dict[str, Any]] | None = None) -> dict[str, Any]:
         """받기 시작. `apply_ctx` 를 주면 **다 받은 뒤 백엔드가 바로 적용한다.**
 
         ★ 2026-09-16 노트북 첫 설치: 적용을 **마법사 화면이** 받기 끝나기를 지켜보다 했다. 「받는 동안 다음으로」 →
@@ -596,6 +597,9 @@ class SetupService:
             self._pulls[model_key] = state
         # `eyes=False` 면 받은 뒤 그림 부속을 뗀 채(글만 읽기)로 적용한다 — 「안 들어가면 작은 모델」의 글만 읽기 칸(2026-10-26).
         after = (lambda: self.apply(model_key, int(apply_ctx), eyes=eyes)) if apply_ctx else None
+        # 다 받은 뒤 다른 길로 올린다(「램 부스트」 카드 · 2026-11-11 — `api.setup_pull`).
+        if applier is not None and apply_ctx:
+            after = applier
         threading.Thread(target=self._pull, args=(model_key, model.ollama_tag, after), daemon=True).start()
         return {"ok": True, **state}
 

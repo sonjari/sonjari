@@ -181,6 +181,8 @@ $lib = Join-Path $py "Lib"
 & robocopy (Join-Path $Root "skills") (Join-Path $lib "skills") /E /XD __pycache__ /XF "*.pyc" /NFL /NDL /NJH /NJS /NP | Out-Null
 # 2026-09-27 field packs (strategy section 50): packs\<id>\pack.json + recipes + skills. Off by default; the user turns them on in Settings.
 & robocopy (Join-Path $Root "packs") (Join-Path $lib "packs") /E /XD __pycache__ /XF "*.pyc" /NFL /NDL /NJH /NJS /NP | Out-Null
+# 2026-11-12 capability cards (docs/design capability cards 2026-11-12): capability_cards.cards_dir() looks for lib\capabilities next to packs.
+& robocopy (Join-Path $Root "capabilities") (Join-Path $lib "capabilities") /E /XD __pycache__ /XF "*.pyc" /NFL /NDL /NJH /NJS /NP | Out-Null
 # NOT alture_jarvis.api: importing it builds a runtime and writes a token/db under %LOCALAPPDATA% (seen 2026-09-15).
 $check = & (Join-Path $py "python.exe") -c "import alture_jarvis, alture_jarvis.runtime, alture_jarvis.mcp_server; print(alture_jarvis.__file__)" 2>&1 | Out-String
 Write-Host "bundled python import: $check"

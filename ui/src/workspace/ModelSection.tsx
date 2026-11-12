@@ -19,6 +19,7 @@ import { WayOut, hasWayOut } from "../setup/WayOut";
 import { HfPicker, type HfPick } from "../setup/HfPicker";
 import { ModelPlaceBar } from "../setup/ModelPlace";
 import { PairedDevices } from "../setup/Pairing";
+import { GpuModeSection } from "./GpuModeSection";
 
 type Row = CatalogModel & { current: boolean };
 
@@ -130,13 +131,15 @@ export function ModelSection({ api, onChanged }: { api: SetupApi | null; onChang
     const ctx = ctxOverride ?? bestCtx(model);
     setBusyKey(model.key);
     setError("");
+    // 「램 부스트」 칸이면 그 뜻을 싣는다 — 받기 뒤 적용도 같은 길로(2026-11-11).
+    const boost = model.ram_boost?.ctx === ctx;
     try {
       if (model.installed) {
-        const done = await api.apply(model.key, ctx, eyes);
+        const done = await api.apply(model.key, ctx, boost ? false : eyes, boost || undefined);
         setResults((current) => ({ ...current, [model.key]: done }));
         if (done.ok) onChanged?.();
       } else {
-        const started = await api.pull(model.key, ctx, eyes);
+        const started = await api.pull(model.key, ctx, boost ? false : eyes, boost || undefined);
         if (!started.ok) throw new Error(started.error || t("받기를 시작하지 못했습니다"));
       }
       await load();
@@ -190,6 +193,7 @@ export function ModelSection({ api, onChanged }: { api: SetupApi | null; onChang
     <div className="settings-block model-list">
       <ModelPlaceBar api={api} showForget onChanged={() => void load()} />
       <PairedDevices api={api} />
+      <GpuModeSection api={api} />
       {loose && (
         <div className="model-loose-eyes">
           <p className="model-row-eyes">
@@ -273,7 +277,9 @@ export function ModelSection({ api, onChanged }: { api: SetupApi | null; onChang
                 </small>
               </span>
               <span className="model-row-fit num">
-                {row.fits
+                {row.fits && row.ram_boost?.ctx === ctx
+                  ? t("{0} 까지 · 램 부스트 · 램 {1}GB", ctxLabel(ctx), row.ram_boost.ram_gb.toFixed(0))
+                  : row.fits
                   ? t("{0} 까지 · {1}GB", ctxLabel(ctx), need?.toFixed(1) ?? "?") + (row.text_only ? t(" · 글만 읽기") : "")
                   : t("{0}GB 필요{1}", need?.toFixed(1) ?? "?", usable ? ` · 이 PC ${usable.toFixed(1)}GB` : "")}
               </span>

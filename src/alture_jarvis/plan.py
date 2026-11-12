@@ -1101,8 +1101,25 @@ def _acts_on_another_site(compact: str, found: "list[Requirement]") -> bool:
 # 행위 요구 -> 그것이 이뤄졌다고 말할 수 있는 도구.
 #: 같은 문장 안의 아무 글자들 — 줄바꿈과 「마침표·물음표·느낌표 + 빈칸/끝」을 건너가지 않는다.
 _SAME_SENTENCE = r"(?:(?![.!?](?:\s|$))[^\n])*"
+#: 문장 머리 — 글 처음 · 줄 처음 · 「마침표·물음표·느낌표 + 빈칸」 뒤. 아래 유니티 규칙이 앞보기(lookahead)를 **한 문장 안에서만** 하게 한다.
+_SENTENCE_HEAD = r"(?:^|(?<=\n)|(?<=[.!?]\s))"
 _ACTIONS: tuple[tuple[re.Pattern[str], str, str], ...] = (
     (re.compile(r"임시\s*저장"), "naver_blog_save_draft", "임시저장"),
+    # ★ 11-08 게임 시험 4단계 둘째 판(맥 0502dee0 · 하네스 탓 10): 「셸(curl -L)로 받고 … -batchmode 로 띄우고 … grep -c 로 세」를
+    #   계획이 「파일 만들기」 한 칸으로만 읽어, 조사 두 걸음 뒤 「파일 만들 차례」에 셸을 한 번도 못 부르고 끝났다.
+    #   실행 낱말(셸 · curl · grep · -batchmode …)과 하라는 동사가 **한 문장 안에** 같이 올 때만 「명령 실행」 칸을 세운다.
+    (re.compile(
+        rf"(?i){_SENTENCE_HEAD}"
+        rf"(?={_SAME_SENTENCE}(?:셸|쉘|터미널|명령\s*줄|명령\s*프롬프트|파워\s*셸|powershell|\bbash\b|\bzsh\b"
+        r"|\bcurl\b|\bwget\b|\bgrep\b|-batchmode\b|\bbrew\s+install\b))"
+        # 하라는 꼴만 — 「실행하면 … 나와야 한다」(설명) · 「명령줄로 도는」(소개)은 안 건다(옛 · 새 대조 11-08).
+        rf"(?={_SAME_SENTENCE}(?:실행\s*(?:해|하고|하라|시켜|한\s*뒤)|돌려(?!\s*보면)|돌리고|돌린\s*뒤|띄워|띄우고|받아\s*(?:서|와|놔|둬)|받고"
+        r"|세어|세서|세라|세고|로\s*세\b|알아봐|\brun\s+(?:it|the|this)\b|\bexecute\b))"),
+     "local_run_shell", "이 PC 에서 명령 실행하기"),
+    # ★ 11-08 밤 하네스 탓 14(맥 504d6c31): 「셸로 풀어서」 · 「셸로 차례로:」가 동사 목록 밖이라 칸이 안 섰다 — 동사를 늘리는 건
+    #   두더지 잡기다. 사람이 **셸을 도구로 지목한 꼴**(셸로 · 셸(curl -L)로)이면 — 「~에서」는 장소 설명(「명령줄에서 실행하면 …」)이라 뺀다 — 동사와 상관없이 실행 요구다.
+    (re.compile(r"(?:셸|쉘|터미널|명령\s*줄|명령\s*프롬프트|파워\s*셸)\s*(?:\([^)\n]{0,40}\)\s*)?(?:으로|로)(?![가-힣])"),
+     "local_run_shell", "이 PC 에서 명령 실행하기"),
     (re.compile(r"(드라이브|구글\s?드라이브).{0,20}(올려|업로드|저장|넣어|만들어)"),
      "google_drive_write", "드라이브에 올리기"),
     # ★ 2026-09-18: 「MS 스토어에서 ChatGPT 앱의 **게시자**와 별점을 알려줘」가 발행 요구로 읽혀, 한 판은 네이버 블로그에
@@ -1126,27 +1143,35 @@ _ACTIONS: tuple[tuple[re.Pattern[str], str, str], ...] = (
     #   열린 에디터 안을 바꾸거나 보라는 요청이면 **에디터 도구를 부른 기록**을 요구로 세운다(레시피 규칙과 같은 자리).
     #   넣기 전에 재 봤다: 운영 PC 서로 다른 요청 1,196개 중 셋 다 걸리는 것 0개, 데모 문장·「콘솔에 에러 있나」는 걸림,
     #   「유니티 설치 링크」·「텍스처 점검해줘」는 안 걸림. 되돌리기가 먼저다(되돌리기가 바꾸기를 대신한다).
-    (re.compile(r"(?is)(?=.*(?:유니티|unity|에디터|editor)).*(?:되돌려|되돌리|\bundo\b|실행\s*취소|원래대로)"),
+    # ★ 11-08 저녁: 아래 레시피 규칙과 함께 한 문장 안으로(오후에 바꾸기 · 보기만 고치고 이 둘이 남았다 — 하네스 탓 8).
+    (re.compile(rf"(?i){_SENTENCE_HEAD}(?={_SAME_SENTENCE}(?:유니티|unity|에디터|editor)){_SAME_SENTENCE}(?:되돌려|되돌리|\bundo\b|실행\s*취소|원래대로)"),
      "unity_editor_undo", "유니티 에디터에서 되돌리기"),
+    # ★ 2026-11-08 게임 시험 1단계: 조사만 시킨 글 — 「유니티 6로 …를 만들고 …」 · 「(Netcode for Game**Object**s …)」 ·
+    #   「.md 파일을 **만들어** 줘」 — 세 낱말이 **다른 문장**에 있었는데 걸려 「에디터에서 바꾸기」가 요구로 섰다. 손자리는
+    #   그 요구를 채우러 실행 단계로 넘어갔고, 거기서 브라우저가 막혀(not_this_stage ×3) 조사 칸 둘을 못 채웠다.
+    #   10-08 에 메일 · 일정 규칙에서 고친 병(문장 끝을 건너감)과 같다 — 대상 · 무엇 · 동사가 **한 문장 안에** 있어야 한다.
     (re.compile(
-        r"(?is)(?=.*(?:유니티|unity|에디터|editor))"
-        r"(?=.*(?:오브젝트|object|큐브|cube|스피어|sphere|프리팹|prefab|게임\s*오브젝트|위치|계층|씬\b|scene))"
-        r".*(?:만들어|만들고|생성|지워|삭제|없애|옮겨|이동|바꿔|바꾸|수정|복제|추가|배치|놓아)"),
+        rf"(?i){_SENTENCE_HEAD}(?={_SAME_SENTENCE}(?:유니티|unity|에디터|editor))"
+        rf"(?={_SAME_SENTENCE}(?:오브젝트|object|큐브|cube|스피어|sphere|프리팹|prefab|게임\s*오브젝트|위치|계층|씬\b|scene))"
+        rf"{_SAME_SENTENCE}(?:만들어|만들고|생성|지워|삭제|없애|옮겨|이동|바꿔|바꾸|수정|복제|추가|배치|놓아)"),
      "unity_editor_change", "유니티 에디터에서 실제로 바꾸기"),
     (re.compile(
-        r"(?is)(?=.*(?:에디터|editor))"
-        r"(?=.*(?:계층|hierarchy|콘솔|console|에러|오류|선택|selection|오브젝트|씬\b))"
-        r".*(?:보여|보고|확인|알려|있어|있나|찾아|읽어)"),
+        rf"(?i){_SENTENCE_HEAD}(?={_SAME_SENTENCE}(?:에디터|editor))"
+        rf"(?={_SAME_SENTENCE}(?:계층|hierarchy|콘솔|console|에러|오류|선택|selection|오브젝트|씬\b))"
+        rf"{_SAME_SENTENCE}(?:보여|보고|확인|알려|있어|있나|찾아|읽어)"),
      "unity_editor_look", "유니티 에디터 안 실제로 보기"),
+    # ★ 11-08 저녁 게임 시험 3단계(하네스 탓 8): 설계만 시킨 글 — 「유니티 프로젝트 구조(폴더 · 씬 · 프리팹 …)」 와 다른 줄의
+    #   「확인」이 글 전체에서 엮여 「레시피로 실제 점검하기」가 섰고, 손자리가 unity_project_info 를 불러 unity_project_required 로 막혔다.
+    #   한 문장 안에서만 본다(위 바꾸기 · 보기 규칙과 같은 병).
     (re.compile(
-        r"(?is)(?=.*(?:유니티|unity))"
+        rf"(?i){_SENTENCE_HEAD}(?={_SAME_SENTENCE}(?:유니티|unity))"
         # ★ 2026-10-12 팩에 든 점검은 넷인데 이 규칙은 셋만 알았다 — 「안 쓰는 에셋 찾아줘」가 요구로 서지 않았다
         #   (점검 `unused_assets` 가 규칙보다 뒤에 들어왔다). 「에셋」 한 낱말로 넓히면 「유니티 에셋 스토어에서 …
         #   찾아줘」까지 점검을 요구하게 되므로(채울 길이 없는 요구) 「안 쓰는 에셋」 꼴만 받는다.
         #   팩의 점검마다 화면에 적는 예시 문장(`ask`)이 이 규칙에 걸리는지는 시험이 지킨다.
-        r"(?=.*(?:텍스처|texture|빠진\s*참조|missing|프리팹|prefab|머티리얼|material|씬\b|scene"
+        rf"(?={_SAME_SENTENCE}(?:텍스처|texture|빠진\s*참조|missing|프리팹|prefab|머티리얼|material|씬\b|scene"
         r"|(?:안\s*쓰는|쓰지\s*않는|안\s*쓰이는|미사용)\s*에셋|unused\s+assets?))"
-        r".*(?:점검|찾아|확인|검사|살펴|check|find|audit|scan)"),
+        rf"{_SAME_SENTENCE}(?:점검|찾아|확인|검사|살펴|check|find|audit|scan)"),
      "unity_run_recipe", "유니티 레시피로 실제 점검하기"),
     # ★ 2026-09-23 스토어 촬영(코드 모드): 「index.html 로 할 일 목록을 만들고 … 다 만들면 **미리보기로 보여 줘**」에서
     #   파일 쓰기·검사는 다 하고 `local_preview_page` 를 한 번도 안 불렀다. 「시킨 것 2/2」에 미리보기가 **아예 없어서**
@@ -1343,6 +1368,10 @@ def names_a_desktop_source(prompt: str) -> bool:
 _ENDS_ASKING = re.compile("(?:" + _REQUEST_ENDING.pattern + r")[\s.!?~)\]」』\"'*]*$")
 
 
+#: 바깥 AI 가 맡길 때 **하네스가** 요청 끝에 붙이는 「돌려받을 항목」 덩어리(`mcp_server.py` 의 needs 글과 같은 머리).
+_DELEGATION_NEEDS_NOTE = re.compile(r"\s*\((?:돌려받을 항목|Items to return)\s*—")
+
+
 def _block_asks(block: str) -> bool:
     """이 덩어리에 **시키는 말로 끝나는 문장**이 하나라도 있는가. 줄 · 칸(탭) · 문장마다 끝을 본다."""
     for line in re.split(r"[\n\t]", block):
@@ -1372,7 +1401,14 @@ def own_words(prompt: str) -> str | None:
       「회귀 17건」·「실행한 테스트」 · 사람이 쓴 계획 목록 속 파일 · 인계문 속 「3판 돌려 보자」를 「웹 자료 3개 읽기」로
       잘못 읽은 것. 진짜 요구를 잃은 판은 없었다.
     """
-    blocks = [block for block in re.split(r"\n\s*\n", prompt or "") if block.strip()]
+    # ★ 2026-11-09 맥 02a711f2: 바깥 AI 가 맡긴 판은 끝에 **우리가 붙인** 「(돌려받을 항목 — …)」 덩어리가 온다(`mcp_server` · needs).
+    #   그 덩어리가 「사람의 말」로, 정작 시킨 글(「9개 자료를 하나씩 열어 … 엑셀 파일 한 시트에 정리해 줘(…결과물 폴더에).」 — 끝이
+    #   괄호라 시키는 문장으로 안 잡혔다)이 「붙여넣은 글」로 갈려 요구가 **하나도** 안 섰다(9개 읽기 · 엑셀 둘 다 없음). 판은 진척 없음으로
+    #   접혔고 파일 없이 「엑셀을 만든다」로 끝났다. 하네스가 붙인 덩어리는 사람의 말도 붙여넣은 글도 아니다 — 가르기 전에 뺀다.
+    blocks = [
+        block for block in re.split(r"\n\s*\n", prompt or "")
+        if block.strip() and not _DELEGATION_NEEDS_NOTE.match(block)
+    ]
     if len(blocks) < 2:
         return None
     pasted = [
@@ -1917,7 +1953,8 @@ def _extract_all(
         if str(tool).startswith("naver_blog_") and _acts_on_another_site(compact, found):
             continue
         picked.add(tool)
-        found.append(Requirement("action", label, tool))
+        commands = numbered_commands(prompt) if tool == "local_run_shell" else ()
+        found.append(Requirement("action", label, tool, items=commands))
     # ★ 셈을 시켰으면 「직접 계산해 보기」도 요구다 (2026-08-23).
     #
     # 왜 여기 넣나. 라우터에 계산 갈래를 열었더니 도구를 **쥐어주기만** 하고
@@ -2696,6 +2733,8 @@ def _rows_in_file(path: Path) -> int:
 #: 화면의 칸에 **값을 넣는** 도구 — 성공했으면 그 화면을 보고 한 일이다.
 #: 열린 프로그램 창을 **읽는** 도구 — 내 PC 를 보는 판의 「읽기」로 센다(`answer_claims._DESKTOP_READ_TOOLS` 와 같은 둘).
 _WINDOW_READ_TOOLS = frozenset({"windows_uia_snapshot", "windows_copy_from_window"})
+#: 이 PC 의 그림 파일 · 열린 에디터 화면을 **실제로 본** 도구(하네스 탓 16 · 11-08).
+_LOCAL_LOOK_TOOLS = frozenset({"local_view_image", "unity_editor_look"})
 #: 이 PC 의 상태를 **읽기 전용 명령**으로 읽는 도구 — 허용목록 실행 파일 · 읽기 하위명령만 돈다(`shell_probe.py` 서두).
 _SYSTEM_READ_TOOLS = frozenset({"shell_probe"})
 #: 원본 파일을 **열어서** 다른 형식으로 굽는 도구 — 성공했으면 그 원본을 본 것이다.
@@ -3120,6 +3159,13 @@ def check(
             if read < 1 and window_reads and str(req.target or "") == "local":
                 out.append((req, True, f"프로그램 창 {window_reads}번 읽음"))
                 continue
+            # ★ **이 PC 의 그림 · 에디터 화면을 본 것도 본 것이다** (2026-11-08 밤 하네스 탓 16 · 맥 665664d5). 유니티 화면을 찍어(unity_editor_look)
+            #   그림으로 읽었는데(local_view_image) 「근거 읽기 0개」가 남아, 손자리가 그 칸을 채우려 웹 검색 결과를 열려 했다(no_result_list).
+            #   웹을 보라는 판(대상 browser)은 그대로 둔다 — 그림 한 장 보고 웹 조사 답을 쓰는 판이 통과하면 안 된다.
+            looks = sum(1 for step in steps if step.get("ok") and str(step.get("tool") or "") in _LOCAL_LOOK_TOOLS)
+            if read < 1 and looks and str(req.target or "") in {"local", "any"}:
+                out.append((req, True, f"이 PC 의 그림 · 화면을 {looks}번 봄"))
+                continue
             # ★ **이 PC 의 상태를 읽기 전용 명령으로 읽은 것도 본 것이다** (2026-10-18 「모르는 앱」 다시 잼). 「시스템 정보를 열어서 BIOS
             #   버전을 읽어 줘」에 `systeminfo` 로 맞는 값을 읽었는데 「0개 실제로 읽음」이 붙어 ❌ 로 나갔고, 모델은 그 칸을 채우려
             #   「열 대상 파일이 없습니다」를 답 첫 줄에 썼다. 내 PC 대상일 때만 — 웹을 보라는 판은 그대로다.
@@ -3282,6 +3328,9 @@ def check(
         elif req.kind == "verify":
             ok, saw = _execution_verified(steps)
             out.append((req, ok, saw))
+        elif req.kind == "action" and req.target == "local_run_shell" and req.items:
+            ran = commands_done(steps, req.items)
+            out.append((req, ran >= len(req.items), f"{ran}/{len(req.items)}개 명령 실행"))
         else:
             ok = req.target in done_tools
             out.append((req, ok, "완료" if ok else "실행 안 됨"))
@@ -3364,6 +3413,7 @@ _LABEL_EN = {
     "유니티 에디터 안 실제로 보기": "Actually look inside the Unity editor",
     "유니티 레시피로 실제 점검하기": "Actually check it with a Unity recipe",
     "직접 계산해 보기": "Calculate it yourself",
+    "이 PC 에서 명령 실행하기": "Run the commands on this PC",
     "실제 산출물 파일 만들기": "Make the actual file",
     "실행·테스트 통과 확인": "Confirm it runs / tests pass",
     "근거가 되는 대상 실제로 읽기": "Actually read the sources",
@@ -4557,6 +4607,47 @@ def enumerated_items(prompt: str) -> tuple[str, ...]:
     items = [match.group(1).strip() for match in _ENUMERATED_LINE.finditer(str(prompt or ""))]
     items = [item for item in items if len(item) >= 4]
     return tuple(items) if len(items) >= 2 else ()
+
+
+# ★ 11-08 밤 하네스 탓 11(맥 05d20a83): 「1) git … cherry-pick 2) git … commit 3) … log 4) … status」를 시켰는데 「명령 실행」 칸이
+#   셸 **한 번** 성공으로 채워져, 1번만 하고 「다 채웠다」가 나가 「커밋을 한다」는 예고가 답이 됐다. 번호 줄이 명령이면 줄마다 센다.
+_COMMAND_LIKE = re.compile(
+    r"(?i)(?:^|\s)(?:git|curl|wget|grep|python3?|pip|npm|node|bash|sh|zsh|ls|cd|cat|shasum|sha256sum|brew|unity|cargo)(?:\s|$)"
+    r"|-batchmode\b|\.(?:py|sh|ps1)\b"
+)
+
+
+def numbered_commands(prompt: str) -> tuple[str, ...]:
+    """번호 줄 가운데 명령처럼 생긴 줄(둘 이상일 때만)."""
+    rows = tuple(item for item in enumerated_items(prompt) if _COMMAND_LIKE.search(item))
+    return rows if len(rows) >= 2 else ()
+
+
+def _command_signatures(items: tuple[str, ...]) -> list[tuple[str, ...]]:
+    """줄마다 다른 앞 낱말 셋 — 모든 줄에 같은 앞부분(`git -C "…/BugGuard"`)은 빼고 본다."""
+    split = [item.split() for item in items]
+    common = 0
+    while all(len(words) > common for words in split) and len({words[common] for words in split}) == 1:
+        common += 1
+    # 한글이 든 낱말은 설명이다(「status --short 의 줄 수」의 「의」) — 명령 낱말만 본다.
+    def command_words(words: list[str]) -> tuple[str, ...]:
+        kept = [word.strip("\"'`").casefold() for word in words[common:]]
+        return tuple(word for word in kept if word and not any("가" <= ch <= "힣" for ch in word))[:3]
+    return [command_words(words) for words in split]
+
+
+def commands_done(steps: list[dict[str, Any]], items: tuple[str, ...]) -> int:
+    """번호 명령 가운데 성공한 셸 걸음에 실제로 들어간 것의 수(`&&` 로 묶어 돌려도 센다)."""
+    ran = [
+        " ".join(str((step.get("arguments") or {}).get("command") or "").split()).casefold()
+        for step in steps
+        if step.get("ok") and step.get("tool") in ("local_run_shell", "local_run_project_command")
+    ]
+    done = 0
+    for signature in _command_signatures(items):
+        if signature and any(all(word in command for word in signature) for command in ran):
+            done += 1
+    return done
 
 
 def _item_key(text: str) -> str:

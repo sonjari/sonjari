@@ -50,8 +50,22 @@ export function useModelPlace(api: SetupApi | null): PlaceState {
   return { view, load, setView };
 }
 
-/** 칩에 붙는 작은 표시 — Mac 「●」 · Satellite 「●━●」 · 끊김 「●┄○」. */
-export type PlaceKind = "here" | "satellite" | "down";
+/** 칩에 붙는 작은 표시 — Mac 「●」 · Satellite 「●━●」 · 끊김 「●┄○」.
+ *  ★ 11-08 대표 「이모티콘 말고 그림으로」: 노란 카드 대신 같은 그림말로 상태를 더 말한다 —
+ *  켜는 중 「● 숨쉬기」 · 이 기기 문제 「○」(호박색) · 집 PC 에 모델이 안 떠 있음 「●━○」(호박색). */
+export type PlaceKind = "here" | "here-wait" | "here-off" | "satellite" | "down" | "far-missing";
+
+/** 자리(`placeKind`)에 건강 판정(`readinessProblem` 의 kind)을 얹는다. */
+export function statusKind(base: PlaceKind, problem: string | null | undefined): PlaceKind {
+  switch (problem) {
+    case "ollama_starting": return "here-wait";
+    case "ollama_down":
+    case "model_missing": return "here-off";
+    case "home_unreachable": return "down";
+    case "home_model_missing": return "far-missing";
+    default: return base;
+  }
+}
 
 export function placeKind(view: ModelPlaceView | null): PlaceKind {
   if (!view || view.place !== "home_pc") return "here";
@@ -60,7 +74,9 @@ export function placeKind(view: ModelPlaceView | null): PlaceKind {
 
 export function PlaceMark({ kind }: { kind: PlaceKind }) {
   const gid = useId();
-  if (kind === "here") return <i className="place-mark place-mark-here" aria-hidden />;
+  if (kind === "here" || kind === "here-wait" || kind === "here-off") {
+    return <i className={`place-mark place-mark-${kind}`} aria-hidden />;
+  }
   return (
     <svg className={`place-mark place-mark-${kind}`} viewBox="0 0 22 8" width="22" height="8" aria-hidden>
       <defs>
@@ -70,7 +86,7 @@ export function PlaceMark({ kind }: { kind: PlaceKind }) {
           <stop offset="1" stopColor="rgb(var(--brand-bright))" />
         </linearGradient>
       </defs>
-      <line x1="4" y1="4" x2="18" y2="4" className="place-mark-wire" stroke={kind === "satellite" ? `url(#${gid})` : undefined} />
+      <line x1="4" y1="4" x2="18" y2="4" className="place-mark-wire" stroke={kind === "satellite" || kind === "far-missing" ? `url(#${gid})` : undefined} />
       <circle cx="4" cy="4" r="2.6" className="place-mark-a" />
       <circle cx="18" cy="4" r="2.6" className="place-mark-b" />
     </svg>

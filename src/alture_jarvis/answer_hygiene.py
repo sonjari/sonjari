@@ -436,8 +436,45 @@ def _artifact_still_owed(
         not ok and str(getattr(req, "kind", "")) == "artifact"
         for req, ok, _saw in plan_results
     )
-    tried = any(str(step.get("tool") or "") in _ARTIFACT_WRITE_TOOLS for step in steps)
-    return owed and not tried
+    return owed and not artifact_really_attempted(steps)
+
+
+#: 쓰기 도구가 이 이름으로 실패했으면 **만들어 본 것으로 치지 않는다** — 도구가 고장 난 게 아니라 우리 검사가 「고쳐서 다시 써라」고
+#: 돌려보냈거나(숫자 · 문서 검사 · 장표 틀) 그 도구가 이 판에 없었다(꺼짐 · 단계 거절).
+#: ★ 2026-11-08 게임 시험 벤치 조사(맥 53366790): 표 파일이 숫자 검사(numbers_not_in_what_you_read)에 돌려보내졌고, 다음 걸음은 꺼진
+#:   sandbox_run(tool_disabled)이었다. 둘 다 「만들어 봤음」으로 세어져 접기 전 파일 차례(`_artifact_still_owed`)도 끝 안전망
+#:   (`already_attempted`)도 안 열렸고, 판은 「원문 값만 써서 파일을 만든다」 한 줄로 끝났다 — 파일 없음.
+_CORRECTABLE_WRITE_REFUSALS = (
+    "numbers_not_in_what_you_read", "doc_check", "tool_disabled", "not_this_stage",
+    "slide_", "paragraph_out_of_range", "old_text_not_unique", "outline_layout_unknown", "theme_person_chose",
+    "format_not_writable", "unsupported_edit_format", "parts_required", "parts_not_supported", "index_out_of_range",
+)
+
+
+def correctable_write_refusal(step: dict[str, Any]) -> bool:
+    error = str(step.get("error") or "").strip()
+    return bool(error) and error.startswith(_CORRECTABLE_WRITE_REFUSALS)
+
+
+def artifact_really_attempted(steps: list[dict[str, Any]], tools: frozenset[str] | None = None) -> bool:
+    """산출물을 **정말로** 만들어 봤나 — 성공했거나, 도구 쪽 사정으로 실패했나. 고칠 수 있는 거절 · 꺼진 도구는 빼고 센다."""
+    names = tools if tools is not None else _ARTIFACT_WRITE_TOOLS
+    return any(
+        str(step.get("tool") or "") in names and (step.get("ok") or not correctable_write_refusal(step))
+        for step in steps
+    )
+
+
+def last_write_refusal(steps: list[dict[str, Any]]) -> str:
+    """가장 최근에 우리 검사가 돌려보낸 쓰기의 까닭 한 줄(없으면 빈 글자) — 파일 차례에 붙여 무엇을 고칠지 알게 한다."""
+    for step in reversed(steps):
+        if str(step.get("tool") or "") in _ARTIFACT_WRITE_TOOLS and not step.get("ok") and correctable_write_refusal(step):
+            if str(step.get("error") or "").startswith(("tool_disabled", "not_this_stage")):
+                continue
+            numbers = step.get("numbers") or ((step.get("evidence") or {}).get("numbers") if isinstance(step.get("evidence"), dict) else None)
+            tail = f" — 문제 숫자: {', '.join(str(n) for n in list(numbers)[:12])}" if numbers else ""
+            return str(step.get("error") or "")[:300] + tail
+    return ""
 
 
 #: 답이 **문서를 만들겠다고 예고**하는가 — 그런 답은 옮겨 적을 문서가 아니다.

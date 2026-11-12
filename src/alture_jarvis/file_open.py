@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
 
+import json
 import os
 import subprocess
 import sys
@@ -79,12 +80,35 @@ def open_file(
     return "revealed"
 
 
+#: 글 파일을 이 앱들이 맡고 있으면 텍스트 편집기로 연다 — 무겁고, 처음 켤 때 부품 설치 창부터 띄운다.
+#: ★ 2026-11-08 대표 맥: 손자리가 만든 .md 를 눌렀는데 「안 열린다」 — 맥의 .md 기본 앱이 Xcode 였다(개발 도구를 깔면
+#:   그렇게 잡힌다). 손자리는 「열었음」으로 답했고 Xcode 는 뒤에서 한참 뜨고 있었다. 손님 맥도 Xcode 가 있으면 같다.
+_MAC_HEAVY_TEXT_HANDLERS = ("Xcode.app",)
+
+
+def _mac_default_app(target: str, run: Callable[..., Any]) -> str:
+    """이 파일을 맥이 무엇으로 여는지(앱 경로). 맥에 늘 있는 JavaScript for Automation 으로 묻는다. 모르면 빈 글자."""
+    script = ('ObjC.import("AppKit"); var u = $.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL('
+              f'$.NSURL.fileURLWithPath({json.dumps(target)})); u ? u.path.js : ""')
+    try:
+        done = run(["osascript", "-l", "JavaScript", "-e", script], capture_output=True, text=True, timeout=5)  # noqa: S603,S607
+    except Exception:  # noqa: BLE001 — 못 물어보면 예전대로 `open`
+        return ""
+    return str(getattr(done, "stdout", "") or "").strip() if getattr(done, "returncode", 1) == 0 else ""
+
+
 def _open_on_mac(target: str, *, popen: Callable[..., Any] | None = None,
                  run: Callable[..., Any] | None = None) -> str:
     """맥(2026-11-03 · 전수조사 B6): `open` 이 연결된 앱으로 연다. 여는 앱이 없으면 `open` 이 실패하니(오류 창 없음)
     글 파일은 텍스트 편집기로, 그 밖은 파인더에서 짚어 보여 준다 — 윈도우의 메모장 · 탐색기 갈래와 같은 뜻."""
     popen = popen or subprocess.Popen
-    done = (run or subprocess.run)(["open", target], capture_output=True, text=True, timeout=15)  # noqa: S603,S607
+    run = run or subprocess.run
+    if Path(target).suffix.lower() in TEXT_LIKE and not Path(target).is_dir():
+        handler = _mac_default_app(target, run)
+        if handler and any(handler.rstrip("/").endswith(name) for name in _MAC_HEAVY_TEXT_HANDLERS):
+            popen(["open", "-e", target])  # noqa: S603,S607 — 맥에 늘 있는 텍스트 편집기
+            return "notepad"
+    done = run(["open", target], capture_output=True, text=True, timeout=15)  # noqa: S603,S607
     if getattr(done, "returncode", 1) == 0:
         return "app"
     if Path(target).suffix.lower() in TEXT_LIKE:

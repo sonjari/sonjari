@@ -75,6 +75,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
     # 목록·본문을 실제로 가져오는 길
     "read": (
         "agent.py", "browser.py", "site_recipes.py", "site_atlas.py",
+        # 브라우저 걸음 뒤 번호 붙인 지금 화면을 붙인다(2026-11-11 측정 스위치) — 모델이 읽는 길이 바뀐다.
+        "page_view.py",
         # 잘 해낸 판을 레시피 초안으로 옮긴다(2026-10-20 확장 설계 P1) — 그 초안이 다음 판의 읽는 길이 된다.
         "recipe_from_run.py",
         # 사람이 손자리 크롬에서 해 보인 것을 레시피 초안으로(2026-10-20 확장 설계 T8) — 같은 출구라 같은 축.
@@ -113,6 +115,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "check_notes.py",
         # 모델이 보는 도구 목록을 갈래·단계·요청으로 고르는 쪽 — agent.py 에서 분리(2026-10-09). 조사 갈래 좁히기·산출물 차례 손·플랫폼 쓰기 관문이 바뀐다.
         "tool_roster.py",
+        # 출력 한도에 잘린 도구 인자는 실행하지 않고 「잘렸다 · 나눠 써라」를 돌려준다(2026-11-09 · 하네스 후보 20) — 판의 걸음과 파일 쓰기 결과를 바꾼다.
+        "truncated_call.py",
         # 상세 첫머리에서 판매가·적립을 도구가 읽어 표 칸을 채운다(2026-09-28 T1, 동결 예외 A) — 표의 값을 직접 바꾼다.
         "page_values.py",
         # 목록에서 항목으로 가는 주소의 표식(2026-10-05 arXiv·네이버 뉴스) — 순위가 무엇을 여는지를 바꾼다.
@@ -191,6 +195,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "readback.py",
         # 모델이 보는 도구 목록을 갈래·단계·요청으로 고르는 쪽 — agent.py 에서 분리(2026-10-09). 산출물 차례 손과 플랫폼 쓰기 관문이 쓰기의 결과를 바꾼다.
         "tool_roster.py",
+        # 출력 한도에 잘린 도구 인자는 실행하지 않고 「잘렸다 · 나눠 써라」를 돌려준다(2026-11-09 · 하네스 후보 20) — 판의 걸음과 파일 쓰기 결과를 바꾼다.
+        "truncated_call.py",
         "windows_automation.py", "ui_vision.py", "sandbox.py", "scheduler.py",
         # 화면 밖 · 최소화된 창을 주 모니터로 데려온다(2026-10-19 ae395490 뒤) — 창 자리를 바꾸는 손이라 windows_automation 과 같은 자리.
         "window_view.py",
@@ -235,6 +241,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "code_look_gate.py",
         # 모델이 보는 도구 목록을 갈래·단계·요청으로 고르는 쪽 — agent.py 에서 분리(2026-10-09). 위임 판이 부르는 손을 바꾼다.
         "tool_roster.py",
+        # 출력 한도에 잘린 도구 인자는 실행하지 않고 「잘렸다 · 나눠 써라」를 돌려준다(2026-11-09 · 하네스 후보 20) — 판의 걸음과 파일 쓰기 결과를 바꾼다.
+        "truncated_call.py",
         # 바깥 AI 에게 나가는 답의 정제 · 돌려받아야 할 것 · 영수증(2026-10-15 · §55-32) — 위임 결과로 무엇이 나가는지를 바꾼다.
         "outbound.py",
         # 바깥 AI 가 받는 답에 대조 덩어리를 싣는 쪽(2026-10-24) — 위임 결과로 무엇이 나가는지를 바꾼다.
@@ -774,6 +782,12 @@ class JarvisConfig:
     #   켜져 있어야 돈다. 꺼 둔 채 내보내면 작은 카드를 쓰는 사람은 **한 번도 재 보지 않은 조합**으로 돌게 된다.
     #   큰 창(40K 초과) · 조사 아닌 판은 그대로다. 끄려면 `JARVIS_SMALL_WINDOW_RESEARCH_BUNDLE=0`.
     small_window_research_bundle: bool = True
+    # 11-11 측정용: 작은 창 조사 묶음에 더 실을 손(쉼표). 기본은 비어 있어 동작이 같다. 예: browser_annotate(화면 사진에 번호 붙이기 —
+    #   대표 가설 「작은 모델은 화면이 더 필요하다」를 재는 판에서만 켠다). `JARVIS_SMALL_WINDOW_EXTRA_TOOLS`.
+    small_window_extra_tools: tuple[str, ...] = ()
+    # 11-11 측정용: 브라우저 걸음 뒤 모델을 부르기 직전에 「번호 붙인 지금 화면 + 번호 목록」을 일회용으로 붙인다(기록엔 안 남김).
+    #   대표 가설 「작은 모델은 화면 · 기준점이 있어야 맥락이 접혀도 길을 안 잃는다」를 재는 판에서만 켠다. 기본 꺼짐. `JARVIS_AGENT_PAGE_VIEW`.
+    agent_page_view: bool = False
     startup_warmup_enabled: bool = True
     # 한가할 때 고정 앞부분(도구 목록 + 고정 지침)을 데워 둔다 — 새 일의 첫 걸음이 그것을 처음부터 다시 읽지 않게(`ollama.prime_front`).
     front_prime_enabled: bool = True
@@ -789,6 +803,9 @@ class JarvisConfig:
     scribe_style_file: str = ""
     # 손자리가 켜는 Ollama 에 넘기는 서버 보관함 한도(MiB). -1 = 이 PC 메모리에 맞춰 · 0 = 손대지 않음(`ollama_install.ollama_launch_env`).
     ollama_prompt_cache_mib: int = -1
+    #: 꺼진 Ollama 를 손자리가 알아서 켜나(2026-09-20 지킴이). 끄면 켜지 않는다 — 모델 주소가 Ollama 가 아닌 다른 엔진
+    #: (대표 PC 의 Strata 다리 :11435)일 때. 재부팅 뒤 다리보다 먼저 떠서 그 문에 Ollama 를 띄워 다리를 막았다(2026-11-08).
+    ollama_autostart: bool = True
     startup_warmup_retry_sec: int = 120
 
     conversation_session_id: str = "office-main"
@@ -1562,6 +1579,8 @@ class JarvisConfig:
             code_job_stall_sec=_int("JARVIS_CODE_JOB_STALL_SEC", 1200),
             tool_surface_compact_max_ctx=_int("JARVIS_TOOL_SURFACE_COMPACT_MAX_CTX", 40_000),
             small_window_research_bundle=_bool("JARVIS_SMALL_WINDOW_RESEARCH_BUNDLE", True),
+            small_window_extra_tools=tuple(x.strip() for x in _env("JARVIS_SMALL_WINDOW_EXTRA_TOOLS", "").split(",") if x.strip()),
+            agent_page_view=_bool("JARVIS_AGENT_PAGE_VIEW", False),
             startup_warmup_enabled=_bool("JARVIS_STARTUP_WARMUP_ENABLED", True),
             front_prime_enabled=_bool("JARVIS_FRONT_PRIME_ENABLED", True),
             plan_push_enabled=_bool("JARVIS_PLAN_PUSH", True),
@@ -1570,6 +1589,7 @@ class JarvisConfig:
             scribe_interval_sec=_int("JARVIS_SCRIBE_INTERVAL_SEC", 900),
             scribe_style_file=_env("JARVIS_SCRIBE_STYLE_FILE", ""),
             ollama_prompt_cache_mib=_int("JARVIS_OLLAMA_PROMPT_CACHE_MIB", -1),
+            ollama_autostart=_bool("JARVIS_OLLAMA_AUTOSTART", True),
             startup_warmup_retry_sec=_int("JARVIS_STARTUP_WARMUP_RETRY_SEC", 120),
             conversation_session_id=_env("JARVIS_CONVERSATION_SESSION_ID", "office-main"),
             workspace_presence_ttl_sec=_int("JARVIS_WORKSPACE_PRESENCE_TTL_SEC", 75),

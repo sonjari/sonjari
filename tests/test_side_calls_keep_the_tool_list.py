@@ -47,7 +47,8 @@ def test_only_a_tool_call_retries_without_the_list() -> None:
 
     message, _ = agent._text_only_message([], job_id="j", think=False)
 
-    assert recorder.seen == [TOOLS, None]
+    # 11-08: 목록을 빼기 전에 **같은 목록 + 「도구를 못 부른다」**로 한 번 — 앞부분이 그대로라 다시 읽지 않는다.
+    assert recorder.seen == [TOOLS, TOOLS]
     assert message["content"] == "글로 쓴 답"
 
 

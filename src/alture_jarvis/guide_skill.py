@@ -156,6 +156,14 @@ def render_skill(tools: Iterable[dict[str, Any]], lang: str = "ko") -> str:
             "| 저장소의 **좁은** 코드 일(파일 한두 개 · 통과하면 끝인 명령이 있는 것) — 아래 「저장소의 코드 일을 맡길 때」 "
             "| 그 일을 쪼개는 설계 · 돌아온 가지의 검토와 합치기 |\n"
         ) if has_task else ""
+    # ★ 2026-11-08 대표 「코드면 코드 · 코워크면 코워크」: 클로드가 유니티 일을 repo 없이 던져 코워크로 돌았고 아무도 몰랐다.
+    #   결과의 mode 칸(delegation) · 손자리 화면 탭 전환(frameForDelegatedJob)과 같이 간다 — 이 글은 보조다.
+    mode_rule = (
+        "\n**먼저 가른다 — 코드 일이면 `repo`, 아니면 비운다.** 코드를 짜거나 고치는 일(스크립트 · 게임 코드 · 시험 통과)은 "
+        "`repo`(와 `check`)를 꼭 준다 — 안 주면 코워크로 돌아 걸음 상한과 「파일 만들 차례」 규칙을 탄다. git 이 아닌 폴더"
+        "(유니티 프로젝트 등)면 먼저 `git init` 을 맡긴다. 결과의 `mode` 칸이 그 판이 무엇으로 돌았는지 알려 주고, "
+        f"{NAME_KO} 화면도 그 모드 탭으로 바뀐다.\n"
+    ) if has_task else ""
     own_code = ("고칠 방향의 판단 · 처음 보는 API 의 코드 — 아래 「이 PC 의 코드를 고칠 때」" if broad
                 else "큰 설계 · 여러 파일에 걸친 고치기 · 처음 보는 API 의 코드 — 아래 「이 PC 의 코드를 고칠 때」")
     broad_job = f"""### 저장소의 코드 일을 맡길 때 — 너는 판단, {NAME_KO}는 읽기와 돌리기
@@ -234,6 +242,7 @@ description: {NAME}({NAME_KO}) MCP 를 쓰는 법. 사용자가 웹에서 찾아
   2026-10-02 실측(n=1): 같은 채용 공고 조사가 너 혼자 $1.25 · {NAME_KO}에게 맡겨 $0.19.
 - **이 PC 의 파일·문서** — 워드·엑셀·한글(.hwp) 읽기와 새 문서 만들기.
 
+{mode_rule}
 | {NAME_KO}에게 맞는 일 | 너에게 맞는 일 |
 |---|---|
 | 사이트에서 찾아 읽고 → 파일로 정리(채용 공고·상품·가격·경쟁사) | 대화에 이미 있는 글의 요약·번역 · 일반 지식 질문 |
@@ -277,6 +286,17 @@ PC 마다 손자리 모델이 다르다(4B·9B·27B·35B). `sonjari_guide` 를 �
    **저장 폴더는 적지 않는다** — 그러면 {NAME_KO} 결과물 폴더(내 문서 아래)에 저장되고 `files` 로 경로가 온다.
    네 작업 폴더 같은 다른 자리를 적으면 {NAME} 창의 승인 카드에서 멈춘다(사람이 자리에 없으면 그대로 기다린다).
    파일이 거기 있어야 하면 받은 뒤 네가 옮긴다.
+   **과제는 짧게, 칸은 적게, 「해라」로** (2026-11-09 · 클로드가 맡긴 브라우저 판 1,197개): 과제 글이 100자 안쪽이면 67% 가
+   다 끝났고 500자를 넘으면 23% 였다. 요구 칸이 3개 이하면 67%, 9개 넘으면 31%. 「~하지 마 · 말고 · 빼고」가 든 과제는 40%(없으면 60%).
+   - 한 과제에 요구는 3~4개까지. 넘으면 쪼개서 앞 과제가 끝난 뒤 다음을 맡긴다(예: 자료 13곳 조사 → 4곳씩 세 번).
+   - 500자를 넘기지 않는다. 배경 · 까닭은 빼고 해야 할 것만 적는다.
+   - 「하지 마」 대신 「해라」로: 「요약하지 마」 → 「자막 줄을 그대로 옮겨 적어라」, 「파일 만들지 마」 → 「답 본문에 적어라」.
+   - 개수는 숫자로 적는다(「가게 세 곳 각각 한 줄씩」) — {NAME_KO}가 몇 개 채웠는지 스스로 센다.
+   - 수만 자가 될 결과(자막 전체 등)는 구간을 나눠 맡긴다. 한 번에 쓰라고 하면 출력 한도에 걸린다.
+   - 처음 보는 API · 프로그램은 확인된 이름과 길을 과제 글에 적는다(게임 시험: 통째로 47분 실패 → 이름 · 길을 적은 판 8분 성공).
+   **코드 일의 끝 판정은 네가 쥔다** (2026-11-09 게임 시험): 「끝났다」 검사는 {NAME_KO}가 고칠 수 있는 파일 밖에 두고,
+   맡기기 전에 양쪽으로 시험한다(틀린 결과는 실패 · 맞는 결과는 통과). 틀린 곳마다 「무엇이 달랐나」 한 줄을 찍게 하면 작은 모델도 한 번에 고친다.
+   실패가 오래가면 {NAME_KO} 코드보다 검사와 네 과제 글부터 의심한다.
 3. 결과를 전할 때:
    - `files` 의 경로를 그대로 알려 준다. 파일 내용을 지어서 설명하지 않는다.
    - `unsupported_numbers` 가 있으면(`status: needs_review`) 그 숫자를 사실로 말하지 않는다 —
@@ -293,6 +313,14 @@ PC 마다 손자리 모델이 다르다(4B·9B·27B·35B). `sonjari_guide` 를 �
 - `needs_approval`: 되돌릴 수 없는 동작이 {NAME} 창의 승인 카드를 기다린다. 사용자에게 그 창을 보라고 알린다.
 - 메일 발송·발행·삭제·결제는 이 연결로 할 수 없다. 사용자에게 {NAME} 창에서 직접 하도록 안내한다.
 - 「연결하지 못했습니다」: {NAME} 이 꺼져 있다. 켜 달라고 알린다 — 결과를 지어내지 않는다.
+
+## 기능 카드 — 「이것도 되나?」는 찾아서 본다 (2026-11-12)
+
+- {NAME_KO}가 할 수 있는 일을 **기능 하나 = 파일 하나**로 적어 두었다. 이 가이드를 다 외우지 말고 필요할 때 찾는다.
+- 클로드 코드: 이 스킬 폴더의 `cards/` 에서 `grep -ril "<낱말>" cards/` — 한국어 · 영어 낱말 둘 다 걸린다.
+- 코덱스: `~/.codex/sonjari-cards/` 에서 같은 방법.
+- 파일을 못 뒤지면: `sonjari_guide` 에 `query` 를 준다(예: query="유니티 참조").
+- 카드 머리의 `필요:`(팩 켜기 · 프로그램)를 먼저 본다. 카드에 없는 일은 된다고 가정하지 않는다.
 
 ## 지금 쓸 수 있는 도구 (설치할 때 도구 목록에서 뽑음)
 {chr(10).join(table)}
@@ -410,6 +438,18 @@ are attached at the end — split the work by that table. If a result comes with
    **Do not write a save folder** — then it is saved in the {NAME} output folder (under Documents) and the path comes back in `files`.
    If you write some other place, such as your working folder, it stops at the approval card in the {NAME} window (if nobody is at the PC, it just waits).
    If the file has to be there, move it yourself after you receive it.
+   **Keep the task short, with few items, and say what to do** (2026-11-09 · 1,197 browser jobs handed off by Claude): tasks under
+   100 characters finished 67% of the time, tasks over 500 characters 23%. With 3 or fewer required items 67%, with more than 9 items 31%.
+   Tasks containing "don't / not / except" finished 40% (60% without).
+   - At most 3–4 required items per task. If there are more, split them and hand off the next one after the previous one finishes.
+   - Stay under 500 characters. Leave out background and reasons; write only what to do.
+   - Say what to do instead of what not to do: "don't summarize" → "copy the subtitle lines as they are", "don't make a file" → "write it in the answer".
+   - Give counts as numbers ("one row for each of the three shops") so {NAME} can count what it has filled.
+   - Split results that run to tens of thousands of characters (a full transcript) into parts. Asking for it in one go hits the output limit.
+   - For an API or program it has not seen, put the confirmed names and paths in the task (game test: 47 minutes failed whole → 8 minutes with names and paths).
+   **For code work, you own the "done" check** (2026-11-09 game test): keep the check outside files {NAME} can edit, and test it both ways
+   before handing off (a wrong result fails, a right one passes). Have it print one line for each mismatch saying what differed — then even a small model fixes it in one pass.
+   If failures drag on, suspect the check and your task text before {NAME}'s code.
 3. When you pass on the result:
    - Give the paths in `files` as they are. Do not make up the file contents in your description.
    - If there are `unsupported_numbers` (`status: needs_review`), do not state those numbers as facts —
@@ -426,6 +466,14 @@ are attached at the end — split the work by that table. If a result comes with
 - `needs_approval`: an irreversible action is waiting at the approval card in the {NAME} window. Tell the user to look at that window.
 - Sending mail · publishing · deleting · paying cannot be done through this connection. Tell the user to do it directly in the {NAME} window.
 - "Could not connect": {NAME} is off. Ask the user to turn it on — do not make up results.
+
+## Capability cards — look up "can it do this?" (2026-11-12)
+
+- What {NAME} can do is written as **one file per capability**. Do not memorize this guide; look things up when needed.
+- Claude Code: `grep -ril "<word>" cards/` in this skill folder's `cards/` — words in English and Korean both match.
+- Codex: the same in `~/.codex/sonjari-cards/`.
+- If you cannot search files: call `sonjari_guide` with `query` (e.g. query="unity reference").
+- Read the card's needs line (pack to turn on, program) first. Do not assume {NAME} can do something that has no card.
 
 ## Tools available now (taken from the tool list at install time)
 {chr(10).join(table)}
@@ -496,6 +544,8 @@ class GuideSkillService:
         #: 가이드 본문의 언어("ko"·"en"). **렌더할 때마다** 부른다 — 화면 언어를 바꾸면 다음 갱신(`refresh_installed`)에서
         #:   설치된 가이드가 그 언어로 다시 써진다(2026-10-19 · 영어 사용자의 클로드가 한국어 가이드를 읽고 한국어로 맡겼다).
         self.lang = lang or (lambda: "ko")
+        #: 기능 카드 원본 폴더 — None 이면 이 판에 실린 `capabilities/`(시험은 tmp 폴더를 준다).
+        self.cards_source: Path | None = None
 
     def _lang(self) -> str:
         try:
@@ -580,6 +630,8 @@ class GuideSkillService:
                 if _MARK in old and old != new:
                     path.write_text(new, encoding="utf-8-sig")  # BOM — `_write_note` 주석
                     done["claude_code_skill"] = str(path)
+                if _MARK in old:
+                    done["claude_code_cards"] = self._sync_cards("claude_code")
         except OSError as exc:
             done["claude_code_skill_error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
         done["notes"] = self.refresh_packs(tools)
@@ -587,6 +639,27 @@ class GuideSkillService:
 
     def claude_code_path(self) -> Path:
         return self.home / ".claude" / "skills" / SKILL_NAME / "SKILL.md"
+
+    # ── 기능 카드(2026-11-12 · 설계_기능카드) ─────────────────────────────
+    #   스킬 옆 참고 파일로 둔다 — 클로드 코드는 필요할 때만 읽는다(부모 기본 입력을 늘리지 않는다).
+    #   가이드를 깐 곳에만 깔고, 가이드를 걷으면 같이 걷는다. 앱이 켜질 때(refresh_installed) 이 판의 카드로 다시 맞춘다.
+    def cards_path(self, client: str) -> Path:
+        if client == "codex":
+            return self.home / ".codex" / "sonjari-cards"
+        return self.claude_code_path().parent / "cards"
+
+    def _sync_cards(self, client: str) -> dict[str, Any]:
+        from .capability_cards import install_cards
+
+        try:
+            return install_cards(self.cards_path(client), self.cards_source)
+        except OSError as exc:  # 카드가 못 깔려도 가이드 설치는 막지 않는다
+            return {"ok": False, "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+
+    def _drop_cards(self, client: str) -> None:
+        from .capability_cards import remove_cards
+
+        remove_cards(self.cards_path(client))
 
     #: 전역 지침 파일과, 그 지침이 가리킬 스킬 파일.
     def note_targets(self) -> dict[str, dict[str, Path]]:
@@ -672,6 +745,7 @@ class GuideSkillService:
                 return {"ok": False, "error": "foreign_guide_exists", "path": str(guide)}
             guide.parent.mkdir(parents=True, exist_ok=True)
             guide.write_text(self._render(tools), encoding="utf-8-sig")  # BOM — `_write_note` 주석
+            self._sync_cards("codex")
         packs = self._write_pack_guides(client)
         self._remove_legacy_guides(client)
         note = paths["note"]
@@ -692,6 +766,8 @@ class GuideSkillService:
             return {"ok": False, "error": "unknown_client"}
         for stale in self._pack_files(client):
             self._remove_pack_file(stale)
+        if client == "codex":
+            self._drop_cards("codex")
         note = paths["note"]
         if not note.exists():
             return {"ok": True, "removed": False}
@@ -734,7 +810,8 @@ class GuideSkillService:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self._render(tools), encoding="utf-8-sig")  # BOM — `_write_note` 주석
         self._remove_legacy_guides("claude_code")
-        return {"ok": True, "path": str(path), "backup": backup}
+        cards = self._sync_cards("claude_code")
+        return {"ok": True, "path": str(path), "backup": backup, "cards": cards}
 
     def remove_claude_code(self) -> dict[str, Any]:
         path = self.claude_code_path()
@@ -743,6 +820,7 @@ class GuideSkillService:
         if _MARK not in path.read_text(encoding="utf-8-sig", errors="ignore"):
             return {"ok": False, "error": "foreign_skill_exists", "path": str(path)}
         path.unlink()
+        self._drop_cards("claude_code")
         return {"ok": True, "removed": True}
 
     def build_zip(self, tools: Iterable[dict[str, Any]]) -> dict[str, Any]:
@@ -752,5 +830,13 @@ class GuideSkillService:
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
             # zip 안에는 스킬 이름 폴더 하나 — 올리는 화면이 폴더째 기대한다.
             archive.writestr(f"{SKILL_NAME}/SKILL.md", self._render(tools))
+            # 기능 카드도 같은 폴더의 cards/ 로 — 올린 스킬에서도 가이드의 「cards/」 안내가 맞게.
+            from .capability_cards import cards_dir
+
+            source = self.cards_source or cards_dir()
+            if source.is_dir():
+                for card in sorted(source.rglob("*.md")):
+                    archive.writestr(f"{SKILL_NAME}/cards/{card.relative_to(source).as_posix()}",
+                                     card.read_text(encoding="utf-8-sig"))
         target.write_bytes(buffer.getvalue())
         return {"ok": True, "path": str(target)}

@@ -178,7 +178,7 @@ export default function SetupWizard() {
   const ordered = useMemo(() => {
     const rank = (m: CatalogModel) => {
       const kind = pickKinds.get(m.key);
-      return kind === "verified" ? 0 : kind === "open_alternative" ? 1 : kind === "external" ? 2 : m.fits ? 3 : 4;
+      return kind === "verified" ? 0 : kind === "open_alternative" ? 1 : kind === "ram_boost" ? 1.5 : kind === "external" ? 2 : m.fits ? 3 : 4;
     };
     return [...models].sort((a, b) => rank(a) - rank(b));
   }, [models, pickKinds]);
@@ -251,13 +251,15 @@ export default function SetupWizard() {
     setApplied(null);
     try {
       // 「글만 읽기」를 골랐을 때만 그 뜻을 싣는다 — 안 실으면 백엔드는 예전 그대로 그림을 읽게 올린다.
-      setApplied(await api.apply(picked.key, picked.ctx, picked.textOnly ? false : undefined));
+      // 「램 부스트」 칸을 골랐으면 그 뜻을 싣는다 — 백엔드가 남이 쥔 카드 몫을 재고 나머지를 램으로 올린다(2026-11-11).
+      const boost = Boolean(pickedModel?.ram_boost && pickedModel.ram_boost.ctx === picked.ctx);
+      setApplied(await api.apply(picked.key, picked.ctx, picked.textOnly || boost ? false : undefined, boost || undefined));
     } catch (err) {
       setApplied({ ok: false, error: err instanceof Error ? err.message : String(err) });
     } finally {
       setApplying(false);
     }
-  }, [api, picked]);
+  }, [api, picked, pickedModel]);
 
   const ollamaReady = useCallback(async (): Promise<boolean> => {
     if (!api) return false;
@@ -1345,7 +1347,7 @@ export function groupFamilies(models: CatalogModel[]): ModelGroup[] {
 }
 
 /** 배지는 카드에 하나 — 묶음 안에 추천이 여럿이면 앞선 것을 단다. */
-const BADGE_ORDER: ModelPick["kind"][] = ["verified", "open_alternative", "external"];
+const BADGE_ORDER: ModelPick["kind"][] = ["verified", "open_alternative", "ram_boost", "external"];
 
 /** 잰 모델 / 외부 평가 모델 두 무리의 카드 목록. 같은 `family` 는 카드 하나다. */
 /**
@@ -1354,7 +1356,7 @@ const BADGE_ORDER: ModelPick["kind"][] = ["verified", "open_alternative", "exter
  */
 export function recommendedOnly(models: CatalogModel[], rec: Recommendation | null | undefined): CatalogModel[] {
   if (!rec?.model_key) return [];
-  const alternatives = new Set((rec.picks ?? []).filter((pick) => pick.kind === "open_alternative").map((pick) => pick.model_key));
+  const alternatives = new Set((rec.picks ?? []).filter((pick) => pick.kind === "open_alternative" || pick.kind === "ram_boost").map((pick) => pick.model_key));
   const first = models.filter((model) => model.key === rec.model_key);
   return [...first, ...models.filter((model) => alternatives.has(model.key) && model.key !== rec.model_key)];
 }
@@ -1466,6 +1468,8 @@ function contextsOf(model: CatalogModel, usable: number, saves = 0): Fit[] {
   return Object.entries(model.vram_gb)
     .map(([key, gb]) => ({ ctx: Number(key), gb: lean[key] ?? Math.max(0, gb - saves) }))
     .map(({ ctx, gb }) => ({ ctx, gb, fits: gb <= usable }))
+    // 「램 부스트」 칸은 카드엔 안 들어가도 남는 램이 받친다(2026-11-11 · 백엔드가 그 PC 의 남은 램으로 정한다).
+    .map((fit) => (!fit.fits && model.ram_boost?.ctx === fit.ctx ? { ...fit, fits: true } : fit))
     .sort((a, b) => b.ctx - a.ctx);
 }
 
@@ -1570,6 +1574,7 @@ export function ModelCard({
             <span className="model-badge">{role === "smart" ? t("Sonjari 추천 · 평소") : t("Sonjari 추천 · 실측")}</span>
           )}
           {recommended === "external" && <span className="model-badge is-external">{t("외부 평가 추천")}</span>}
+          {recommended === "ram_boost" && <span className="model-badge is-boost">{t("램 부스트")}</span>}
           {recommended === "open_alternative" && (
             <span className={`model-badge ${role === "fast" ? "is-fast" : "is-open"}`}>{role === "fast" ? t("무거운 프로그램과 함께") : t("조건 없는 대안")}</span>
           )}
@@ -1582,6 +1587,15 @@ export function ModelCard({
           </p>
         </div>
       </header>
+      {/* 「램 부스트」(2026-11-11) — 왜 큰 모델이 이 PC 에 되는지 한 줄 + 사실(첫 질문 시간 · 그 PC 에서 잰 램). */}
+      {shown.ram_boost && (
+        <p className="model-boost">
+          {t("그래픽카드가 작아도 괜찮습니다. 남는 램으로 한 체급 큰 모델을 돌립니다")}
+          <span className="model-boost-fact">
+            {t("첫 질문은 1분쯤 걸릴 수 있습니다 · 램 {0}GB 사용", shown.ram_boost.ram_gb.toFixed(0))}
+          </span>
+        </p>
+      )}
       {/* 라이선스 한 줄. 조건이 붙은 라이선스는 「조건이 있다」는 사실과 원문 링크만 — 조건의 내용은 화면이 풀어 쓰지 않는다(§55-24 덧붙임 2). */}
       {shown.license && (
         <p className="model-license">

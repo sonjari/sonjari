@@ -64,7 +64,9 @@ def test_the_card_limits_of_the_person_still_go_back_to_ollama() -> None:
 def test_every_place_that_starts_ollama_uses_it(tmp_path: Path) -> None:
     """Ollama 를 켜는 자리는 셋이다(우리 것 · 사람이 깐 것 · 다시 켜기). 하나라도 빠지면 그 길로 켠 Ollama 만 한도가 다르다."""
     source = inspect.getsource(OllamaInstaller)
-    assert source.count("ollama_launch_env(self.prompt_cache_mib)") == 3
+    # 2026-11-11: 세 자리가 `_launch_env()` 하나를 거친다(램 부스트 몫을 얹는 곳) — 그 안에서 한도 함수를 부른다.
+    assert source.count("self._launch_env()") == 3
+    assert inspect.getsource(OllamaInstaller._launch_env).count("ollama_launch_env(self.prompt_cache_mib)") == 1
     assert "child_env_for_ollama" not in source, "카드 제한만 넘기던 옛 길이 남아 있다"
     assert OllamaInstaller(install_root=tmp_path).prompt_cache_mib == -1
     assert OllamaInstaller(install_root=tmp_path, prompt_cache_mib=0).prompt_cache_mib == 0

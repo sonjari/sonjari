@@ -32,6 +32,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -76,6 +77,41 @@ def is_unity_project(path: Path) -> bool:
     return (path / "ProjectSettings" / "ProjectVersion.txt").is_file() and (path / "Assets").is_dir()
 
 
+#: 맥판(2026-11-08). 허브가 까는 자리 · 실행 파일 모양이 윈도우와 다르다 — 윈도우 경로만 알면 맥에서 「에디터 없음」이 난다.
+_MAC = sys.platform == "darwin"
+
+
+def _editor_exe(version_dir: Path) -> Path:
+    """허브의 판 폴더(`.../Hub/Editor/<판>`) 안 실행 파일. 맥은 `.app` 꾸러미 속 진짜 실행 파일을 부른다."""
+    if _MAC:
+        return version_dir / "Unity.app" / "Contents" / "MacOS" / "Unity"
+    return version_dir / "Editor" / "Unity.exe"
+
+
+def _expand(raw: str) -> Path:
+    return Path(os.path.expanduser(os.path.expandvars(raw)))
+
+
+def _editor_open_by_process(project: Path) -> bool:
+    """맥 · 리눅스: 파일 잠금이 권고일 뿐이라 열어 보기로는 못 가른다 — 떠 있는 유니티가 이 프로젝트를 `-projectPath` 로 쥐었나 본다."""
+    try:
+        listing = subprocess.run(
+            ["ps", "-axo", "command"], capture_output=True, text=True, timeout=5, check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return True  # 모르면 열린 쪽으로 — 배치 모드로 같은 프로젝트를 또 열면 둘 다 망가진다
+    target = os.path.normpath(str(project.resolve(strict=False))).rstrip("/").lower()
+    for line in listing.splitlines():
+        low = line.lower()
+        if "unity" not in low or "-projectpath" not in low:
+            continue
+        tail = low.split("-projectpath", 1)[1].strip().strip('"').strip("'")
+        if tail.startswith(target) and (len(tail) == len(target) or tail[len(target)] in " /\"'"):
+            return True
+    return False
+
+
 def editor_is_open(project: Path) -> bool:
     """에디터가 이 프로젝트를 열고 있나. 잠금 파일이 있고 **다른 프로세스가 쥐고 있으면** 열린 것이다.
 
@@ -84,6 +120,8 @@ def editor_is_open(project: Path) -> bool:
     lock = project / "Temp" / "UnityLockfile"
     if not lock.exists():
         return False
+    if os.name != "nt":
+        return _editor_open_by_process(project)
     try:
         with open(lock, "r+b"):
             pass
@@ -96,9 +134,14 @@ def editor_is_open(project: Path) -> bool:
 
 def _hub_install_roots() -> list[Path]:
     roots: list[Path] = []
-    appdata = os.environ.get("APPDATA")
-    if appdata:
-        extra = Path(appdata) / "UnityHub" / "secondaryInstallPath.json"
+    if _MAC:
+        roots.append(Path("/Applications/Unity/Hub/Editor"))
+        hub_settings: Path | None = Path.home() / "Library" / "Application Support" / "UnityHub"
+    else:
+        appdata = os.environ.get("APPDATA")
+        hub_settings = Path(appdata) / "UnityHub" if appdata else None
+    if hub_settings is not None:
+        extra = hub_settings / "secondaryInstallPath.json"
         try:
             value = json.loads(extra.read_text(encoding="utf-8"))
             if isinstance(value, str) and value.strip():
@@ -132,16 +175,33 @@ class UnityTools:
         return [*configured, *_hub_install_roots()]
 
     def installed_editors(self) -> dict[str, Path]:
+        """판 번호 → 실행 파일. 허브 폴더 이름의 아키텍처 꼬리(`6000.6.3f1-arm64`)는 같은 판으로 본다.
+
+        ★ 2026-11-08 게임 시험 2-2: 맥에 같은 판이 두 폴더로 깔렸다 — `6000.6.3f1`(맥 빌드만) · `6000.6.3f1-arm64`(강제 재설치 ·
+          윈도우 모듈까지 · 허브 등록). 이름이 똑같은 앞쪽을 고르면 윈도우 빌드에서 막힌다. 같은 판이 둘이면 **빌드 지원
+          (PlaybackEngines)이 더 많이 깔린 쪽**을 고른다.
+        """
         found: dict[str, Path] = {}
+        engines: dict[str, int] = {}
         for root in self.editor_roots():
             try:
                 children = list(root.iterdir())
             except OSError:
                 continue
             for child in children:
-                exe = child / "Editor" / "Unity.exe"
-                if exe.is_file():
-                    found.setdefault(child.name, exe)
+                exe = _editor_exe(child)
+                if not exe.is_file():
+                    continue
+                found.setdefault(child.name, exe)
+                version = re.sub(r"-(?:arm64|x86_64|x64|intel)$", "", child.name, flags=re.IGNORECASE)
+                playback = (child / "PlaybackEngines") if _MAC else (child / "Editor" / "Data" / "PlaybackEngines")
+                try:
+                    count = sum(1 for item in playback.iterdir() if item.is_dir())
+                except OSError:
+                    count = 0
+                if version not in engines or count > engines[version]:
+                    engines[version] = count
+                    found[version] = exe
         return found
 
     def editor_for(self, version: str) -> Path:
@@ -159,31 +219,40 @@ class UnityTools:
     # 사람이 경로를 외우게 하지 않는다. 허브·에디터·라이선스·프로젝트를 **스스로 찾고**, 막힌 첫 칸 하나에 대해
     # 「무엇을 하면 되는지」를 한 줄로 돌려준다. 화면은 계산하지 않는다 — 그 한 줄과 단추 종류를 그대로 그린다.
     _HUB_CANDIDATES = (
-        r"C:\Program Files\Unity Hub\Unity Hub.exe",
-        r"%LOCALAPPDATA%\Programs\Unity Hub\Unity Hub.exe",
+        ("/Applications/Unity Hub.app", "~/Applications/Unity Hub.app") if _MAC else (
+            r"C:\Program Files\Unity Hub\Unity Hub.exe",
+            r"%LOCALAPPDATA%\Programs\Unity Hub\Unity Hub.exe",
+        )
     )
     _LICENSE_CANDIDATES = (
-        r"%LOCALAPPDATA%\Unity\licenses\UnityEntitlementLicense.xml",
-        r"C:\ProgramData\Unity\Unity_lic.ulf",
+        (
+            "~/Library/Unity/licenses/UnityEntitlementLicense.xml",
+            "/Library/Application Support/Unity/Unity_lic.ulf",
+        ) if _MAC else (
+            r"%LOCALAPPDATA%\Unity\licenses\UnityEntitlementLicense.xml",
+            r"C:\ProgramData\Unity\Unity_lic.ulf",
+        )
     )
     #: 프로젝트를 찾아볼 자리. 드라이브 통째는 안 훑는다 — 흔히 두는 자리와 사람이 고른 자리만.
     _PROJECT_ROOTS = (
-        r"%USERPROFILE%\Documents", r"%USERPROFILE%\Desktop", r"%USERPROFILE%\Unity Projects",
-        r"%USERPROFILE%\UnityProjects", r"%USERPROFILE%",
+        ("~/Documents", "~/Desktop", "~/Unity Projects", "~/UnityProjects", "~") if _MAC else (
+            r"%USERPROFILE%\Documents", r"%USERPROFILE%\Desktop", r"%USERPROFILE%\Unity Projects",
+            r"%USERPROFILE%\UnityProjects", r"%USERPROFILE%",
+        )
     )
 
-    _DRIVE_ROOTS = tuple(f"{letter}:\\UnityProjects" for letter in "CDEFGH")
+    _DRIVE_ROOTS = () if _MAC else tuple(f"{letter}:\\UnityProjects" for letter in "CDEFGH")
 
     def hub_path(self) -> str:
         for raw in self._HUB_CANDIDATES:
-            path = Path(os.path.expandvars(raw))
-            if path.is_file():
+            path = _expand(raw)
+            if path.is_file() or (_MAC and path.is_dir()):  # 맥 허브는 `.app` 폴더
                 return str(path)
         return ""
 
     def license_present(self) -> bool:
         """라이선스 파일이 **있는지만** 본다. 내용은 열지 않는다(계정 정보가 들어 있다)."""
-        return any(Path(os.path.expandvars(raw)).is_file() for raw in self._LICENSE_CANDIDATES)
+        return any(_expand(raw).is_file() for raw in self._LICENSE_CANDIDATES)
 
     def _project_state_path(self) -> Path:
         return Path(self.config.data_dir) / "unity_projects.json"
@@ -211,7 +280,13 @@ class UnityTools:
 
         for raw in self.remembered_projects():
             consider(Path(raw))
-        roots = [Path(os.path.expandvars(raw)) for raw in self._PROJECT_ROOTS]
+        # ★ 11-08 허락 한 틀: 승인 카드로 열린 폴더 · 손자리가 쓸 수 있는 자리(문서/Sonjari 등)에 만든 프로젝트도 찾는다.
+        #   카드를 눌렀는데 「허락된 프로젝트가 없다」가 또 나오면 안 된다.
+        granted = list(getattr(self.local, "_granted", {}).get("write") or [])
+        for path in granted:
+            consider(Path(path))
+        roots = [_expand(raw) for raw in self._PROJECT_ROOTS]
+        roots.extend(Path(path) for path in [*granted, *getattr(self.local, "allowed_roots", [])])
         # 드라이브마다 흔한 이름 하나(`X:\UnityProjects`)만 본다.
         roots.extend(Path(raw) for raw in self._DRIVE_ROOTS)
         for root in roots:
@@ -224,6 +299,13 @@ class UnityTools:
                 if len(seen) >= 30:
                     break
         return list(seen.values())
+
+    def _door(self, path: Path, mode: str = "write") -> str:
+        """허락받는 길 한 문장 — 손자리 본체의 공통 문장(`access_door`). 없는 대역이면 사람에게 말하라는 옛 안내."""
+        door = getattr(self.local, "access_door", None)
+        if callable(door):
+            return str(door(path, mode))
+        return f"사람에게 「설정 › 팩 › 게임 팩」에서 {path} 를 허락해 달라고 말해라."
 
     def _allowed(self, path: Path) -> bool:
         try:
@@ -294,7 +376,16 @@ class UnityTools:
         """설정 화면의 「열린 에디터」 칸 — 기억한 프로젝트마다 이어졌나·에디터가 떠 있나, 우리 방 요약, 무대 상태."""
         live = {os.path.normcase(os.path.normpath(row["project"])): row for row in self.editor.live_editors()}
         projects: list[dict[str, Any]] = []
-        for raw in self.remembered_projects():
+        # ★ 11-11 맥: 손자리가 셸로 만든 새 프로젝트(SurvivalWave)는 기억 목록에 없어 「에디터 잇기」 단추가 안 떴다 —
+        #   사람이 누를 곳도 없었다. 찾은 프로젝트 중 허락된 것도 같이 보인다(기억한 것이 먼저).
+        candidates: list[str] = []
+        seen_keys: set[str] = set()
+        for raw in [*self.remembered_projects(), *(str(path) for path in self.find_projects() if self._allowed(path))]:
+            key = os.path.normcase(os.path.normpath(raw))
+            if key not in seen_keys:
+                seen_keys.add(key)
+                candidates.append(raw)
+        for raw in candidates:
             path = Path(raw)
             if not is_unity_project(path):
                 continue
@@ -315,7 +406,10 @@ class UnityTools:
         """사람이 누른 단추로만 부른다. 허브가 있으면 켜고, 없으면 공식 다운로드 페이지를 연다."""
         hub = self.hub_path()
         if hub:
-            subprocess.Popen([hub], shell=False, creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
+            if _MAC:
+                subprocess.Popen(["open", hub], shell=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            else:
+                subprocess.Popen([hub], shell=False, creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
             return {"ok": True, "opened": "hub"}
         import webbrowser
 
@@ -359,9 +453,19 @@ class UnityTools:
                     + " · 사람이 말한 이름과 맞는 것을 project 에 전체 경로로 줘라. 모르겠으면 사람에게 물어라."
                 )
             else:
+                # ★ 11-08 게임 시험 3단계: 이 글만 받은 모델은 사람에게 말하고 멈췄다. 허락받는 길(승인 카드)과 이미 쓸 수 있는
+                #   자리를 같이 준다 — 다른 팩과 같은 문장(`access_door`).
+                found = self.find_projects()
+                if found:
+                    raise ValueError(
+                        "unity_project_required: 허락된 유니티 프로젝트가 없다. 찾은 프로젝트(허락 안 됨): "
+                        + ", ".join(str(path) for path in found[:5]) + " · " + self._door(found[0], "write")
+                    )
+                roots = " · ".join(str(root) for root in getattr(self.local, "allowed_roots", [])[:3])
                 raise ValueError(
-                    "unity_project_required: 허락된 유니티 프로젝트가 없다 — 사람에게 「설정 › 팩 › 게임 팩」에서 "
-                    "프로젝트를 허락해 달라고 말해라."
+                    "unity_project_required: 유니티 프로젝트가 없다 — 새로 만들려면 이미 쓸 수 있는 자리"
+                    f"({roots}) 아래에 만들고 project 에 그 전체 경로를 줘라. 다른 자리의 프로젝트면 "
+                    + self._door(Path("<그 프로젝트 폴더>"), "write")
                 )
         # ★ 경로 대신 **이름**이 오면 아는 프로젝트에서 찾는다 (2026-10-01 베타 전 테스터 시험).
         #   「OntelicPlayground 유니티 프로젝트 점검해 줘」에 모델이 `project: "OntelicPlayground"` 를 보냈고, 이 함수가 그걸
@@ -385,8 +489,8 @@ class UnityTools:
                 hint = (f" 허락된 프로젝트: {', '.join(allowed[:5])} — 이 중 하나를 project 에 **전체 경로로** 줘라."
                         if allowed else " 허락된 프로젝트가 없다.")
                 raise PermissionError(
-                    f"unity_project_not_allowed: {candidate} — 사람에게 「설정 › 팩 › 게임 팩」에서 이 프로젝트를 허락해 "
-                    f"달라고 말해라(Code 탭이면 그 폴더를 작업 폴더로 골라도 된다).{hint} ({exc})"
+                    f"unity_project_not_allowed: {candidate} — {self._door(candidate, 'write')} "
+                    f"(사람이 「설정 › 팩 › 게임 팩」에서 허락해도 된다){hint}"
                 ) from exc
         if not is_unity_project(candidate):
             raise ValueError(f"not_a_unity_project: {candidate} 에 ProjectSettings/ProjectVersion.txt 와 Assets 가 없다.")
@@ -646,7 +750,7 @@ class UnityTools:
             raise RuntimeError(
                 "unity_editor_open: 유니티 에디터가 이 프로젝트를 열고 있다. 배치 모드는 같은 프로젝트를 못 연다. "
                 + ("에디터가 손자리와 이어져 있으니 unity_editor_status·unity_editor_look 으로 **열린 에디터 안을** 읽어라 "
-                   "(바꾸는 일은 unity_editor_change — 승인). 레시피가 꼭 필요하면 사람에게 에디터를 닫아 달라고 해라."
+                   "(바꾸는 일은 unity_editor_change — 승인 없이 바로 · Undo 에 남는다). 레시피가 꼭 필요하면 사람에게 에디터를 닫아 달라고 해라."
                    if connected else
                    "사람에게 에디터를 닫아 달라고 말해라(저장 안 한 변경이 있을 수 있으니 대신 닫지 않는다). "
                    "설정 › 팩 › 게임 팩에서 「에디터 잇기」를 해 두면 다음부터는 닫지 않고 에디터 안에서 읽을 수 있다.")

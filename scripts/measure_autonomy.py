@@ -74,6 +74,11 @@ WRITE_TOOLS = frozenset(
         # 열린 유니티 에디터의 씬을 바꾼다(2026-09-27) — 승인 카드를 거치고 에디터 Undo 에 남는다. 되돌리기도 쓰기다.
         "unity_editor_change",
         "unity_editor_undo",
+        # 다리 한 줄을 적고 에디터를 띄운다(2026-11-11).
+        "unity_editor_launch",
+        "unity_editor_refresh",
+        # 이 PC 에 프로그램이 실제로 들어온다(2026-11-08) — 서명 확인 뒤 승인 카드.
+        "local_install_app",
         "browser_fill",
         "browser_click",
         "browser_press",
@@ -275,6 +280,7 @@ NEUTRAL_TOOLS = frozenset(
         # 그 잡의 걸음(조사·쓰기)이 따로 세어진다. 여기서 또 세면 한 판이 두 번 들어간다.
         "sonjari_task",
         "sonjari_task_status",
+        "sonjari_task_cancel",  # 맡긴 잡을 멈추는 문(2026-11-07) — 잡 안 걸음이 아니다
         "sonjari_guide",  # 가이드 본문을 돌려주는 읽기 전용 문(2026-09-17) — 잡이 아니다
         "sonjari_story",  # 서기 카드를 돌려주는 읽기 전용 문(2026-10-21) — 잡이 아니다
         "unity_list_recipes",  # 레시피 목록(2026-09-27) — 무엇을 할 수 있나일 뿐, 읽은 근거가 아니다

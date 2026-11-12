@@ -202,6 +202,8 @@ export interface ConversationSummary {
   has_summary: boolean;
   /** 바깥 AI 가 맡긴 대화면 그 호스트 이름(MCP clientInfo — 예: claude-code). 없으면 빈 값. */
   caller?: string;
+  /** 그 호스트가 어느 컴퓨터에 있나(`ssh` = 다른 컴퓨터 · 2026-11-12). 옛 서버는 안 준다. */
+  caller_place?: string;
   /** 어느 문으로 들어왔나(`app` = 앱 안 Claude 가 맡긴 판). 옛 서버는 안 준다. */
   via?: string;
   /** 첫 질문을 처리한 판 번호 — Claude 대화에 묶인 판을 알아본다. 옛 서버는 안 준다. */

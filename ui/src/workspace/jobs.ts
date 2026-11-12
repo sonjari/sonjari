@@ -266,6 +266,38 @@ export function jobToFollow(pendingHead: string, jobs: JobSummary[]): string {
   return live[0]?.id ?? "";
 }
 
+/**
+ * 지금 친 말을 **덧붙일 판**(없으면 빈 글). 이 창이 보낸 판이 아니어도, 서버에서 이 방의 대화 판이 돌고 있으면 그 판이다.
+ *
+ * ★ 2026-11-12 맥(대표): 앱을 다시 켠 뒤(00:12) 보낸 말이 돌던 판(23:59 시작)에 덧붙지 않고 **새 판으로 줄을 섰다**.
+ *   덧붙이기 조건이 「이 창의 보낸 목록(pending)에 있는 판」뿐이라, 다시 켠 창은 목록이 비어 늘 새 판을 만들었다.
+ *   화면은 새 판을 맨 앞으로 보고 「의도를 고르는 중」을 그렸고, 실제로는 앞 판이 2분 넘게 더 돌았다 — 「반응이 없고
+ *   전 질문이 똑같이 돈다」. 한 번은 사람이 그 새 판을 멈췄고(돌던 판은 계속), 다시 보낸 말도 또 뒤에 섰다.
+ */
+export function jobToSteer(activeJobId: string, viewedSession: string, pending: FollowedJob[], jobs: JobSummary[]): string {
+  if (!activeJobId) return "";
+  if (pending.some((item) => item.jobId === activeJobId && item.sessionId === viewedSession)) return activeJobId;
+  const job = jobs.find((row) => row.id === activeJobId);
+  if (!job || job.status !== "running" || job.kind !== "chat") return "";
+  // 방을 모르는 판(옛 서버)은 덧붙이지 않는다 — 남의 대화에 말을 끼우는 것보다 새 판이 낫다.
+  return job.session_id && job.session_id === viewedSession ? activeJobId : "";
+}
+
+/**
+ * 이 판이 **아직 줄에 서서** 다른 판이 끝나기를 기다리면 그 앞 판(아니면 null).
+ *
+ * ★ 2026-11-12 맥(대표): 줄 선 판에 「질문의 의도와 필요한 도구를 고르는 중입니다」와 초가 흘렀다. 실제로는 앞 판이 2분 넘게
+ *   더 돌았다 — 사람은 손자리가 자기 말을 씹고 옛 질문을 되풀이한다고 봤다. 줄 서 있으면 줄 서 있다고 말한다.
+ */
+export function waitingBehind(jobId: string, jobs: JobSummary[]): JobSummary | null {
+  if (!jobId) return null;
+  const mine = jobs.find((row) => row.id === jobId);
+  if (!mine || mine.status !== "queued") return null;
+  return jobs
+    .filter((row) => row.id !== jobId && row.status === "running")
+    .sort((a, b) => (a.started_at ?? a.created_at) - (b.started_at ?? b.created_at))[0] ?? null;
+}
+
 /** 이 창이 따라가는 판 하나 — 어느 방(대화)의 것인지만 본다. */
 export interface FollowedJob {
   jobId: string;
@@ -406,6 +438,23 @@ export function whereAQueuedJobLands(input: {
 export function paneWidth(input: { frame: WorkspaceMode; stage: boolean; stageWidth?: number }): string | number {
   if (input.frame === "code") return "100%";
   return input.stage && input.stageWidth ? input.stageWidth : 468;
+}
+
+/**
+ * 바깥 AI(클로드)가 MCP 로 맡긴 판이 **이 화면에 뜰 때** 창 틀(코워크 · 코드 탭)을 그 판의 모드로 바꾼다 (2026-11-08 대표).
+ *
+ * 「클로드가 코드로 던지면 코드 화면, 코워크면 코워크 화면」. 그전에는 작업 칸 **내용**만 판을 따르고(`paneContext`) 탭은 사람이
+ * 골라 둔 그대로라, 클로드가 유니티 일을 repo 없이(코워크로) 던졌는데 사람은 코드 탭을 보고 있었다 — 무엇으로 돌았는지 화면으로 몰랐다.
+ * 사람이 자기 일을 기다리는 중(`landing === "listed"`)이면 부르는 쪽이 아예 여기까지 안 온다 — 화면을 뺏지 않는다.
+ * 바꿀 것이 없으면 null.
+ */
+export function frameForDelegatedJob(
+  payload: { origin?: unknown; workspace_mode?: unknown },
+  current: WorkspaceMode,
+): WorkspaceMode | null {
+  if (String(payload.origin ?? "") !== "mcp") return null;
+  const wanted: WorkspaceMode = String(payload.workspace_mode ?? "") === "code" ? "code" : "cowork";
+  return wanted === current ? null : wanted;
 }
 
 export function paneContext(
