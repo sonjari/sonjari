@@ -20,6 +20,7 @@ from __future__ import annotations
 from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(백엔드 0xc0000005 사고)
 
 import ctypes
+from pathlib import Path
 import hashlib
 import io
 import os
@@ -184,8 +185,11 @@ class UnityStage:
         grab: Callable[[int], tuple[bytes, int, int]] = capture,
         front: Callable[[int], bool] = bring_to_front,
         clock: Callable[[], float] = time.monotonic,
+        min_interval: float = MIN_INTERVAL_SEC,
     ) -> None:
         self._find, self._grab, self._front, self.clock = find, grab, front, clock
+        #: 새로 찍는 가장 짧은 간격. 창 복사(윈도우)는 0.2초, 에디터 안 찍기(맥)는 무거워 몇 초.
+        self.min_interval = float(min_interval)
         self._lock = threading.Lock()
         self._frame: dict[str, Any] | None = None
         self._digest = ""
@@ -218,13 +222,13 @@ class UnityStage:
         deadline = self.clock() + max(0.0, min(float(wait), 5.0))
         while True:
             with self._lock:
-                if self.clock() - self._last_at >= MIN_INTERVAL_SEC:
+                if self.clock() - self._last_at >= self.min_interval:
                     self._shoot(project_hint)
                 if self._frame is not None and self._frame["seq"] > after:
                     return self._frame
             if self.clock() >= deadline:
                 return None
-            time.sleep(MIN_INTERVAL_SEC)
+            time.sleep(min(self.min_interval, 0.5))
 
     def _shoot(self, project_hint: str) -> None:
         self._last_at = self.clock()
@@ -254,6 +258,26 @@ class UnityStage:
         if window is None:
             return {"ok": False, "error": "no_editor"}
         return {"ok": self._front(window["hwnd"]), "title": window["title"]}
+
+
+def bridge_stage(bridge: Any, *, interval: float = 2.5) -> "UnityStage":
+    """창을 복사할 수 없는 곳(맥)의 무대 — 에디터 연결(다리)이 아는 에디터를 찾고, 에디터 안에서 씬 화면을 찍어 비춘다.
+
+    ★ 11-08 밤 대표: 「에디터가 있는데도 안 뜬다」. 무대는 윈도우 창 목록(EnumWindows)으로 Unity.exe 를 찾아서, 맥에서는 늘
+      「떠 있는 유니티 에디터가 없습니다」였다. 맥의 창 녹화는 「화면 기록」 권한(보안 설정 · 사람이 켬)이 필요해 쓰지 않는다 —
+      유니티가 스스로 그리는 찍기(`UnityEditorBridge.stage_shot`)는 권한이 필요 없다. 창 전체가 아니라 씬 화면이 보인다.
+    """
+    def find() -> list[dict[str, Any]]:
+        return [
+            {"hwnd": row["project"], "title": f"{row.get('project_name') or Path(str(row['project'])).name} — Unity",
+             "width": 0, "height": 0, "minimized": False}
+            for row in bridge.live_editors() if row.get("alive")
+        ]
+
+    def grab(_handle: Any) -> tuple[bytes, int, int]:
+        return bridge.stage_shot("scene_view")
+
+    return UnityStage(find=find, grab=grab, front=lambda _handle: False, min_interval=interval)
 
 
 def measure_focus(stage: UnityStage, seconds: float = 20.0, *, sample_sec: float = 0.1) -> dict[str, Any]:

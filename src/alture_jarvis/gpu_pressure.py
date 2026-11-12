@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import json
+import os
 import statistics
 import subprocess
 import sys
@@ -42,6 +43,22 @@ LATE_MIN_SEC = 30.0
 #: 평소 값을 세는 데 필요한 기록 수 · 읽을 마지막 줄 수.
 BASELINE_MIN_ROWS = 5
 _TAIL_LINES = 3000
+
+
+def ollama_card_index(environ: Any = None) -> str | None:
+    """Ollama 가 쓰는 카드 번호(`CUDA_VISIBLE_DEVICES` 가 숫자 하나일 때만). 여럿 · 비어 있음 · UUID 면 None(예전처럼 가장 큰 카드).
+
+    `nvidia-smi` 번호와 CUDA 번호는 PCI 순서 · 빠른 순서로 어긋날 수 있다 — 둘이 다른 PC 는 드물고(빠른 카드가 대개 0번 슬롯),
+    어긋나도 예전(가장 큰 카드)보다 나빠지는 쪽은 그 카드가 실제로 쓰이지 않을 때뿐이다. 손자리 · Ollama 는 같은 사용자 환경으로
+    뜬다(예약 작업 · 트레이).
+    """
+    from .gpu_policy import INHERITED_KEY
+
+    env = os.environ if environ is None else environ
+    # ★ 손자리 본체는 켜질 때 물려받은 값을 지우고 이 칸에 옮겨 둔다(`gpu_policy` — 본체는 음성 · 비전 때문에 모든 카드를 본다).
+    #   Ollama 는 그 원래 값으로 뜬다(`child_env_for_ollama`). 그래서 옮겨 둔 값을 먼저 본다(11-11 출시 전 시험에서 드러남).
+    raw = str(env[INHERITED_KEY] if INHERITED_KEY in env else env.get("CUDA_VISIBLE_DEVICES") or "").strip()
+    return raw if raw.isdigit() else None
 
 
 def read_card(run: Callable[..., Any] | None = None) -> dict[str, Any] | None:
@@ -66,7 +83,11 @@ def read_card(run: Callable[..., Any] | None = None) -> dict[str, Any] | None:
     cards = [card for card in cards if float(card.get("vram_total_gb") or 0) > 0]
     if not cards:
         return None
-    card = max(cards, key=lambda item: (float(item.get("vram_total_gb") or 0), float(item.get("vram_used_gb") or 0)))
+    pinned = ollama_card_index()
+    chosen = [card for card in cards if pinned is not None and str(card.get("index")) == pinned]
+    # ★ Ollama 가 카드 하나에 묶여 있으면 그 카드를 본다 (2026-11-11). 「가장 큰 카드」만 보면 그래픽카드가 둘인 PC 에서 모델이 안 올라간
+    #   카드를 보고 「넉넉하다 · 큰 카드라 안 넘긴다」로 판단한다(이 PC: 3090 24GB + 3060 12GB, 출시 전 시험을 3060 에서 하려다 드러남).
+    card = chosen[0] if chosen else max(cards, key=lambda item: (float(item.get("vram_total_gb") or 0), float(item.get("vram_used_gb") or 0)))
     total, used = float(card["vram_total_gb"]), float(card.get("vram_used_gb") or 0)
     return {"used_gb": round(used, 2), "total_gb": round(total, 2), "free_gb": round(total - used, 2),
             "index": card.get("index")}

@@ -258,7 +258,8 @@ def test_not_connected_says_what_to_press(tmp_path: Path) -> None:
     bridge = _bridge(tmp_path, tmp_path / "nowhere")
     with pytest.raises(UnityBridgeError) as error:
         bridge.look({"what": "hierarchy"})
-    assert "에디터 잇기" in str(error.value)
+    # 11-11: 사람에게 「에디터 잇기」를 시키기 전에 손자리가 스스로 띄우고 잇는 도구를 먼저 쓴다.
+    assert "unity_editor_launch" in str(error.value)
 
 
 # ── 스토어판에서는 연결 부품을 유니티가 볼 수 있는 자리에 둔다 (2026-10-12) ─────────────────────────────
@@ -325,3 +326,128 @@ def test_a_link_that_points_into_the_private_folder_is_called_broken_and_linking
     # 풀면 줄이 사라진다 — 우리가 적었던 못 읽는 줄을 「원래 값」으로 되살리지 않는다.
     assert bridge.uninstall(project)["removed"] is True
     assert PACKAGE_NAME not in json.loads(manifest.read_text(encoding="utf-8"))["dependencies"]
+
+
+def test_save_scene_can_name_an_untitled_scene(tmp_path: Path, unity) -> None:
+    """11-11 맥: 새 씬은 이름이 없어 action 만 보내면 원본이 거절했다 — 손자리가 대표에게 File → Save As 를 부탁했다."""
+    fake, status, _ = unity
+    bridge = _bridge(tmp_path, status)
+    bridge.change({"op": "save_scene", "name": "Game", "scene_folder": "Assets/Scenes"})
+    assert fake.commands[-1] == {"type": "manage_scene", "params": {"action": "save", "name": "Game", "path": "Scenes"}}
+    bridge.change({"op": "save_scene"})  # 이름이 있는 씬은 예전처럼 그 자리에 저장
+    assert fake.commands[-1]["params"] == {"action": "save"}
+    for bad in ({"name": "../Game"}, {"name": "Game", "scene_folder": "../../Windows"}, {"name": "Game", "scene_folder": "C:/x"}):
+        with pytest.raises(ValueError):
+            bridge.change({"op": "save_scene", **bad})
+
+
+def test_components_look_turns_a_name_into_the_instance_id(tmp_path: Path, unity) -> None:
+    """11-08~11 맥 4번: 이름을 instanceID 칸에 그대로 넘겨 원본이 「instanceID 가 필요하다」로 거절했다."""
+    fake, status, _ = unity
+    bridge = _bridge(tmp_path, status)
+    created = bridge.change({"op": "create", "name": "Weapon"})
+    bridge.look({"what": "components", "target": "Weapon"})
+    sent = fake.commands[-1]
+    assert sent["type"] == "get_gameobject_components" and isinstance(sent["params"]["instanceID"], int)
+    assert created["result"]
+
+
+def test_attach_retries_once_after_reloading_new_scripts(tmp_path: Path, unity, monkeypatch) -> None:
+    """11-11 맥 판 5개: 새 스크립트를 유니티가 안 읽어 「not found」 — 창 없이 다시 읽힌 뒤 한 번만 다시 붙인다."""
+    fake, status, _ = unity
+    bridge = _bridge(tmp_path, status)
+    bridge.change({"op": "create", "name": "Gun"})
+    calls = {"n": 0, "refreshed": 0}
+    real = fake.handle
+
+    def flaky(kind, params):
+        if kind == "manage_gameobject" and params.get("componentsToAdd"):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return {"success": False, "error": "Component type 'ShootingController' not found"}
+        return real(kind, params)
+
+    monkeypatch.setattr(fake, "handle", flaky)
+    monkeypatch.setattr(bridge, "refresh", lambda arguments: calls.__setitem__("refreshed", calls["refreshed"] + 1) or {})
+    bridge.change({"op": "modify", "target": "Gun", "components": ["ShootingController"]})
+    assert calls == {"n": 2, "refreshed": 1}
+    # 하면 안 되는 것: 컴포넌트와 상관없는 실패는 다시 읽지 않고 그대로 올린다
+    monkeypatch.setattr(fake, "handle", lambda kind, params: {"success": False, "error": "something else"} if kind == "manage_gameobject" else real(kind, params))
+    with pytest.raises(UnityBridgeError):
+        bridge.change({"op": "modify", "target": "Gun", "position": [0, 1, 0]})
+    assert calls["refreshed"] == 1
+
+
+def test_refresh_waits_until_compiling_is_over(tmp_path: Path, unity) -> None:
+    fake, status, _ = unity
+    bridge = _bridge(tmp_path, status, sleep=lambda s: None)
+    states = iter([{"compilation": {"is_compiling": True}}, {"compilation": {"is_compiling": False}, "is_updating": False}])
+    real = fake.handle
+    fake.handle = lambda kind, params: (next(states) if kind == "get_editor_state" else real(kind, params))
+    out = bridge.refresh({})
+    assert out["ready"] is True and any(c["type"] == "refresh_unity" for c in fake.commands)
+
+
+def test_ref_values_become_instance_ids_before_sending(tmp_path: Path, unity) -> None:
+    """11-12: 참조 칸은 {"ref": 이름} → {"instanceID": n}, {"ref": "Assets/…"} → {"path": …}. 못 찾으면 보내지 않고 말한다."""
+    fake, status, _ = unity
+    bridge = _bridge(tmp_path, status)
+    cam = bridge.change({"op": "create", "name": "Main Camera"})["result"]
+    bridge.change({"op": "create", "name": "Weapon"})
+    out = bridge.change({"op": "modify", "target": "Weapon", "properties": {
+        "Shooter": {"cameraTransform": {"ref": "Main Camera"}, "data": {"ref": "Assets/Data/Pistol.asset"}, "speed": 3}}})
+    sent = [c for c in fake.commands if c["type"] == "manage_gameobject"][-1]["params"]["componentProperties"]["Shooter"]
+    assert isinstance(sent["cameraTransform"]["instanceID"], int) and sent["cameraTransform"]["instanceID"] > 0
+    assert sent["data"] == {"path": "Assets/Data/Pistol.asset"} and sent["speed"] == 3
+    assert len(out["linked"]) == 2 and cam
+    before = len(fake.commands)
+    with pytest.raises(ValueError, match="unity_ref_missing"):
+        bridge.change({"op": "modify", "target": "Weapon", "properties": {"Shooter": {"cameraTransform": {"ref": "Nope"}}}})
+    assert not [c for c in fake.commands[before:] if c["type"] == "manage_gameobject"], "못 찾은 참조는 보내지 않는다"
+
+
+def test_bare_name_in_a_reference_field_is_linked_on_retry(tmp_path: Path, unity, monkeypatch) -> None:
+    """11-12 맥 판 b2e846a3 그대로: 「cameraTransform": "Main Camera"」 → 원본이 「property operations failed」 → 이름이 장면에 있는 칸만 번호로 한 번 더."""
+    fake, status, _ = unity
+    bridge = _bridge(tmp_path, status)
+    bridge.change({"op": "create", "name": "Main Camera"})
+    bridge.change({"op": "create", "name": "Weapon"})
+    real = fake.handle
+    sent: list[dict] = []
+
+    def strict(kind, params):
+        if kind == "manage_gameobject" and params.get("componentProperties"):
+            sent.append(params["componentProperties"])
+            fields = params["componentProperties"]["Shooter"]
+            if isinstance(fields.get("cameraTransform"), str):
+                return {"success": False, "error": "One or more component property operations failed on 'Weapon'."}
+        return real(kind, params)
+
+    monkeypatch.setattr(fake, "handle", strict)
+    out = bridge.change({"op": "modify", "target": "Weapon", "properties": {"Shooter": {"cameraTransform": "Main Camera", "label": "Pistol"}}})
+    assert len(sent) == 2 and isinstance(sent[1]["Shooter"]["cameraTransform"]["instanceID"], int)
+    # 하면 안 되는 것: 장면에 없는 글자(진짜 글자 칸일 수 있다)는 그대로 둔다
+    assert sent[1]["Shooter"]["label"] == "Pistol" and out["linked"] == ["Shooter.cameraTransform ← Main Camera"]
+
+
+def test_game_view_shot_falls_back_to_scene_view_when_no_file_appears(tmp_path: Path, unity, monkeypatch) -> None:
+    fake, status, project = unity
+    bridge = _bridge(tmp_path, status)
+    asked: list[str] = []
+
+    def capture(editor, source, **kwargs):
+        asked.append(source)
+        if source == "game_view":
+            raise UnityBridgeError("unity_screenshot_missing: 찍은 파일을 못 찾았다")
+        path = tmp_path / "shot.png"
+        from PIL import Image
+        Image.new("RGB", (8, 8)).save(path)
+        return path
+
+    monkeypatch.setattr(bridge, "_capture_file", capture)
+    out = bridge.look({"what": "screenshot"})
+    assert asked == ["game_view", "scene_view"] and out["source"] == "scene_view" and "씬 화면" in out["note"]
+    # 하면 안 되는 것: 다른 실패는 씬 화면으로 덮지 않는다
+    monkeypatch.setattr(bridge, "_capture_file", lambda editor, source, **kw: (_ for _ in ()).throw(UnityBridgeError("unity_bridge_closed")))
+    with pytest.raises(UnityBridgeError):
+        bridge.look({"what": "screenshot"})

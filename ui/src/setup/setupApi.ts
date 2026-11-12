@@ -9,6 +9,17 @@ import { t } from "../i18n";
 import { isMac } from "../platform";
 import type { BackendBootstrap, SkillDomainsView } from "../types";
 
+/** 그래픽카드 쓰는 법 (2026-11-11 대표 · 백엔드 `gpu_mode`) — 속도 우선 · 자동 · 그래픽카드 비워 두기. */
+export type GpuMode = "speed" | "auto" | "keep_free";
+export interface GpuModeView {
+  mode: GpuMode;
+  modes: GpuMode[];
+  keep_free_gb: number;
+  /** 이 PC 에서 램 부스트를 쓸 수 있나(윈도우 · 본체). 맥 · 위성이면 칸을 안 보인다. */
+  available: boolean;
+  boost_active: boolean;
+}
+
 export interface GpuCard {
   index: number;
   name: string;
@@ -60,9 +71,10 @@ export interface ModelLink {
 /** 등급마다 검증 1 + 외부 1 (docs/모델_큐레이션_2026-09-15). 외부 칸은 반드시 「미검증」으로 보인다. */
 export interface ModelPick {
   /** `open_alternative` = 추천 모델의 라이선스에 조건이 있을 때 같이 내미는 **조건 없는** 차선책(§55-24 덧붙임 2). */
-  kind: "verified" | "external" | "open_alternative";
+  /** `ram_boost` = 카드에 통째로 안 들어가도 남는 램이 받치는 MoE(2026-11-11 · 「램 부스트」). */
+  kind: "verified" | "external" | "open_alternative" | "ram_boost";
   /** 「똑똑함 · 빠름」 둘로 나눠 권할 때의 역할(2026-10-28 · 첫 추천이 Swift 27B 일 때만 온다). */
-  role?: "smart" | "fast";
+  role?: "smart" | "fast" | "ram_boost";
   model_key: string;
   name: string;
   ollama_tag: string;
@@ -72,7 +84,7 @@ export interface ModelPick {
   download_gb: number;
   installed: boolean;
   license: string;
-  confidence?: "measured" | "memory_only";
+  confidence?: "measured" | "memory_only" | "measured_once";
   chain?: { ok: number; total: number; ctx: number } | null;
   evidence?: string[];
   caution?: string;
@@ -125,6 +137,8 @@ export interface CatalogModel {
   installed: boolean;
   fits: boolean;
   largest_fitting_ctx: number | null;
+  /** 「램 부스트」로 열리는 창 하나(2026-11-11) — 카드엔 통째로 안 들어가도 남는 램이 받친다. 그 PC 에서 잰 남은 램 · 필요한 램. */
+  ram_boost?: { ctx: number; ram_gb: number; ram_free_gb: number };
   /** 그림을 켠 채로는 빠듯해 「글만 읽기」로 보이고 그렇게 올리는 칸(2026-10-15 · 백엔드가 정한다). */
   text_only?: boolean;
   text_only_need_gb?: number | null;
@@ -729,9 +743,9 @@ export interface SetupApi {
   recommendation(): Promise<Recommendation>;
   models(): Promise<ModelsView>;
   /** `applyCtx` 를 주면 다 받은 뒤 **백엔드가** 적용한다 — 마법사를 닫아도 적용된다. */
-  pull(modelKey: string, applyCtx?: number, eyes?: boolean): Promise<PullState & { ok: boolean; error?: string }>;
+  pull(modelKey: string, applyCtx?: number, eyes?: boolean, ramBoost?: boolean): Promise<PullState & { ok: boolean; error?: string }>;
   /** `eyes: false` — 그림 부속을 뺀 「글만 읽기」로 올린다. 안 주면 예전 그대로 그림을 읽게 올린다. */
-  apply(modelKey: string, numCtx: number, eyes?: boolean): Promise<ApplyResult>;
+  apply(modelKey: string, numCtx: number, eyes?: boolean, ramBoost?: boolean): Promise<ApplyResult>;
   installedModels(): Promise<{ models: InstalledModel[] }>;
   /** 모델 자리 — 이 맥(이 PC) / 집 PC. 옛 백엔드엔 없다(2026-11-03 설계_짝짓기_모델자리 순서 1). */
   modelPlace?(): Promise<ModelPlaceView>;
@@ -748,6 +762,8 @@ export interface SetupApi {
   pairForget?(): Promise<ModelPlaceResult>;
   /** 밖에서도 쓰기 — 테일스케일 체크 목록(설계_밖에서도쓰기_테일스케일 §2-2). */
   outsideStatus?(): Promise<OutsideStatus>;
+  gpuMode?(): Promise<GpuModeView>;
+  setGpuMode?(mode: GpuMode): Promise<GpuModeView>;
   outsideStep?(step: OutsideStepName): Promise<{ ok: boolean; url?: string; error?: string }>;
   /** 머리의 모델 이름을 눌렀을 때 — 카탈로그 + 이 PC 가 받아 둔 것을 합친 한 번의 답. */
   modelPicker(role: ModelRole): Promise<ModelPickerView>;
@@ -826,15 +842,19 @@ export function createSetupApi(bootstrap: BackendBootstrap): SetupApi {
     pairForget: () => call("/v1/pair/forget", { method: "POST", body: "{}" }),
     outsideStatus: () => call("/v1/outside/status"),
     outsideStep: (step) => call(`/v1/outside/step/${step}`, { method: "POST", body: "{}" }),
-    pull: (modelKey, applyCtx, eyes) =>
-      call("/v1/setup/models/pull", { method: "POST", body: JSON.stringify({ model_key: modelKey, apply_ctx: applyCtx ?? 0, ...(eyes === undefined ? {} : { eyes }) }) }),
-    apply: (modelKey, numCtx, eyes) =>
+    pull: (modelKey, applyCtx, eyes, ramBoost) =>
+      call("/v1/setup/models/pull", { method: "POST", body: JSON.stringify({ model_key: modelKey, apply_ctx: applyCtx ?? 0, ...(eyes === undefined ? {} : { eyes }),
+        ...(ramBoost ? { ram_boost: true } : {}) }) }),
+    apply: (modelKey, numCtx, eyes, ramBoost) =>
       call("/v1/setup/models/apply", {
         method: "POST",
-        body: JSON.stringify({ model_key: modelKey, num_ctx: numCtx, ...(eyes === undefined ? {} : { eyes }) }),
+        body: JSON.stringify({ model_key: modelKey, num_ctx: numCtx, ...(eyes === undefined ? {} : { eyes }),
+          ...(ramBoost ? { ram_boost: true } : {}) }),
       }),
     installedModels: () => call("/v1/setup/models/installed"),
     modelPicker: (role) => call(`/v1/setup/models/picker?role=${encodeURIComponent(role)}`),
+    gpuMode: () => call("/v1/setup/gpu-mode"),
+    setGpuMode: (mode) => call("/v1/setup/gpu-mode", { method: "POST", body: JSON.stringify({ mode }) }),
     selectModel: (tag, role, numCtx = 0) =>
       call("/v1/setup/models/select", { method: "POST", body: JSON.stringify({ tag, role, num_ctx: numCtx }) }),
     contextStatus: () => call("/v1/setup/context"),

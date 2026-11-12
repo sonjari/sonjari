@@ -697,3 +697,251 @@ def _deletes_own_file(name: str, arguments: Any, steps: list[dict[str, Any]]) ->
             if written and (written == target or written.endswith("/" + target) or target.endswith("/" + written)):
                 return True
     return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 읽을 것이 남았나 · 처음 가는 페이지인가 — 산출물 차례의 문과 「진척」 판정이 같이 쓰는 **한 원칙** (2026-11-09)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# ★ 2026-11-09 운영 기록을 주소 전체로 갈랐다. PC 브라우저 판의 차례 거절(`not_this_stage`) 가운데 **한 번도 안 연 주소**를 연 걸음이
+#   62번(46판) 막혔고, 그 대부분이 「사이트는 이미 읽었다」는 까닭이었다 — 문이 **사이트** 단위로 새 땅과 헌 땅을 갈랐기 때문이다
+#   (`_goes_to_unread_site` · `_owed_read_site`). 허깅페이스 자료 13개를 읽으라는 맥 판(df9e4209)은 넷째 자료를 읽은 뒤 다섯째 자료
+#   페이지가 「huggingface.co 는 읽은 곳」으로 막혀 4건으로 끝났다. 10-12 · 10-19 · 10-24 에 경우마다 예외를 덧대 왔다.
+#
+#   원칙 하나로 묶는다: **시킨 것 가운데 아직 못 채운 읽기가 남았으면(대조표의 읽기 칸 · 요청에 적힌 주소 · 「전부」), 아직 안 읽은
+#   페이지로 가는 열기는 막지 않는다.** 이미 읽은 **바로 그 페이지**를 또 여는 것 · 지금 페이지를 맴도는 것은 그대로 막는다(그건 모델의
+#   버릇이다). 요청이 그 페이지를 이름으로 댄 것(주소 · 주소 끝 이름 「Mind2Web」)도 「남은 읽기」다. 진척 판정도 같은 자로 잰다 —
+#   처음 읽은 페이지가 진척이다(`fresh_pages_read`).
+
+#: 본문을 받아 오는 손 — 이것이 성공하면 그 페이지는 「읽은 페이지」다.
+_PAGE_READ_HANDS = frozenset({"browser_read", "browser_extract", "browser_page_data"})
+#: 무엇이 나올지 모르는 「찾는」 손 — 가는 페이지가 정해지지 않았다.
+_FINDING_HANDS = frozenset({"browser_search", "browser_site_search", "browser_open_result", "browser_load_more"})
+#: 요청 글 속 주소. 한국어 낱말 · 괄호 · 가운뎃점에서 끊는다.
+_URL_IN_TEXT = re.compile(r"https?://[^\s<>()\[\]「」『』\"'`,·가-힣]+", re.I)
+#: 주소 끝 이름이 이만큼은 길고 글자가 있어야 「이름으로 댔다」로 본다(`/v1` · `/123` 은 이름이 아니다).
+_PAGE_NAME_MIN = 4
+
+
+def page_key(url: Any) -> str:
+    """같은 페이지를 같은 열쇠로 — 스킴 · `www.` · 끝 빗금 · 조각(#)을 뗀다. 호스트는 소문자(`plan._page_key` 와 같은 뜻)."""
+    key = re.sub(r"^https?://", "", str(url or "").strip(), flags=re.I).split("#", 1)[0].rstrip("/")
+    host, _, rest = key.partition("/")
+    host = host.lower()
+    host = host[4:] if host.startswith("www.") else host
+    return host + ("/" + rest if rest else "")
+
+
+def _step_urls(step: dict[str, Any]) -> list[str]:
+    evidence = step.get("evidence") if isinstance(step.get("evidence"), dict) else {}
+    keys = [page_key(evidence.get("url"))]
+    if str(step.get("tool") or "") == "browser_open":
+        keys.append(page_key(_opened_url(step)))
+    return [key for key in dict.fromkeys(keys) if key and key != "about:blank"]
+
+
+def _walk_pages(steps: list[dict[str, Any]]) -> tuple[set[str], set[str], set[str]]:
+    """(연 페이지, 읽은 페이지, 지금 페이지). 성공한 브라우저 걸음만 본다 — 막힌 걸음은 자리도 읽기도 바꾸지 않는다.
+
+    열 때 준 주소와 실제로 선 주소(넘겨주기 · `blob/master` → `blob/main`)를 둘 다 그 페이지의 열쇠로 둔다.
+    """
+    opened: set[str] = set()
+    read: set[str] = set()
+    here: set[str] = set()
+    for step in steps:
+        tool = str(step.get("tool") or "")
+        if not step.get("ok") or not tool.startswith("browser_"):
+            continue
+        keys = _step_urls(step)
+        if tool in {"browser_open", "browser_open_result"} and keys:
+            here = set(keys)
+            opened |= here
+        elif keys and not (set(keys) & here):
+            here = set(keys)
+        if tool in _PAGE_READ_HANDS:
+            read |= here
+    return opened, read, here
+
+
+def pages_read(steps: list[dict[str, Any]]) -> set[str]:
+    """이 판에서 본문을 실제로 받아 온 페이지의 열쇠들."""
+    return _walk_pages(steps)[1]
+
+
+def fresh_pages_read(steps: list[dict[str, Any]], window: int = 6) -> set[str]:
+    """최근 `window` 걸음 안에서 **처음** 본문을 받아 온 페이지들 — 진척의 자다(같은 페이지 되읽기는 안 센다)."""
+    return pages_read(steps) - pages_read(steps[:-window] if window < len(steps) else [])
+
+
+def request_urls(request: str) -> tuple[str, ...]:
+    """요청 글이 직접 적은 주소들(차례대로 · 겹침 없이). 문장 끝의 마침표 · 쌍점은 뗀다."""
+    found = [match.group(0).rstrip(".,;:!?)」』") for match in _URL_IN_TEXT.finditer(str(request or ""))]
+    return tuple(dict.fromkeys(url for url in found if page_key(url)))
+
+
+def _page_named_in(request: str, url: str) -> bool:
+    """요청이 이 페이지를 **댔는가** — 주소 그대로, 또는 주소 끝 이름(`…/osunlp/Mind2Web` 의 「Mind2Web」)이 요청에 낱말로 있다.
+
+    낱말표가 아니라 주소 자체와 대 본다(`_site_named_in` 과 같은 방식). 끝 이름은 네 글자 이상이고 글자가 있어야 한다.
+    헛맞기보다 못 맞기가 낫다 — 못 맞으면 예전처럼 막힐 뿐이다.
+    """
+    key = page_key(url)
+    if not key or not request:
+        return False
+    if key in {page_key(item) for item in request_urls(request)}:
+        return True
+    path = key.partition("/")[2].split("?", 1)[0]
+    name = next((part for part in reversed(path.split("/")) if part), "")
+    if len(name) < _PAGE_NAME_MIN or not re.search(r"[A-Za-z가-힣]", name):
+        return False
+    return re.search(rf"(?<![A-Za-z0-9]){re.escape(name)}(?![A-Za-z0-9])", str(request), re.I) is not None
+
+
+def _plan_reads_owed(plan_results: list[tuple[Any, bool, str]] | None) -> list[str]:
+    """대조표에서 아직 못 채운 **웹 읽기** 칸의 이름들(이 PC 를 보라는 칸은 뺀다)."""
+    owed: list[str] = []
+    for requirement, met, _saw in plan_results or []:
+        kind = str(getattr(requirement, "kind", "") or "")
+        if met or kind not in _READ_REQUIREMENT_KINDS:
+            continue
+        if str(getattr(requirement, "source_scope", "") or "") == "local":
+            continue
+        if kind == "observe" and str(getattr(requirement, "target", "") or "") == "local":
+            continue
+        owed.append(str(getattr(requirement, "label", "") or kind))
+    return owed
+
+
+def reading_owed(
+    plan_results: list[tuple[Any, bool, str]] | None,
+    request: str,
+    steps: list[dict[str, Any]],
+    *,
+    wants_everything: bool = False,
+) -> list[str]:
+    """시킨 것 가운데 **아직 못 채운 읽기** — 대조표의 읽기 칸 · 요청에 적힌 주소 중 안 읽은 것 · 「전부」. 비면 남은 읽기가 없다."""
+    owed = _plan_reads_owed(plan_results)
+    read = pages_read(steps)
+    owed += [url for url in request_urls(request) if page_key(url) not in read and _site_of(url)]
+    if wants_everything:
+        owed.append("「전부」라고 시킨 것")
+    return owed
+
+
+def owed_page(
+    name: str,
+    arguments: Any,
+    steps: list[dict[str, Any]],
+    plan_results: list[tuple[Any, bool, str]] | None,
+    request: str,
+    *,
+    wants_everything: bool = False,
+) -> str:
+    """**아직 안 연 페이지**를 여는 걸음이고 그 읽기가 시킨 것에 닿으면 그 페이지 열쇠, 아니면 빈 글.
+
+    닿는다 = 요청이 그 페이지를 댔다(`_page_named_in` — 주소 · 끝 이름) · 대조표의 웹 읽기 칸이 남았다(개수 · 사이트 · 근거 읽기) ·
+    「전부」라고 시켰다. 요청에 적힌 **다른** 주소가 남았다는 것만으로는 아무 페이지나 받지 않는다 — 그 주소를 열라고 거절 글이 댄다
+    (`stage_refusal_note`). 시험에서 그렇게 했더니 적힌 주소는 안 열고 다른 글만 읽는 판이 상한까지 갔다.
+    검색엔진 결과 화면은 페이지가 아니다. 이미 읽은 페이지 · 이미 연 페이지(못 읽었으면 `_reopens_unread_page` 가 한 번 받는다)는 안 받는다.
+    """
+    if name != "browser_open" or not isinstance(arguments, dict):
+        return ""
+    url = str(arguments.get("url") or "").strip()
+    key = page_key(url)
+    if not key or not _site_of(url if "://" in url else "https://" + url):
+        return ""
+    opened, read, _here = _walk_pages(steps)
+    if key in read or key in opened:
+        return ""
+    if _page_named_in(request, url) or _plan_reads_owed(plan_results) or wants_everything:
+        return key
+    return ""
+
+
+def _reads_current_unread_page(name: str, steps: list[dict[str, Any]]) -> bool:
+    """**지금 서 있는 페이지를 처음 읽는** 걸음인가 — 찾아 놓은 것을 마저 읽는 일이다(`_reads_page_just_opened` 를 넓힌 것: 바로 앞이 열기가 아니어도)."""
+    if name not in _PAGE_READ_HANDS:
+        return False
+    _opened, read, here = _walk_pages(steps)
+    return bool(here) and not (here & read) and any(_site_of("https://" + key) for key in here)
+
+
+def stage_gate_lets_through(
+    name: str,
+    arguments: Any,
+    steps: list[dict[str, Any]],
+    *,
+    plan_results: list[tuple[Any, bool, str]] | None,
+    request: str,
+    deliver_turn: bool,
+    wants_everything: bool = False,
+) -> str:
+    """산출물 차례(「파일을 만들 차례」)에 이 손을 **받는 까닭**. 빈 글이면 막는다.
+
+    한 원칙의 세 갈래다:
+      ``found_unread`` — 찾아 놓고 못 읽은 페이지를 마저 읽기(방금 연 페이지 · 지금 페이지의 첫 읽기 · 열어만 둔 주소를 한 번 더).
+      ``owed_page``    — 남은 읽기에 닿는 **안 연 페이지** 열기(`owed_page`). 접기 전 마지막 차례에서는 부르는 쪽이 개수 상한을 쥔다.
+      ``unread_site`` · ``owed_finding`` — 마지막 차례가 아닐 때: 아직 본문을 못 받은 사이트 안을 걷기(10-12), 대조표의 읽기 칸이
+                         남았으면 찾기 · 결과 열기(무엇이 나올지 모르는 손이라 마지막 차례에는 안 받는다).
+    이미 읽은 바로 그 페이지 되열기 · 읽은 페이지 되읽기 · 남은 읽기가 없는데 새로 찾기는 막힌다.
+    """
+    if (
+        _reads_page_just_opened(name, steps)
+        or _reopens_unread_page(name, arguments, steps)
+        or _reads_current_unread_page(name, steps)
+    ):
+        return "found_unread"
+    if owed_page(name, arguments, steps, plan_results, request, wants_everything=wants_everything):
+        return "owed_page"
+    if deliver_turn:
+        return ""
+    if _goes_to_unread_site(name, arguments, steps):
+        return "unread_site"
+    if name in _FINDING_HANDS and _plan_reads_owed(plan_results):
+        return "owed_finding"
+    return ""
+
+
+#: 접기 전 마지막 차례에서 「남은 읽기」로 받아 주는 **새 페이지** 수(한 판). 페이지마다 열기 · 읽기 두 걸음과 시간을 돌려준다.
+_OWED_READ_PAGES = 4
+
+
+def stage_refusal_note(
+    name: str,
+    arguments: Any,
+    steps: list[dict[str, Any]],
+    *,
+    plan_results: list[tuple[Any, bool, str]] | None,
+    request: str,
+    hands: "frozenset[str] | set[str]",
+    wants_everything: bool = False,
+    out_of_room: bool = False,
+) -> str:
+    """차례 규칙으로 막을 때 **왜 막았고 그럼 무엇을 하라는지** — 막기만 하면 모델이 거기서 멈춘다.
+
+    ★ 2026-11-09 PC 기록: 「일부만 됨 + 모델이 스스로 끝냄」 444판 가운데 83판(18%)이 하네스 거절 직후 멈췄다. 예전 거절 글은
+      「더 찾지 말고 파일을 만들 차례다」 하나였다 — 남은 읽기가 있는 판에도, 이미 읽은 페이지를 또 연 판에도 같은 말이었다.
+    `out_of_room` — 남은 읽기는 있지만 받아 줄 몫(`_OWED_READ_PAGES`)을 다 썼다.
+    """
+    _opened, read, here = _walk_pages(steps)
+    target = page_key(arguments.get("url")) if name == "browser_open" and isinstance(arguments, dict) else ""
+    if target and target in read:
+        why = f"이 페이지({target[:90]})는 이미 읽었다 — 다시 열지 마라. "
+    elif name in _PAGE_READ_HANDS and here & read:
+        why = "지금 페이지는 이미 읽었다 — 같은 페이지를 다시 읽지 마라. "
+    elif name in _FINDING_HANDS:
+        why = "새로 찾을 차례가 아니다. "
+    else:
+        why = ""
+    owed = [] if out_of_room else reading_owed(plan_results, request, steps, wants_everything=wants_everything)
+    unread_urls = [item for item in owed if item.startswith("http")]
+    if unread_urls:
+        next_step = "아직 안 읽은 것: " + " · ".join(url[:90] for url in unread_urls[:3]) + " — browser_open 으로 그쪽을 열어 읽어라. "
+    elif owed:
+        next_step = "남은 것: " + " · ".join(owed[:2]) + " — 아직 안 연 다른 페이지를 browser_open 으로 열어 읽어라. "
+    elif out_of_room:
+        next_step = "더 읽을 걸음이 없다 — 지금까지 읽은 것으로 파일을 쓰고, 못 읽은 것은 문서 끝에 한 번 적어라. "
+    else:
+        next_step = "읽을 것은 다 모았다 — 지금까지 읽은 근거로 시킨 파일을 만들어라. "
+    tail = ("쓸 손: " + ", ".join(sorted(hands))) if hands else ""
+    return "[도구가 보낸 안내] 권한이나 정책 거절이 아니다 — 차례 규칙이다. " + why + next_step + tail

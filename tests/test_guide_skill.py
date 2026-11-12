@@ -48,7 +48,11 @@ def test_zip_holds_one_skill_folder(tmp_path: Path) -> None:
     service = GuideSkillService(home=tmp_path, documents=tmp_path / "docs")
     made = service.build_zip(TOOLS)
     with zipfile.ZipFile(made["path"]) as archive:
-        assert archive.namelist() == [f"{SKILL_NAME}/SKILL.md"]
+        names = archive.namelist()
+        # 폴더는 하나(올리는 화면이 폴더째 기대한다). 2026-11-12 부터 그 안에 기능 카드(cards/)가 같이 든다.
+        assert names[0] == f"{SKILL_NAME}/SKILL.md"
+        assert all(name.startswith(f"{SKILL_NAME}/") for name in names)
+        assert all(name == f"{SKILL_NAME}/SKILL.md" or name.startswith(f"{SKILL_NAME}/cards/") for name in names)
 
 
 def test_the_global_note_points_at_the_skill_file_and_keeps_what_people_wrote(tmp_path: Path) -> None:

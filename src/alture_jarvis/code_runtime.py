@@ -421,8 +421,11 @@ def select_code_tool_profile(
             "레시피 결과(result)의 숫자·경로만 사실로 쓴다. 에디터가 열려 있다고 나오면 사람에게 닫아 달라고 하고, "
             "에디터 버전이 없으면 다른 버전으로 열지 말고 설치를 부탁한다. "
             "에디터가 열려 있고 손자리와 이어져 있으면(unity_editor_status) 닫아 달라고 하지 말고 unity_editor_look 으로 "
-            "열린 에디터 안(계층·콘솔·선택·컴포넌트)을 읽는다. 씬을 바꾸는 일은 unity_editor_change 로만 하고(승인 카드), "
-            "저장은 따로 op=save_scene 이다."
+            "열린 에디터 안(계층·콘솔·선택·컴포넌트)을 읽는다. 씬을 바꾸는 일은 unity_editor_change 로만 하고(승인 없이 바로 · Undo 에 남는다), "
+            "저장은 따로 op=save_scene 이다. "
+            # ★ 11-11 맥: 이어진 에디터가 없자 세 판 내리 「사람이 열어야 한다」만 했다 — 여는 도구를 먼저 쓰게 한다.
+            "에디터 안을 봐야 하는데 이어진 에디터가 없으면 사람에게 열어 달라고 하기 전에 unity_editor_launch 를 부른다"
+            "(다리 붙이기 · 뒤에서 띄우기 · 기다리기를 한다). 셸로 유니티를 띄우거나 manifest.json 을 손으로 고치지 않는다."
         )
     if preview:
         names.update(CODE_PREVIEW_TOOL_NAMES)
@@ -627,7 +630,44 @@ def _same_command(value: Any) -> str:
     return " ".join(str(value or "").split())
 
 
-def declared_check_is_current(steps: list[dict[str, Any]], command: str) -> bool:
+#: 확인 통과 뒤 코드를 바꿀 수 있는 걸음 — 통과를 「지금 것」이 아니게 만드는 것.
+#: 셸(sed · cp · git checkout …)은 무엇을 바꿨는지 알 수 없으니, 통과 뒤 셸이 있으면
+#: 그 통과는 지금 코드의 것이 아니다(2026-11-09 · 빈틈 ㄴ).
+_CHECK_STALE_TOOLS = _CODE_MUTATION_TOOLS | frozenset({"local_run_shell"})
+
+
+def _normalized_folder(value: Any) -> str:
+    """폴더 이름을 견주기 좋게 — 역슬래시→슬래시, 끝 슬래시 걷기, 대소문 없는 비교."""
+    return str(value or "").replace("\\", "/").rstrip("/").casefold()
+
+
+def _declared_check_folder_ok(step: dict[str, Any], root: str) -> bool:
+    """확인 명령이 **작업 폴더 안**에서 돌았는가 (2026-11-09 · 빈틈 ㄱ).
+
+    root 를 안 주면 예전대로다(폴더를 안 본다). root 가 있으면 도구 결과에 적힌 실제로
+    돌린 폴더(evidence.path)를 보고, 그게 없으면 모델이 준 폴더(arguments.path)를 본다.
+    둘 다 없으면 도구가 잡에 묶인 작업 폴더에서 돌린 것이므로 통과로 친다.
+    이름이 같거나 그 안(하위 폴더)만 친다 — 「BugGuard-10」은 「BugGuard-1」의 접두어지만
+    그 안이 아니다(옛 가지 폴더를 지금 작업 폴더로 세는 일을 막는다).
+    """
+    if not root:
+        return True
+    root_norm = _normalized_folder(root)
+    evidence = step.get("evidence") if isinstance(step.get("evidence"), dict) else {}
+    arguments = step.get("arguments") if isinstance(step.get("arguments"), dict) else {}
+    folder = evidence.get("path") or arguments.get("path")
+    if not folder:
+        return True
+    folder_norm = _normalized_folder(folder)
+    if folder_norm == ".":
+        # 상대 경로 `.` 는 이 잡의 작업 폴더에서 풀린다(선택 저장소 기준) — 작업 폴더다.
+        return True
+    return folder_norm == root_norm or folder_norm.startswith(root_norm + "/")
+
+
+def declared_check_is_current(
+    steps: list[dict[str, Any]], command: str, root: str = ""
+) -> bool:
     """맡긴 쪽이 정한 **확인 명령**이 마지막 변경 **뒤에** 통과했는가 (2026-10-09).
 
     바깥 AI 가 코드 일을 맡기며 「이 명령이 통과하면 끝」을 같이 줬을 때의 판정이다. 과제 글에서 요구를 낱말로 뽑아 대조하지 않고
@@ -635,26 +675,41 @@ def declared_check_is_current(steps: list[dict[str, Any]], command: str) -> bool
     없는 이름」으로 partial 이 됐다(사다리 L7). 둘 다 요구를 글에서 읽어서 생긴 일이다.
 
     모델이 **스스로** 같은 명령을 돌려 통과한 것도 친다. 그 뒤에 파일을 다시 고쳤으면 그 통과는 지금 코드의 것이 아니다.
+
+    (2026-11-09) 통과를 세는 데 빈틈 둘을 메운다: **root** 로 작업 폴더를 주면 그 안에서의
+    통과만 친다(ㄱ · 옛 가지 · 다른 사본의 통과를 지금 것으로 세지 않는다). 통과 뒤에 셸이나
+    **다른** 프로젝트 명령이 코드를 바꿨을 수 있으면 그 통과는 지금 것이 아니다(ㄴ).
     """
     wanted = _same_command(command)
     if not wanted:
         return False
-    last = max(
-        (
-            index for index, step in enumerate(steps)
-            if step.get("ok")
-            and str(step.get("tool") or "") == "local_run_project_command"
-            and bool((step.get("evidence") or {}).get("verified"))
-            and _same_command((step.get("arguments") or {}).get("command")) == wanted
-        ),
-        default=-1,
-    )
+    last = -1
+    for index, step in enumerate(steps):
+        if not step.get("ok"):
+            continue
+        if str(step.get("tool") or "") != "local_run_project_command":
+            continue
+        if not bool((step.get("evidence") or {}).get("verified")):
+            continue
+        if _same_command((step.get("arguments") or {}).get("command")) != wanted:
+            continue
+        if not _declared_check_folder_ok(step, root):
+            continue
+        last = index
     if last < 0:
         return False
-    return not any(
-        step.get("ok") and str(step.get("tool") or "") in _CODE_MUTATION_TOOLS
-        for step in steps[last + 1:]
-    )
+    for step in steps[last + 1:]:
+        if not step.get("ok"):
+            continue
+        tool = str(step.get("tool") or "")
+        if tool in _CHECK_STALE_TOOLS:
+            return False
+        # 같은 확인을 다시 돌린 것은 통과를 살린다. 그 밖의 프로젝트 명령은 코드를 바꿨을 수 있다.
+        if tool == "local_run_project_command" and _same_command(
+            (step.get("arguments") or {}).get("command")
+        ) != wanted:
+            return False
+    return True
 
 
 def code_verification_is_current(steps: list[dict[str, Any]]) -> bool:
@@ -788,7 +843,9 @@ _QWEN_DESCRIPTIONS = {
     "local_run_shell": (
         "Run one PowerShell command in the workspace (the window never appears). "
         "Use it to look around: dir, Get-ChildItem, Select-String, Get-Content, git log, --version. "
-        "Read-only commands run immediately; anything that creates, deletes, installs or reaches the network asks the user first. Security settings are never allowed."
+        "Read-only commands run immediately; anything that creates, deletes, installs or reaches the network asks the user first. Security settings are never allowed. "
+        "Installs, builds and big downloads that can pass 10 minutes: set background=true — it returns a background_id and a log file; "
+        "then call again with only background_id (and wait_sec up to 120) to see running / exit code / log tail. Do not sleep to wait."
     ),
     "local_preview_page": (
         "Serve a web page you created on a loopback URL so you can open it with browser_open and see how it looks. The user sees the same screen."

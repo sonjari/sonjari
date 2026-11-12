@@ -56,8 +56,11 @@ namespace Sonjari.Recipes {
 
 - `unity_editor_status` — 이어진 에디터·열린 씬·선택·재생 중인지.
 - `unity_editor_look` — `hierarchy`(계층) · `console`(오류·경고) · `selection` · `find` · `components`.
-- `unity_editor_change` — `create`·`modify`·`delete`·`duplicate`. **승인 카드**를 거치고 에디터 Undo 에 남는다.
-  씬은 저장하지 않는다. 저장은 `op=save_scene`(따로 승인) 또는 사람이 Ctrl+S.
+- `unity_editor_change` — `create`·`modify`·`delete`·`duplicate`. **승인 없이 바로**(11-11 대표) · 에디터 Undo 에 남는다.
+  씬은 저장하지 않는다. 저장은 `op=save_scene`(이름 없는 새 씬이면 `name`) 또는 사람이 Ctrl+S.
+- `unity_editor_refresh` — 손자리가 쓴 .cs · 에셋을 창 포커스 없이 다시 읽고 컴파일. 스크립트를 쓴 뒤 붙이기 전에 부른다.
+  사람에게 「유니티 창을 클릭해 주세요」라고 하기 전에 먼저 이것.
+- `unity_editor_launch` — 에디터가 안 이어져 있으면 사람에게 묻기 전에 이것(다리 붙이기 · 뒤에서 띄우기).
 - `unity_editor_undo` — 손자리가 한 마지막 변경만 되돌린다. 그 뒤에 사람이 한 작업이 있으면 건드리지 않는다.
 - 사람은 손자리 창에서 유니티 화면을 실시간으로 보고 있다. 바꾸기 전에 무엇을 바꿀지 한 줄로 말하고 부른다.
 - 에디터가 안 이어져 있다고 나오면: 「손자리 설정 › 팩 › 게임 팩에서 이 프로젝트의 『에디터 잇기』를 눌러 주세요.」

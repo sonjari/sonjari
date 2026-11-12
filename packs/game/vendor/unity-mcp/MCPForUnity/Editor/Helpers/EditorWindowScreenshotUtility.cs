@@ -118,7 +118,11 @@ namespace MCPForUnity.Editor.Helpers
         {
             try
             {
-                sceneView.Focus();
+                // Sonjari(2026-11-08): on macOS Focus() pulls the whole Unity app to the front. The Sonjari stage captures the
+                // scene view every few seconds, so Unity kept jumping over the user's windows. Only focus when Unity is already
+                // the active app; otherwise repaint without stealing focus.
+                if (UnityEditorInternal.InternalEditorUtility.isApplicationActive)
+                    sceneView.Focus();
             }
             catch (Exception ex)
             {

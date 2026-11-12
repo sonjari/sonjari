@@ -5,6 +5,7 @@ import secrets
 import sqlite3
 import threading
 import time
+import logging
 import uuid
 from pathlib import Path
 from typing import Any, Callable
@@ -14,6 +15,8 @@ from .config import axis_build_ids, build_id
 from .events import EventBus
 from .models import ApprovalStatus, JobStatus, RiskLevel
 from .sqlite_schema import add_column_if_missing
+
+LOG = logging.getLogger(__name__)
 
 
 def _json(value: Any) -> str:
@@ -75,6 +78,10 @@ class JobStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_jobs_status_created
                     ON jobs(status, created_at);
+                -- 11-11: 「최근 일」 목록(상태 물음 · 화면 · MCP)이 status 없이 created_at 순이라 위 색인을 못 타고 표를 통째로
+                --   훑었다(6,212줄 · 132ms → 색인 뒤 0.3ms).
+                CREATE INDEX IF NOT EXISTS idx_jobs_created
+                    ON jobs(created_at);
 
                 CREATE TABLE IF NOT EXISTS approvals (
                     nonce TEXT PRIMARY KEY,
@@ -249,6 +256,15 @@ class JobStore:
                 (float(since), max(1, int(limit))),
             ).fetchall()
         return [self._row(row) or {} for row in rows]
+
+    def recent_activity(self, limit: int = 20) -> list[dict[str, Any]]:
+        """최근 일의 종류 · 만든 때 · 바뀐 때만 — 본문은 안 읽는다(상태 물음이 1~27초 걸리던 것 · 11-11)."""
+        limit = max(1, min(int(limit), 200))
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT kind, created_at, updated_at FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [{"kind": row[0], "created_at": row[1], "updated_at": row[2]} for row in rows]
 
     def list_jobs(self, limit: int = 50, status: str = "") -> list[dict[str, Any]]:
         limit = max(1, min(int(limit), 200))
@@ -1013,12 +1029,28 @@ class JobRunner:
             except Exception:
                 continue
 
+    # ★ 2026-11-10 맥 27시간 사고: 파일 열기 한도(맥 256)가 차자 `claim_next` 의 DB 열기가 오류를 냈고, 그 오류를 받는 곳이
+    #   없어 일꾼 스레드가 **조용히 죽었다**. /health 는 계속 ok — 그 뒤 들어온 일은 하나도 시작되지 않았다(시도 0).
+    #   ① 한 바퀴의 오류는 바퀴 안에서 받고 쉬었다 다시 돈다 ② 감시 스레드가 죽은 일꾼을 다시 띄운다
+    #   ③ 취소한 판이 글자가 안 나오는 구간(긴 앞부분 읽기 · 브라우저 동작)에서 안 끝나면 그 일꾼을 버리고 새로 띄운다 — 줄이 영원히 막히지 않게.
+    #   버린 일꾼은 세대 번호가 바뀐 것을 보고 그 판이 끝나는 대로 스스로 나간다(그 판의 상태는 이미 「취소」라 덮지 않는다).
+    CANCEL_GRACE_SEC = 90.0
+    WATCH_SEC = 10.0
+
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
         self.store.recover_interrupted()
         self._stop.clear()
-        self._thread = threading.Thread(target=self._run, name="jarvis-job-runner", daemon=True)
+        self._spawn()
+        if not getattr(self, "_watch", None) or not self._watch.is_alive():
+            self._watch = threading.Thread(target=self._watch_loop, name="jarvis-job-runner-watch", daemon=True)
+            self._watch.start()
+
+    def _spawn(self) -> None:
+        self._generation = getattr(self, "_generation", 0) + 1
+        self._current = None
+        self._thread = threading.Thread(target=self._run, args=(self._generation,), name="jarvis-job-runner", daemon=True)
         self._thread.start()
 
     def stop(self, timeout: float = 5.0) -> None:
@@ -1026,20 +1058,76 @@ class JobRunner:
         if self._thread:
             self._thread.join(timeout=timeout)
 
-    def _run(self) -> None:
-        while not self._stop.is_set():
+    def health(self) -> dict[str, Any]:
+        """상태 물음에 싣는 일꾼 상태. alive=False 면 줄에 선 일이 시작되지 않는다."""
+        current = getattr(self, "_current", None)
+        return {"alive": bool(self._thread and self._thread.is_alive()), "restarts": getattr(self, "_restarts", 0),
+                "abandoned": getattr(self, "_abandoned", 0), "last_error": getattr(self, "_last_error", ""),
+                "current_job": current[0] if current else None}
+
+    def check(self, now: float | None = None) -> str:
+        """감시 한 번 — 죽은 일꾼을 다시 띄우고, 취소 뒤 안 끝나는 판의 일꾼을 버린다. 한 일을 돌려준다(시험용)."""
+        if self._stop.is_set():
+            return ""
+        if not (self._thread and self._thread.is_alive()):
+            self._restarts = getattr(self, "_restarts", 0) + 1
+            LOG.warning("job runner was dead — restarting (%s)", getattr(self, "_last_error", ""))
+            self._spawn()
+            return "restarted"
+        current = getattr(self, "_current", None)
+        if current:
+            job = self.store.get_job(current[0]) or {}
+            done_at = float(job.get("finished_at") or 0)
+            if job.get("status") == JobStatus.CANCELLED.value and done_at and (now or time.time()) - done_at > self.CANCEL_GRACE_SEC:
+                self._abandoned = getattr(self, "_abandoned", 0) + 1
+                LOG.warning("cancelled job %s still running %.0fs after cancel — leaving it and starting a new runner",
+                            current[0], (now or time.time()) - done_at)
+                self._spawn()
+                return "abandoned"
+        return ""
+
+    def _watch_loop(self) -> None:
+        while not self._stop.wait(self.WATCH_SEC):
+            try:
+                self.check()
+            except Exception as exc:  # noqa: BLE001 — 감시가 죽으면 아무도 모른다
+                self._last_error = f"watch: {type(exc).__name__}: {exc}"[:300]
+
+    def _run(self, generation: int = 0) -> None:
+        backoff = 0.5
+        while not self._stop.is_set() and generation == getattr(self, "_generation", generation):
+            try:
+                self._one_round(generation)
+                backoff = 0.5
+            except Exception as exc:  # noqa: BLE001 — 바퀴 하나의 오류로 일꾼이 죽지 않는다(위 ★)
+                self._last_error = f"{type(exc).__name__}: {exc}"[:300]
+                LOG.warning("job runner round failed: %s", self._last_error, exc_info=True)
+                self._stop.wait(backoff)
+                backoff = min(5.0, backoff * 2)
+
+    def _one_round(self, generation: int) -> None:
+        if True:
             job = self.store.claim_next()
             if not job:
                 self._stop.wait(self.poll_sec)
-                continue
+                return
             job_id = str(job["id"])
+            self._current = (job_id, time.time())
+            try:
+                self._handle(job, job_id)
+            finally:
+                if generation == getattr(self, "_generation", generation):
+                    self._current = None
+
+    def _handle(self, job: dict[str, Any], job_id: str) -> None:
+        if True:
             self.events.publish("job_started", {"job_id": job_id, "kind": job["kind"]})
             handler = self._handlers.get(str(job["kind"]))
             if handler is None:
                 self.store.set_status(job_id, JobStatus.FAILED, error=f"unsupported_job_kind:{job['kind']}")
                 self.events.publish("job_failed", {"job_id": job_id, "error": "unsupported_job_kind"})
                 self._notify_terminal(job_id)
-                continue
+                return
             try:
                 result = handler(job)
                 latest = self.store.get_job(job_id)
@@ -1050,7 +1138,7 @@ class JobRunner:
                     if isinstance(result, dict) and not kept.get("agent_trace"):
                         self.store.attach_result(job_id, {**result, "cancelled": True})
                     self.events.publish("job_cancelled", {"job_id": job_id})
-                    continue
+                    return
                 self.store.set_status(job_id, JobStatus.COMPLETED, result=result)
                 self.events.publish("job_completed", {"job_id": job_id, "result": result})
                 self._notify_terminal(job_id)
@@ -1075,7 +1163,7 @@ class JobRunner:
                 latest = self.store.get_job(job_id)
                 if latest and latest["status"] == JobStatus.CANCELLED.value:
                     self.events.publish("job_cancelled", {"job_id": job_id})
-                    continue
+                    return
                 self.store.set_status(job_id, JobStatus.FAILED, error=str(exc))
                 self.events.publish("job_failed", {"job_id": job_id, "error": str(exc)[:500]})
                 self._notify_terminal(job_id)

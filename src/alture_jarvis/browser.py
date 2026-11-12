@@ -360,6 +360,27 @@ def _coerce_expect(arguments: dict[str, Any]) -> dict[str, Any]:
     return arguments
 
 
+#: 번호표는 `j` + 숫자다(`_ref_locator`). 모델이 숫자만(「12」) · 다른 머리 글자로(「e12」) 보내도 같은 번호표로 받는다.
+_LOOSE_REF = re.compile(r"\s*(?:[ej]|ref)?\s*[#:]?\s*(\d{1,5})\s*", re.IGNORECASE)
+
+
+def _coerce_ref(arguments: dict[str, Any]) -> dict[str, Any]:
+    """`ref` 를 번호표 꼴(`j12`)로 고쳐 받는다 (2026-11-11 노트북 그림 켬 측정).
+
+    그림 켬 판 9칸 중 4칸이 「같은 자리 5번 연속 실패」로 사람을 기다리다 25분을 다 썼다. 그중 둘이 `invalid_element_ref`
+    다섯 번이었다. 그림 속 분홍 상자에는 숫자만(「12」) 찍히고, 같이 붙는 안내 글은 「ref(예: e12)」라고 가르쳤는데 — 번호표는
+    `j12` 다. 숫자 하나로 가리킬 수 있는 번호표는 그것 하나뿐이니 안내문을 믿지 않고 여기서 받는다(사고 R: 결정론으로).
+    """
+    raw = arguments.get("ref")
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        raw = str(raw)
+    if isinstance(raw, str) and not re.fullmatch(r"j\d{1,5}", raw):
+        match = _LOOSE_REF.fullmatch(raw)
+        if match:
+            arguments["ref"] = "j" + match.group(1)
+    return arguments
+
+
 def _typed_matches(text: str, value: str) -> bool:
     """친 글자가 칸 값에 들어 있나 — 쉼표·통화 기호는 숫자 칸이 지우기도 하니 빼고 본다.
 
@@ -3452,7 +3473,7 @@ class BrowserWorker:
         return self._with_takeover_note(self._execute_entry(action, arguments))
 
     def _execute_entry(self, action: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
-        arguments = _coerce_expect(dict(arguments or {}))
+        arguments = _coerce_ref(_coerce_expect(dict(arguments or {})))
         # ★ 검토된 L0 검색 레시피는 **모델이 기억해 주기를 기다리지 않는다.**
         #
         # 사람인 라이브 판에서 Gemma는 `site_run(saramin, search_jobs)`가 있는데도

@@ -74,6 +74,11 @@ WRITE_TOOLS = frozenset(
         # 열린 유니티 에디터의 씬을 바꾼다(2026-09-27) — 승인 카드를 거치고 에디터 Undo 에 남는다. 되돌리기도 쓰기다.
         "unity_editor_change",
         "unity_editor_undo",
+        # 다리 한 줄을 적고 에디터를 띄운다(2026-11-11).
+        "unity_editor_launch",
+        "unity_editor_refresh",
+        # 이 PC 에 프로그램이 실제로 들어온다(2026-11-08) — 서명 확인 뒤 승인 카드.
+        "local_install_app",
         "browser_fill",
         "browser_click",
         "browser_press",

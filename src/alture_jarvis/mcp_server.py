@@ -484,6 +484,16 @@ class JarvisMcpBridge:
         head = self.say(f"서기 카드 {payload['count']}줄 — 초안입니다. 중요한 줄은 (줄 번호)의 원문을 직접 확인하세요.")
         return head + "\n\n" + str(payload.get("card") or ""), False
 
+    async def _enabled_pack_ids(self, client: Any) -> set[str] | None:
+        """켜진 팩 id. 못 물어보면 None — 「모름」을 「전부 꺼짐」으로 치지 않는다(카드에 헛된 꺼짐 표시를 안 붙이게)."""
+        try:
+            response = await client.get(f"{self.base_url}/v1/packs", headers={"X-JARVIS-TOKEN": self.token})
+            if response.status_code != 200:
+                return None
+            return {str(pack.get("id")) for pack in response.json().get("packs") or [] if pack.get("enabled")}
+        except Exception:  # noqa: BLE001
+            return None
+
     async def _enabled_pack_tools(self, client: Any) -> set[str]:
         """켜진 팩의 도구 이름. 못 물어보면 빈 집합 — 모르는 것을 「켜져 있다」로 치지 않는다."""
         try:
@@ -742,6 +752,15 @@ class JarvisMcpBridge:
     async def _call(self, name: str, arguments: dict[str, Any], *, caller: str = "") -> tuple[str, bool]:
         # 옛 이름(ontelic_task 등)으로 불러도 받는다 — 옛 지침을 들고 있는 호스트가 한동안 그 이름을 부른다(이름 2단계).
         name = LEGACY_TOOL_NAMES.get(name, name)
+        if name == GUIDE_TOOL["name"] and str((arguments or {}).get("query") or "").strip():
+            # 기능 카드 찾기(2026-11-12) — 파일을 못 뒤지는 부모용. 꺼진 팩 카드엔 「사람이 켜야 함」을 붙인다.
+            from .capability_cards import render_search
+
+            try:
+                enabled = await self._enabled_pack_ids(await self._http())
+            except Exception:  # noqa: BLE001 — 팩 상태를 몰라도 카드는 준다(꺼짐 표시만 빠진다)
+                enabled = None
+            return render_search(str(arguments["query"]).strip()[:200], enabled_packs=enabled, lang=self.lang), False
         if name == GUIDE_TOOL["name"]:
             from .guide_skill import render_skill
 

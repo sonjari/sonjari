@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { JobSummary, ScheduleRow } from "../types";
 import type { RoomRow } from "./jobs";
 import {
-  DONE_KEEP, durationLabel, elapsedSec, groupJobs, isLive, jobMetrics, jobStateLabel,
-  jobShownHere, jobToFollow, paneContext, paneWidth, pendingSchedules, riskLabel, routineFailed, routineLine, scheduleLabel, scheduleWhen, toneOf, whereAQueuedJobLands,
+  DONE_KEEP, durationLabel, frameForDelegatedJob, elapsedSec, groupJobs, isLive, jobMetrics, jobStateLabel,
+  jobShownHere, jobToFollow, jobToSteer, paneContext, paneWidth, waitingBehind, pendingSchedules, riskLabel, routineFailed, routineLine, scheduleLabel, scheduleWhen, toneOf, whereAQueuedJobLands,
   withLiveRooms, withRunningFirst, withYieldedLast,
 } from "./jobs";
 
@@ -375,3 +375,49 @@ describe("도는 판의 방은 목록에 줄이 있다 (2026-10-09 저녁)", () 
   });
 });
 
+
+describe("frameForDelegatedJob — 맡긴 판의 모드로 탭을 바꾼다 (2026-11-08 대표)", () => {
+  it("클로드가 코드로 던진 판은 코드 탭으로, 코워크 판은 코워크 탭으로", () => {
+    expect(frameForDelegatedJob({ origin: "mcp", workspace_mode: "code" }, "cowork")).toBe("code");
+    expect(frameForDelegatedJob({ origin: "mcp", workspace_mode: "cowork" }, "code")).toBe("cowork");
+    expect(frameForDelegatedJob({ origin: "mcp" }, "code")).toBe("cowork");
+  });
+  it("이미 그 탭이면 그대로 · 사람 판은 건드리지 않는다", () => {
+    expect(frameForDelegatedJob({ origin: "mcp", workspace_mode: "code" }, "code")).toBeNull();
+    expect(frameForDelegatedJob({ origin: "voice", workspace_mode: "code" }, "cowork")).toBeNull();
+  });
+});
+
+describe("jobToSteer — 앱을 다시 켠 창도 돌던 판에 덧붙인다 (2026-11-12 맥)", () => {
+  const running = job("old", "running", { session_id: "room-a" });
+
+  it("다시 켠 창(보낸 목록 비어 있음)이라도 이 방에서 도는 판이면 그 판에 덧붙인다", () => {
+    expect(jobToSteer("old", "room-a", [], [running])).toBe("old");
+  });
+
+  it("이 창이 보낸 판이면 지금처럼 덧붙인다", () => {
+    expect(jobToSteer("mine", "room-a", [{ jobId: "mine", sessionId: "room-a" }], [])).toBe("mine");
+  });
+
+  it("다른 방의 판 · 방을 모르는 판 · 줄 선 판 · 대화가 아닌 판에는 덧붙이지 않는다", () => {
+    expect(jobToSteer("old", "room-b", [], [running])).toBe("");
+    expect(jobToSteer("old", "room-a", [], [job("old", "running", { session_id: "" })])).toBe("");
+    expect(jobToSteer("old", "room-a", [], [job("old", "queued", { session_id: "room-a" })])).toBe("");
+    expect(jobToSteer("old", "room-a", [], [job("old", "running", { session_id: "room-a", kind: "recipe" })])).toBe("");
+    expect(jobToSteer("", "room-a", [], [running])).toBe("");
+  });
+});
+
+describe("waitingBehind — 줄 선 판은 줄 서 있다고 말한다 (2026-11-12 맥)", () => {
+  it("이 판이 줄에 서 있고 다른 판이 돌면 그 판을 돌려준다", () => {
+    const front = job("front", "running", { title: "바탕화면에 해줄 수 있나" });
+    expect(waitingBehind("mine", [front, job("mine", "queued")])?.id).toBe("front");
+  });
+
+  it("이 판이 돌고 있거나 · 도는 다른 판이 없거나 · 판이 없으면 null", () => {
+    expect(waitingBehind("mine", [job("mine", "running")])).toBeNull();
+    expect(waitingBehind("mine", [job("mine", "queued")])).toBeNull();
+    expect(waitingBehind("", [job("x", "running")])).toBeNull();
+    expect(waitingBehind("gone", [job("x", "running")])).toBeNull();
+  });
+});

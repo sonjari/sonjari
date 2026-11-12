@@ -71,6 +71,8 @@ _REASONS = {
     "system": ("지침이 지난번과 달라", "the instructions changed since the last call, so"),
     "model": ("다른 모델로 바뀌어", "a different model is answering, so"),
     "first": ("이번이 첫 부르기라", "this is the first call, so"),
+    # 11-08: 같은 앞부분이 최근에 있었는데도 느리면 — 사이에 다른 부르기가 끼어 모델이 그 기억을 놓친 것이다(도구 목록 탓이 아니다).
+    "interleaved": ("사이에 다른 일이 끼어들어", "other calls came in between, so"),
 }
 
 

@@ -123,7 +123,7 @@ from .system_tools import register_system_tools
 from .tool_gateway import ToolGateway
 from .site_recipes import RecipeError, SiteRecipeTools
 from .unity_schedule import RecipeSchedule
-from .unity_stage import UnityStage
+from .unity_stage import UnityStage, bridge_stage
 from .unity_tools import UnityTools
 from .video_tools import VideoTools
 from .animator_tools import AnimatorTools
@@ -1159,8 +1159,12 @@ class JarvisRuntime:
             self._model_cannot_read_pictures,
         )
         self.image_look.register(self.gateway)
+        # 유니티 에디터 화면 찍기도 같은 그림 보기 곁 호출로 본다(11-08 밤 · 설계 유니티_화면보기).
+        self.unity_tools.editor.viewer = self._look_at_file
+        self.unity_tools.editor.cannot_see = self._model_cannot_read_pictures
         # 열린 유니티 창을 온텔릭 화면에 비춘다(2단계). 창을 움직이지 않고 그림만 복사한다 — 모델에게는 안 간다.
-        self.unity_stage = UnityStage()
+        # 맥에는 창 목록 · 창 복사가 없다 — 에디터 연결(다리)로 찾고 에디터 안에서 찍는다(11-08 밤 · `bridge_stage`).
+        self.unity_stage = UnityStage() if os.name == "nt" else bridge_stage(self.unity_tools.editor)
         self.project_discovery = ProjectDiscovery(
             self.local_computer.allowed_roots,
             self.config.data_dir / "project_workspaces.json",
@@ -1277,6 +1281,15 @@ class JarvisRuntime:
             publish=self.events.publish,
             prompt_cache_mib=int(getattr(self.config, "ollama_prompt_cache_mib", -1)),
         )
+        # 램 부스트를 켜 둔 채 꺼졌으면 Ollama 를 켜기 **전에** 그 환경을 쥐어 둔다(2026-11-11 · `ram_boost.Booster.resume`).
+        try:
+            from .ram_boost import read_state as _ram_boost_state
+
+            _boost = _ram_boost_state(self.config.data_dir).get("env")
+            if isinstance(_boost, dict) and _boost:
+                self.ollama_installer.boost_env = {str(k): str(v) for k, v in _boost.items()}
+        except Exception:  # noqa: BLE001 — 못 읽으면 부스트 없이 켠다
+            pass
         # 꺼져 있으면 알아서 다시 켠다(2026-09-20). 시작 때 한 번만 켜던 것을 대신한다 — ollama_install.OllamaKeeper.
         self.ollama_keeper = OllamaKeeper(
             self.ollama_installer, enabled=bool(getattr(self.config, "ollama_autostart", True)),
@@ -2179,9 +2192,51 @@ class JarvisRuntime:
         if self._warmup_stop.wait(max(0.0, float(self.config.self_check_boot_delay_sec))):
             return
         try:
-            self.self_care.boot_check(include_model=self._setup_completed())
+            result = self.self_care.boot_check(include_model=self._setup_completed())
+            self._note_boot_check(result)
+            if self._boot_ram_boost(result):
+                self._note_boot_check(self.self_care.boot_check(include_model=True))
         except Exception as exc:  # noqa: BLE001 — 점검이 죽어도 제품은 돈다
             self.events.publish("self_check_boot", {"error": str(exc)[:200]})
+
+    def _note_boot_check(self, result: dict[str, Any] | None) -> None:
+        """켤 때 점검의 숫자(속도 · 올라간 GB · 까닭)를 감사 기록에 남긴다 (2026-11-11).
+
+        16GB 카드 사용자 PC 의 「CPU 로 돌고 있습니다」는 숫자가 어디에도 안 남아 진짜 CPU 였는지 점검이 잘못 봤는지 가르지 못했다.
+        """
+        if not isinstance(result, dict):
+            return
+        rows = [{"organ": item.get("organ"), "state": item.get("state"), "detail": str(item.get("detail") or "")[:200],
+                 "evidence": item.get("evidence")} for item in result.get("organs") or [] if isinstance(item, dict)]
+        try:
+            self.store.add_audit("self_check_boot", "", {"down": result.get("down"), "organs": rows})
+        except Exception:  # noqa: BLE001 — 기록을 못 남겨도 점검은 끝난다
+            pass
+
+    def _boot_ram_boost(self, result: dict[str, Any] | None) -> bool:
+        """켤 때 점검이 「모델이 CPU 로 돈다 · 크게 느리다」를 잡았고 지금 모델이 빠른 MoE 모델이면 램 부스트로 다시 올린다.
+
+        ★ 2026-11-11 16GB 카드 사용자 PC(3ds Max): 3.6 2비트가 CPU 로 떴고 사람이 손자리를 껐다 켜야 했다. 이제 그 자리에서 고친다.
+        다른 모델(밀집 27B 등)은 판 시작의 넘침 검사(`model_fallback.on_spill`)가 맡는다 — 켤 때 사람의 모델을 바꾸지 않는다.
+        """
+        booster = getattr(self, "ram_booster", None)
+        fallback = getattr(self, "model_fallback", None)
+        if booster is None or fallback is None or booster.active or not isinstance(result, dict):
+            return False
+        if "model" not in (result.get("down") or []):
+            return False
+        current = str(self.config.model_for("chat") or "")
+        if not fallback._is_fast(current):
+            return False
+        from .model_fallback import FAST_CTX, FAST_KEY
+
+        try:
+            facts = self.agent._gpu_facts("chat")
+        except Exception:  # noqa: BLE001
+            facts = {}
+        outcome = booster.engage(FAST_KEY, FAST_CTX, facts, reason="boot_check_down")
+        self.events.publish("ram_boost", {"reason": "boot_check_down", **{k: v for k, v in outcome.items() if k != "plan"}})
+        return outcome.get("action") == "boosted"
 
     def _setup_completed(self) -> bool:
         try:
@@ -6578,7 +6633,10 @@ class JarvisRuntime:
           기계가 「사람이 쓰는 중」으로 보여, 비켜 주기를 기다리는 쪽이 영영 못 돈다.
         """
         try:
-            rows = self.store.list_jobs(limit=20)
+            # ★ 2026-11-11: 상태 물음 시간의 66% 가 여기였다(py-spy) — list_jobs 는 줄마다 결과 본문(걸음 기록 · 판 하나에 수 MB)을
+            #   풀어 읽는다. 필요한 것은 종류 · 시각 세 칸뿐이다.
+            rows = (self.store.recent_activity(limit=20) if hasattr(self.store, "recent_activity")
+                    else self.store.list_jobs(limit=20))
         except Exception:  # noqa: BLE001 — 못 읽었으면 모르는 것이다
             return None
         newest = 0.0
@@ -6603,8 +6661,12 @@ class JarvisRuntime:
                 key: dict(value) if isinstance(value, dict) else value
                 for key, value in self._warmup_status.items()
             }
+        # ★ 일꾼 상태(2026-11-10 맥 27시간 사고): 일꾼이 죽어도 이 물음은 ok 를 줬다. 이제 같이 싣고, 죽었으면 ok=false.
+        runner = self._probe("job_runner", self.runner.health) if hasattr(self.runner, "health") else {}
+        runner_ok = not isinstance(runner, dict) or runner.get("alive", True) is not False
         return {
-            "ok": True,
+            "ok": runner_ok,
+            "job_runner": runner,
             "service": "alture-jarvis",
             # ★ 지금 도는 코드의 지문. 업데이트가 **먹었는지**를 밖에서 확인하는
             #   유일한 값이다 — 「배포했다」는 말은 증거가 아니고, /health 가

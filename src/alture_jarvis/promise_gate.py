@@ -665,6 +665,19 @@ def announces_present_action(answer: str) -> bool:
 #   「~해 본다·~해 보자·~하자」(다음 할 일). 「전문가들은 성장으로 본다」 같은 답 내용은 도구 이름도 「해 본다」도 없어 안 걸린다.
 _TOOL_NAME_IN_SPEECH = re.compile(r"\b(?:browser|local|google|naver|unity|sandbox|site|skill)_[a-z_]+\b")
 _TRY_NEXT_ENDING = re.compile(r"(해\s*본다|해\s*보자|해\s*봐야겠다|하자|보자|가자|읽자|열자|찾자)[.!…~\s]*$")
+# ★ 2026-11-11 맥 판: 28걸음 뒤 최종 답이 「…다운로드가 자동화에서 되는지 한 번 **눌러 본다**.」 — 위 낱말표는 「해 본다」만 알아
+#   빠져나갔다. 낱말을 더하지 않고 모양으로: 「동사 + 아/어 + 본다 · 보자 · 봐야겠다」(시도하는 꼴)는 무엇을 하든 다음 걸음이다.
+#   본다 앞 글자의 홀소리가 ㅏ ㅐ ㅓ ㅕ ㅘ ㅝ(연결 어미 -아/-어)일 때만 — 「영화를 본다」(를 + 본다)는 안 걸린다.
+#   역검증: PC 운영 답 5,594개 새로 걸림 0 · 맥 운영 답 195개 새로 걸림 1(이 판).
+_TRY_VERB_ENDING = re.compile(r"(\S)\s*(본다|보자|봐야겠다|봐야지)[.!…~\s]*$")
+_CONNECTIVE_VOWELS = (0, 1, 4, 6, 9, 14)  # ㅏ ㅐ ㅓ ㅕ ㅘ ㅝ
+
+
+def _tries_a_verb(sentence: str) -> bool:
+    match = _TRY_VERB_ENDING.search(sentence.rstrip())
+    if not match or not ("가" <= match.group(1) <= "힣"):
+        return False
+    return ((ord(match.group(1)) - 0xAC00) // 28) % 21 in _CONNECTIVE_VOWELS
 
 
 def _plain_inner_monologue(text: str) -> bool:
@@ -674,7 +687,7 @@ def _plain_inner_monologue(text: str) -> bool:
     plain = all(sentence.rstrip(".!?…~ ").endswith(("다", "자")) and not _POLITE_END.search(sentence) for sentence in sentences)
     if not plain:
         return False
-    return bool(_TOOL_NAME_IN_SPEECH.search(text) or _TRY_NEXT_ENDING.search(sentences[-1]))
+    return bool(_TOOL_NAME_IN_SPEECH.search(text) or _TRY_NEXT_ENDING.search(sentences[-1]) or _tries_a_verb(sentences[-1]))
 
 
 _FUTURE_ENDING =re.compile(r"(겠습니다|겠어요|할게요|볼게요|드릴게요|올게요)[.!…~\s]*$")

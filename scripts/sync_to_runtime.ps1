@@ -12,7 +12,7 @@ if ($ResolvedParent.TrimEnd('\') -ne $AllowedParent.TrimEnd('\')) {
 }
 
 New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-foreach ($Directory in @("src", "scripts", "tests", "docs", "knowledge", "recipes", "skills", "packs")) {
+foreach ($Directory in @("src", "scripts", "tests", "docs", "knowledge", "recipes", "skills", "packs", "capabilities")) {
     $TargetDirectory = Join-Path $Destination $Directory
     New-Item -ItemType Directory -Force -Path $TargetDirectory | Out-Null
     Copy-Item -Path (Join-Path $Source "$Directory\*") -Destination $TargetDirectory -Recurse -Force

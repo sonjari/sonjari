@@ -66,7 +66,7 @@ import { ReasoningPicker, loadReasoningChoice, saveReasoningChoice, type Reasoni
 import { createSetupApi, type CodeUpgrade, type SetupApi } from "./setup/setupApi";
 import { CodeUpgradeCard } from "./workspace/CodeUpgradeCard";
 import { applyPlan, applyStep, applyVerification, buildTimeline, finishTrajectory, startTrajectory, toolLabel, type PlanItem, type Trajectory } from "./trajectory";
-import { isLive, jobShownHere, jobToFollow, paneContext, whereAQueuedJobLands, withRunningFirst, withYieldedLast } from "./workspace/jobs";
+import { frameForDelegatedJob, isLive, jobShownHere, jobToFollow, jobToSteer, paneContext, waitingBehind, whereAQueuedJobLands, withRunningFirst, withYieldedLast } from "./workspace/jobs";
 import { chooseStage, stageChoiceFor, type StageChoice } from "./workspace/stageChoice";
 import { GATE_TITLES, HUMAN_GATE_CODES, gateCodeOf, gateSiteLabel } from "./workspace/humanGate";
 import { createNotifier, readNotifyEnabled, showToast, windowInFront } from "./notify";
@@ -1096,6 +1096,12 @@ export function WorkspaceApp() {
             { jobId, sessionId: room, prompt: asked, files: [], createdAt: Date.now() / 1000 },
           ]);
           if (delegated && !window.matchMedia?.(`(max-width: ${OVERLAY_MAX_WIDTH}px)`).matches) setComputerDismissed(false);
+          // 맡긴 판의 모드로 탭을 바꾼다 — 코드로 던졌으면 코드 화면, 코워크면 코워크 화면(`frameForDelegatedJob` · 11-08 대표).
+          const frame = frameForDelegatedJob(payload, workspaceModeRef.current);
+          if (frame) {
+            setWorkspaceMode(frame);
+            workspaceModeRef.current = frame;
+          }
           // 앞 판의 답이 아직 자리 잡는 중이면 기다리지 않고 완성된 답으로 바꾼다 — 새 판이 그 풍선을 쓴다.
           finishSettling();
           if (pendingRef.current[0]?.jobId === jobId) {
@@ -1803,8 +1809,11 @@ export function WorkspaceApp() {
     // ★ 판이 돌고 있으면 **그 판에 덧붙이고**, 말은 「일하는 중」 블록 안 — 그때까지 손자리가 한 말 바로 아래에 둔다
     //   (2026-10-01, 대표: 「훅 밑에 들어가야 되는데 위에 들어가노」). 위쪽 목록에 붙이면 늘 손자리 말보다 위로 가서
     //   무엇에 대한 말인지 순서가 뒤집혀 보였다. 판이 끝나면 서버가 질문 기록의 `steer_notes` 로 남기고 말풍선이 그린다.
-    const steerTarget = override === undefined && !sending.length ? activeJobRef.current : "";
-    if (steerTarget && pendingRef.current.some((item) => item.jobId === steerTarget && item.sessionId === targetSession)) {
+    // 앱을 다시 켠 창은 보낸 목록이 비어 있다 — 서버에서 이 방의 판이 돌고 있으면 그 판에 덧붙인다(`jobToSteer`, 11-12).
+    const steerTarget = override === undefined && !sending.length
+      ? jobToSteer(activeJobRef.current, targetSession, pendingRef.current, jobsRef.current)
+      : "";
+    if (steerTarget) {
       const youKey = `${steerTarget}:you:${Date.now()}`;
       setNarration((rows) => keepNarration([...rows, { key: youKey, jobId: steerTarget, step: 0, text: prompt, you: true }]));
       try {
@@ -2429,6 +2438,9 @@ export function WorkspaceApp() {
                           ? <ModelLoadLine client={clientRef.current} onResident={markModelWarm} />
                           // 그림을 읽는 중이면 이 줄을 내지 않는다 — 「도구를 고르는 중」은 그 순간 틀린 말이고, 위의 그림이 이미 무엇을 하는지 말한다.
                           : looking[hereJobId || settlingJobId] ? null
+                          // 줄에 서 있으면 「고르는 중」이 아니라 무엇을 기다리는지 말한다(11-12 맥 · `waitingBehind`).
+                          : waitingBehind(hereJobId, jobs)
+                            ? <div className="workspace-thinking is-queued" role="status"><span /><p>{t("앞 일(「{0}」)을 아직 하는 중입니다. 끝나면 이 질문을 바로 시작합니다.", (waitingBehind(hereJobId, jobs)?.title || t("다른 일")).slice(0, 40))}</p></div>
                           : <div className="workspace-thinking"><span />{elapsed >= 3 && <p>{modelWait[hereJobId || settlingJobId] || liveText(live[hereJobId || settlingJobId]) || t("질문의 의도와 필요한 도구를 고르는 중입니다.")}</p>}</div>
                       )}
                     </div>

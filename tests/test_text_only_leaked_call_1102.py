@@ -32,7 +32,9 @@ def test_a_leaked_call_is_asked_once_more_with_a_note() -> None:
     message, used = agent._text_only_message_inner([{"role": "user", "content": "알아봐 줘"}], job_id="j", think=False,
                                                    model_role="chat", inference_profile=None)
     assert message["content"].startswith("Opus 5")
-    assert len(calls) == 3 and calls[2]["tools"] is None and calls[2]["last"] == _TEXT_ONLY_RETRY_NOTE
+    # 11-08: 둘째는 **같은 목록 + 지시**(앞부분 기억을 빌린다) · 셋째에 가서야 목록을 뺀다.
+    assert len(calls) == 3 and calls[1]["tools"] is not None and calls[1]["last"] == _TEXT_ONLY_RETRY_NOTE
+    assert calls[2]["tools"] is None
     assert used == 3
 
 

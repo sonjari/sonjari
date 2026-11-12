@@ -604,6 +604,26 @@ def by_tag(tag: str) -> CatalogModel | None:
 AGENT_PASS_RATE = 0.7
 
 
+# ── 목록 밖 모델의 실측 등급 (2026-11-09 대표 결정) ─────────────────────────────────
+#
+# 모델 고르기 화면(CATALOG)에는 넣지 않고 **등급 판정에만** 쓰는 칸이다. 손님 판 목록에 안 뜬다.
+# Strata(Qwen3.8 Flash-Next · 대표 PC 개인용, `scripts/use_strata.ps1`) — 사슬 벤치(조사 → 파일)는 안 돌렸다.
+#   대신 11-08~11-09 게임 시험의 코드 모드 맡김 21판에서 손자리 스스로 확인 명령을 통과해 끝낸 판이 17판이다
+#   (`generated_reports/bug_guard_game/기록.md` 머리줄로 셈: 5-1~11-2 · 손자리 본체 하네스 후보 17 고치기 포함).
+#   못 끝낸 넷: Mirror(처음 보는 망 부품)를 통째로 맡긴 두 판 ✗ · 내 검사가 틀려 멈춘 두 판(8-2 · 9-2, 코드는 고친 검사로 통과).
+#   11-08 에는 「정식은 코드 모드 3판 + 사슬 벤치 뒤」로 적었으나, 11-09 대표가 「이 정도면 통과 수준」이라 하여 이 성적으로 올린다.
+#   라벨에 「사슬 벤치」라고 쓰지 않는다 — 잰 것이 다르다.
+OUTSIDE_CATALOG_GRADES: dict[str, dict[str, Any]] = {
+    "strata/qwen3.8-flash-next-swift": {
+        "name": "Strata · Qwen3.8 Flash-Next",
+        "ok": 17,
+        "total": 21,
+        "what": "코드 맡김",
+        "source": "generated_reports/bug_guard_game/기록.md (11-08~11-09 게임 시험)",
+    },
+}
+
+
 def agent_grade(tag: str) -> dict[str, Any]:
     """이 모델의 **능력 실측** 상태. 화면 문구와 권한 판정이 같은 곳을 본다.
 
@@ -611,6 +631,19 @@ def agent_grade(tag: str) -> dict[str, Any]:
     """
     wanted = str(tag or "").strip()
     model = by_tag(wanted)
+    outside = OUTSIDE_CATALOG_GRADES.get(wanted.lower()) if model is None else None
+    if outside is not None:
+        ok, total = outside["ok"], outside["total"]
+        rate = ok / total if total else 0.0
+        measured = rate >= AGENT_PASS_RATE
+        return {
+            "model": wanted,
+            "measured": measured,
+            "chain": None,
+            "rate": rate,
+            "label": f"{outside['what']} {ok}/{total} 실측" + ("" if measured else " · 합격선 미달"),
+            "detail": f"{outside['name']} — {outside['what']}에서 확인 명령을 스스로 통과한 판 {ok}/{total} ({outside['source']})",
+        }
     if model is None or not model.chain:
         return {
             "model": wanted or "(모델 없음)",

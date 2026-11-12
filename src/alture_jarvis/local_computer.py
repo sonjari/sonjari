@@ -1106,6 +1106,25 @@ def _check_git_write_args(args: list[str]) -> None:
             raise PermissionError("git_worktree_add_must_create_branch")
 
 
+def _append_document(path: Path, fmt: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """글 문서(md · txt) 끝에 이번 몫을 붙인다 (2026-11-09 · `truncated_call`).
+
+    이번 몫은 새로 쓸 때와 **같은 그리기**(`write_document`)로 옆의 임시 파일에 그린 뒤, 그 글을 원래 파일 끝에 붙인다 —
+    블록 · 표 · 「확인 불가」 비우기 같은 손질이 첫 몫과 같아야 이음매가 안 보인다.
+    """
+    piece = path.with_name(f".{path.stem}.append-{secrets.token_hex(4)}{path.suffix}")
+    try:
+        shape = write_document(piece, fmt, payload)
+        # 바이트 그대로 붙인다 — md · txt 는 BOM 없는 UTF-8 이라(`_write_markdown`) 줄바꿈 꼴까지 첫 몫과 같다.
+        added = piece.read_bytes()
+    finally:
+        piece.unlink(missing_ok=True)
+    with path.open("ab") as handle:
+        handle.write(added)
+    return {**shape, "bytes": path.stat().st_size, "appended": True,
+            "appended_chars": len(added.decode("utf-8", errors="replace"))}
+
+
 def _unused_sibling(path: Path) -> Path:
     """`이름 (N).확장자` 중 **아직 없는 것.** 있는 이름은 절대 다시 고르지 않는다.
 
@@ -1233,6 +1252,24 @@ _SHELL_NEVER = re.compile(
 
 #: 손대면 안 되는 자리. **경로로 쓰인 것**만 잡는다 — 「windows」라는 낱말만으로 막으면
 #: `Get-Content windows_notes.md` 같은 멀쩡한 파일까지 걸려 조사가 또 막힌다.
+#: 셸로 부르면 **창 있는 앱이 떠서 끝나지 않는** 실행 파일(2026-11-08 게임 시험 2-2). 명령줄 모드를 붙여야 답하고 끝난다.
+#: ★ 맥 손자리가 `"…/Unity Hub" --version` 을 `-- --headless` 없이 불러 허브 앱이 떴고, 명령은 시간 제한까지 매달렸다(두 번).
+#:   지난 판에서는 붙였다 — 기억에 기대지 않고 실행 전에 돌려보낸다(결정론 · 사고 R).
+_UNITY_HUB_BINARY = re.compile(r"Unity Hub(?:\.app/Contents/MacOS/Unity Hub|\.exe)\b", re.IGNORECASE)
+#: 맥 `.app` 꾸러미 속 실행 파일을 셸로 직접 부른 것 — 시간 초과가 나면 「창 있는 앱이라 안 끝났다」를 알린다.
+_MAC_APP_BINARY = re.compile(r"\.app/Contents/MacOS/")
+
+
+def _gui_app_refusal(command: str) -> str:
+    """셸 명령이 명령줄 모드 없이 창 있는 앱을 부르면 돌려보낼 말. 아니면 빈 글자."""
+    if _UNITY_HUB_BINARY.search(command) and "--headless" not in command:
+        return ("gui_app_would_hang: Unity Hub 는 `-- --headless` 를 붙여야 명령줄로 답하고 끝난다 — 안 붙이면 허브 창이 떠서 "
+                "명령이 끝나지 않는다. 예: \"…/Unity Hub\" -- --headless editors -i · "
+                "\"…/Unity Hub\" -- --headless install --version <판> --changeset <번호> -a arm64 -m windows-mono "
+                "(설치처럼 오래 걸리면 background=true).")
+    return ""
+
+
 _SHELL_FORBIDDEN_PATHS = re.compile(
     r"windows[\\/](?:system32|syswow64)|[\\/]windows[\\/]|"
     r"program\s*files|programdata|\$env:systemroot|\$env:windir",
@@ -1698,6 +1735,7 @@ class LocalComputerTools:
                         ),
                     },
                     "text": {"type": "string"},
+                    "append": {"type": "boolean", "description": "md·txt 만: 참이면 같은 path 끝에 이어 붙인다 — 긴 글은 나눠 쓴다(기본 거짓)"},
                     "open": {"type": "boolean", "description": "만든 뒤 바로 띄운다(기본 참)"},
                 },
                 ["path"],
@@ -1879,6 +1917,7 @@ class LocalComputerTools:
                 {
                     "path": {"type": "string", "description": "상대 경로면 현재 작업폴더 기준"},
                     "content": {"type": "string", "description": "UTF-8로 저장할 전체 내용"},
+                    "append": {"type": "boolean", "description": "참이면 기존 파일 끝에 content 를 이어 붙인다 — 긴 글은 나눠 쓴다(기본 거짓)"},
                 },
                 ["path", "content"],
             ),
@@ -1971,7 +2010,10 @@ class LocalComputerTools:
                 ) +
                 "보기만 하는 명령은 바로 돌고, 만들기·지우기·설치·네트워크는 사용자 승인 카드가 뜬다. "
                 "보안 설정·시스템 폴더는 어떤 경우에도 거부된다. "
-                "시험·린트처럼 정해진 것은 local_run_project_command 가 더 낫다.",
+                "시험·린트처럼 정해진 것은 local_run_project_command 가 더 낫다. "
+                "★ 설치·빌드·큰 내려받기처럼 10분을 넘을 수 있는 명령은 background=true 로 띄워라 — 시간 제한 없이 뒤에서 돌고 "
+                "background_id 와 기록 파일을 돌려준다. 그 뒤 command 없이 background_id 만 주면 돌고 있나 · 종료 값 · 기록 끝을 본다"
+                "(wait_sec 로 끝나기를 최대 120초 기다릴 수 있다). sleep 으로 기다리지 마라.",
                 {
                     "command": {
                         "type": "string",
@@ -1979,8 +2021,23 @@ class LocalComputerTools:
                                         else "PowerShell 한 줄. 예: Get-ChildItem -Recurse -Filter *.py"),
                     },
                     "timeout_sec": {"type": "integer", "minimum": 5, "maximum": 600},
+                    "background": {"type": "boolean",
+                                   "description": "true 면 뒤에서 띄우고 바로 돌아온다(시간 제한 없음). 설치 · 빌드용."},
+                    "background_id": {"type": "string",
+                                      "description": "뒤에서 띄운 명령의 번호. command 없이 주면 상태와 기록 끝을 본다."},
+                    "wait_sec": {"type": "integer", "minimum": 0, "maximum": 120,
+                                 "description": "background_id 로 볼 때 끝나기를 최대 몇 초 기다릴지."},
                 },
-                ["command"],
+                [],
+            ),
+            self._function(
+                "local_install_app",
+                "받아 둔 프로그램을 이 PC 에 들인다(맥 .dmg · .app · .pkg / 윈도우 .exe · .msi). "
+                "먼저 서명을 기계로 확인한다 — 맥은 코드 서명 + 애플 공증, 윈도우는 Authenticode. 통과한 것만 사람 승인 카드에 "
+                "(무엇 · 판 · 서명한 곳)를 올리고, 누르면 응용 프로그램 폴더에 넣는다. .pkg · 윈도우 설치 프로그램은 설치 창을 띄우고 "
+                "관리자 확인은 사람이 한다. 셸로 응용 프로그램 폴더에 복사하지 마라 — 막힌다. 서명이 없거나 깨진 파일은 들이지 않는다.",
+                {"path": {"type": "string", "description": "받아 둔 설치 파일 경로(예: ~/Downloads/UnityHubSetup-arm64.dmg)"}},
+                ["path"],
             ),
             self._function(
                 "local_preview_page",
@@ -2023,6 +2080,7 @@ class LocalComputerTools:
             "local_request_path_access": self.request_path_access,
             "local_preview_page": self.serve_page,
             "local_run_shell": self.run_shell,
+            "local_install_app": self.install_app,
         }
         risks = {
             "local_list_directory": RiskLevel.L0,
@@ -2054,6 +2112,8 @@ class LocalComputerTools:
             # 바닥은 L2 — 보는 명령이면 `_shell_risk` 가 L1 으로 내린다(등급은 **올리기만** 하는
             # 규칙이라 바닥을 L2 로 두면 안 된다). 아래 dynamic_risk 가 실제 등급을 정한다.
             "local_run_shell": RiskLevel.L2,
+            # 프로그램을 들인다 — 늘 사람 승인(`permissions.ALWAYS_ASK`). 서명 확인을 못 지나면 카드조차 안 만든다.
+            "local_install_app": RiskLevel.L3,
         }
         # 승인 카드에 실제 경로·자리를 붙인다 — 인자는 그대로(재실행되는 값이다).
         for writer in ("local_write_file", "local_apply_edit", "local_write_document", "local_edit_spreadsheet",
@@ -2063,6 +2123,12 @@ class LocalComputerTools:
             #   사람이 누르면 쓰기는 `path_required` 로 반드시 실패했다 — 실패가 정해진 일을 사람에게 묻고 있었다.
             gateway.pre_approval_checks[writer] = _require_path
         gateway.pre_approval_checks["local_delete_file"] = self._delete_pre_check
+        # 프로그램 들이기 — 서명 확인을 못 지나면 카드를 만들지 않고 모델에게 까닭을 돌려준다(app_install).
+        gateway.pre_approval_checks["local_install_app"] = self._install_app_pre_check
+        # 허락 요청 한 틀 — 카드에 무엇 · 어디 · 왜 · 안에 든 것 · 생긴 때. 실패가 정해진 요청은 카드 전에 돌려보낸다.
+        gateway.pre_approval_checks["local_request_path_access"] = self._access_request_pre_check
+        gateway.approval_describers["local_request_path_access"] = self.describe_access_request
+        gateway.approval_describers["local_install_app"] = self._install_app_describe
         # 문서 쓰기는 파일 이름만 받으면 `문서\\Sonjari` 에 쓴다 — 카드도 그 실제 자리를 보인다.
         gateway.approval_describers["local_write_document"] = self.describe_document_target
         for definition in self._definitions:
@@ -2228,6 +2294,93 @@ class LocalComputerTools:
             self._save_grants()
         return removed
 
+    # ── 허락 요청 한 틀 (2026-11-08 대표 「게임만 아니라 다른 분야에서도」) ────────────────
+    #
+    # 어느 팩이든 「허락 안 된 자리」로 막히면 같은 문장(`access_door`)으로 같은 문(`local_request_path_access`)을 가리킨다.
+    # 카드는 무엇 · 어디 · 왜 · 안에 든 것 · 언제 생긴 폴더인지를 보인다(`describe_access_request`).
+    # 실패가 정해진 요청(비밀 자리 · 너무 넓은 자리 · 쓰기를 못 넓히는 모델)은 카드를 만들기 전에 돌려보낸다.
+    # 자동 허락은 없다 — 사람이 누른 것만 열린다.
+
+    def access_door(self, path: Path, mode: str = "write") -> str:
+        """막힌 도구가 거절 글에 붙일 「허락받는 길」 한 문장."""
+        mode = "write" if mode == "write" else "read"
+        if mode == "write" and not self._model_grade()["measured"]:
+            return (
+                f"허락받는 길: 지금 모델은 쓰기 자리를 스스로 넓힐 수 없다(능력을 잰 적 없는 모델) — 사람에게 "
+                f"「설정 › 권한·안전」에서 {path} 를 쓰기로 추가해 달라고 말하거나, 이미 쓸 수 있는 자리"
+                f"({' · '.join(str(r) for r in self.allowed_roots[:3])})에서 일해라."
+            )
+        return (
+            f"허락받는 길: `local_request_path_access`(path='{path}', mode='{mode}', reason='왜 필요한지 한 문장') 를 "
+            "한 번 불러라 — 사람 화면에 승인 카드가 뜨고, 누르면 이어서 일한다. 같은 호출을 되풀이하지 마라."
+        )
+
+    def _access_request_target(self, arguments: dict[str, Any]) -> tuple[Path, str]:
+        raw = str(arguments.get("path") or "").strip()
+        if not raw:
+            raise ValueError("path_required")
+        mode = str(arguments.get("mode") or "read").strip().lower()
+        if mode not in ("read", "write"):
+            raise ValueError("mode_must_be_read_or_write")
+        expanded = Path(os.path.expandvars(raw)).expanduser()
+        if not expanded.is_absolute():
+            raise ValueError("path_must_be_absolute")
+        return expanded.resolve(strict=False), mode
+
+    def _access_request_pre_check(self, arguments: dict[str, Any]) -> None:
+        """카드를 만들기 전에 — 누르면 반드시 실패할 요청은 사람에게 묻지 않는다."""
+        path, mode = self._access_request_target(arguments)
+        if self._sensitive_path(path):
+            raise PermissionError("sensitive_path_blocked: 비밀이 든 자리(키·토큰·자격증명·다른 도구의 기록)는 승인으로도 열지 않습니다.")
+        too_broad = self._too_broad_for_workspace(path)
+        if too_broad:
+            raise PermissionError(f"path_too_broad: {path} — {too_broad}")
+        if mode == "write" and not self._model_grade()["measured"]:
+            raise PermissionError("model_not_benchmarked: " + self.access_door(path, "write"))
+
+    def describe_access_request(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """승인 카드 칸 — 사람이 「무엇을 · 어디에 · 왜」 여는지와 그 폴더가 무엇인지 보고 누르게."""
+        path, mode = self._access_request_target(arguments)
+        reason = str(arguments.get("reason") or "").strip()
+        card: dict[str, Any] = {
+            "무엇": "이 폴더를 읽고 쓰게 열기" if mode == "write" else "이 폴더를 읽게 열기(고치지는 못함)",
+            "어디": str(path),
+            "왜": reason[:300] or "(손자리가 까닭을 적지 않음)",
+        }
+        if not path.exists():
+            card["안에 든 것"] = "아직 없는 폴더"
+            return card
+        if not path.is_dir():
+            card["안에 든 것"] = "폴더가 아니라 파일 — 그 파일이 든 폴더가 열린다"
+            return card
+        kinds = []
+        version_file = path / "ProjectSettings" / "ProjectVersion.txt"
+        if version_file.is_file():
+            first = version_file.read_text(encoding="utf-8", errors="replace").split("\n", 1)[0]
+            kinds.append("유니티 프로젝트" + (f" ({first.split(':', 1)[1].strip()})" if ":" in first else ""))
+        if (path / ".git").exists():
+            kinds.append("git 저장소")
+        if any(path.glob("*.blend")) or any(path.glob("*.max")):
+            kinds.append("3D 파일 폴더")
+        try:
+            count = sum(1 for _ in zip(range(1001), path.iterdir()))
+        except OSError:
+            count = -1
+        size = "읽을 수 없음" if count < 0 else (f"{count}개" if count <= 1000 else "1,000개 넘음")
+        card["안에 든 것"] = " · ".join([*kinds, f"바로 아래 {size}"])
+        try:
+            stat = path.stat()
+            born = getattr(stat, "st_birthtime", None) or (stat.st_ctime if os.name == "nt" else None)
+        except OSError:
+            born = None
+        if born:
+            import time as _time
+
+            minutes = max(0, int((_time.time() - born) // 60))
+            when = _time.strftime("%m-%d %H:%M", _time.localtime(born))
+            card["생긴 때"] = when + (f" ({minutes}분 전 — 이번 일 즈음 새로 생긴 폴더)" if minutes < 60 else "")
+        return card
+
     def request_path_access(self, arguments: dict[str, Any]) -> dict[str, Any]:
         """이 폴더를 열어 달라고 **사람에게** 묻는다. L2 라서 승인 없이는 여기까지 오지 않는다."""
         raw = str(arguments.get("path") or "").strip()
@@ -2335,13 +2488,8 @@ class LocalComputerTools:
                 else "이 자리는 허용 목록 밖입니다. "
             )
             # ★ 막기만 하면 모델은 같은 호출을 되풀이한다. **넓히는 길**을 같이 준다 (2026-09-20).
-            door = (
-                f"여기에 쓰려면 `local_request_path_access`(path='{path.parent}', mode='write') 로 "
-                "사장님께 여쭤 보세요 — 승인 카드가 뜹니다."
-                if write
-                else f"여기를 읽으려면 `local_request_path_access`(path='{path.parent}', mode='read') 로 "
-                "사장님께 여쭤 보세요 — 승인 카드가 뜹니다."
-            )
+            #   11-08: 모든 팩이 같은 문장을 쓴다(`access_door`) — 쓰기를 못 넓히는 모델에게 카드를 권하지 않는다.
+            door = self.access_door(path.parent, "write" if write else "read")
             raise PermissionError(
                 f"path_outside_allowed_roots: 「{raw}」은 {path} 로 풀렸습니다. "
                 f"{hint}{'쓸' if write else '볼'} 수 있는 자리: {roots} | {door}"
@@ -3015,9 +3163,17 @@ class LocalComputerTools:
         arguments = _with_aliases(arguments)
         path = self._resolve_mutation_path(arguments, must_exist=False)
         content = str(arguments.get("content") or "")
-        return self._commit_bytes(
-            path, content.encode("utf-8"), job_id=self._job_id(arguments), action="local_write_file"
-        )
+        raw = content.encode("utf-8")
+        # ★ 이어 쓰기 (2026-11-09 · `truncated_call`). 긴 글(자막 2.2만 자)을 한 번에 담으면 출력 한도에서 인자가 잘린다 —
+        #   앞부분을 쓰고 나머지를 같은 path 에 붙여 나눠 쓴다. 파일이 없으면 새로 쓰는 것과 같다.
+        appended = bool(arguments.get("append")) and path.is_file()
+        if appended:
+            raw = path.read_bytes() + raw
+        result = self._commit_bytes(path, raw, job_id=self._job_id(arguments), action="local_write_file")
+        if appended:
+            result["appended"] = True
+            result["appended_chars"] = len(content)
+        return result
 
     def apply_edit(self, arguments: dict[str, Any]) -> dict[str, Any]:
         CodeIndex.note_write()  # 저장소가 바뀌었을 수 있다 — 다음 색인 질의는 다시 훑는다(`CodeIndex.FRESH_REUSE_SEC`)
@@ -4602,6 +4758,12 @@ class LocalComputerTools:
         arguments = self._document_arguments(arguments)
         path = self._resolve_mutation_path(arguments, must_exist=False)
         fmt = str(arguments.get("format") or path.suffix or "").lower().lstrip(".")
+        # ★ 이어 쓰기는 글 형식만 (2026-11-09 · `truncated_call`). 워드 · 한글 · 엑셀은 파일 속이 압축 묶음이라 끝에 붙일 수 없다.
+        if arguments.get("append") and fmt not in {"md", "txt"}:
+            raise ValueError(
+                f"append_text_only — 이어 쓰기(append)는 md · txt 만 된다({fmt} 는 안 된다). "
+                "긴 글이면 md 로 나눠 쓰거나, 이 형식은 내용을 줄여 한 번에 써라."
+            )
         # ★ 숫자 · 날짜가 확실히 틀렸으면 저장 전에 한 번 돌려보낸다 (2026-10-25 · `doc_checks`). 꼴 카드가 「검사는 코드로」라고
         #   적었으니 코드가 한다. 지난 문서 쓰기 1,116번에 대 보니 걸린 3번이 모두 진짜(없는 요일) — 헛걸림 0.
         #   결과에 경고를 덧붙이지 않고(10-05: 덧붙인 글이 판을 흔든다) 저장 전에 고치게 한다. 두 번째는 받는다(고리 방지).
@@ -4692,14 +4854,19 @@ class LocalComputerTools:
         detoured = self._detoured_by_job.setdefault(job, {})
         if str(path).lower() in detoured:
             path = Path(detoured[str(path).lower()])
-        elif path.exists() and str(path).lower() not in {item.lower() for item in made}:
+        elif (
+            path.exists() and str(path).lower() not in {item.lower() for item in made}
+            # 이어 쓰기는 있는 글을 지우지 않는다(백업도 아래에서 그대로 뜬다) — 「기존 파일 아래에 덧붙여」가 옆 파일로 새면 안 된다.
+            and not (arguments.get("append") and fmt in {"md", "txt"})
+        ):
             spare = _unused_sibling(path)
             kept_theirs = f"「{path.name}」이 이미 있어서 덮지 않고 「{spare.name}」로 새로 만들었습니다(원래 파일은 그대로입니다)."
             detoured[str(path).lower()] = str(spare)
             path = spare
         existed, backup, before_sha = self._backup(path, job)
+        appending = bool(arguments.get("append")) and fmt in {"md", "txt"} and path.is_file()
         try:
-            shape = write_document(path, fmt, dict(arguments))
+            shape = _append_document(path, fmt, dict(arguments)) if appending else write_document(path, fmt, dict(arguments))
         except PermissionError:
             spare = _unused_sibling(path)
             shape = write_document(spare, fmt, dict(arguments))
@@ -5760,16 +5927,186 @@ class LocalComputerTools:
         (커서의 Run Mode 와 같은 자리, 사장님 요청).
         """
         command = str(arguments.get("command") or "")
+        # 뒤에서 띄운 명령의 상태 · 기록을 보는 것은 보기만 하는 일이다(2026-11-08).
+        if not command.strip() and str(arguments.get("background_id") or "").strip():
+            return RiskLevel.L1
         if self._shell_looks_read_only(command):
             return RiskLevel.L1
         if getattr(self.config, "shell_autorun_enabled", False):
             return RiskLevel.L1
         return RiskLevel.L2
 
+    # ── 뒤에서 띄우는 명령 (2026-11-08) ─────────────────────────────────────────────────────────────
+    #
+    # ★ 게임 시험 2-2: 맥 손자리가 공식 문서대로 Unity Hub 명령줄 설치를 띄웠는데, 셸 도구의 시간 제한(최대 600초)이
+    #   15:49:20 → 15:59:30 에 프로세스를 통째로 끊었다. 받기(3.9GB)만 끝나고 깔기 전에 잘려 에디터가 안 깔렸다.
+    #   설치 · 빌드는 10분을 넘는 게 정상이다 — 윈도우도 같다. 그래서 「뒤에서 띄우고, 번호로 확인」하는 길을 같은 도구에 둔다.
+    #   새 도구가 아니라 같은 도구의 칸이라 승인 카드 · 보안 거부 · 단계 규칙이 **그대로** 걸린다.
+    #   백엔드가 다시 뜨면 번호 장부는 사라진다(프로세스는 계속 돈다) — 그때는 기록 파일 자리와 「모름」을 돌려준다.
+    _BACKGROUND_MAX_RUNNING = 3
+    _BACKGROUND_TAIL_CHARS = 6_000
+
+    def _background_dir(self) -> Path:
+        folder = Path(getattr(self.config, "data_dir", Path.home())) / "shell_background"
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    def _background_table(self) -> dict[str, dict[str, Any]]:
+        table = getattr(self, "_background_jobs", None)
+        if table is None:
+            table = {}
+            self._background_jobs = table
+        return table
+
+    def _background_start(self, command: str, executable: list[str], *, root: Any,
+                          environment: dict[str, str]) -> dict[str, Any]:
+        table = self._background_table()
+        running = [key for key, row in table.items() if row["process"].poll() is None]
+        if len(running) >= self._BACKGROUND_MAX_RUNNING:
+            raise RuntimeError(
+                f"background_limit: 뒤에서 도는 명령이 이미 {len(running)}개다({', '.join(running)}). "
+                "하나가 끝난 뒤 띄워라 — background_id 로 상태를 본다."
+            )
+        known = getattr(self, "known_secrets", None)
+        if known is not None:
+            try:
+                known.learn_environment(environment)
+                known.learn_near(root)
+            except Exception:  # noqa: BLE001 — 배우다 틀어져도 명령은 돈다
+                pass
+        background_id = "bg" + secrets.token_hex(4)
+        folder = self._background_dir()
+        log_path = folder / f"{background_id}.log"
+        # 끝나면 지우는 임시 자리(`scratch_home`)를 쓸 수 없다 — 명령이 끝나기 전에 이 함수가 돌아온다. 이 번호의 자리를 준다.
+        child = dict(environment)
+        scratch = folder / f"{background_id}.scratch"
+        child["JARVIS_RUNTIME_ROOT"] = str(scratch)
+        child["JARVIS_BACKUP_DIR"] = str(scratch / "backup")
+        kwargs: dict[str, Any] = {}
+        if os.name == "nt":
+            # 창 없이 · 따로 된 무리로 — 백엔드가 다시 떠도 같이 죽지 않는다.
+            kwargs["creationflags"] = (getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                                       | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+        else:
+            kwargs["start_new_session"] = True
+        handle = log_path.open("ab")
+        try:
+            process = subprocess.Popen(  # noqa: S603 — 위 run_shell 의 거부 · 승인을 다 지난 같은 명령
+                executable, cwd=str(root), env=child, stdin=subprocess.DEVNULL,
+                stdout=handle, stderr=subprocess.STDOUT, **kwargs,
+            )
+        finally:
+            handle.close()
+        table[background_id] = {"process": process, "command": command, "log": log_path,
+                                "started": time.time(), "root": str(root)}
+        try:
+            (folder / f"{background_id}.json").write_text(json.dumps(
+                {"command": command, "pid": process.pid, "root": str(root), "started": time.time()},
+                ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+        return {
+            "action": "local_run_shell",
+            "background": True,
+            "background_id": background_id,
+            "pid": process.pid,
+            "command": command,
+            "path": str(root),
+            "log": str(log_path),
+            "verified": False,
+            "instruction": (
+                f"뒤에서 띄웠다. 끝났는지는 local_run_shell 에 command 없이 background_id=\"{background_id}\" 로 본다"
+                "(wait_sec 로 최대 120초 기다릴 수 있다). 끝난 걸 보기 전에는 「설치했다 · 빌드했다」고 말하지 마라."
+            ),
+        }
+
+    def _background_status(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        background_id = str(arguments.get("background_id") or "").strip()
+        if not re.fullmatch(r"bg[0-9a-f]{8}", background_id):
+            raise ValueError("background_id_unknown: 뒤에서 띄울 때 돌려받은 번호(bg 로 시작)를 그대로 줘라.")
+        folder = self._background_dir()
+        log_path = folder / f"{background_id}.log"
+        row = self._background_table().get(background_id)
+        if row is None and not log_path.exists():
+            raise ValueError("background_id_unknown: 그런 번호로 띄운 명령이 없다.")
+        wait = max(0, min(int(arguments.get("wait_sec") or 0), 120))
+        exit_code: int | None = None
+        state = "unknown"
+        if row is not None:
+            process = row["process"]
+            deadline = time.monotonic() + wait
+            while process.poll() is None and time.monotonic() < deadline:
+                time.sleep(min(2.0, max(0.05, deadline - time.monotonic())))
+            exit_code = process.poll()
+            state = "running" if exit_code is None else "finished"
+        tail = ""
+        try:
+            with log_path.open("rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                size = handle.tell()
+                handle.seek(max(0, size - 200_000))
+                tail = _decode_output(handle.read())
+        except OSError:
+            tail = ""
+        hidden = 0
+        known = getattr(self, "known_secrets", None)
+        if known is not None:
+            try:
+                tail, hidden = known.hide(tail)
+            except Exception:  # noqa: BLE001
+                hidden = 0
+        tail = tail[-self._BACKGROUND_TAIL_CHARS:]
+        result: dict[str, Any] = {
+            "action": "local_run_shell",
+            "background_id": background_id,
+            "state": state,
+            "exit_code": exit_code,
+            "log": str(log_path),
+            "log_tail": tail,
+            "verified": state == "finished" and exit_code == 0,
+            **({"elapsed_sec": round(time.time() - row["started"])} if row is not None else {}),
+            **({"secrets_hidden": hidden} if hidden else {}),
+        }
+        if state == "unknown":
+            result["instruction"] = (
+                "손자리가 다시 떠서 이 명령이 아직 도는지 모른다. 결과물(설치된 폴더 · 만든 파일)이 실제로 있는지 직접 확인해라."
+            )
+        elif state == "running":
+            result["instruction"] = "아직 돈다. 다른 일을 하다가 다시 보거나 wait_sec 로 기다려라. 끝나기 전에 끝났다고 말하지 마라."
+        return result
+
+    # ── 프로그램 들이기 (2026-11-08 · app_install) ──────────────────────────────────────────────────────
+    def _installer_path(self, arguments: dict[str, Any]) -> Path:
+        raw = str(arguments.get("path") or "").strip()
+        if not raw:
+            raise ValueError("path_required — 받아 둔 설치 파일 경로(path)를 넣어 다시 불러라.")
+        return Path(os.path.expandvars(raw)).expanduser().resolve(strict=False)
+
+    def _install_app_pre_check(self, arguments: dict[str, Any]) -> None:
+        from . import app_install
+
+        app_install.require_trusted(self._installer_path(arguments))
+
+    def _install_app_describe(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        from . import app_install
+
+        try:
+            return app_install.describe(self._installer_path(arguments))
+        except Exception as exc:  # noqa: BLE001 — 카드 설명이 못 되면 카드에 까닭을 보인다(승인은 실행 때 다시 확인)
+            return {"확인": str(exc)[:200]}
+
+    def install_app(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        from . import app_install
+
+        result = app_install.install(self._installer_path(arguments))
+        return {"action": "local_install_app", **result}
+
     def run_shell(self, arguments: dict[str, Any]) -> dict[str, Any]:
         """작업 폴더에서 PowerShell 한 줄. **검은 창은 절대 안 뜬다.**"""
-        CodeIndex.note_write()  # 저장소가 바뀌었을 수 있다 — 다음 색인 질의는 다시 훑는다(`CodeIndex.FRESH_REUSE_SEC`)
         command = str(arguments.get("command") or "").strip()
+        if not command and str(arguments.get("background_id") or "").strip():
+            return self._background_status(arguments)
+        CodeIndex.note_write()  # 저장소가 바뀌었을 수 있다 — 다음 색인 질의는 다시 훑는다(`CodeIndex.FRESH_REUSE_SEC`)
         if not command:
             raise ValueError("command_required")
         if len(command) > 2000:
@@ -5782,6 +6119,8 @@ class LocalComputerTools:
             )
         if _SHELL_FORBIDDEN_PATHS.search(command):
             raise PermissionError("system_folder_blocked: 시스템 폴더는 건드리지 않습니다.")
+        if refusal := _gui_app_refusal(command):
+            raise ValueError(refusal)
         # ★ 자동 실행을 켜도 **안 연다** — 손자리가 자기 자신을 바꾸는 명령(`names_our_own_install`). 보기만 하는 명령은 둔다.
         own = "" if self._shell_looks_read_only(command) else self.names_our_own_install(command)
         if own:
@@ -5811,13 +6150,21 @@ class LocalComputerTools:
             "-Command",
             _PS_UTF8_PRELUDE + command,
         ] if os.name == "nt" else ["/bin/sh", "-c", command]
+        if arguments.get("background") is True:
+            return self._background_start(command, executable, root=root, environment=environment)
         started = time.monotonic()
         # 시간 제한에 걸리면 그 아래 프로세스까지 끝내고 돌아온다 — `run_captured` 의 설명.
         exit_code, stdout, stderr, timed_out, secret_notes = self._run_for_model(
             executable, root=root, environment=environment, timeout_sec=timeout_sec, creationflags=creation,
         )
+        gui_note = (
+            {"instruction": "시간 제한까지 끝나지 않았다. 맥 .app 속 실행 파일을 셸로 부르면 창 있는 앱이 떠서 안 끝난다 — 그 앱의 "
+                            "명령줄 모드(--headless · --help 에 나오는 것)를 쓰거나, 오래 걸리는 일이면 background=true 로 띄워라."}
+            if timed_out and _MAC_APP_BINARY.search(command) else {}
+        )
         return {
             **secret_notes,
+            **gui_note,
             "action": "local_run_shell",
             "command": command,
             "path": str(root),

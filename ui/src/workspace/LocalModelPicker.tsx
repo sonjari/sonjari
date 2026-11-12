@@ -113,6 +113,8 @@ export function LocalModelPicker({ api, role, label, context, contextLength, onC
     if (!api) return;
     try {
       setView(await api.modelPicker(role));
+      // ★ 11-11 맥: 손자리를 다시 켜는 사이 한 번 끊긴 「Load failed」가 다음에 잘 읽혀도 칸에 그대로 남았다 — 성공하면 지운다.
+      setError("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     }

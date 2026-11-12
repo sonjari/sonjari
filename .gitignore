@@ -6,3 +6,6 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 packaging/msix/secret_prefixes.local.txt
+# ★ 11-08 밤: 위 build/ 가 게임 팩 부품(unity-mcp)의 Editor/Tools/Build 까지 무시해 git · 공개 저장소 · 맥 앱에서 빠졌다
+#   → 맥 유니티에서 ManageBuild.cs 가 CS0234 로 컴파일 실패. 부품의 Build 는 소스다.
+!packs/game/vendor/unity-mcp/MCPForUnity/Editor/Tools/Build/

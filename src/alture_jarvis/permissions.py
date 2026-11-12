@@ -44,6 +44,8 @@ ALWAYS_ASK: frozenset[str] = frozenset({
     # 이 PC 를 바꾼다
     "windows_execute_preview",
     "local_request_path_access",
+    # 프로그램을 들인다 — 서명 확인 뒤에도 사람이 본다(2026-11-08 대표 「승인 카드로」).
+    "local_install_app",
 })
 
 #: **권한 무시** 모드에서도 사람이 보는 것 — 돈이 오가거나 남에게 나가는 것만 (2026-09-23 사장님 결정).

@@ -185,6 +185,8 @@ class OllamaInstaller:
         self.install_root = Path(install_root)
         #: 서버 보관함 한도(`ollama_launch_env`). -1 = 메모리에 맞춰 · 0 = 손대지 않음 · 양수 = MiB.
         self.prompt_cache_mib = int(prompt_cache_mib)
+        #: 램 부스트 중 엔진에 더 줄 환경(`ram_boost.plan` 의 env · 2026-11-11). 비면 예전과 한 글자도 다르지 않다.
+        self.boost_env: dict[str, str] = {}
         #: 사람이 **공식 설치 파일로** 깐 Ollama 의 트레이 앱 자리. 우리 설치가 없을 때 이것을 켠다.
         self.system_apps = tuple(system_apps) if system_apps is not None else _system_app_candidates()
         #: 예전에 깔던 자리(앱 데이터 안). 거기 멀쩡한 설치가 있으면 **다시 받지 않고 옮겨 온다.**
@@ -681,6 +683,32 @@ class OllamaInstaller:
             self.publish("ollama_orphan_runners_cleared", {"pids": killed})
         return killed
 
+    def _launch_env(self) -> dict[str, str]:
+        """Ollama 를 켤 때 줄 환경 — 예전 것(`ollama_launch_env`)에 램 부스트 몫을 얹는다.
+
+        부스트 중에는 엔진의 대화 보관함을 줄인다(`ram_boost.lower_cache_ram`) — 전문가가 램을 먹는다. 사람이 정해 둔 값은 그대로.
+        """
+        env = ollama_launch_env(self.prompt_cache_mib)
+        if self.boost_env:
+            from .ram_boost import lower_cache_ram
+
+            if PROMPT_CACHE_ENV in env and PROMPT_CACHE_ENV not in os.environ:
+                try:
+                    env[PROMPT_CACHE_ENV] = str(lower_cache_ram(int(env[PROMPT_CACHE_ENV])))
+                except ValueError:
+                    pass
+            env.update(self.boost_env)
+        return env
+
+    def set_boost(self, env: dict[str, str] | None, *, wait_sec: float = 40.0) -> dict[str, Any]:
+        """램 부스트를 켜거나(env) 끄고(None) Ollama 를 그 환경으로 다시 켠다. 바뀐 것이 없으면 다시 켜지 않는다."""
+        wanted = dict(env or {})
+        if wanted == self.boost_env:
+            return {"ok": True, "restarted": "unchanged", "boost": bool(wanted)}
+        self.boost_env = wanted
+        result = self._restart_with_env({}, written=True, find_processes=None, kill=None, wait_sec=wait_sec)
+        return {**result, "boost": bool(wanted)}
+
     def serve(self, *, wait_sec: float = 30.0) -> dict[str, Any]:
         """우리 Ollama 를 켠다. **한 번에 한 사람만** (2026-10-05 AWS 영어 윈도우 첫 실행).
 
@@ -705,7 +733,7 @@ class OllamaInstaller:
                 return {"ok": False, "error": "not_installed"}
             return self._serve_system_app(app, wait_sec=wait_sec)
         # 사용자가 Ollama 를 위해 정해 둔 카드 제한은 **그대로** 돌려준다 — 온텔릭 자신은 그 값을 안 물려받았다(gpu_policy).
-        env = ollama_launch_env(self.prompt_cache_mib)
+        env = self._launch_env()
         host = self.base_url.split("://", 1)[-1]
         env["OLLAMA_HOST"] = host
         if needs_gpu_only():
@@ -767,7 +795,7 @@ class OllamaInstaller:
                     return {"ok": True, "external": True, "app": str(app)}
                 time.sleep(0.5)
             return {"ok": False, "error": "system_ollama_not_answering"}
-        env = ollama_launch_env(self.prompt_cache_mib)
+        env = self._launch_env()
         if needs_gpu_only():
             env["OLLAMA_VULKAN"] = "0"
         flags = (CREATE_NO_WINDOW | 0x00000008) if os.name == "nt" else 0  # DETACHED_PROCESS
@@ -889,7 +917,7 @@ class OllamaInstaller:
         #   손자리 자신의 GPU 설정(`gpu_policy` — 모든 카드)이 Ollama 로 새었다. 컨텍스트를 적용하며 다시 켠 Ollama 가
         #   3090 + 3060(화면 카드) 두 장에 모델을 나눠 올렸고, 적재율을 못 읽어 다음 적용이 거절됐다.
         #   Ollama 를 켜는 다른 두 자리(`serve`·시스템 앱)는 이미 이 함수를 쓴다 — 세 번째 자리만 빠져 있었다.
-        env = {**ollama_launch_env(self.prompt_cache_mib), **env_updates}
+        env = {**self._launch_env(), **env_updates}
         flags = (CREATE_NO_WINDOW | 0x00000008) if os.name == "nt" else 0  # DETACHED_PROCESS
         command = [app] if app else [exe, "serve"]
         self.popen(command, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,

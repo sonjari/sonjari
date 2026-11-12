@@ -547,6 +547,10 @@ def _repeat_notice(
         return observation
     payload = observation.get("result")
     payload = dict(payload) if isinstance(payload, dict) else {}
+    # ★ 2026-11-08: 뒤에서 도는 설치 · 빌드를 번호로 다시 보는 것은 정상 반복이다 — 아직 돈다는 답에 「다른 걸 해라」를 붙이면
+    #   모델이 끝나기 전에 설치를 포기하거나 다시 띄운다.
+    if payload.get("background_id") and payload.get("state") == "running":
+        return observation
     if same_failure_count >= 2:
         instruction = (
             f"★ [도구가 보낸 안내] {tool}를 같은 인자로 불러 **같은 실패가 {same_failure_count}번** 났다. "

@@ -111,4 +111,17 @@ def test_the_refusal_asks_this_and_not_on_the_last_turn() -> None:
     source = inspect.getsource(agent)
     refusal = source[source.index("elif stage_hands is not None and name not in stage_hands and not ("):]
     refusal = refusal[:refusal.index("and not _deletes_own_file(name, arguments, steps):")]
-    assert "or (not deliver_turn_used and _goes_to_unread_site(name, arguments, steps))" in refusal
+    assert "bool(gate_pass)" in refusal
+    # 11-09 부터 문은 `stage_gate_lets_through` 하나로 가른다 — 안 읽은 사이트 안을 걷는 손은 마지막 차례가 아닐 때만 받는다.
+    from alture_jarvis.plan_nudges import stage_gate_lets_through
+
+    steps = [
+        {"tool": "browser_open", "ok": True, "arguments": {"url": DANAWA_LIST}, "evidence": {"url": DANAWA_LIST}},
+        {"tool": "browser_extract", "ok": True, "arguments": {}, "evidence": {"url": DANAWA_LIST}},
+        {"tool": "browser_open", "ok": True, "arguments": {"url": "https://www.11st.co.kr"}, "evidence": {"url": ST11_LIST}},
+        {"tool": "browser_extract", "ok": True, "arguments": {}, "evidence": {"url": ST11_LIST}},
+        {"tool": "browser_open", "ok": True, "arguments": {"url": GMARKET_HOME}, "evidence": {"url": GMARKET_HOME}},
+    ]
+    walk = ("browser_site_search", {"query": "가상 상품"}, steps)
+    assert stage_gate_lets_through(*walk, plan_results=[], request="", deliver_turn=False) == "unread_site"
+    assert stage_gate_lets_through(*walk, plan_results=[], request="", deliver_turn=True) == ""

@@ -1389,15 +1389,38 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         return model.ollama_tag if model is not None else ""
 
     def _is_fast(tag: str) -> bool:
+        # ★ 11-11 비트 사다리: 3.6 4비트도 「빠른 모델」이다(램 부스트로 올린다) — 2비트 하나만 보면 4비트로 넘긴 뒤 판마다 다시 넘긴다.
+        from .ram_boost import BOOST_LADDER
+
+        fast = {_model_fallback.FAST_KEY, *BOOST_LADDER}
         found = _catalog_by_tag(tag)
-        return (found is not None and found.key == _model_fallback.FAST_KEY) or _text_only_key(tag) == _model_fallback.FAST_KEY
+        return (found is not None and found.key in fast) or _text_only_key(tag) in fast
+
+    def _tag_of(key: str) -> str:
+        model = _catalog_by_key(key)
+        return model.ollama_tag if model is not None else ""
+
+    from . import gpu_mode as _gpu_mode
 
     if not setup_service.is_satellite:
+        # 램 부스트(2026-11-11) — 윈도우에서만. 맥은 통합 메모리라 해당 없다.
+        _booster = None
+        installer = getattr(runtime, "ollama_installer", None)
+        if os.name == "nt" and installer is not None:
+            from .ram_boost import Booster as _Booster
+
+            _booster = _Booster(
+                installer=installer, service=setup_service, data_dir=runtime.config.data_dir,
+                audit=lambda event, payload: runtime.store.add_audit(event, str(payload.get("job_id") or ""), payload),
+            )
+        runtime.ram_booster = _booster
         runtime.model_fallback = _model_fallback.Fallback(
             service=setup_service, config=runtime.config, data_dir=runtime.config.data_dir,
-            installed=_installed_tags, fast_tag=_fast_tag, is_fast=_is_fast,
+            installed=_installed_tags, fast_tag=_fast_tag, is_fast=_is_fast, booster=_booster,
+            tag_of=_tag_of, gpu_mode=lambda: _gpu_mode.read_mode(runtime.config.data_dir),
         )
         runtime.agent.model_fallback = runtime.model_fallback.on_spill
+        runtime.agent.model_keep_free = runtime.model_fallback.keep_free
 
     # ── 업데이트 뒤 「바뀐 것 · 이미 되는 것」 (2026-10-20 대표 · `whats_new`) ──────────────────────
     from . import whats_new as _whats_new
@@ -1559,8 +1582,15 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         if path not in _LLM_PATHS or not _lends_models():
             return JSONResponse({"error": "not_allowed"}, status_code=403)
         base = str(runtime.config.ollama_base_url).rstrip("/")
+        # 짝지은 기기의 대화 · 생성도 「모델을 쓰는 중」으로 센다 — 서기 · 데우기가 그 사이에 끼어들지 않게(11-08).
+        speaks = path in ("api/chat", "api/generate")
+        note = getattr(runtime.ollama, "note_outside_call", None)
+        if speaks and callable(note):
+            note()
+        done = (lambda _ok: note()) if speaks and callable(note) else None
         return await _relay(request.method, f"{base}/{path}",
-                            {"Content-Type": request.headers.get("content-type", "application/json")}, await request.body())
+                            {"Content-Type": request.headers.get("content-type", "application/json")}, await request.body(),
+                            on_done=done)
 
     # 이 맥 쪽 — 모델 호출을 집 PC 로 넘기는 길(이 기기 안에서만). 토큰은 여기서만 붙인다.
     _home_token: dict[str, str] = {}
@@ -2080,8 +2110,12 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     @app.post("/v1/setup/models/pull", dependencies=[Depends(require_token)])
     def setup_pull(body: dict[str, Any]) -> dict[str, Any]:
         eyes = body.get("eyes")
-        return setup_service.start_pull(str(body.get("model_key") or ""), int(body.get("apply_ctx") or 0),
-                                        eyes=bool(eyes) if isinstance(eyes, bool) else None)
+        key, ctx = str(body.get("model_key") or ""), int(body.get("apply_ctx") or 0)
+        applier = None
+        # 「램 부스트」 카드를 받으면 다 받은 뒤 부스트로 올린다(2026-11-11 · 아래 `setup_apply` 와 같은 길).
+        if body.get("ram_boost") is True and ctx:
+            applier = lambda: setup_apply({"model_key": key, "num_ctx": ctx, "ram_boost": True})  # noqa: E731
+        return setup_service.start_pull(key, ctx, eyes=bool(eyes) if isinstance(eyes, bool) else None, applier=applier)
 
     # ── 첫 실행 판정 (W2) — 앱이 이 파일이 없으면 마법사 창을 연다 ───────────────
     from . import setup_state
@@ -2154,8 +2188,28 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def setup_apply(body: dict[str, Any]) -> dict[str, Any]:
         # `eyes: false` — 그림 부속을 뺀 「글만 읽기」로 올린다. 안 주면 예전 그대로다.
         eyes = body.get("eyes")
-        return setup_service.apply(str(body.get("model_key") or ""), int(body.get("num_ctx") or 0),
-                                   eyes=eyes if isinstance(eyes, bool) else None)
+        key, ctx = str(body.get("model_key") or ""), int(body.get("num_ctx") or 0)
+        # 「램 부스트」 카드(2026-11-11) — 남이 쥔 카드 몫을 재서 엔진에 비워 두라 하고, 나머지는 램으로 올린다.
+        booster = getattr(runtime, "ram_booster", None)
+        if body.get("ram_boost") is True:
+            if booster is None:
+                return {"ok": False, "error": "ram_boost_unavailable"}
+            from .gpu_pressure import read_card as _read_card
+
+            try:
+                card = _read_card()
+            except Exception:  # noqa: BLE001 — 못 재면 엔진 기본 여유만
+                card = None
+            facts = {"card_used_gb": card["used_gb"], "card_total_gb": card["total_gb"]} if card else {}
+            outcome = booster.engage(key, ctx, facts, reason="wizard")
+            if outcome.get("action") != "boosted":
+                return {"ok": False, "error": f"ram_boost_{outcome.get('why') or outcome.get('error') or 'failed'}",
+                        "ram_boost": outcome}
+            return {**(outcome.get("applied") or {"ok": True}), "ram_boost": outcome}
+        # 보통 카드를 고르면 켜져 있던 램 부스트는 끈다 — 그 카드는 그래픽카드에 통째로 들어간다고 잰 것이다.
+        if booster is not None and booster.active:
+            booster.release()
+        return setup_service.apply(key, ctx, eyes=eyes if isinstance(eyes, bool) else None)
 
     # ── 목록 밖 모델 (M3) — 이미 받은 모델 · 직접 입력 ─────────────────────────────
     @app.get("/v1/setup/models/installed", dependencies=[Depends(require_token)])
@@ -2190,11 +2244,43 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def setup_hf_files(repo: str = "", usable_gb: float = 0.0, ctx: int = 32768) -> dict[str, Any]:
         return hf_catalog.files(repo, _usable(usable_gb), ctx)
 
+    def _release_boost_unless_fast(tag: str, role: str = "chat") -> None:
+        """다른 모델(밀집 27B 등)로 바꾸면 램 부스트를 끈다 — 그 환경은 Ollama 전체에 걸려 그 모델까지 카드 몫을 비워 느려진다(2026-11-11)."""
+        booster = getattr(runtime, "ram_booster", None)
+        if booster is None or not booster.active or role != "chat" or _is_fast(tag):
+            return
+        try:
+            booster.release()
+        except Exception:  # noqa: BLE001 — 못 꺼도 모델은 바꾼다
+            pass
+
     @app.post("/v1/setup/models/apply-tag", dependencies=[Depends(require_token)])
     def setup_apply_tag(body: dict[str, Any]) -> dict[str, Any]:
         eyes = body.get("eyes")
+        _release_boost_unless_fast(str(body.get("tag") or ""))
         return setup_service.apply_tag(str(body.get("tag") or ""), int(body.get("num_ctx") or 32768),
                                        eyes=eyes if isinstance(eyes, bool) else None)
+
+    # ── 그래픽카드 쓰는 법 (2026-11-11 대표: 램 부스트를 사람이 고르게) ────────────────────
+    @app.get("/v1/setup/gpu-mode", dependencies=[Depends(require_token)])
+    def setup_gpu_mode() -> dict[str, Any]:
+        return _gpu_mode.view(runtime.config.data_dir, getattr(runtime, "ram_booster", None))
+
+    @app.post("/v1/setup/gpu-mode", dependencies=[Depends(require_token)])
+    def setup_gpu_mode_set(body: dict[str, Any]) -> dict[str, Any]:
+        mode = str(body.get("mode") or "")
+        try:
+            _gpu_mode.write_mode(runtime.config.data_dir, mode)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        booster = getattr(runtime, "ram_booster", None)
+        # 「속도 우선」으로 바꾸면 켜져 있던 램 부스트를 끈다 — 다음 판부터 그래픽카드에 다 올린다.
+        if mode == "speed" and booster is not None and booster.active:
+            try:
+                booster.release()
+            except Exception:  # noqa: BLE001 — 못 꺼도 고른 것은 저장됐다
+                pass
+        return _gpu_mode.view(runtime.config.data_dir, booster)
 
     # ── 머리의 모델 이름을 눌렀을 때 (2026-09-21) ──────────────────────────────
     # 카탈로그와 이 PC 의 Ollama 를 **한 번에** 합쳐서 준다. 역할(chat·code)마다 따로.
@@ -2218,6 +2304,7 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
 
     @app.post("/v1/setup/models/select", dependencies=[Depends(require_token)])
     def setup_model_select(body: dict[str, Any]) -> dict[str, Any]:
+        _release_boost_unless_fast(str(body.get("tag") or ""), str(body.get("role") or "chat"))
         return setup_service.select(
             str(body.get("tag") or ""),
             str(body.get("role") or "chat"),

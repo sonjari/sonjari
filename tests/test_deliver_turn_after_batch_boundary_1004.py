@@ -29,11 +29,13 @@ def test_the_post_batch_boundary_also_gives_the_deliver_turn() -> None:
     assert "deliver_turn_used = True" in grant
     assert "step_limit = max(step_limit, len(steps) + 3)" in grant  # 루프가 다시 돈다
     assert '"agent_deliver_before_wrap_up"' in grant
-    assert "_DELIVER_TURN_NOTE" in grant
+    assert "_deliver_turn_note(steps)" in grant  # 11-08: 같은 안내 + 돌려보낸 쓰기의 까닭
 
 
 def test_both_boundaries_say_the_same_thing_once() -> None:
     source = inspect.getsource(BrowserAgent.run)
 
-    assert source.count('messages.append({"role": "user", "content": _DELIVER_TURN_NOTE})') == 2
+    # 11-08: 두 자리 다 같은 도우미로(앞서 돌려보낸 쓰기의 까닭을 붙인다) — 같은 말을 한다는 뜻은 그대로.
+    assert source.count('messages.append({"role": "user", "content": _deliver_turn_note(steps)})') == 2
+    assert agent._deliver_turn_note([]) == agent._DELIVER_TURN_NOTE
     assert "local_write_document" in agent._DELIVER_TURN_NOTE and "새로 검색·열기를 하지 말고" in agent._DELIVER_TURN_NOTE

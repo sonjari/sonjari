@@ -50,13 +50,20 @@ def test_only_reading_is_let_through_not_more_searching() -> None:
 
 
 def test_the_stage_refusal_asks_this_before_refusing() -> None:
+    """11-09 부터 차례의 문은 한 함수(`stage_gate_lets_through`)로 가른다 — 같은 판정을 그 함수로 확인한다."""
+    gate = agent.stage_gate_lets_through
+    steps = [_open(LIST), _read(), _open(POST)]
+    for deliver in (False, True):
+        assert gate("browser_extract", {}, steps, plan_results=[], request="", deliver_turn=deliver) == "found_unread"
+    # 「전부」 판은 새 주소 열기도 받는다(남은 읽기로 센다) — 그 말이 없고 남은 읽기도 없으면 막힌다.
+    fresh = {"url": "https://www.reddit.com/r/LocalLLaMA/comments/1vnew00/other_post/"}
+    read_post = [_open(POST), _read()]
+    assert gate("browser_open", fresh, read_post, plan_results=[], request="", deliver_turn=True, wants_everything=True)
+    assert not gate("browser_open", fresh, read_post, plan_results=[], request="", deliver_turn=True)
     source = inspect.getsource(agent)
     refusal = source[source.index("elif stage_hands is not None and name not in stage_hands and not ("):]
     refusal = refusal[:refusal.index("observation = {")]
-
-    assert "or _reads_page_just_opened(name, steps)" in refusal
-    # 「전부」 판에만 걸려 있던 예외의 읽기 쪽을 넓힌 것이다 — 새 주소 열기는 여전히 그 판에서만.
-    assert "_wants_everything" in refusal and "_fresh_read_for_everything(name, arguments, steps)" in refusal
+    assert "bool(gate_pass)" in refusal
     # 차례가 없는 자리(코드 판의 최종 답 강제 — 손이 하나도 없다)에는 안 걸린다.
     assert "stage_hands and (" in refusal
 
@@ -85,8 +92,7 @@ def test_read_pages_and_third_opens_stay_refused() -> None:
 
 
 def test_the_stage_refusal_also_asks_about_unread_pages() -> None:
-    source = inspect.getsource(agent)
-    refusal = source[source.index("elif stage_hands is not None and name not in stage_hands and not ("):]
-    refusal = refusal[:refusal.index("observation = {")]
-
-    assert "or _reopens_unread_page(name, arguments, steps)" in refusal
+    steps = [_open(LIST), _read(), _open(POST), _open(OTHER), _read()]  # POST 는 열기만 했다
+    assert agent.stage_gate_lets_through(
+        "browser_open", {"url": POST}, steps, plan_results=[], request="", deliver_turn=True,
+    ) == "found_unread"

@@ -284,15 +284,18 @@ fn sjAlign n target = (
   local ang = acos (amax -1.0 (amin 1.0 d0))
   local base = n.transform
   local best = d0
+  local bestRot = base.rotation
   for sgn in #(1, -1) do (
     local r = (angleaxis (ang * sgn) ax) as matrix3
     local tm = copy base
     tm.row1 = base.row1 * r; tm.row2 = base.row2 * r; tm.row3 = base.row3 * r
     biped.setTransform n #rotation tm.rotation true
     local d = dot (normalize n.transform.row1) t
-    if d > 0.99 do return d
-    if d > best then best = d else biped.setTransform n #rotation base.rotation true
+    -- 11-10 맥스 실측: 문턱이 0.99(약 8도)면 4도보다 작은 고침은 반대로 돌고도 통과했다(2도 → 목표와 4도 어긋남).
+    if d > 0.99999 do return d
+    if d > best do (best = d; bestRot = tm.rotation)
   )
+  biped.setTransform n #rotation bestRot true      -- 둘 다 덜 맞으면 가장 나았던 쪽(처음보다 나쁘면 처음 그대로)
   best
 )
 '''
@@ -332,14 +335,17 @@ fn sjFacing com lt rt target = (
   local ang = acos (amax -1.0 (amin 1.0 d0))
   if ang < 0.5 do return d0
   local base = com.transform
+  local best = d0
+  local bestRot = base.rotation
   for sgn in #(1, -1) do (
     local tm = copy base
     tm = tm * (inverse (transMatrix base.pos)) * ((angleaxis (ang * sgn) [0,0,1]) as matrix3) * (transMatrix base.pos)
     biped.setTransform com #rotation tm.rotation true
     local d = dot (hip lt rt) t
-    if d > 0.99 do return d
-    if d <= d0 do biped.setTransform com #rotation base.rotation true
+    if d > 0.99999 do return d          -- 11-10: 0.99 면 4도 아래는 반대로 돌고도 통과했다(sjAlign 과 같은 뿌리)
+    if d > best do (best = d; bestRot = tm.rotation)
   )
+  biped.setTransform com #rotation bestRot true
   dot (hip lt rt) t
 )
 '''
@@ -354,6 +360,43 @@ fn sjDeg2D n target = (
   )
 )
 '''
+
+
+#: 어깨 화면 폭 ÷ 화면 몸통 길이가 이보다 작으면 옆모습 — 앞 · 뒤를 숫자로 못 가른다(11-05 맥스 6번 0.01).
+FACING_SIDE = 0.1
+#: 어깨 · 골반 관절 확신도 가장 낮은 것이 이보다 작으면 좌우 이름표를 못 믿는다(11-10 · 블렌더 시험 캐릭터 2번 장면).
+#: 11-05 밤 시험 캐릭터 블로킹 6장면: 뒤집힌 2번 0.34 · 나머지 0.42~0.59. 2번은 옆모습 규칙(0.91)으로는 못 잡았다. 표본 6 — 다시 볼 것.
+FACING_SCORE = 0.4
+
+
+def facing_doubt(pose: dict[str, Any]) -> dict[str, Any]:
+    """몸이 보는 방향(골반 좌우 선)을 믿어도 되나. 블로킹은 골반 좌 → 우 선으로 몸통을 돌리므로, 이 선이 틀리면 장면이 통째로 좌우 · 앞뒤가 뒤집힌다.
+
+    11-10 시험 캐릭터 2번: 숫자로 바로잡을 단서(코 · 귀 · 무릎 굽는 쪽 · 몸 기울기)가 장면마다 어긋나 고치지는 못했다 — 대신 사람에게 짚어 준다.
+    """
+    J = pose["joints"]
+    sc = [(J[5][c] + J[6][c]) / 2 for c in range(3)]
+    hc = [(J[11][c] + J[12][c]) / 2 for c in range(3)]
+    torso = ((sc[0] - hc[0]) ** 2 + (sc[2] - hc[2]) ** 2) ** 0.5
+    side = abs(J[6][0] - J[5][0]) / torso if torso > 1e-6 else 0.0
+    score = pose.get("score")
+    low = min(float(score[k]) for k in (5, 6, 11, 12)) if score and len(score) > 12 else None
+    why = []
+    if side < FACING_SIDE:
+        why.append("옆모습(어깨가 화면에서 겹침)")
+    if low is not None and low < FACING_SCORE:
+        why.append(f"어깨 · 골반 관절을 흐리게 잡음(확신 {low:.2f})")
+    return {"sure": round(side, 2), "torso_score": None if low is None else round(low, 2), "unsure": bool(why), "why": why}
+
+
+def facing_report(poses: list[dict[str, Any]]) -> dict[str, Any] | None:
+    bad = [{"pose": p["no"], "why": " · ".join(fd["why"])} for p in poses if not p.get("missing")
+           for fd in [facing_doubt(p)] if fd["unsure"]]
+    if not bad:
+        return None
+    return {"poses": [b["pose"] for b in bad], "detail": bad,
+            "note": "이 장면은 몸이 보는 방향(앞 · 뒤 · 좌우)이 뒤집혔을 수 있다 — 영상과 나란히 놓고 사람이 확인하게 해라. "
+                    "뒤집혔으면 그 키에서 몸통(COM · 골반)만 수직축으로 돌리면 된다."}
 
 
 def key_frames(poses: list[dict[str, Any]], start: int, spacing: int, fps: float = 30.0,
@@ -394,13 +437,13 @@ def biped_fit_script(poses: list[dict[str, Any]], prefix: str, start: int, spaci
         # 화면 가로 어깨 폭 ÷ 화면 몸통 길이(골반 가운데→어깨 가운데)가 0.1 아래면 앞뒤를 숫자로 못 가른다 → 「방향 애매」로 보고.
         # (처음엔 3D 어깨 길이로 나눴는데 깊이 축 눈금이 화면과 달라 6번은 놓치고 맞게 나온 1번을 잡았다 — 화면 것끼리만 견준다.)
         # 문턱 0.1 은 장면 8개로 정했다: 6번 0.01 · 나머지 0.14~1.17(맞게 나온 1번이 0.14 로 가깝다 — 표본을 늘려 다시 볼 것)
-        sc = [(J[5][c] + J[6][c]) / 2 for c in range(3)]
-        hc = [(J[11][c] + J[12][c]) / 2 for c in range(3)]
-        torso = ((sc[0] - hc[0]) ** 2 + (sc[2] - hc[2]) ** 2) ** 0.5
-        sure = abs(J[6][0] - J[5][0]) / torso if torso > 1e-6 else 0.0
+        # 11-10: 어깨 · 골반 관절 확신도도 같이 남긴다(옆모습 규칙만으로는 블렌더 시험 캐릭터 2번을 못 잡았다) — facing_doubt
+        fdb = facing_doubt(p)
+        ts = "null" if fdb["torso_score"] is None else f'{fdb["torso_score"]:.2f}'
         L.append(f'(local fd = sjFacing (getNodeByName "{prefix}" exact:true) (getNodeByName "{prefix} L Thigh" exact:true) '
                  f'(getNodeByName "{prefix} R Thigh" exact:true) [{hv[0]:.4f},{hv[1]:.4f},{hv[2]:.4f}]; '
-                 f'format "{{\\"pose\\":{p["no"]},\\"frame\\":{f},\\"facing\\":%,\\"facing_sure\\":{sure:.2f}}}," fd to:rep)')
+                 f'format "{{\\"pose\\":{p["no"]},\\"frame\\":{f},\\"facing\\":%,\\"facing_sure\\":{fdb["sure"]:.2f},'
+                 f'\\"torso_score\\":{ts}}}," fd to:rep)')
         for tail, a, b in CHAIN:
             def pt(x):
                 if isinstance(x, list):
@@ -435,10 +478,12 @@ def read_fit_report(path: Path) -> dict[str, Any]:
     weak = [r for r in fitted if float(r["dot"]) < 0.95]
     out = {"bones": len(fitted), "weak": len(weak), "missing": sorted({r["bone"] for r in rows if r.get("missing")}),
            "weak_list": weak[:12]}
-    unsure = sorted({int(r["pose"]) for r in rows if "facing_sure" in r and float(r["facing_sure"]) < 0.1})
+    unsure = sorted({int(r["pose"]) for r in rows if "facing_sure" in r and (
+        float(r["facing_sure"]) < FACING_SIDE or (r.get("torso_score") is not None and float(r["torso_score"]) < FACING_SCORE))})
     if unsure:
         out["facing_unsure"] = {"poses": unsure,
-                                "note": "어깨가 화면에서 거의 겹친 옆모습이라 앞 · 뒤를 숫자로 못 가른다 — 이 장면은 몸 방향을 사람이 확인"}
+                                "note": "옆모습이거나 어깨 · 골반 관절을 흐리게 잡은 장면이라 앞 · 뒤 · 좌우가 뒤집혔을 수 있다 — "
+                                        "이 장면은 몸 방향을 사람이 확인"}
     degs = [float(r["deg2d"]) for r in fitted if float(r.get("deg2d", -1)) >= 0]
     if degs:
         degs.sort()

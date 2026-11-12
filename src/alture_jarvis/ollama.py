@@ -100,6 +100,27 @@ def reread_reason(previous: tuple[str, str, str] | None, current: tuple[str, str
     return ""
 
 
+#: 최근 부르기 모양을 몇 개까지 기억하나 — 일하는 길 · 대화 길 · 정찰 · 판정이 번갈아 와도 「같은 앞부분이 전에 있었나」를 본다.
+RECENT_SHAPES = 6
+
+
+def reread_reason_recent(recent: list[tuple[str, str, str]] | None, current: tuple[str, str, str]) -> str:
+    """직전 하나가 아니라 **최근 몇 개**와 견준 까닭 (2026-11-08 대표 맥 첫 걸음 25초).
+
+    직전 부르기만 보면, 사이에 낀 짧은 옆 부르기(도구 4개짜리)와 견줘 「도구 목록과 지침이 달라」라고 했다 — 정작 이 부르기의
+    앞부분은 11분 전 과제와 글자 하나 다르지 않았고, 느린 까닭은 그 사이 기억이 밀려난(엔진을 다시 띄운) 것이었다.
+    최근에 같은 모양이 있었으면 「사이에 다른 일이 끼어」로 말한다. 없으면 예전처럼 직전과 견준다.
+    """
+    recent = list(recent or [])
+    if not recent:
+        return "first"
+    if current == recent[-1]:
+        return ""
+    if current in recent[:-1]:
+        return "interleaved"
+    return reread_reason(recent[-1], current)
+
+
 def _stop_waits() -> None:
     for waiter in _ACTIVE_WAITS.get() or ():
         waiter.seen()
@@ -1114,7 +1135,7 @@ class OllamaClient:
         body: dict[str, Any] = {"model": self._selected_model(model, role=role), "messages": messages}
         if tools:
             body["tools"] = tools
-        return reread_reason(self.__dict__.get("_last_shape"), request_shape(body))
+        return reread_reason_recent(self.__dict__.get("_recent_shapes"), request_shape(body))
 
     def _start_wait_note(self, body: dict[str, Any]) -> None:
         """`wait_note_to` 가 걸려 있으면 이 흐름의 첫 글자 기다림 표시를 띄운다 — 까닭은 직전 부르기와 견줘서."""
@@ -1136,7 +1157,7 @@ class OllamaClient:
             tokens=estimate_tokens(chars, self.__dict__.get("_last_ratio")),
             english=english,
             publish=send,
-            reason=reread_reason(self.__dict__.get("_last_shape"), request_shape(body)),
+            reason=reread_reason_recent(self.__dict__.get("_recent_shapes"), request_shape(body)),
         ))
 
     def _log_call(self, body: dict[str, Any], payload: dict[str, Any], first_byte: float, first_token: float = 0.0,
@@ -1176,7 +1197,9 @@ class OllamaClient:
                 "think": body.get("think"),
             }
             # 다음 부르기가 「지난번과 같은 모양인가」를 견줄 재료(`reread_reason`) · 토큰 어림(`first_token_wait.estimate_tokens`).
-            self.__dict__["_last_shape"] = request_shape(body)
+            self.__dict__["_last_shape"] = shape = request_shape(body)
+            recent = [item for item in self.__dict__.get("_recent_shapes", []) if item != shape] + [shape]
+            self.__dict__["_recent_shapes"] = recent[-RECENT_SHAPES:]
             sent_chars = sum(len(str(item.get("content") or "")) for item in messages if isinstance(item, dict))
             if row["prompt_tokens"] and sent_chars:
                 self.__dict__["_last_ratio"] = (sent_chars, row["prompt_tokens"])
@@ -1422,6 +1445,17 @@ class OllamaClient:
             yield
         finally:
             self.__dict__["_background_hold"] = max(0, int(self.__dict__.get("_background_hold", 1) or 1) - 1)
+
+    def note_outside_call(self) -> None:
+        """이 PC 의 모델을 **다른 기기**가 부를 때(짝지은 맥의 `/v1/llm` 중계) — 우리 부르기와 똑같이 센다 (2026-11-08).
+
+        서기 · 앞부분 데우기의 「조용할 때만」은 우리 대화 부르기(`_last_send_at`)만 셌다. 대표가 맥에서 일하는 동안 PC 는
+        늘 조용해 보였고, 서기가 1~2분마다 이 대화 기록 1~1.5만 토큰을 Strata 에 밀어 넣었다 — Strata 는 한 번에 한 요청만
+        받아서 맥 질문이 그 뒤에 줄을 서 첫 글자가 15~30초가 됐다. 들어온 순간 노는 일을 끊고, 조용함은 지금부터 다시 센다.
+        """
+        self.cancel_background()
+        self.cancel_front_prime()
+        self.__dict__["_last_send_at"] = time.monotonic()
 
     def background_held(self) -> bool:
         return int(self.__dict__.get("_background_hold", 0) or 0) > 0
@@ -2137,6 +2171,11 @@ class OllamaClient:
                                         slow_hits = 0
                             if calls:
                                 tool_calls.extend(calls)
+                            # ★ 11-08: Strata 다리가 도구 호출 글을 모으는 동안 흘리는 「무슨 도구 · 몇 자」(규격 밖 칸 · Ollama 는 안 보냄).
+                            tool_progress = payload.get("sonjari_tool_progress")
+                            if on_chunk and isinstance(tool_progress, dict):
+                                on_chunk({"thinking": "", "content": "", "tool_calls": [], "done": False,
+                                          "tool_progress": dict(tool_progress)})
                             if on_chunk and (thinking or content or calls or payload.get("done")):
                                 on_chunk(
                                     {

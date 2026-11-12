@@ -19,7 +19,8 @@
 
 - 붙는 곳은 **127.0.0.1 만.** 상태 파일에 다른 주소가 적혀 있어도 따르지 않는다.
 - 프로젝트는 허락된 자리만(레시피와 같은 장부 — `UnityTools._project`).
-- 읽기는 바로, **바꾸기는 승인 카드**(L2). 우리가 보내는 인자는 표로 정해 둔다 — 원본 도구가 받는 나머지
+- 읽기는 바로. 바꾸기는 **11-11 대표 결정으로 승인 없이**(L1) — 유니티 Undo 에 남고 우리 되돌리기가 있다.
+  (맥 판 전수조사: 사람에게 넘긴 까닭은 모델 실력이 아니라 연결 빈틈이었다.) 예전엔 승인 카드(L2)였다. 우리가 보내는 인자는 표로 정해 둔다 — 원본 도구가 받는 나머지
   (프리팹으로 저장·임의 코드 실행 등)는 이 길로 안 보낸다.
 - 바꾼 것은 유니티 Undo 에 그대로 쌓인다(원본 도구가 Undo 에 기록한다). 씬은 **저장하지 않는다** — 저장은 따로 승인.
 - 되돌리기는 **우리가 한 변경이 맨 위일 때만.** 되돌려 보고 이름이 다르면(사람이 그 뒤에 한 일이면) 곧바로 다시 한다.
@@ -36,7 +37,9 @@ from __future__ import annotations
 import json
 import os
 import socket
+import subprocess
 import struct
+import sys
 import threading
 import time
 import uuid
@@ -48,7 +51,10 @@ from .brand import user_root
 from .models import RiskLevel
 from .tool_gateway import ToolGateway, ToolSpec
 
-EDITOR_TOOL_NAMES = frozenset({"unity_editor_status", "unity_editor_look", "unity_editor_change", "unity_editor_undo"})
+EDITOR_TOOL_NAMES = frozenset({
+    "unity_editor_status", "unity_editor_look", "unity_editor_change", "unity_editor_undo", "unity_editor_launch",
+    "unity_editor_refresh",
+})
 
 PACKAGE_NAME = "com.coplaydev.unity-mcp"
 _HANDSHAKE = b"WELCOME UNITY-MCP"
@@ -99,6 +105,11 @@ class UnityEditorBridge:
         # 사본을 둘 자리를 정하는 데 쓴다(`installed_copy`). 시험은 가짜 집과 「이 자리는 밖에서 안 보인다」를 넣는다.
         home: Path | None = None,
         hidden: Callable[[Path], bool] | None = None,
+        # 에디터 띄우기(`launch`) — 시험은 가짜를 넣는다(진짜 유니티를 안 띄운다).
+        spawn: Callable[[Path, Path], None] | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+        # 띄운 뒤 유니티가 스스로 앞으로 나오면 원래 앞 앱으로 돌려놓는다(맥만). 시험은 가짜를 넣는다.
+        keep_front: Callable[[], None] | None = None,
     ) -> None:
         self.config = config
         self.unity = unity_tools
@@ -107,6 +118,10 @@ class UnityEditorBridge:
         env_dir = os.environ.get("UNITY_MCP_STATUS_DIR", "").strip()
         self.status_dir = Path(status_dir or env_dir or (Path.home() / ".unity-mcp"))
         self._connect = connect
+        self._spawn = spawn or _spawn_editor
+        self._sleep = sleep
+        self._monotonic = time.monotonic
+        self._keep_front = keep_front if keep_front is not None else (_start_front_keeper if sys.platform == "darwin" else None)
         self._post = post or _post_json
         self.clock = clock
         self._lock = threading.Lock()
@@ -203,8 +218,9 @@ class UnityEditorBridge:
             match = [row for row in live if _norm(row["project"]) == _norm(raw)]
             if not match:
                 raise UnityBridgeError(
-                    f"unity_editor_not_connected: {raw} 를 연 에디터가 손자리와 이어져 있지 않다. 에디터가 열려 있는지, "
-                    "설정 › 팩 › 게임 팩에서 「에디터 잇기」를 했는지 사람에게 물어라."
+                    f"unity_editor_not_connected: {raw} 를 연 에디터가 손자리와 이어져 있지 않다. 사람에게 묻기 전에 "
+                    "unity_editor_launch 를 불러라 — 다리를 붙이고, 에디터를 (앞으로 끌어오지 않고) 띄워 이어질 때까지 기다린다. "
+                    "셸로 유니티를 직접 띄우거나 manifest.json 을 손으로 고치지 마라."
                 )
             return match[0]
         if len(live) == 1:
@@ -214,8 +230,9 @@ class UnityEditorBridge:
             return row
         if not live:
             raise UnityBridgeError(
-                "unity_editor_not_connected: 손자리와 이어진 유니티 에디터가 없다. 에디터를 열고, 처음이면 설정 › 팩 › 게임 팩의 "
-                "「에디터 잇기」를 눌러 달라고 사람에게 말해라."
+                "unity_editor_not_connected: 손자리와 이어진 유니티 에디터가 없다. 사람에게 묻기 전에 unity_editor_launch 를 "
+                "project 와 함께 불러라 — 다리를 붙이고 에디터를 (앞으로 끌어오지 않고) 띄워 이어질 때까지 기다린다. "
+                "셸로 유니티를 직접 띄우거나 manifest.json 을 손으로 고치지 마라."
             )
         raise UnityBridgeError(f"unity_editor_ambiguous: 이어진 에디터가 여럿이다 — project 를 줘라: {[row['project'] for row in live]}")
 
@@ -280,7 +297,7 @@ class UnityEditorBridge:
         # 원본 서버가 보내던 모양(`record`·`customer_uuid`·`data`)을 따른다. 보낸 것은 따로 적는다 — 무엇이 나갔는지 사람이 본다.
         payload = {
             "record": "tool_execution", "timestamp": row["at"], "customer_uuid": settings["install_id"],
-            "session_id": settings["install_id"], "version": self._package_version(), "platform": "Windows", "source": "win32",
+            "session_id": settings["install_id"], "version": self._package_version(), "platform": "macOS" if sys.platform == "darwin" else "Windows", "source": sys.platform,
             "data": {"tool_name": command, "sub_action": action, "success": ok, "duration_ms": ms,
                      **({"error": error[:200]} if error else {})},
         }
@@ -353,13 +370,116 @@ class UnityEditorBridge:
         out["verified"] = True
         return out
 
-    _LOOK = ("hierarchy", "console", "selection", "find", "components")
+    # ── 화면 찍기 (2026-11-08 밤 · 설계 generated_reports/bug_guard_game/설계_유니티_화면보기.md) ─────────────────
+    #
+    # 유니티가 스스로 카메라 화면을 그려 파일로 저장한다(원본 다리의 manage_scene/screenshot) — 화면 클릭이 아니라 맥 · 윈도우 같다.
+    # 저장은 프로젝트의 Temp/SonjariShots(원본은 프로젝트 밖을 거절 · 기본값 Assets/Screenshots 는 에셋 · git 을 더럽힌다).
+    # 그림은 다리 응답에 싣지 않고(큰 응답 끊김 · 사고 N) 파일로 받아, 본체의 그림 보기 곁 호출(`viewer`)이 같은 걸음 안에서 본다.
+    SHOT_FOLDER = "Temp/SonjariShots"
+    SHOT_KEEP = 20
+    SHOT_ASYNC_WAIT_SEC = 6.0
+    SHOT_DEFAULT_QUESTION = "화면에 무엇이 보이는지, 비어 있거나 잘린 곳, 서로 겹친 것을 말하라."
+    #: 본체가 꽂는다 — (그림 JPEG 바이트, 질문) → 답 글 · 그림을 못 읽는 모델이면 True. 없으면 찍기만 한다.
+    viewer: Callable[[bytes, str], str] | None = None
+    cannot_see: Callable[[], bool] | None = None
+
+    def _screenshot(self, editor: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+        source = str(arguments.get("source") or "game_view").strip().lower()
+        if source not in ("game_view", "scene_view"):
+            raise ValueError("unity_look_screenshot: source 는 game_view · scene_view 중 하나")
+        fell_back = False
+        try:
+            shot = self._capture_file(editor, source, camera=str(arguments.get("camera") or "").strip(),
+                                      target=str(arguments.get("target") or "").strip())
+        except UnityBridgeError as exc:
+            # Game 탭이 닫혀 있으면 게임 화면은 그려지지 않아 파일이 안 생긴다 — 씬 화면으로 한 번 더 찍는다(11-12).
+            if source != "game_view" or "unity_screenshot_missing" not in str(exc):
+                raise
+            shot = self._capture_file(editor, "scene_view", target=str(arguments.get("target") or "").strip())
+            source, fell_back = "scene_view", True
+        out: dict[str, Any] = {"action": "unity_editor_look", "what": "screenshot", "project": editor["project"],
+                               "source": source, "image_path": str(shot), "verified": True}
+        if fell_back:
+            out["note"] = "게임 화면이 그려지지 않아(Game 탭이 닫혔을 수 있다) 씬 화면으로 찍었다 — 게임 카메라 시점이 아니다."
+        question = str(arguments.get("question") or "").strip()[:500] or self.SHOT_DEFAULT_QUESTION
+        if self.viewer is None or (self.cannot_see is not None and self.cannot_see()):
+            out["note"] = " ".join(filter(None, [out.get("note"),
+                                                 "지금 모델은 그림을 못 읽는다 — 그림은 image_path 로 사람 · 바깥 AI 가 본다(지어내지 않는다)."]))
+            return out
+        from PIL import Image
+
+        from .image_look import LOOK_PROMPT, compose
+
+        with Image.open(shot) as img:
+            jpeg = compose([img.copy()])
+        out["question"] = question
+        out["answer"] = self.viewer(jpeg, LOOK_PROMPT + question)
+        return out
+
+    def stage_shot(self, source: str = "scene_view") -> tuple[bytes, int, int]:
+        """손자리 창의 「유니티 무대」용 한 장(JPEG · 가로 · 세로) — 창을 복사할 수 없는 맥에서 쓴다(11-08 밤 대표: 에디터가 있는데 안 뜬다)."""
+        editors = [row for row in self.live_editors() if row.get("alive")]
+        if not editors:
+            raise UnityBridgeError("unity_no_editor")
+        shot = self._capture_file(editors[0], source, prefix="stage")
+        from PIL import Image
+
+        from .image_look import _jpeg
+
+        with Image.open(shot) as img:
+            width, height = img.size
+            return _jpeg(img.copy(), 1600), width, height
+
+    def _capture_file(self, editor: dict[str, Any], source: str, *, camera: str = "", target: str = "",
+                      prefix: str = "sonjari") -> Path:
+        """원본 다리로 찍게 하고, 그 프로젝트의 찍기 폴더 안에 생긴 PNG 경로를 돌려준다."""
+        params: dict[str, Any] = {
+            "action": "screenshot", "captureSource": source, "outputFolder": self.SHOT_FOLDER,
+            "includeImage": False, "maxResolution": 1024,
+            "fileName": f"{prefix}-{time.strftime('%Y%m%d-%H%M%S')}-{int(time.time() * 1000) % 1000:03d}.png",
+        }
+        if camera and source == "game_view":
+            params["camera"] = camera[:120]
+        if target:
+            params["viewTarget"] = target[:120]
+        result = self._ask(editor, "manage_scene", params)
+        data = result.get("data", result) if isinstance(result, dict) else {}
+        full = str((data or {}).get("fullPath") or "").strip()
+        project = Path(str(editor["project"])).resolve(strict=False)
+        shot = Path(full).resolve(strict=False) if full else None
+        # ★ 게임 화면은 유니티가 다음 프레임에 늦게 쓴다(isAsync · 11-08 밤 실기기: 요청 성공인데 파일이 없어 두 번 실패) — 잠깐 기다린다.
+        if shot is not None and not shot.is_file() and (data or {}).get("isAsync"):
+            deadline = time.monotonic() + self.SHOT_ASYNC_WAIT_SEC
+            while time.monotonic() < deadline and not shot.is_file():
+                time.sleep(0.25)
+        # 원본이 돌려준 경로가 그 프로젝트의 찍기 폴더 안일 때만 연다 — 다리 응답으로 아무 파일이나 읽지 않게.
+        folder = (project / self.SHOT_FOLDER).resolve(strict=False)
+        if shot is None or not shot.is_file() or folder not in shot.parents:
+            raise UnityBridgeError(f"unity_screenshot_missing: 찍은 파일을 못 찾았다 ({full or '경로 없음'}) — 원본 응답: {_trim(result)}")
+        self._prune_shots(folder)
+        return shot
+
+    def _prune_shots(self, folder: Path) -> None:
+        try:
+            shots = sorted([*folder.glob("sonjari-*.png"), *folder.glob("stage-*.png")],
+                           key=lambda path: path.stat().st_mtime, reverse=True)
+        except OSError:
+            return
+        for old in shots[self.SHOT_KEEP:]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+
+    _LOOK = ("hierarchy", "console", "selection", "find", "components", "screenshot")
 
     def look(self, arguments: dict[str, Any]) -> dict[str, Any]:
         what = str(arguments.get("what") or "hierarchy").strip().lower()
         if what not in self._LOOK:
             raise ValueError(f"unity_look_what: what 은 {list(self._LOOK)} 중 하나")
         editor = self._editor_for(arguments)
+        if what == "screenshot":
+            return self._screenshot(editor, arguments)
         target = str(arguments.get("target") or "").strip()
         if what == "hierarchy":
             params: dict[str, Any] = {"action": "get_hierarchy", "pageSize": _clamp(arguments.get("limit"), 50, 1, 200),
@@ -388,7 +508,9 @@ class UnityEditorBridge:
         else:
             if not target:
                 raise ValueError("unity_look_components: target 에 오브젝트 instanceID 또는 이름을 줘라")
-            params = {"instanceID": target, "pageSize": 20, "includeProperties": bool(arguments.get("properties", True))}
+            # ★ 11-08~11 맥 4번 실패(`'instanceID' parameter is required`): 이름을 그대로 넘겼다 — 원본은 숫자만 받는다.
+            params = {"instanceID": self._resolve_id(editor, target), "pageSize": 20,
+                      "includeProperties": bool(arguments.get("properties", True))}
             command = "get_gameobject_components"
         result = self._ask(editor, command, params)
         return {"action": "unity_editor_look", "what": what, "project": editor["project"], "result": _trim(result), "verified": True}
@@ -411,8 +533,18 @@ class UnityEditorBridge:
         op = str(arguments.get("op") or "").strip().lower()
         editor = self._editor_for(arguments)
         if op == "save_scene":
-            self._ask(editor, "manage_scene", {"action": "save"})
-            return {"action": "unity_editor_change", "op": op, "project": editor["project"], "saved": True, "verified": True}
+            # ★ 11-11 맥: 손자리가 만든 새 씬은 이름이 없다(untitled). 원본 다리는 name · path 를 주면 「다른 이름으로 저장」을
+            #   하는데 우리가 action 만 보내서 「이름 없는 씬은 못 저장」으로 막혔고, 대표에게 File → Save As 를 부탁했다.
+            params: dict[str, Any] = {"action": "save"}
+            name = str(arguments.get("name") or "").strip()
+            if name:
+                params["name"] = _scene_name(name)
+                # 「path」는 에디터 고르기가 프로젝트 경로로 읽는다(`_editor_for`) — 씬 폴더는 따로 이름 붙인다.
+                params["path"] = _scene_folder(str(arguments.get("scene_folder") or "Scenes"))
+            reply = self._ask(editor, "manage_scene", params)
+            saved_to = str((reply.get("data") or reply).get("path") or "") if isinstance(reply, dict) else ""
+            return {"action": "unity_editor_change", "op": op, "project": editor["project"], "saved": True,
+                    "path": saved_to, "verified": True}
         keys = self._CHANGE_KEYS.get(op)
         if keys is None:
             raise ValueError(f"unity_change_op: op 은 {sorted(self._CHANGE_KEYS) + ['save_scene']} 중 하나")
@@ -425,7 +557,32 @@ class UnityEditorBridge:
         if op == "create" and not params.get("name"):
             raise ValueError("unity_change_name: 새 오브젝트의 name 을 줘라")
         before_id = 0 if op == "create" else self._resolve_id(editor, str(params["target"]))
-        result = self._ask(editor, "manage_gameobject", params)
+        linked: list[str] = []
+        if isinstance(params.get("componentProperties"), dict):
+            params["componentProperties"], linked = self._link_refs(editor, params["componentProperties"], bare=False)
+        try:
+            result = self._ask(editor, "manage_gameobject", params)
+        except UnityBridgeError as exc:
+            # ★ 11-12 맥(판 b2e846a3): 모델이 참조 칸에 「Main Camera」처럼 이름 글자를 넣었다 — 원본 다리는 글자를 에셋 경로로만 읽어
+            #   「property operations failed」. 장면에 **정확히 그 이름**이 있는 칸만 번호(instanceID)로 바꿔 한 번 더 넣는다.
+            retried = False
+            if isinstance(params.get("componentProperties"), dict) and _PROPERTY_FAILED.search(str(exc)):
+                fixed, more = self._link_refs(editor, params["componentProperties"], bare=True)
+                if more:
+                    params["componentProperties"], linked, retried = fixed, linked + more, True
+            if retried:
+                result = self._ask(editor, "manage_gameobject", params)
+            elif not (params.get("componentsToAdd") and _COMPONENT_MISSING.search(str(exc))):
+                raise
+            else:
+                result = None
+        if result is None:
+            # ★ 11-11 맥(판 5개 내리 멈춤): 손자리가 새 스크립트를 파일로 쓰면 유니티는 창이 앞으로 와야(포커스) 다시 읽는다.
+            #   그래서 「그런 컴포넌트 없음」으로 실패했고, 대표에게 「유니티 창을 클릭해 주세요」를 다섯 번 부탁했다.
+            #   원본 다리의 refresh_unity 로 창 없이 다시 읽혀 컴파일을 기다린 뒤 한 번만 다시 붙인다.
+            self.refresh({"project": editor["project"]})
+            editor = self._editor_for({"project": editor["project"]})
+            result = self._ask(editor, "manage_gameobject", params)
         data = result.get("data") if isinstance(result, dict) and isinstance(result.get("data"), dict) else {}
         # 되돌리기가 「맨 위가 우리 것인가」를 **결과로** 확인할 수 있게 적어 둔다: 만든 것은 사라져야 하고,
         # 지운 것은 돌아와야 하고, 바꾼 것은 값이 달라져야 한다.
@@ -435,11 +592,91 @@ class UnityEditorBridge:
         if op == "modify" and object_id:
             record["after"] = self._snapshot(editor, object_id)
         self._changes.setdefault(_norm(editor["project"]), []).append(record)
-        return {
+        out = {
             "action": "unity_editor_change", "op": op, "project": editor["project"], "result": _trim(result),
             "verified": True, "scene_saved": False,
-            "note": "에디터 Undo 에 기록됐다. 씬은 아직 저장하지 않았다 — 저장은 op=save_scene(승인)이나 사람이 Ctrl+S.",
+            "note": "에디터 Undo 에 기록됐다. 씬은 아직 저장하지 않았다 — 저장은 op=save_scene 이나 사람이 Ctrl+S.",
         }
+        if linked:
+            out["linked"] = linked
+        return out
+
+    def _link_refs(self, editor: dict[str, Any], props: dict[str, Any], *, bare: bool) -> tuple[dict[str, Any], list[str]]:
+        """참조 칸 값을 원본 다리가 읽는 꼴로 바꾼다. {"ref": 이름|경로} 는 늘, 맨 이름 글자는 `bare` 일 때만(장면에 정확히 있을 때).
+
+        장면 오브젝트 → {"instanceID": n}(다리가 게임오브젝트에서 그 칸의 컴포넌트 · Transform 을 꺼낸다) · "Assets/…" → {"path": …}.
+        돌려주는 두 번째 값은 바꾼 칸 이름들(「컴포넌트.칸 ← 이름」).
+        """
+        out: dict[str, Any] = {}
+        linked: list[str] = []
+        for component, fields in props.items():
+            if not isinstance(fields, dict):
+                out[component] = fields
+                continue
+            new_fields: dict[str, Any] = {}
+            for field, value in fields.items():
+                name = ""
+                if isinstance(value, dict) and set(value) == {"ref"} and isinstance(value["ref"], str):
+                    name = value["ref"].strip()
+                    if not name:
+                        raise ValueError(f"unity_ref_empty: {component}.{field} 의 ref 가 비었다")
+                elif bare and isinstance(value, str) and value.strip() and not value.strip().startswith("Assets/"):
+                    name = value.strip()
+                if not name:
+                    new_fields[field] = value
+                    continue
+                if name.startswith("Assets/"):
+                    new_fields[field] = {"path": name}
+                    linked.append(f"{component}.{field} ← {name}")
+                    continue
+                object_id = self._resolve_id(editor, name)
+                if not object_id:
+                    if isinstance(value, dict):
+                        raise ValueError(f"unity_ref_missing: {component}.{field} 에 넣을 「{name}」을 장면에서 못 찾았다 — "
+                                         "unity_editor_look hierarchy 로 정확한 이름을 보고 다시 줘라")
+                    new_fields[field] = value
+                    continue
+                new_fields[field] = {"instanceID": object_id}
+                linked.append(f"{component}.{field} ← {name}")
+            out[component] = new_fields
+        return out, linked
+
+    # ── 파일 다시 읽기 (2026-11-11 맥: 「창을 클릭해 주세요」 다섯 번) ─────────────────────────────────────
+    REFRESH_WAIT_SEC = 120
+
+    def refresh(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """손자리가 쓴 스크립트 · 에셋을 유니티가 **창 없이** 다시 읽고 컴파일까지 끝내게 한다(원본 다리 `refresh_unity`).
+
+        유니티는 바뀐 파일을 창이 앞으로 와야(포커스) 읽는다 — 뒤에 띄워 둔 에디터(`launch`)는 그래서 새 스크립트를 몰랐다.
+        컴파일이 끝나면 유니티가 다리를 다시 띄우니(도메인 다시 불러오기) 이어질 때까지 기다린다.
+        """
+        editor = self._editor_for(arguments)
+        project = Path(str(editor["project"]))
+        started = self._monotonic()
+        try:
+            self.call(editor["port"], "refresh_unity", {"mode": "force", "scope": "all", "compile": "request",
+                                                         "wait_for_ready": False}, timeout=60.0)
+        except UnityBridgeError:
+            pass  # 컴파일이 바로 시작되면 다리가 닫힐 수 있다 — 아래에서 다시 붙어 본다
+        state: dict[str, Any] = {}
+        while self._monotonic() - started < self.REFRESH_WAIT_SEC:
+            self._sleep(2.0)
+            row = self._alive_for(project)
+            if row is None or row.get("reloading"):
+                continue
+            try:
+                state = self._ask(row, "get_editor_state", {}) or {}
+            except UnityBridgeError:
+                continue
+            if not any(_find_flag(state, key) for key in ("is_compiling", "is_updating", "is_domain_reload_pending")):
+                break
+        else:
+            return {"action": "unity_editor_refresh", "project": str(project), "refreshed": True, "ready": False,
+                    "waited_sec": round(self._monotonic() - started, 1),
+                    "note": "다시 읽기는 걸었지만 컴파일이 아직 안 끝났다 — 잠시 뒤 unity_editor_status 로 보고, 콘솔 오류는 unity_editor_look console"}
+        return {"action": "unity_editor_refresh", "project": str(project), "refreshed": True, "ready": True,
+                "waited_sec": round(self._monotonic() - started, 1), "verified": True,
+                "note": "다시 읽고 컴파일을 마쳤다 — 새 스크립트를 붙일 수 있다. 컴파일 오류는 unity_editor_look console 로 본다."}
 
     def _resolve_id(self, editor: dict[str, Any], target: str) -> int:
         if target.lstrip("-").isdigit():
@@ -603,6 +840,77 @@ class UnityEditorBridge:
         except (OSError, ValueError):
             return ""
 
+    # ── 에디터 띄우기 (2026-11-11 대표: 「에디터가 안 열린다」만 세 판 · 띄우니 앞으로 튀어나옴) ──────────────────
+    #
+    # 맥 판 12개 중 4개가 「이어진 에디터 없음」에서 멈췄다. 손자리가 새 프로젝트를 만들며 다리 패키지를 빼먹었고, 설정의
+    # 「에디터 잇기」 목록에는 그 프로젝트가 없었고, 모델에게는 에디터를 여는 도구가 없어 「사람에게 물어라」만 따랐다. 마지막
+    # 판은 셸로 manifest 를 손으로 고치고 `open -a Unity` 를 두 번 불러(336초) 이었는데, `open -a` 는 앱을 맨 앞으로 끌어온다.
+    # 이 도구 하나가 그 칸들을 한 번에 한다 — 다리 붙이기 · 기억하기 · 뒤에서 띄우기 · 이어질 때까지 기다리기.
+    LAUNCH_WAIT_SEC = 150
+    LAUNCH_POLL_SEC = 2.0
+
+    def _alive_for(self, project: Path) -> dict[str, Any] | None:
+        for row in self.live_editors():
+            if row["alive"] and _norm(row["project"]) == _norm(project):
+                return row
+        return None
+
+    def _wait_alive(self, project: Path, wait_sec: float) -> tuple[dict[str, Any] | None, float]:
+        started = self._monotonic()
+        while True:
+            row = self._alive_for(project)
+            waited = round(self._monotonic() - started, 1)
+            if row is not None or waited >= wait_sec:
+                return row, waited
+            self._sleep(self.LAUNCH_POLL_SEC)
+
+    def launch(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        from .unity_tools import editor_is_open, is_unity_project, project_version
+
+        if self.unity is None:
+            raise UnityBridgeError("unity_tools_missing: 유니티 도구가 없다")
+        project = Path(self.unity._project(arguments, write=True)).resolve(strict=False)  # noqa: SLF001 — 허락 장부(쓰기)
+        if not is_unity_project(project):
+            raise ValueError(
+                f"unity_project_invalid: {project} 는 유니티 프로젝트가 아니다(ProjectSettings/ProjectVersion.txt · Assets 가 있어야 한다)."
+            )
+        wait_sec = float(_clamp(arguments.get("wait_sec"), self.LAUNCH_WAIT_SEC, 10, 300))
+        out: dict[str, Any] = {"action": "unity_editor_launch", "project": str(project), "launched": False,
+                               "bridge_added": False}
+        if self._alive_for(project) is not None:
+            self.unity.remember_project(project)
+            return {**out, "connected": True, "verified": True, "note": "이미 이어져 있다 — unity_editor_look 으로 읽어라."}
+        state = self.install_state(project)
+        if not state["installed"] or state["broken"]:
+            installed = self.install(project)
+            out["bridge_added"] = True
+            out["manifest_backup"] = installed.get("backup", "")
+        self.unity.remember_project(project)
+        if editor_is_open(project):
+            # 이미 떠 있는 에디터는 끄지 않는다 — 저장 안 한 씬이 날아간다. 다리가 막 붙었으면 유니티가 창을 한 번 받아야 읽는다.
+            row, waited = self._wait_alive(project, min(wait_sec, 30.0))
+            if row is not None:
+                return {**out, "connected": True, "waited_sec": waited, "verified": True}
+            return {**out, "connected": False, "waited_sec": waited, "editor_was_open": True, "note": (
+                "유니티가 이 프로젝트를 이미 열고 있는데 아직 안 이어졌다"
+                + ("(다리를 방금 붙였다 — 유니티는 창이 한 번 눌릴 때 새 패키지를 읽는다)" if out["bridge_added"] else "")
+                + ". 사람에게 유니티 창을 한 번 눌러 달라고 하고 unity_editor_status 로 다시 봐라. 에디터를 끄고 다시 열지 마라.")}
+        version = project_version(project)
+        exe = self.unity.editor_for(version)  # 같은 판이 없으면 설치를 부탁하라는 글로 멈춘다(다른 판으로 열면 업그레이드된다)
+        if self._keep_front is not None:
+            self._keep_front()  # 띄우기 **전에** 지금 맨 앞 앱을 잡아 둔다
+        self._spawn(Path(exe), project)
+        out["launched"] = True
+        out["editor_version"] = version
+        row, waited = self._wait_alive(project, wait_sec)
+        out["waited_sec"] = waited
+        if row is not None:
+            return {**out, "connected": True, "verified": True,
+                    "note": "에디터를 뒤에서 띄웠고 이어졌다 — unity_editor_look 으로 계층 · 콘솔을 읽어라."}
+        return {**out, "connected": False, "note": (
+            f"에디터를 띄웠지만 {waited:.0f}초 안에 안 이어졌다(첫 가져오기 · 컴파일이 길 수 있다). 다시 띄우지 말고 "
+            "잠시 뒤 unity_editor_status 로 봐라. 계속 안 되면 다리가 콘솔 오류로 못 떴을 수 있으니 사람에게 유니티 창을 봐 달라고 해라.")}
+
     # ── 등록 ─────────────────────────────────────────────────────────────
     @property
     def ollama_tools(self) -> list[dict[str, Any]]:
@@ -617,26 +925,31 @@ class UnityEditorBridge:
                 "name": "unity_editor_look",
                 "description": (
                     "열린 유니티 에디터 안을 읽는다(바꾸지 않는다). what: hierarchy(씬 계층) · console(오류·경고) · "
-                    "selection(사람이 고른 것) · find(이름으로 찾기) · components(한 오브젝트의 컴포넌트와 값)."
+                    "selection(사람이 고른 것) · find(이름으로 찾기) · components(한 오브젝트의 컴포넌트와 값) · "
+                    "screenshot(게임 · 씬 화면을 찍어 직접 보고 question 에 답한다 — 만든 것이 잘 보이는지 눈으로 확인할 때)."
                 ),
                 "parameters": {"type": "object", "properties": {
                     "what": {"type": "string", "enum": list(self._LOOK)},
                     "target": {"type": "string", "description": "components·hierarchy 의 기준 오브젝트(instanceID 또는 이름)"},
                     "search": {"type": "string", "description": "find 에서 찾을 이름"},
+                    "question": {"type": "string", "description": "screenshot 에서 그림을 보고 답할 질문(예: 포탑이 길 위에 보이나)"},
+                    "source": {"type": "string", "enum": ["game_view", "scene_view"], "description": "screenshot: 게임 화면(기본) · 씬 화면"},
                     "limit": {"type": "integer"}, "project": project,
                 }, "required": ["what"]},
             }},
             {"type": "function", "function": {
                 "name": "unity_editor_change",
                 "description": (
-                    "열린 유니티 에디터에서 게임오브젝트를 만들고·바꾸고·지우고·복제한다(op). 손자리 창의 **승인**이 필요하고, "
-                    "바꾼 것은 에디터 Undo 에 남는다. 씬은 저장하지 않는다 — 저장은 op=save_scene(따로 승인)."
+                    "열린 유니티 에디터에서 게임오브젝트를 만들고·바꾸고·지우고·복제한다(op). 승인 없이 바로 하고, "
+                    "바꾼 것은 에디터 Undo 에 남는다(unity_editor_undo). 씬은 저장하지 않는다 — 저장은 op=save_scene "
+                    "(이름 없는 새 씬이면 name 을 준다)."
                 ),
                 "parameters": {"type": "object", "properties": {
                     "op": {"type": "string", "enum": [*self._CHANGE_KEYS, "save_scene"]},
                     "target": {"type": "string", "description": "바꿀 오브젝트(이름·경로·instanceID)"},
-                    "name": {"type": "string", "description": "create 에서 새 이름"},
+                    "name": {"type": "string", "description": "create 에서 새 이름 · save_scene 에서 이름 없는 씬의 파일 이름(확장자 없이)"},
                     "new_name": {"type": "string"},
+                    "scene_folder": {"type": "string", "description": "save_scene 에서 이름 없는 새 씬을 저장할 폴더(Assets 아래 · 기본 Scenes)"},
                     "primitive_type": {"type": "string", "description": "Cube·Sphere·Plane·Capsule·Cylinder·Quad"},
                     "prefab_path": {"type": "string", "description": "create 에서 이 프리팹으로 만들기(Assets/...prefab)"},
                     "position": {"type": "array", "items": {"type": "number"}},
@@ -647,9 +960,31 @@ class UnityEditorBridge:
                     "tag": {"type": "string"},
                     "components": {"type": "array", "items": {"type": "string"}, "description": "붙일 컴포넌트 이름"},
                     "remove_components": {"type": "array", "items": {"type": "string"}},
-                    "properties": {"type": "object", "description": "{컴포넌트: {속성: 값}}"},
+                    "properties": {"type": "object", "description": (
+                        "{컴포넌트: {속성: 값}}. 다른 오브젝트 · 컴포넌트를 넣는 참조 칸은 {\"ref\": \"장면의 오브젝트 이름\"}, "
+                        "에셋은 {\"ref\": \"Assets/…\"} — 이름 글자만 넣으면 에셋 경로로 읽혀 실패한다.")},
                     "project": project,
                 }, "required": ["op"]},
+            }},
+            {"type": "function", "function": {
+                "name": "unity_editor_launch",
+                "description": (
+                    "유니티 에디터로 이 프로젝트를 열고 손자리와 잇는다 — 다리 패키지가 없으면 붙이고(manifest 백업), 에디터를 "
+                    "앞으로 끌어오지 않고 뒤에서 띄운 뒤 이어질 때까지 기다린다. unity_editor_status 가 connected=false 면 "
+                    "사람에게 열어 달라고 하기 전에 이것을 부른다. 셸로 유니티를 띄우지 않는다."
+                ),
+                "parameters": {"type": "object", "properties": {
+                    "project": project,
+                    "wait_sec": {"type": "integer", "description": "이어질 때까지 기다릴 초(기본 150 · 10~300)"},
+                }, "required": []},
+            }},
+            {"type": "function", "function": {
+                "name": "unity_editor_refresh",
+                "description": (
+                    "손자리가 쓴 스크립트 · 에셋을 열린 유니티 에디터가 창을 누르지 않아도 다시 읽고 컴파일까지 끝내게 한다. "
+                    ".cs 파일을 쓰거나 고친 뒤, 붙이기 전에 부른다. 사람에게 「유니티 창을 클릭해 주세요」라고 하기 전에 이것을 부른다."
+                ),
+                "parameters": {"type": "object", "properties": {"project": project}, "required": []},
             }},
             {"type": "function", "function": {
                 "name": "unity_editor_undo",
@@ -663,9 +998,14 @@ class UnityEditorBridge:
         handlers = {
             "unity_editor_status": (self.status, RiskLevel.L0),
             "unity_editor_look": (self.look, RiskLevel.L0),
-            "unity_editor_change": (self.change, RiskLevel.L2),
+            # ★ 11-11 대표 「승인카드도 열어줘」 — 맥 게임 판에서 바꿀 때마다 사람을 불렀다. Undo · unity_editor_undo 로 되돌린다.
+            "unity_editor_change": (self.change, RiskLevel.L1),
             # 되돌리기는 우리 변경을 지우는 일이고, 사람의 작업이면 스스로 되살린다 — 승인 없이.
             "unity_editor_undo": (self.undo, RiskLevel.L1),
+            # 우리가 붙이는 다리 한 줄(백업 남김) + 앱 띄우기 — 되돌릴 수 있고 이 PC 안의 일이다.
+            "unity_editor_launch": (self.launch, RiskLevel.L1),
+            # 파일을 다시 읽고 컴파일할 뿐 — 사람이 만든 것을 바꾸지 않는다.
+            "unity_editor_refresh": (self.refresh, RiskLevel.L1),
         }
         for tool in self.ollama_tools:
             spec = tool["function"]
@@ -676,6 +1016,152 @@ class UnityEditorBridge:
                 enabled=bool(getattr(self.config, "local_computer_enabled", True)),
                 needs_job_context=True,
             ))
+
+
+def _spawn_editor(exe: Path, project: Path) -> None:
+    """에디터를 앞으로 끌어오지 않고 띄운다.
+
+    맥: `open -g`(뒤에서) `-n`(다른 프로젝트로 떠 있는 유니티가 있어도 새로) — `open -a` 만 쓰면 앱이 맨 앞으로 온다(11-11 맥).
+    윈도우: 최소화 · 포커스 안 뺏음(SW_SHOWMINNOACTIVE)으로 청하고, 손자리 프로세스와 떼어 둔다(손자리를 다시 켜도 에디터는 산다).
+    """
+    if sys.platform == "darwin":
+        app = exe
+        while app.suffix != ".app" and app.parent != app:
+            app = app.parent
+        target = app if app.suffix == ".app" else exe
+        subprocess.run(["open", "-g", "-n", "-a", str(target), "--args", "-projectPath", str(project)],
+                       check=True, timeout=30, capture_output=True,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return
+    startup = None
+    flags = 0
+    if os.name == "nt":
+        startup = subprocess.STARTUPINFO()  # type: ignore[attr-defined]
+        startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore[attr-defined]
+        startup.wShowWindow = 7  # SW_SHOWMINNOACTIVE
+        flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    subprocess.Popen(  # noqa: S603 — 실행 파일은 허브가 깐 자리에서 찾은 것이다(`installed_editors`)
+        [str(exe), "-projectPath", str(project)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, close_fds=True, startupinfo=startup, creationflags=flags,
+    )
+
+
+# ── 맥: 유니티가 스스로 앞으로 나오는 것 되돌리기 (2026-11-11 실측) ─────────────────────────────────────
+#
+# 맥 미니에서 0.5초마다 맨 앞 앱을 재 보니 `open -g`(뒤에서) 로 띄워도, `open -j`(숨겨서) 로 띄워도 유니티가 짐을 다 읽고 창을
+# 펴는 순간 **스스로** 맨 앞으로 나왔다(18:59:17 · 19:00:26 두 번). 띄우는 방식으로는 못 막는다. 그래서 띄우기 직전의 맨 앞 앱을
+# 기억해 두고, 60초 안에 유니티가 앞으로 나오면 그 앱을 다시 앞으로 돌린다(`open -b` — 다 켜진 유니티는 그 뒤 6초 동안 뒤에 있었다).
+# 사람이 그 사이 유니티를 일부러 누를 수도 있으니 되돌리기는 3번까지만. `lsappinfo` · `open` 은 맥 권한 창을 띄우지 않는다
+# (System Events 를 부르는 osascript 는 「손자리가 다른 앱을 제어하려 한다」 권한 창이 뜬다 — 쓰지 않는다).
+UNITY_BUNDLE_ID = "com.unity3d.UnityEditor5.x"
+FRONT_KEEP_SEC = 60.0
+FRONT_KEEP_MAX_RESTORES = 3
+
+
+def _front_bundle_id() -> str:
+    try:
+        asn = subprocess.run(["lsappinfo", "front"], capture_output=True, text=True, timeout=3, check=False,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.strip()
+        if not asn:
+            return ""
+        info = subprocess.run(["lsappinfo", "info", "-only", "bundleid", asn], capture_output=True, text=True, timeout=3,
+                              check=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    marker = 'bundleID="'
+    start = info.find(marker)
+    if start < 0:
+        return ""
+    end = info.find('"', start + len(marker))
+    return info[start + len(marker):end] if end > start else ""
+
+
+def _activate_bundle(bundle_id: str) -> None:
+    try:
+        subprocess.run(["open", "-b", bundle_id], capture_output=True, timeout=5, check=False,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def keep_front_away_from_unity(
+    *,
+    front: Callable[[], str] = _front_bundle_id,
+    activate: Callable[[str], None] = _activate_bundle,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+    seconds: float = FRONT_KEEP_SEC,
+    max_restores: int = FRONT_KEEP_MAX_RESTORES,
+    initial: str | None = None,
+) -> int:
+    """유니티가 앞으로 나오면 **마지막으로 앞에 있던 다른 앱**으로 돌려놓는다. 돌려놓은 횟수를 돌려준다."""
+    last_other = initial if initial is not None else front()
+    if last_other == UNITY_BUNDLE_ID:
+        last_other = ""
+    restores = 0
+    deadline = clock() + seconds
+    while clock() < deadline and restores < max_restores:
+        sleep(0.5)
+        current = front()
+        if not current:
+            continue
+        if current != UNITY_BUNDLE_ID:
+            last_other = current  # 사람이 다른 앱으로 옮겨 가면 그 앱이 돌아갈 자리다
+            continue
+        if last_other:
+            activate(last_other)
+            restores += 1
+    return restores
+
+
+def _start_front_keeper() -> None:
+    first = _front_bundle_id()  # 띄우기 전의 맨 앞 앱 — 이 줄은 띄우기 전에 돈다
+    threading.Thread(target=keep_front_away_from_unity, kwargs={"initial": first},
+                     name="unity-front-keeper", daemon=True).start()
+
+
+#: 붙이려던 컴포넌트를 유니티가 아직 모른다(새 스크립트를 안 읽음)는 원본 다리의 말.
+_COMPONENT_MISSING = __import__("re").compile(r"(not\s+found|could\s+not\s+(?:find|load)|unknown\s+(?:component|type)|no\s+type)", __import__("re").I)
+
+
+#: 원본 다리가 속성 넣기에 실패했을 때의 말.
+_PROPERTY_FAILED = __import__("re").compile(r"property operations failed", __import__("re").I)
+
+
+def _find_flag(value: Any, key: str, depth: int = 0) -> bool:
+    """에디터 상태(겹친 dict)에서 그 이름의 참/거짓 칸을 찾는다 — 원본이 판마다 칸을 옮겨서 위치를 박지 않는다."""
+    if depth > 4:
+        return False
+    if isinstance(value, dict):
+        if value.get(key) is True:
+            return True
+        return any(_find_flag(item, key, depth + 1) for item in value.values() if isinstance(item, (dict, list)))
+    if isinstance(value, list):
+        return any(_find_flag(item, key, depth + 1) for item in value)
+    return False
+
+
+def _scene_name(raw: str) -> str:
+    """씬 파일 이름 — 글자 · 숫자 · 밑줄 · 붙임표 · 빈칸만. 경로나 확장자를 끼워 넣지 못한다."""
+    import re
+
+    name = raw.strip().removesuffix(".unity")
+    if not name or not re.fullmatch(r"[\w\- ]{1,64}", name):
+        raise ValueError(f"unity_scene_name: 씬 이름은 글자 · 숫자 · _ · - 만(64자까지): {raw!r}")
+    return name
+
+
+def _scene_folder(raw: str) -> str:
+    """씬을 둘 폴더 — Assets 아래만. 「..」 · 절대 경로 · 다른 드라이브는 거절한다."""
+    folder = raw.replace("\\", "/").strip().strip("/")
+    if folder.lower().startswith("assets/"):
+        folder = folder[len("assets/"):]
+    elif folder.lower() == "assets":
+        folder = ""
+    parts = [part for part in folder.split("/") if part]
+    if ":" in folder or any(part in (".", "..") for part in parts):
+        raise ValueError(f"unity_scene_path: 씬 폴더는 Assets 아래 상대 경로만: {raw!r}")
+    return "/".join(parts) or "Scenes"
 
 
 def _clamp(value: Any, default: int, low: int, high: int) -> int:

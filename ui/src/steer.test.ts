@@ -19,7 +19,7 @@ describe("steering a running job", () => {
     expect(steer).toBeGreaterThan(0);
     expect(queue).toBeGreaterThan(steer);
     // 첨부가 있으면 걸음 사이에 끼울 자리가 없다 — 새 작업이다.
-    expect(send).toContain("!sending.length ? activeJobRef.current");
+    expect(send).toContain("!sending.length\n      ? jobToSteer(activeJobRef.current, targetSession, pendingRef.current, jobsRef.current)");
   });
 
   it("shows the applied note and resends what never reached the model", () => {

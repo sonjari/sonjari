@@ -1106,9 +1106,17 @@ def set_fold_sheet(messages: list[dict[str, Any]], sheet: str) -> bool:
 
 
 def transcript_chars(messages: list[dict[str, Any]]) -> int:
-    """대화가 모델에게 가는 크기(글자). 안쪽 표식(`_metrics` 처럼 밑줄로 시작하는 칸)은 모델에게 안 가니 세지 않는다."""
+    """대화가 모델에게 가는 크기(글자). 안쪽 표식(`_metrics` 처럼 밑줄로 시작하는 칸)은 모델에게 안 가니 세지 않는다.
+
+    ★ 사진 칸(`images` · base64)도 세지 않는다 (2026-11-11). 화면 사진 한 장이 글자로 약 10만 자인데 토큰은 약 1천이다 —
+    이것을 글자로 센 탓에 「글자가 싸다」고 잘못 재서 예산이 3.7만 자 → 14만~19만 자로 넓어지고 접기가 안 걸려
+    노트북 판 9개 중 5개가 창을 넘어 죽었다(그림 켬 측정 · 설계_v3 §9 · §10).
+    """
     return sum(
-        len(json.dumps({key: value for key, value in item.items() if not str(key).startswith("_")}, ensure_ascii=False, default=str))
+        len(json.dumps(
+            {key: value for key, value in item.items() if not str(key).startswith("_") and key != "images"},
+            ensure_ascii=False, default=str,
+        ))
         for item in messages
     )
 

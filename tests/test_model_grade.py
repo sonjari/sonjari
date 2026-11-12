@@ -106,3 +106,16 @@ def test_the_screen_gets_the_grade_from_health() -> None:
 
     source = inspect.getsource(OllamaClient.health)
     assert '"agent_grade"' in source
+
+
+def test_strata_outside_catalog_is_graded_but_not_listed():
+    """11-09 대표 결정: Strata 는 게임 코드 맡김 17/21 로 합격 — 단 고르기 목록(CATALOG)에는 안 뜬다."""
+    tag = "strata/qwen3.8-flash-next-swift"
+    grade = agent_grade(tag)
+    assert grade["measured"] is True
+    assert grade["label"] == "코드 맡김 17/21 실측"
+    assert "사슬 벤치" not in grade["label"], "잰 것이 다르다"
+    assert by_tag(tag) is None
+    assert all(model.ollama_tag.lower() != tag for model in CATALOG)
+    # 비슷한 이름은 안 걸린다
+    assert agent_grade("strata/other-model")["measured"] is False
