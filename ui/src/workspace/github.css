@@ -1,0 +1,64 @@
+/* 설정 › 연결 › 깃허브 연결 (2026-11-12).
+   설정 화면의 면 · 선 · 단추를 그대로 쓴다. 이 칸만의 것은 하나 — 한 글자씩 칸에 나눈 8자리 코드와, 그 아래 줄어드는 가는 선.
+   색은 뜻대로: 지금 할 일 = signal, 연결됨 = ok, 끊기 · 주의 = stop · signal. */
+
+.gh-card { margin-top: 22px; padding-top: 18px; border-top: 1px solid rgb(var(--line)); }
+
+.gh-lede { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+.gh-lede-icon { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid rgb(var(--line)); border-radius: var(--r-1); color: rgb(var(--text-2)); }
+.gh-title { margin: 4px 0 2px; font-size: var(--fs-3); color: rgb(var(--text-1)); }
+.gh-lede .settings-note { margin: 0; }
+
+/* 지금 할 일 — 상자 하나 */
+.gh-now { display: grid; justify-items: start; gap: 10px; padding: 12px 14px 14px; border: 1px solid rgb(var(--line)); border-radius: var(--r-2); background: rgb(var(--surface-3)); }
+.gh-now > .settings-note { margin: 0; justify-self: stretch; }
+.gh-now-title { margin: 0; font-size: var(--fs-3); font-weight: var(--fw-mid); color: rgb(var(--text-1)); }
+.gh-big { min-width: 200px; min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: var(--fs-3); }
+
+/* ── 이 칸의 얼굴: 일회용 코드 ───────────────────────────────────── */
+.gh-waiting { border-color: rgb(var(--signal-dim)); }
+.gh-code { display: flex; align-items: center; gap: 14px; margin: 6px 0 2px; }
+.gh-code-half { display: inline-flex; align-items: center; gap: 6px; }
+.gh-code-cell {
+  width: 38px; height: 50px; display: grid; place-items: center;
+  border: 1px solid rgb(var(--line-strong)); border-radius: var(--r-1);
+  background: rgb(var(--surface-2));
+  font-family: var(--font-mono); font-size: 26px; font-weight: 600; line-height: 1;
+  color: rgb(var(--text-1)); font-variant-numeric: tabular-nums; letter-spacing: 0;
+  user-select: all;
+}
+.gh-code-dash { margin-left: 8px; font-family: var(--font-mono); font-size: 22px; color: rgb(var(--text-5)); }
+
+/* 남은 시간 — 코드 폭만큼의 가는 선이 줄어든다 */
+.gh-timer { width: min(100%, 380px); height: 2px; border-radius: 2px; background: rgb(var(--line)); overflow: hidden; }
+.gh-timer-fill { display: block; height: 100%; background: rgb(var(--signal)); transition: width 3s linear; }
+
+.gh-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.gh-row button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: var(--fs-2); }
+.gh-left { margin-left: 4px; font-size: var(--fs-1); color: rgb(var(--text-4)); font-variant-numeric: tabular-nums; }
+
+/* 연결됨 */
+.gh-linked { display: grid; gap: 8px; }
+.gh-linked .settings-note { margin: 0; }
+.gh-status-line { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--fs-3); color: rgb(var(--text-1)); }
+.gh-meta { font-family: var(--font-mono); font-size: var(--fs-1); color: rgb(var(--text-5)); }
+.gh-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--text-5) / .6); }
+.gh-dot.is-on { background: rgb(var(--ok-bright)); box-shadow: 0 0 0 3px rgb(var(--ok) / .18); }
+.gh-stop { color: rgb(var(--stop-bright)); }
+
+.gh-warn { margin: 10px 0 0; padding: 8px 12px; border: 1px solid rgb(var(--signal-dim)); border-radius: var(--r-1); font-size: var(--fs-2); line-height: 1.5; color: rgb(var(--signal-bright)); }
+.gh-quiet { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--fs-2); color: rgb(var(--text-4)); }
+.gh-spin { animation: gh-spin 1s linear infinite; }
+@keyframes gh-spin { to { transform: rotate(360deg); } }
+
+/* 좁은 창 — 코드 칸을 줄인다 */
+@media (max-width: 520px) {
+  .gh-code { gap: 8px; }
+  .gh-code-half { gap: 4px; }
+  .gh-code-cell { width: 30px; height: 42px; font-size: 21px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gh-timer-fill { transition: none; }
+  .gh-spin { animation: none; }
+}

@@ -38,6 +38,7 @@ import { AboutMeSection } from "./AboutMeSection";
 import { SavingsCard } from "./SavingsCard";
 import { ScribeSection } from "./ScribeSection";
 import { TakeoverHowTo } from "./TakeoverHowTo";
+import { GithubSection } from "./GithubSection";
 
 type Section = string;
 type FieldStatus = { state: "saving" | "saved" | "error"; message: string };
@@ -309,6 +310,8 @@ export function SettingsScreen({ client, open, onClose, initialSection = "genera
               {/* 2026-10-19: 클로드를 이은 까닭이 숫자로 보이는 자리 — 연결 설정 바로 위. */}
               {client && <SavingsCard client={client} />}
               <ConnectPanel api={setupApi} />
+              {/* 2026-11-12: 깃허브 연결 — 저장소 받기 · PR 의 바탕(설계 docs/설계_깃허브연결_2026-11-12.ko.md). */}
+              {client && <GithubSection client={client} />}
               {/* 2026-10-19: 반대 방향 — 클로드가 손자리에 맡기는 길(위) 옆에, 손자리가 막히면 내 클로드에게 넘기는 스위치.
                   켜고 끄기 · 못 켜는 까닭(클로드 없음 · 로그인 필요 · 관리자가 꺼 둠)은 다른 설정 칸과 같은 부품이 그린다. */}
               {rows.length > 0 && (

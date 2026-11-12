@@ -1248,6 +1248,41 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def browser_live_fit(body: dict[str, Any]) -> dict[str, Any]:
         return runtime.browser.live_view.fit(body.get("width"), body.get("height"))
 
+    # ★ 2026-11-12 깃허브 연결(github_link.py · 설계 docs/설계_깃허브연결_2026-11-12.ko.md) — 순서는 코드가 쥔다.
+    _github_holder: dict[str, Any] = {}
+
+    def _github() -> Any:
+        if "link" not in _github_holder:
+            from .github_link import GithubLink
+
+            _github_holder["link"] = GithubLink(runtime.config.github_dir)
+        return _github_holder["link"]
+
+    @app.get("/v1/github/status", dependencies=[Depends(require_token)])
+    async def github_status() -> dict[str, Any]:
+        return await asyncio.to_thread(_github().status)
+
+    @app.post("/v1/github/install", dependencies=[Depends(require_token)])
+    async def github_install() -> dict[str, Any]:
+        try:
+            return {"ok": True, **(await asyncio.to_thread(_github().install))}
+        except RuntimeError as exc:
+            return {"ok": False, "error": str(exc)}
+        except Exception as exc:  # noqa: BLE001 — 받기 실패(인터넷 · 방화벽)는 카드에 까닭으로
+            return {"ok": False, "error": f"download_failed: {type(exc).__name__}"}
+
+    @app.post("/v1/github/login/start", dependencies=[Depends(require_token)])
+    async def github_login_start() -> dict[str, Any]:
+        return await asyncio.to_thread(_github().login_start)
+
+    @app.get("/v1/github/login/poll", dependencies=[Depends(require_token)])
+    async def github_login_poll() -> dict[str, Any]:
+        return await asyncio.to_thread(_github().login_poll)
+
+    @app.post("/v1/github/logout", dependencies=[Depends(require_token)])
+    async def github_logout() -> dict[str, Any]:
+        return await asyncio.to_thread(_github().logout)
+
     @app.get("/v1/google/status", dependencies=[Depends(require_token)])
     def google_status(verify: bool = False) -> dict[str, Any]:
         return runtime.google.status(verify=verify)

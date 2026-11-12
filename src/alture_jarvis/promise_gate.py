@@ -689,17 +689,31 @@ _PRESENT_SELF_ACTION_PLAIN = re.compile(
     r"(?:(?:확인|검색|탐색|조회|추출|이동|시도|재시도|클릭|스크롤|조사|비교|진행|접속|수집|열람|정리|작성|요약)(?:한다|하는\s*중이다)"
     r"|(?:연다|읽는다|찾는다|넘어간다|내려간다|들어간다))[.!…~\s]*$"
 )
+# ★ 2026-11-13 맥 판 14c76267(MCP 목록 조사): 단계 규칙에 브라우저가 막힌 뒤 최종 답이 「…서버 목록 화면으로 **간다**.」로 끝났다.
+#   위 그물에 「간다」가 없어 그대로 나갔다. 낱말 하나를 더하지 않고 **모양**으로: 「(어디)로 + 가다 꼴 동사」는 자리를 옮기는
+#   다음 걸음이다(…으로 간다 · …로 넘어간다 · …로 돌아간다 · …로 이동한다). 앞에 「~로」가 있어야 해서 「시간이 간다」 같은 말은 안 걸린다.
+#   ★ 같은 날 반례 「그는 학교로 간다」가 걸려 좁혔다: 옮겨 가는 곳이 **화면 속 자리**(화면 · 페이지 · 목록 · 사이트 · 탭 · 창 …)일 때만.
+_MOVES_TO_A_PLACE_PLAIN = re.compile(
+    r"(?:화면|페이지|목록|사이트|탭|창|주소|링크|결과|검색\s*결과|폴더|문서|항목|섹션|단계|메뉴|글|게시판)(?:으로|로)\s+"
+    r"(?:다시\s+|바로\s+|먼저\s+)?(?:간다|넘어간다|들어간다|돌아간다|옮겨\s*간다|이동한다)[.!…~\s]*$")
+
+
+_TRAILING_ASIDE = re.compile(r"\s*\([^()]*\)[.!?…~\s]*$")
 
 
 def _plain_inner_monologue(text: str) -> bool:
     sentences = [part.strip() for part in _SENTENCE_BREAK.split(text) if part.strip()]
     if not sentences:
         return False
-    plain = all(sentence.rstrip(".!?…~ ").endswith(("다", "자")) and not _POLITE_END.search(sentence) for sentence in sentences)
+    # ★ 2026-11-13: 「…읽었다(유료 $39 즉시·무료 심사).」처럼 끝에 괄호 덧말이 붙으면 평서형 검사에서 먼저 떨어져 그물이 안 돌았다.
+    #   끝의 괄호 덧말은 걷고 본다(덧말은 문장의 꼴을 바꾸지 않는다).
+    plain = all(_TRAILING_ASIDE.sub("", sentence).rstrip(".!?…~ ").endswith(("다", "자")) and not _POLITE_END.search(sentence)
+                for sentence in sentences)
     if not plain:
         return False
     return bool(_TOOL_NAME_IN_SPEECH.search(text) or _TRY_NEXT_ENDING.search(sentences[-1]) or _tries_a_verb(sentences[-1])
-                or (len(text) <= 200 and _PRESENT_SELF_ACTION_PLAIN.search(sentences[-1])))
+                or (len(text) <= 200 and (_PRESENT_SELF_ACTION_PLAIN.search(sentences[-1])
+                                          or _MOVES_TO_A_PLACE_PLAIN.search(sentences[-1]))))
 
 
 _FUTURE_ENDING =re.compile(r"(겠습니다|겠어요|할게요|볼게요|드릴게요|올게요)[.!…~\s]*$")

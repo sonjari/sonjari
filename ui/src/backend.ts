@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Observation, StepRow } from "./workspace/observation";
 import type { HealthOllama } from "./workspace/readiness";
 import type { ModelLoading } from "./workspace/ModelLoadLine";
-import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, UsageShowStatus, WhatsNewStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, ScribeStatus, BackupSummary, PackInfo, PacksView, McpServerRow, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem, SavingsReceipt, WeeklyReceipt, ReceiptImageSaved } from "./types";
+import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, GithubStatus, GithubLoginPoll, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, UsageShowStatus, WhatsNewStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, ScribeStatus, BackupSummary, PackInfo, PacksView, McpServerRow, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem, SavingsReceipt, WeeklyReceipt, ReceiptImageSaved } from "./types";
 
 declare global {
   interface Window {
@@ -249,6 +249,27 @@ export class JarvisClient {
 
   startGoogleOAuth(): Promise<{ ok: boolean; opened_browser: boolean; authorization_url: string }> {
     return this.request("/v1/google/oauth/start", { method: "POST" });
+  }
+
+  /** 깃허브 연결(2026-11-12 · github_link.py) — 순서는 백엔드가 쥔다. 화면은 상태를 그리고 단추만 누른다. */
+  githubStatus(): Promise<GithubStatus> {
+    return this.request("/v1/github/status", { method: "GET" });
+  }
+
+  githubInstall(): Promise<{ ok: boolean; version?: string; error?: string }> {
+    return this.request("/v1/github/install", { method: "POST" });
+  }
+
+  githubLoginStart(): Promise<{ ok: boolean; code?: string; url?: string; expires_in?: number; error?: string; detail?: string }> {
+    return this.request("/v1/github/login/start", { method: "POST" });
+  }
+
+  githubLoginPoll(): Promise<GithubLoginPoll> {
+    return this.request("/v1/github/login/poll", { method: "GET" });
+  }
+
+  githubLogout(): Promise<{ ok: boolean; changed: boolean }> {
+    return this.request("/v1/github/logout", { method: "POST" });
   }
 
   /** 드라이브에서 파일 고르기 — Google 이 기본 브라우저에 고르는 화면을 띄운다(인수인계 H4). */

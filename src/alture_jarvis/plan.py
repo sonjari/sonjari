@@ -431,10 +431,37 @@ def _per_item_count(compact: str) -> int:
     return 0
 
 
+#: 「각 곳마다 · 곳마다 … 읽/열/확인/조사」 — 늘어놓은 대상 하나하나를 읽으라는 말(개수 낱말 없이).
+#:   ★ 같은 날 역검증(운영 요청 3,380): 동그라미 번호는 조건 · 적을 칸 · 문서 목차에도 쓰여 「각각 · 항목」까지 받으면 4건이
+#:   헛걸렸다(Show GN 규칙 「① 조건 ② 금지…」 · inline AI 문서 목차 7 · 키포즈 15). **장소를 가리키는 말**(곳 · 사이트 · 대상 ·
+#:   후보 · 서비스)만, 그리고 그 말 **앞에** 늘어놓은 번호만 센다.
+_EACH_TARGET_READ = re.compile(
+    r"(?:각\s*(?:곳|사이트|대상|후보|서비스)\s*(?:마다|별로)?|(?:곳|사이트|대상|후보|서비스)\s*마다)"
+    r"[^.。\n]{0,40}?(?:읽|열어|열고|확인|조사|찾아|살펴)"
+)
+
+
+def _each_target_read_count(compact: str) -> int:
+    """「각 곳마다 … 읽어」 **앞에** 동그라미 번호로 늘어놓은 대상 수(둘 이상일 때). 아니면 0."""
+    match = _EACH_TARGET_READ.search(compact)
+    if not match:
+        return 0
+    circled = len(set(_CIRCLED.findall(compact[: match.start()])))
+    return min(circled, 30) if circled >= 2 else 0
+
+
 def _count_choice(compact: str) -> tuple[int, str]:
     """`_count_choice_single` 에 「목록 × ~씩」 곱을 얹는다(위 `_INLINE_LIST_LABEL` 주석)."""
     value, noun = _count_choice_single(compact)
     per = _per_item_count(compact)
+    # ★ 2026-11-13 맥 판 14c76267: 「대상: ① 공식 레지스트리 ② Smithery … ⑥ 앤트로픽 공식 경로. 각 곳마다 공식 문서를 직접 읽고…」에
+    #   개수 낱말(「N개씩」)이 없어 읽을 몫이 0 → 깃허브 한 번 열자 「읽기 끝 · 파일 차례」로 넘어가 나머지 다섯 곳 열기가
+    #   not_this_stage 로 막혔다(32걸음 중 5번). 대상을 **동그라미 번호로 늘어놓고 「각 곳마다 · 각각 … 읽어/확인해」**라 했으면
+    #   대상 수만큼이 읽을 몫이다(한 곳에 한 페이지 이상).
+    if per < 1 and not value:
+        each = _each_target_read_count(compact)
+        if each:
+            return each, "곳"
     # 「하나씩」은 혼자서는 개수 요구가 아니다(1 은 범위 밖) — 목록과 함께일 때만 목록 길이가 개수다(판 6e539bf2 「각각 … 대표 영상 하나씩」).
     if per < 1 or (value and per != value) or (not value and per != 1):
         return value, noun
@@ -1809,7 +1836,9 @@ def _extract_all(
     # ※ 2026-09-30 코드 벤치의 「모바일에서도」(출처로 오독)는 여기서 막지 않는다. 「만들 것이 있으면 아는 사이트만 출처」로
     #   좁혔더니 코워크의 「마이크로소프트 스토어에서 메모 앱 3개 → 엑셀」·「알라딘에서 책 3권 → 워드」(아는 사이트 목록 밖의
     #   진짜 출처) 5건이 읽기 개수를 잃었다(역검증). 사양서 문장이 오독되는 곳은 **Code 탭**이라 거기서만 거른다(맨 아래).
-    if code_or_artifact and not has_named_source and not _has_explicit_input_count(compact):
+    # ★ 2026-11-13: 「대상 ①…⑥ · 각 곳마다 읽고 → 엑셀」의 6 은 만들 모양이 아니라 **읽을 대상 수**다(`_each_target_read_count`).
+    if (code_or_artifact and not has_named_source and not _has_explicit_input_count(compact)
+            and not _each_target_read_count(compact)):
         read_count_context = False
     # ★ 2026-09-30: 「폴더의 파일 이름을 세 개만 알려 줘」 — 이름은 목록 보기로 끝난다. 본문을 보라는 말이 없으면
     #   읽기 개수 요구를 만들지 않는다(이름만 볼 일에 파일을 열었고, 파일이 하나뿐이라 부분 완료로 끝났다).

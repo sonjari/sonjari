@@ -45,3 +45,18 @@ def test_a_long_plain_answer_is_left_alone() -> None:
     body = "HN 은 맥판 베타와 묶는다. " * 20 + "마지막으로 정리한다."
     assert len(body) > 200
     assert not _only_a_promise(body)
+
+
+# ★ 2026-11-13 맥 판 14c76267: 단계 규칙에 브라우저가 막힌 뒤 「…서버 목록 화면으로 간다.」로 끝났다.
+#   ① 「간다」가 그물에 없었고 ② 첫 문장이 괄호 덧말로 끝나 평서형 검사에서 먼저 떨어졌다.
+def test_moving_to_a_screen_is_a_promise_even_after_a_bracketed_aside() -> None:
+    real = ("mcp.so 제출 페이지를 읽었다(유료 $39 즉시·무료 심사). sonjari 등록 여부는 목록에서 확인해야 한다 — "
+            "서버 목록 화면으로 간다.")
+    assert _only_a_promise(real)
+    assert _only_a_promise("요약 화면으로 돌아간다.")
+    assert _only_a_promise("다음 페이지로 넘어간다.")
+
+
+def test_moving_words_that_are_not_a_next_step_stay_answers() -> None:
+    for text in ("그는 학교로 간다.", "시간이 간다.", "가격을 정리했다(단위 원).", "세 곳을 읽었다. 결과는 표로 정리했다."):
+        assert not _only_a_promise(text), text

@@ -291,6 +291,21 @@ export interface JarvisPublicConfig {
   memory_retrieval_limit?: number;
 }
 
+/** 깃허브 연결(2026-11-12 · /v1/github/status). 토큰 값은 오지 않는다 — 어디에 있는지(storage)만. */
+export interface GithubStatus {
+  gh: { path: string; version: string; source: "ours" | "system"; old: boolean } | null;
+  git: { path: string; version: string } | null;
+  login: { logged_in: boolean; user: string; storage: "keyring" | "file" | ""; config: "ours" | "user" | "" };
+  pending: { code: string; url: string; expires_in: number } | null;
+  supported: boolean;
+}
+
+export type GithubLoginPoll =
+  | { state: "idle" | "expired" }
+  | { state: "waiting"; code: string; url: string; expires_in: number }
+  | { state: "done"; user: string; storage: string }
+  | { state: "failed"; detail?: string };
+
 export interface GoogleStatus {
   enabled: boolean;
   configured: boolean;

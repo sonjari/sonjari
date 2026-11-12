@@ -888,7 +888,8 @@ async def _run() -> None:
     if not bridge.token:
         # stderr 로 낸다. stdout 은 JSON-RPC 전용이라 한 글자라도 섞이면 프로토콜이 깨진다.
         print(
-            "[alture-jarvis] JARVIS_CONTROL_TOKEN 이 비어 있습니다 — 모든 도구 호출이 401 로 거부됩니다.",
+            "[alture-jarvis] JARVIS_CONTROL_TOKEN 이 비어 있습니다 — 모든 도구 호출이 401 로 거부됩니다. "
+            "손자리 앱이 이 PC 에 없거나 아직 한 번도 켜지 않았습니다(앱을 깔고 한 번 켜면 토큰이 생깁니다).",
             file=sys.stderr,
         )
     server = build_server(bridge)
@@ -945,7 +946,7 @@ def resolve_token() -> str:
     token = os.environ.get("JARVIS_CONTROL_TOKEN", "").strip()
     if token:
         return token
-    path = os.environ.get("JARVIS_TOKEN_FILE", "").strip()
+    path = os.environ.get("JARVIS_TOKEN_FILE", "").strip() or str(default_token_file() or "")
     if not path:
         return ""
     try:
@@ -953,6 +954,33 @@ def resolve_token() -> str:
             return fh.read().strip()
     except OSError:
         return ""
+
+
+def default_token_file() -> "Path | None":
+    """환경변수가 없을 때 **이 PC 에 깔린 손자리 앱의 토큰 파일** 자리(2026-11-13 · 설계 docs/설계_클로드플러그인_2026-11-13.ko.md).
+
+    클로드 플러그인의 `.mcp.json` 에는 사람마다 다른 경로 · 변수를 못 적는다(디렉터리 규칙). 그래서 다리가 앱과 **같은 규칙**
+    (`config._default_runtime_root` → `data/control.token`)으로 스스로 찾는다. 무거운 설정 모듈은 안 부른다(글라마 컨테이너처럼
+    `mcp` · `httpx` 만 있는 곳에서도 돈다).
+    - 윈도우 스토어판: 별칭(`sonjari-mcp`)이 패키지 안에서 돌아 `%LOCALAPPDATA%\\Sonjari\\data\\control.token` 이 패키지 칸으로 읽힌다
+      (11-13 실측 · 6GB 노트북 스토어판: 보임).
+    - 맥: `~/Library/Application Support/Sonjari/data/control.token`.
+    토큰 값은 읽기만 하고 어디에도 찍지 않는다. 127.0.0.1 의 손자리 앱에만 보낸다.
+    """
+    from pathlib import Path
+
+    from .brand import runtime_dir
+
+    configured = os.environ.get("JARVIS_RUNTIME_ROOT", "").strip()
+    if configured:
+        root = Path(configured)
+    elif os.name == "nt":
+        root = runtime_dir(Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local"))
+    elif sys.platform == "darwin":
+        root = runtime_dir(Path(os.environ.get("SONJARI_APP_SUPPORT") or Path.home() / "Library" / "Application Support"))
+    else:
+        return None
+    return root / "data" / "control.token"
 
 
 def main() -> None:
