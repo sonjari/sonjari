@@ -91,6 +91,26 @@ describe("delegated message", () => {
     expect(out).not.toContain("바깥 AI 가 맡긴 일 · ");
   });
 
+  // 2026-11-12 대표: 맥 앞에서 「누가 끼어드노」 — PC 의 클로드가 맥 손자리에 맡긴 줄 몰랐다. 어느 컴퓨터인지 이름에 붙인다.
+  it.each([
+    ["ssh", "다른 컴퓨터의 Claude가 맡긴 일"],
+    ["윈도우 PC", "윈도우 PC의 Claude가 맡긴 일"],
+  ])("says which computer the host is on (%s)", (place, label) => {
+    const message: ConversationMessage = {
+      id: 3, session_id: "mcp-2", role: "user", content: "바깥 AI 가 맡긴 일 · 제목 읽기", kind: "chat",
+      metadata: { caller: "Claude Code", caller_place: place }, created_at: 0,
+    };
+    const out = html(message);
+    expect(out).toContain(label);
+    expect(out).toContain("origin-claude");
+  });
+
+  it("keeps the plain host name when the host is on this computer", () => {
+    const out = html(asked("바깥 AI 가 맡긴 일 · 제목 읽기", "Claude Code"));
+    expect(out).toContain("Claude가 맡긴 일");
+    expect(out).not.toContain("다른 컴퓨터");
+  });
+
   it("marks an old task without a host name as an unknown outside AI, never in Sonjari's own color", () => {
     const out = html(asked("바깥 AI 가 맡긴 일 · 제목 읽기"));
     expect(out).toContain("바깥 AI가 맡긴 일");

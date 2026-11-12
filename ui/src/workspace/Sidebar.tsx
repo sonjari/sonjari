@@ -8,7 +8,7 @@ import { timeLabel } from "./format";
 import { ScheduleList } from "./JobList";
 import { isLive, withLiveRooms } from "./jobs";
 import { RAIL_MAX_WIDTH, useNarrow } from "./useNarrow";
-import { DELEGATED_PREFIX, callerLabel, originTone, type HandoffOrigin } from "./TakeoverRelay";
+import { DELEGATED_PREFIX, callerName, originTone, type HandoffOrigin } from "./TakeoverRelay";
 
 /**
  * 사이드바 — **길찾기만** 한다.
@@ -91,7 +91,7 @@ export function Sidebar(props: {
     // 바깥 AI 가 맡긴 대화(2026-09-30) — 이어온 대화와 같은 출처 이음선을 두른다. 호스트 이름이 없던 옛 과제도 앞머리로 알아본다.
     const delegated = !origin && (session.caller || session.title.startsWith(DELEGATED_PREFIX)) ? session.caller || "" : null;
     const tone = origin ? originTone(origin.tool) : delegated !== null ? originTone(delegated) : "other";
-    const sourceName = origin ? origin.toolName : delegated !== null ? callerLabel(delegated) : "";
+    const sourceName = origin ? origin.toolName : delegated !== null ? callerName(delegated, session.caller_place) : "";
     const prefixed = origin ? t("{0}에서 이어온 · ", origin.toolName) : delegated !== null ? DELEGATED_PREFIX : "";
     const title = prefixed && session.title.startsWith(prefixed) ? session.title.slice(prefixed.length) : session.title;
     // ★ 지우기 (2026-09-24 사용자 요청: 「채팅창 삭제가 없다」). 버튼 안에 버튼을 넣을 수 없어 줄을 감싼다.

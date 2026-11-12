@@ -9,7 +9,7 @@ import type { ConversationMessage } from "../types";
 import { timeLabel } from "./format";
 import { userInitial, userLabel } from "./userLabel";
 import { MessageAttachments, type ShownAttachment } from "./MessageAttachments";
-import { DELEGATED_PREFIX, callerLabel, originTone } from "./TakeoverRelay";
+import { DELEGATED_PREFIX, callerName, originTone } from "./TakeoverRelay";
 import { splitAnswerChecks } from "./answerChecks";
 import { OutboundReceipt, type OutboundRecord } from "./OutboundReceipt";
 import { ShowcaseStrip, type ShowcaseSource } from "./ShowcaseStrip";
@@ -42,6 +42,7 @@ export const MessageView = memo(function MessageView({
   // ★ 바깥 AI 가 맡긴 말 (2026-09-30). 클로드·코덱스를 같이 쓰면 누가 Sonjari를 불렀는지 몰랐다 — 그 호스트의 출처 이음선과
   //   이름을 두른다(tokens.css `--origin-*`: 면을 칠하지 않고 2px 이음선과 출처 글자에만, 이름을 늘 함께).
   const caller = typeof message.metadata?.caller === "string" ? message.metadata.caller : "";
+  const callerPlace = typeof message.metadata?.caller_place === "string" ? message.metadata.caller_place : "";
   const delegated = message.role === "user" && (Boolean(caller) || message.content.startsWith(DELEGATED_PREFIX));
   const shownContent = delegated && message.content.startsWith(DELEGATED_PREFIX)
     ? message.content.slice(DELEGATED_PREFIX.length)
@@ -90,7 +91,7 @@ export const MessageView = memo(function MessageView({
       </div>
       <div className="message-body">
         <div className="message-meta">
-          <strong>{byClaude ? (isClaudeBrain(claudeModel) ? claudeButtonLabel(claudeModel) : "Claude Agent") : message.role === "assistant" ? "Sonjari" : delegated ? t("{0}가 맡긴 일", callerLabel(caller)) : userLabel()}</strong>
+          <strong>{byClaude ? (isClaudeBrain(claudeModel) ? claudeButtonLabel(claudeModel) : "Claude Agent") : message.role === "assistant" ? "Sonjari" : delegated ? t("{0}가 맡긴 일", callerName(caller, callerPlace)) : userLabel()}</strong>
           <span>{timeLabel(message.created_at)}</span>
           {runtime && <span className="message-runtime">{runtime}</span>}
         </div>

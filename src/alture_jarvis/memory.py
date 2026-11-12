@@ -506,6 +506,12 @@ class ConversationMemory:
                          ORDER BY first_user.id ASC LIMIT 1
                        ), '') AS caller,
                        COALESCE((
+                         SELECT CASE WHEN json_valid(first_user.metadata_json) THEN json_extract(first_user.metadata_json, '$.caller_place') END FROM conversation_messages first_user
+                         WHERE first_user.session_id = m.session_id
+                           AND first_user.role = 'user'
+                         ORDER BY first_user.id ASC LIMIT 1
+                       ), '') AS caller_place,
+                       COALESCE((
                          SELECT CASE WHEN json_valid(first_user.metadata_json) THEN json_extract(first_user.metadata_json, '$.via') END FROM conversation_messages first_user
                          WHERE first_user.session_id = m.session_id
                            AND first_user.role = 'user'
@@ -549,6 +555,7 @@ class ConversationMemory:
                 "job_id": str(row["job_id"] or ""),
                 # 바깥 AI 가 맡긴 대화면 그 호스트 이름(첫 사용자 메시지의 metadata). 없으면 빈 문자열.
                 "caller": str(row["caller"] or "")[:80],
+                "caller_place": str(row["caller_place"] or "")[:40],
                 "preview": str(row["preview"])[:160],
                 "has_summary": bool(row["has_summary"]),
             }

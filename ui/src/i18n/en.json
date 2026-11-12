@@ -2727,5 +2727,7 @@
  "지금 램 부스트가 켜져 있습니다.": "RAM Boost is on right now.",
  "유니티가 파일 다시 읽기": "Unity reloads files",
  "앞 일(「{0}」)을 아직 하는 중입니다. 끝나면 이 질문을 바로 시작합니다.": "Still working on the earlier task (“{0}”). This question starts as soon as it finishes.",
- "다른 일": "another task"
+ "다른 일": "another task",
+ "{0}의 {1}": "{1} on {0}",
+ "다른 컴퓨터": "another computer"
 }

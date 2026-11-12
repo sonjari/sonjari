@@ -88,6 +88,8 @@ class ChatRequest(BaseModel):
     plan_push: bool | None = None
     # 바깥 AI 가 맡긴 일이면 그 호스트 이름(MCP clientInfo) — 화면이 출처 색 이음선과 이름을 두른다(2026-09-30).
     caller: str = Field(default="", max_length=80)
+    # 그 호스트가 어느 컴퓨터에 있나(2026-11-12) — `ssh` 면 화면이 「다른 컴퓨터의 Claude」로 적는다(`mcp_server.caller_place`).
+    caller_place: str = Field(default="", max_length=40)
     # 어느 문으로 들어왔나 (2026-10-21 원격 첫 판) — "remote" 는 노트북 등에서 테일스케일로 들어온 판(`remote_gateway`).
     #   모르는 칸은 조용히 버려지므로 칸을 둬야 잡 기록(payload)에 남는다. 영수증 · 화면이 원격 판을 가른다.
     via: Literal["", "remote", "app"] = ""

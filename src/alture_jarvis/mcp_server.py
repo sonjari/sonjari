@@ -622,6 +622,11 @@ class JarvisMcpBridge:
                 #   화면이 그 호스트의 출처 색 이음선과 이름을 두른다 — 이어온 대화와 같은 규칙(tokens.css `--origin-*`).
                 if caller:
                     body["caller"] = caller[:80]
+                # ★ 어느 컴퓨터의 호스트인가 (2026-11-12 대표: 맥 앞에서 「누가 끼어드노」 — 맥의 클로드인지 PC 의 클로드인지 몰랐다).
+                #   이름(`caller`)에 붙이지 않는다 — `is_claude_code` · 영수증이 그 이름을 그대로 맞춰 본다.
+                place = caller_place()
+                if place:
+                    body["caller_place"] = place
                 response = await client.post(f"{self.base_url}/v1/chat", json=body, headers=headers)
                 if response.status_code == 401:
                     return "손자리가 이 호출을 거부했습니다(토큰 불일치).", True
@@ -892,6 +897,26 @@ async def _run() -> None:
             await server.run(read_stream, write_stream, server.create_initialization_options())
     finally:
         await bridge.aclose()
+
+
+#: 화면이 「다른 컴퓨터」로 옮기는 값 — 이 MCP 서버가 SSH 로 다른 컴퓨터에서 띄워졌다.
+CALLER_PLACE_SSH = "ssh"
+
+
+def caller_place(env: Any = None) -> str:
+    """이 연결을 연 호스트가 **어느 컴퓨터**에 있나 (2026-11-12).
+
+    - 설정 `JARVIS_MCP_FROM`(예: 「윈도우 PC」)이 있으면 그 이름 — 부르는 쪽이 SSH 명령에 붙여 준다.
+    - 없고 SSH 로 띄워졌으면(`SSH_CONNECTION` · `SSH_CLIENT`) `ssh` — 화면이 「다른 컴퓨터」로 적는다.
+    - 같은 컴퓨터면 빈 문자열(예전과 같다).
+    """
+    env = os.environ if env is None else env
+    named = str(env.get("JARVIS_MCP_FROM") or "").strip()
+    if named:
+        return named[:40]
+    if env.get("SSH_CONNECTION") or env.get("SSH_CLIENT"):
+        return CALLER_PLACE_SSH
+    return ""
 
 
 def caller_of(context: Any) -> str:

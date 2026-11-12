@@ -1902,6 +1902,7 @@ class JarvisRuntime:
                     "job_id": job_id,
                     **({"model_prompt": prompt[:12_000]} if prompt and prompt != display_prompt else {}),
                     **({"caller": str(payload.get("caller"))[:80]} if payload.get("caller") else {}),
+                    **({"caller_place": str(payload.get("caller_place"))[:40]} if payload.get("caller_place") else {}),
                     **({"via": str(payload.get("via"))[:20]} if payload.get("via") else {}),
                 },
                 assistant_metadata={"job_id": job_id, "unfinished": "cancelled" if cancelled else "failed", "error": error[:120]},
@@ -2824,6 +2825,7 @@ class JarvisRuntime:
                 "workspace_mode": str(payload.get("workspace_mode") or "cowork"),
                 # 누가 맡겼나 — 화면이 방을 열자마자 그 이름을 두른다(기록이 도착하기 전에도).
                 "caller": str(payload.get("caller") or "")[:80],
+                "caller_place": str(payload.get("caller_place") or "")[:40],
                 # 앱 안 Claude 가 맡긴 판(via=app)이면 화면이 방을 열거나 목록에 세우지 않는다 — 맡긴 대화 안에 묶여 보인다.
                 "via": str(payload.get("via") or "")[:20],
             },
@@ -5912,6 +5914,7 @@ class JarvisRuntime:
                 **({"steer_notes": steer_notes} if steer_notes else {}),
                 # 누가 맡겼나(MCP 호스트 이름). 대화 목록·말풍선이 그 출처의 이음선을 두른다.
                 **({"caller": str(payload.get("caller"))[:80]} if payload.get("caller") else {}),
+                **({"caller_place": str(payload.get("caller_place"))[:40]} if payload.get("caller_place") else {}),
                 # 어느 문으로 들어왔나 — 앱 안 Claude 가 맡긴 판(via=app)은 대화 목록에 제 방으로 안 세운다(`memory.list_sessions`).
                 **({"via": str(payload.get("via"))[:20]} if payload.get("via") else {}),
             },
