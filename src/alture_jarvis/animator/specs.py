@@ -35,11 +35,44 @@ LIBRARY_ADD = _tool(
     ["source", "origin"],
 )
 
+LIBRARY_TAG = _tool(
+    "anim_library_tag",
+    "(클로드 · 코덱스용 · 시험 중) 창고 동작에 꼬리표 칸을 단다 — 무기 · 컨셉 · 무게감 · 속도감(현업 애니메이터가 찾을 때 쓰는 기준). "
+    "사람이 말한 것만 단다(「22번은 한손검 · 빠른 · 스타일리쉬」). 이름 · 사진으로 무기를 짐작해 달지 마라. "
+    "칸마다 통째로 바뀐다 — 빈 목록을 주면 그 칸을 지운다. 사전에 없는 값은 그대로 저장되고 not_in_dictionary 로 알려 준다. "
+    "단 뒤에는 anim_library_find 가 「무거운 양손검 평타」 같은 말을 그 칸으로 읽어 찾는다.",
+    {
+        "id": {"type": "string", "description": "anim_library_find 가 준 id"},
+        "무기": {"type": "array", "items": {"type": "string"}, "description": "예: 한손검 · 양손검 · 창 · 도끼 · 총 · 표창 · 활 · 맨손 · 마법 · 늘어나는 무기 · 둔기"},
+        "컨셉": {"type": "array", "items": {"type": "string"}, "description": "캐릭터 컨셉. 예: 귀여운 · 스타일리쉬 · 근엄 · 도도 · 코믹"},
+        "무게감": {"type": "array", "items": {"type": "string"}, "description": "예: 무거운 · 가벼운"},
+        "속도감": {"type": "array", "items": {"type": "string"}, "description": "예: 빠른 · 느린 · 부드러운 · 연타"},
+        "by": {"type": "string", "description": "누가 단다고 했나(남김용 · 비우면 「사람 말」)"},
+    },
+    ["id"],
+)
+
+HABIT = _tool(
+    "anim_habit",
+    "(클로드 · 코덱스용 · 시험 중) 다듬은 것 기억하기. 입히기 · 엇박자 결과에 habit_ask 가 오면(같은 상황에서 같은 손질이 두 번째) 그 한 줄만 사람에게 묻고 멈춰라. "
+    "사람이 다음 말에서 「응」이라고 하면 action=save(habit_ask.save_args 그대로) · 「아니」면 action=decline(그 상황 · 그 값은 다시 안 물음). "
+    "스스로 정해 저장하지 마라. 남긴 습관은 그 인자를 안 줬을 때만 쓰이고 결과의 habits_applied 로 늘 보인다. forget 으로 지우고 list 로 본다.",
+    {
+        "action": {"type": "string", "enum": ["save", "decline", "forget", "list"], "description": "save · decline · forget · list(기본)"},
+        "where": {"type": "string", "description": "habit_ask 가 준 where(캐릭터 · 목록) 그대로"},
+        "values": {"type": "object", "description": "손질 → 값(예: arm_spread → 20). forget 이면 지울 손질 이름들을 열쇠로"},
+        "by": {"type": "string", "description": "누가 남기라고 했나(남김용)"},
+    },
+    [],
+)
+
 LIBRARY_FIND = _tool(
     "anim_library_find",
     "(클로드 · 코덱스용) 모션 창고에서 말로 찾는다(이 PC 안 · 맥스 필요 없음). 예: 「돌진 공격」 · 「○○ 대기 루프」. "
     "결과마다 id · 이름 · 캐릭터 · 출처 · 프레임 수 · 루프 여부 · 대표 장면 사진 경로가 온다. 사진을 사람에게 보여 고르게 하고, "
-    "고른 id 로 anim_library_apply 를 불러라. 출처가 「영상 변환 초안」인 것은 초안이라고 꼭 말해라.",
+    "고른 id 로 anim_library_apply 를 불러라. 출처가 「영상 변환 초안」인 것은 초안이라고 꼭 말해라. "
+    "무기 · 컨셉 · 무게감 · 속도감 낱말(「무거운 양손검」 · 「창으로 빠르게」)은 꼬리표 칸으로 읽는다 — 결과마다 matched 가 무엇이 맞았는지다. "
+    "비거나 query_report 가 오면 무엇이 창고에 없는지 그대로 전해라(엉뚱한 동작으로 채우지 않는다).",
     {
         "query": {"type": "string", "description": "찾는 동작을 사람 말 그대로(비우면 전부)"},
         "character": {"type": "string", "description": "이 캐릭터 것만"},
@@ -69,6 +102,7 @@ LIBRARY_APPLY = _tool(
         "stride": {"type": "number", "description": "다리 보폭 · 몸통 이동 배율(0.1~2 · 기본 1 = 그대로). 다리가 짧은 캐릭터면 다리 길이 비율쯤(예 0.5)"},
         "arm_spread": {"type": "number", "description": "위팔을 몸 바깥쪽으로 더 벌리는 도(0~60 · 기본 0). 머리가 커서 팔이 가리면(예 20 · 35)"},
         "foot_lock": {"type": "boolean", "description": "발 고정(기본 true): 원본에서 땅에 붙은 발을 입힌 뒤에도 그 자리에(보폭 보정 · 첫끝 덮기가 발을 끌지 않게). 미끄러지는 동작이면 false"},
+        "character": {"type": "string", "description": "입힐 캐릭터 이름(다듬은 것 기억하기의 상황 열쇠 — 비우면 바이페드 이름). 같은 캐릭터 · 같은 목록에서 같은 손질을 두 번 하면 남길지 묻는다"},
     },
     ["id"],
 )
@@ -190,5 +224,5 @@ BLENDER_BLOCK = _tool(
     ["blend"],
 )
 
-V1_TOOLS = (LIBRARY_ADD, LIBRARY_FIND, LIBRARY_APPLY, PARTS, POSE_SHEET, VIDEO_TO_BIPED, FIT_CHECK, FIT_FIX,
+V1_TOOLS = (LIBRARY_ADD, LIBRARY_FIND, LIBRARY_TAG, HABIT, LIBRARY_APPLY, PARTS, POSE_SHEET, VIDEO_TO_BIPED, FIT_CHECK, FIT_FIX,
             BLENDER_CHECK, BLENDER_FIX, BLENDER_BLOCK)

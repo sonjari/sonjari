@@ -20,7 +20,7 @@ from alture_jarvis.animator_tools import ANIMATOR_TOOL_NAMES, AnimatorTools
 from alture_jarvis.packs import PackRegistry
 
 PACKS_DIR = Path(__file__).resolve().parents[1] / "packs"
-V1 = ["anim_library_add", "anim_library_find", "anim_library_apply", "anim_parts", "anim_pose_sheet", "anim_video_to_biped",
+V1 = ["anim_library_add", "anim_library_find", "anim_library_tag", "anim_library_apply", "anim_habit", "anim_parts", "anim_pose_sheet", "anim_video_to_biped",
       "anim_fit_check", "anim_fit_fix", "anim_blender_check", "anim_blender_fix", "anim_blender_block"]
 
 
