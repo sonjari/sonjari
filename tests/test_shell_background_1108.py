@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from alture_jarvis.config import JarvisConfig
-from alture_jarvis.local_computer import LocalComputerTools
+from alture_jarvis.local_computer import _SHELL_FORBIDDEN_PATHS, LocalComputerTools
 from alture_jarvis.models import RiskLevel
 from alture_jarvis.stuck_hands import _repeat_notice
 
@@ -29,6 +29,11 @@ def _tools(tmp_path: Path) -> LocalComputerTools:
 
 def _cmd(seconds: float, text: str) -> str:
     py = sys.executable.replace("\\", "/")
+    # ★ 2026-11-12 공개 CI: 깃허브 윈도우 기계의 파이썬은 `C:/hostedtoolcache/windows/Python/…` 라 경로의 「/windows/」가
+    #   셸 도구의 시스템 폴더 막기(`_SHELL_FORBIDDEN_PATHS`)에 걸렸다. 시험이 보는 것은 막기가 아니라 뒤에서 돌리기다 —
+    #   그런 경로면 PATH 의 `python` 으로 부른다.
+    if _SHELL_FORBIDDEN_PATHS.search(py):
+        py = "python"
     code = f"import time,sys; print('{text}-시작', flush=True); time.sleep({seconds}); print('{text}-끝'); sys.exit(3)"
     return f'& "{py}" -c "{code}"' if sys.platform == "win32" else f'"{py}" -c "{code}"'
 

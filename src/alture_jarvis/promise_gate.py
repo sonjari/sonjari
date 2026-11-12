@@ -680,6 +680,17 @@ def _tries_a_verb(sentence: str) -> bool:
     return ((ord(match.group(1)) - 0xAC00) // 28) % 21 in _CONNECTIVE_VOWELS
 
 
+# ★ 반말 현재형 예고 (2026-11-12 맥 판 ca3566f3 · 대표 「다음 주 HN 어떻게 하기로 했더라」). 한글 문서를 읽고 최종 답이
+#   「문서 원문을 읽었다. HN 관련 내용을 구체적으로 **정리한다**.」 33자였고 사람에게 그대로 갔다. 존댓말 현재형(「~확인합니다」 ·
+#   `_PRESENT_SELF_ACTION`)은 그물이 있었는데 **같은 뜻의 반말 꼴**은 없었다 — 맥 손자리는 「~다」체로 말해 예고도 이 꼴로 나온다.
+#   낱말을 하나 더하지 않고 존댓말 그물과 같은 모양의 반말 판을 둔다: 전부 반말 평서형이고 **마지막 문장**이 자기 일 동작의
+#   현재형(~한다 · ~하는 중이다 · 연다 · 읽는다 · 찾는다)이면 결과가 아니라 다음 걸음이다. 「읽었다」(과거)는 안 걸린다.
+_PRESENT_SELF_ACTION_PLAIN = re.compile(
+    r"(?:(?:확인|검색|탐색|조회|추출|이동|시도|재시도|클릭|스크롤|조사|비교|진행|접속|수집|열람|정리|작성|요약)(?:한다|하는\s*중이다)"
+    r"|(?:연다|읽는다|찾는다|넘어간다|내려간다|들어간다))[.!…~\s]*$"
+)
+
+
 def _plain_inner_monologue(text: str) -> bool:
     sentences = [part.strip() for part in _SENTENCE_BREAK.split(text) if part.strip()]
     if not sentences:
@@ -687,7 +698,8 @@ def _plain_inner_monologue(text: str) -> bool:
     plain = all(sentence.rstrip(".!?…~ ").endswith(("다", "자")) and not _POLITE_END.search(sentence) for sentence in sentences)
     if not plain:
         return False
-    return bool(_TOOL_NAME_IN_SPEECH.search(text) or _TRY_NEXT_ENDING.search(sentences[-1]) or _tries_a_verb(sentences[-1]))
+    return bool(_TOOL_NAME_IN_SPEECH.search(text) or _TRY_NEXT_ENDING.search(sentences[-1]) or _tries_a_verb(sentences[-1])
+                or (len(text) <= 200 and _PRESENT_SELF_ACTION_PLAIN.search(sentences[-1])))
 
 
 _FUTURE_ENDING =re.compile(r"(겠습니다|겠어요|할게요|볼게요|드릴게요|올게요)[.!…~\s]*$")

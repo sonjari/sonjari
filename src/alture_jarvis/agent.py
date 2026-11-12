@@ -131,6 +131,7 @@ from .transcript import (
 )
 from .ollama import OllamaClient, collapse_repeated_paragraphs, tagged_call, wait_note_to
 from .presentation import paint_answer, paint_answer_apart
+from .profile import profile_block
 from .promise_gate import (
     rank_order_source,
     rank_order_warning,
@@ -969,6 +970,8 @@ _VOICE_AND_MANNER = """<말투와-사고>
   화면이 잘렸거나 손이 미끄러진 것일 수 있다. 그냥 다시 답한다.
 - 못 한 일은 못 했다고 분명히 말한다. 다만 쏘아붙이거나 변명하지 않는다.
 - 모르면 모른다고 한다. 아는 척도, 서운한 티도 내지 않는다.
+- 사용자에게 하는 답의 말투는 아래 「나에 대한 지침」(`<jarvis-profile>`)에 말투 · 호칭 지시가 있으면 **그것을 따른다**
+  (예: 「반말하지 말고」면 답을 「~습니다 · ~요」로). 이 규칙 글이 「~다」체로 쓰였다고 답까지 그 말투를 따라 하지 않는다.
 
 생각도 한국어로 한다. 이 생각은 화면에 그대로 보이고, 읽는 사람은 한국어를 읽는다.
 단, 도구 이름·파일 경로·코드·오류 문자열은 **원문 그대로** 쓴다 — 식별자를 번역하면
@@ -8161,7 +8164,9 @@ class BrowserAgent:
                      if narration_on(self.config, self.config.model_for(model_role)) else "",
                      False),
                     ("inhouse", inhouse_prompt_section(self.tools.names), False),
-                    ("user_context", f"사용자 맥락:\n{system_context}" if system_context else "", True),
+                    # ★ 2026-11-12: 대화 판과 **같은 지침 블록**(`profile_block`)으로 싣는다. 예전엔 「사용자 맥락:」 머리만 붙여
+                    #   「반말하지 말고」 같은 지시가 배경 정보로 읽혔다(맥 판 ca3566f3).
+                    ("user_context", profile_block(system_context) if system_context else "", True),
                     ("skill_note", skill_note, False),
                     # 이름과 한 줄만 늘 띄우고 본문은 `skill_read`·도구로 가져온다.
                     # 없으면 도구로 다시 얻을 수 있으니 버려도 되는 쪽이다.

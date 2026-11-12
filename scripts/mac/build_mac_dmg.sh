@@ -31,6 +31,8 @@ codesign --verify --deep --strict "$STAGE/Sonjari.app" || { echo "애드혹 서�
 rsync -a --exclude '__pycache__' src "$STAGE/backend/"
 # ★ 2026-11-03: 자료(recipes · skills · packs)도 담는다 — 빠지면 「스킬 0개」 · 팩 없음(check_bundle.py REQUIRED_DATA).
 rsync -a --exclude 'drafts' --exclude '__pycache__' recipes skills packs "$STAGE/backend/"
+# ★ 2026-11-12: 기능 카드도 담는다 — `capability_cards.py` 는 앱 바로 아래 capabilities/ 를 찾는다. 빠지면 sonjari_guide(query) 가 빈다.
+rsync -a capabilities "$STAGE/backend/"
 cp pyproject.toml README.ko.md "$STAGE/backend/"
 cp scripts/mac/install_mac.sh "$STAGE/backend/scripts/mac/"
 # 11-04: 공증 없는 베타 — 처음 한 번 여는 법(그림 셋 · 대표 맥미니 실제 순서: 열지 않음 → 설정 › 개인정보 보호 및 보안 › 그래도 열기 → 설치 끝).
