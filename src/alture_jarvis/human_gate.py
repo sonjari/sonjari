@@ -28,6 +28,7 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
+from .hostname import url_on_domain
 from .site_atlas import registrable
 
 # 사람이 아니면 못 여는 문. attention.py 의 분류 코드와 같은 이름을 쓴다 —
@@ -316,7 +317,7 @@ def is_cleared(gate: dict[str, Any], state: dict[str, Any]) -> bool:
     now_url = str(state.get("url") or "")
 
     # 네이버 쿠키는 현재 탭이 어디든 로그인 완료를 직접 증명한다.
-    if code == "login_required" and "naver.com" in blocked_url and state.get("naver_signed_in"):
+    if code == "login_required" and url_on_domain(blocked_url, "naver.com") and state.get("naver_signed_in"):
         return True
 
     # 지켜보는 동안 사람이 다른 사이트를 보고 있을 수 있다. 그 깨끗한 탭 하나로
@@ -346,7 +347,7 @@ def is_cleared(gate: dict[str, Any], state: dict[str, Any]) -> bool:
                 or state.get("payment") is not None):
             return True
 
-    if code == "login_required" and "naver.com" in blocked_url:
+    if code == "login_required" and url_on_domain(blocked_url, "naver.com"):
         return bool(state.get("naver_signed_in"))
 
     if not blocked_url or not now_url:

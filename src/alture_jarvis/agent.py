@@ -18,6 +18,7 @@ from datetime import datetime
 from collections.abc import Mapping
 from typing import Any, Callable
 
+from .hostname import on_domain, url_on_domain
 from .page_view import PAGE_VIEW_MARKS, build_page_view, last_browser_failure, last_browser_tool
 from . import brand as _brand
 from . import english as _english
@@ -4249,7 +4250,7 @@ class BrowserAgent:
             def _official(url: str) -> bool:
                 parsed = urlparse(url)
                 host, path = (parsed.hostname or "").lower(), parsed.path.lower()
-                if host.endswith("github.com"):
+                if on_domain(host, "github.com"):
                     return any(word and word in path for word in latin)
                 return any(word and word in re.sub(r"[^a-z0-9]", "", host) for word in latin)
 
@@ -4549,7 +4550,7 @@ class BrowserAgent:
             if not key or key == "about:blank":
                 continue
             # 검색 결과 화면 자체는 출처가 아니다. 거기서 들어간 글이 출처다.
-            if "search.naver.com" in key or "bing.com/search" in key:
+            if url_on_domain(key, "search.naver.com") or (url_on_domain(key, "bing.com") and "/search" in key):
                 continue
             if key not in seen:
                 seen.append(key)

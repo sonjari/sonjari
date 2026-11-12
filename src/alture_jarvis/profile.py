@@ -30,8 +30,21 @@ def profile_block(content: str) -> str:
 
 
 def strip_comments(text: str) -> str:
-    """주석을 걷고 빈 줄이 셋 이상 이어지면 둘로 줄인다. 닫히지 않은 `<!--` 는 손대지 않는다(사람이 쓴 글이다)."""
-    return _BLANKS.sub("\n\n", _COMMENT.sub("", text)).strip()
+    """주석을 걷고 빈 줄이 셋 이상 이어지면 둘로 줄인다. 닫히지 않은 `<!--` 는 손대지 않는다(사람이 쓴 글이다).
+
+    ★ 2026-11-12 CodeQL redos: 정규식(`_COMMENT`)은 닫히지 않은 `<!--` 마다 끝까지 다시 훑어 12만 자에 11초였다.
+    한 번만 훑는다 — 닫는 `-->` 가 없으면 그 뒤에 닫힐 주석도 없다."""
+    parts: list[str] = []
+    at = 0
+    while True:
+        start = text.find("<!--", at)
+        end = text.find("-->", start + 4) if start >= 0 else -1
+        if start < 0 or end < 0:
+            parts.append(text[at:])
+            break
+        parts.append(text[at:start])
+        at = end + 3
+    return _BLANKS.sub("\n\n", "".join(parts)).strip()
 
 
 class OperatorProfile:
