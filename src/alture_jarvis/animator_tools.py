@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .animator import library, parts, refpose, specs
+from .animator import habits, library, parts, refpose, specs
 from .animator.maxscript import TRACKS, apply_script, load_dump, read_script, run_line, write_script
 from .animator.plan import build_plan
 from .config import JarvisConfig
@@ -31,7 +31,7 @@ from .tool_gateway import ToolGateway, ToolSpec
 PACK_ID = "animator"
 ANIMATOR_TOOL_NAMES = frozenset({
     "anim_offset_read", "anim_offset_plan",
-    "anim_library_add", "anim_library_find", "anim_library_apply",
+    "anim_library_add", "anim_library_find", "anim_library_tag", "anim_library_apply", "anim_habit",
     "anim_parts", "anim_pose_sheet", "anim_video_to_biped", "anim_fit_check", "anim_fit_fix",
     "anim_blender_check", "anim_blender_fix", "anim_blender_block",
 })
@@ -83,6 +83,7 @@ ANIM_OFFSET_PLAN_TOOL = {
                 "whole_frames": {"type": "boolean", "description": "늦춤을 정수 프레임으로 반올림(기본 true — 반 프레임 키를 만들지 않는다)"},
                 "tracks": {"type": "array", "items": {"type": "string"}, "description": _TRACK_DESC},
                 "read_file": {"type": "string", "description": "anim_offset_read 가 준 read_file(비우면 가장 최근 것)"},
+                "character": {"type": "string", "description": "이 캐릭터 이름(다듬은 것 기억하기의 상황 열쇠 — 같은 캐릭터에 같은 늦춤을 두 번 쓰면 남길지 묻는다)"},
             },
             "required": [],
         },
@@ -112,7 +113,7 @@ class AnimatorTools:
 
     def register(self, gateway: ToolGateway) -> None:
         pairs = ((ANIM_OFFSET_READ_TOOL, self.offset_read), (ANIM_OFFSET_PLAN_TOOL, self.offset_plan),
-                 (specs.LIBRARY_ADD, self.library_add), (specs.LIBRARY_FIND, self.library_find),
+                 (specs.LIBRARY_ADD, self.library_add), (specs.LIBRARY_FIND, self.library_find), (specs.LIBRARY_TAG, self.library_tag), (specs.HABIT, self.habit),
                  (specs.LIBRARY_APPLY, self.library_apply), (specs.PARTS, self.parts),
                  (specs.POSE_SHEET, self.pose_sheet), (specs.VIDEO_TO_BIPED, self.video_to_biped),
                  (specs.FIT_CHECK, self.fit_check), (specs.FIT_FIX, self.fit_fix),
@@ -193,6 +194,10 @@ class AnimatorTools:
         dump = load_dump(dump_path)
         shifts = arguments.get("shifts")
         per_link = arguments.get("per_link")
+        where = habits.situation(str(arguments.get("character") or ""), "엇박자")
+        used_habit = None
+        if not shifts and per_link is None and "per_link" in habits.lookup(self.root, where):
+            per_link = used_habit = habits.lookup(self.root, where)["per_link"]      # 남긴 습관 — 결과에 늘 보인다
         if not shifts and per_link is None:
             raise ValueError("늦춤을 정해야 한다 — per_link(마디마다 몇 프레임) 또는 shifts 를 줘라. 모르면 사람에게 물어라.")
         plan = build_plan(dump, float(per_link or 0.0), shifts=[float(s) for s in shifts] if shifts else None,
@@ -222,12 +227,23 @@ class AnimatorTools:
         )
         if any(tp.collisions for tp in plan.tracks):
             result["warning"] = "같은 프레임에 키 두 개가 겹쳐 하나를 버린 트랙이 있다(preview 의 「겹쳐 버린 키」) — 사람에게 말해라."
+        if used_habit is not None:
+            result["habits_applied"] = {"where": where, "per_link": used_habit,
+                                        "note": "사람이 늦춤을 안 줘서 남긴 습관을 썼다 — 사람에게 「습관 적용: 마디당 늦춤 ○」이라고 말해라."}
+        elif not shifts:
+            ask = habits.record(self.root, "anim_offset_plan", where, {"per_link": per_link})
+            if ask:
+                result["habit_ask"] = ask
         return result
 
     # ── 모션 창고(v1 · 11-03) ───────────────────────────────────────────
     @staticmethod
     def _brief(e: dict[str, Any]) -> dict[str, Any]:
         out = {k: e.get(k) for k in ("id", "name", "character", "origin_label", "tags", "frames", "loop", "note")}
+        if e.get("facets"):
+            out["facets"] = e["facets"]
+        if e.get("matched"):
+            out["matched"] = e["matched"]
         out["shots"] = e.get("shots", [])[:4]
         if e.get("draft"):
             out["warning"] = "영상 변환 초안 — 블로킹 초안이지 완성 동작이 아니다(사람에게 말해라)"
@@ -329,7 +345,47 @@ class AnimatorTools:
             result["note"] = "창고가 비어 있다 — anim_library_add 로 먼저 넣어라(회사 .max 폴더 · 퀵매직 .bip · 지금 장면)."
         elif not found:
             result["note"] = "맞는 것이 없다 — 다른 낱말로 다시 찾거나 query 를 비워 전체를 보여 줘라."
+        query = str(arguments.get("query") or "").strip()
+        if total and query:
+            rep = library.query_report(self.root, query)
+            if rep["read"] or not found or rep["missing_facets"]:
+                result["query_report"] = rep
+            if rep["missing_facets"] or (not found and rep["unknown_words"]):
+                # 11-13: 아무 공격 5개를 채우지 않는다 — 무엇이 창고에 없는지 그대로 말하게
+                result["note"] = (("맞는 것이 없다 — " if not found else "") + "찾는 말에서 읽은 꼬리표 중 창고에 하나도 안 붙은 것: " + (", ".join(rep["missing_facets"]) or "없음")
+                                  + " · 창고 어디에도 안 맞은 낱말: " + (", ".join(rep["unknown_words"]) or "없음")
+                                  + f" · 꼬리표 칸이 달린 동작 {rep['tagged_motions']}/{rep['motions']}. "
+                                  "엉뚱한 동작을 내놓지 말고 이것을 사람에게 그대로 말해라. 어느 동작이 그 꼬리표인지 물어 anim_library_tag 로 달 수 있다"
+                                  + (f" · 「공격 · 모션」 같은 뭉뚱그린 낱말로만 맞는 동작은 {rep['generic_only_matches']}개(원하면 그 낱말만으로 다시 찾기)."
+                                     if rep["generic_only_matches"] else "."))
         return result
+
+    def library_tag(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """꼬리표 칸(무기 · 컨셉 · 무게감 · 속도감) 달기 — 사람이 말한 것만(11-13 · 시험 중)."""
+        self._check()
+        facets = {f: arguments[f] for f in library.FACETS if isinstance(arguments.get(f), list)}
+        if not facets:
+            raise ValueError("달 꼬리표가 없다 — 무기 · 컨셉 · 무게감 · 속도감 중 하나 이상을 목록으로 줘라(빈 목록이면 그 칸을 지운다)")
+        out = library.tag(self.root, str(arguments.get("id") or ""), facets, who=str(arguments.get("by") or ""))
+        return {"ok": True, "status": "시험 중", **out}
+
+    def habit(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """다듬은 것 기억하기(11-13 · 시험 중): 남기기 · 묻지 않기 · 지우기 · 보기 — 사람이 말한 뒤에만."""
+        self._check()
+        action = str(arguments.get("action") or "list")
+        if action == "list":
+            return {"ok": True, **habits.listing(self.root)}
+        where = str(arguments.get("where") or "").strip()
+        if not where:
+            raise ValueError("where 가 없다 — habit_ask 가 준 where 를 그대로 줘라")
+        values = arguments.get("values") or {}
+        if action == "save":
+            return {"ok": True, "status": "시험 중", **habits.save(self.root, where, dict(values), by=str(arguments.get("by") or ""))}
+        if action == "decline":
+            return {"ok": True, **habits.decline(self.root, where, dict(values))}
+        if action == "forget":
+            return {"ok": True, **habits.forget(self.root, where, list(values))}
+        raise ValueError("action 은 save · decline · forget · list 중 하나")
 
     def library_apply(self, arguments: dict[str, Any]) -> dict[str, Any]:
         self._check()
@@ -340,6 +396,16 @@ class AnimatorTools:
         other = None
         blend = 0.0
         pf = library.prefs(self.root)
+        # 다듬은 것 기억하기(11-13): 상황 = (입힐 캐릭터, 템플릿 목록). 사람이 안 준 손질만 남긴 습관으로 채운다 — 채운 것은 결과에 늘 보인다
+        where = habits.situation(str(arguments.get("character") or arguments.get("biped") or ""),
+                                 str((e.get("template") or {}).get("목록") or ""))
+        mixing = bool(str(arguments.get("blend_with") or "").strip())
+        given = {k: arguments.get(k) for k in ("arm_spread", "stride", "foot_lock", "bookend") if arguments.get(k) is not None}
+        if mixing and arguments.get("blend") is not None:
+            given["blend"] = arguments.get("blend")
+        filled = {k: v for k, v in habits.lookup(self.root, where).items()
+                  if k not in given and k != "per_link" and (k != "blend" or mixing)}
+        arguments = {**arguments, **filled}
         if str(arguments.get("blend_with") or "").strip():
             other = library.get(self.root, str(arguments["blend_with"]).strip())
             if not other.get("ready"):
@@ -371,6 +437,12 @@ class AnimatorTools:
                 "save_to": str(library.prefs_path(self.root)),
                 "note": "답을 들으면 save_to 파일에 JSON 으로 남겨라(bookend · blend · body_fit) — 다음부터 묻지 않는다.",
             }
+        if filled:
+            result["habits_applied"] = {"where": where, **filled,
+                                        "note": "사람이 안 준 손질을 남긴 습관으로 채웠다 — 사람에게 「습관 적용: …」이라고 말해라(바꾸려면 그 인자를 주면 된다)."}
+        ask = habits.record(self.root, "anim_library_apply", where, given)
+        if ask:
+            result["habit_ask"] = ask
         if other:
             result["blend"] = {"with": self._brief(other), "ratio": blend,
                                "note": f"{e['name']} 에 {other['name']} 를 {int(blend * 100)}% 섞는다(시간은 길이 비율로 맞춤 · 원래 키 자리만)."}
@@ -583,6 +655,13 @@ class AnimatorTools:
                "note": "어디를 볼지 짚어 주는 표다. 장식은 스킨 가중치로 뺐다(body_from.decoration). 얕은 뚫림은 놓칠 수 있다 — 사람이 재생해 확인."}
         if got["dump"].get("constrained"):
             out["constrained"] = got["dump"]["constrained"]
+        # 튐 점검(11-13): 블렌더 읽기 파일도 맥스와 같은 꼴(bones · frames) — 같은 계산을 그대로 붙인다
+        if arguments.get("jitter", True) is not False:
+            from .animator import jitter
+
+            out["jitter"] = {**jitter.scan(got["dump"]),
+                             "note": "튐 점검(시험 중): 어디를 볼지 짚는 표다. 사람이 그 프레임을 재생해 진짜 튐인지 보게 해라 — "
+                                     "일부러 확 꺾는 동작(타격 순간)도 걸릴 수 있다. 자동으로 고치지는 않는다."}
         return out
 
     def blender_fix(self, arguments: dict[str, Any]) -> dict[str, Any]:

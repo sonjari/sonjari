@@ -60,6 +60,84 @@ _MODEL_FILE = re.compile(r"(?:^|[_\s-])mesh(?:[_\s-]|$)", re.I)
 #: 찾는 말에 이 낱말이 있으면 모델 파일도 보여 준다(「메쉬 수정본 찾아 줘」).
 _MODEL_WORDS = ("mesh", "메쉬", "메시", "모델", "모델링", "스킨")
 
+# ── 꼬리표 칸(2026-11-13 · 시험 중) ─────────────────────────────────────────
+# ★ 까닭: 현업 애니메이터가 검색 문장 12개(「무거운 양손검 평타」 · 「창으로 빠르게 찌르는 공격하는 모션」 …)를 창고 86개에 넣었더니
+#   5개는 결과 없음 · 7개는 내용과 상관없이 거의 같은 5개(11-12 · 작업장 PR #9). 코드로 확인: 낱말을 띄어쓰기로만 자르고 「공격」은
+#   같은 뜻 꼬리표가 9개라 공격 칸 전부가 2점씩 받아, 나머지 낱말이 안 맞으면 공격 칸끼리 이름순 5개가 나왔다.
+#   그 사람이 정한 기준은 네 칸 — 무기 · 캐릭터 컨셉 · 무게감 · 속도감. 칸 낱말은 **사람이 단다**(이름 · 사진으로 무기를 짐작하지 않는다).
+#: 칸 → 값 → 찾는 말에서 알아볼 조각(조사 · 붙여 쓰기와 상관없이 글자 조각으로 찾는다 · 긴 조각이 먼저).
+FACETS: dict[str, dict[str, tuple[str, ...]]] = {
+    "무기": {
+        "한손검": ("한손검", "한손 검", "외손검", "한 손 검"), "양손검": ("양손검", "양손 검", "대검", "투핸드"),
+        "검": ("검", "칼", "sword"), "창": ("창", "spear", "랜스"), "도끼": ("도끼", "axe"), "총": ("총", "권총", "라이플", "gun"),
+        "표창": ("표창", "수리검"), "활": ("활", "석궁", "bow"), "맨손": ("맨손", "주먹", "권법", "격투"),
+        "마법": ("마법", "지팡이", "스태프", "magic"), "늘어나는 무기": ("늘어나는", "채찍", "사슬", "체인"),
+        "둔기": ("둔기", "망치", "해머", "메이스"),
+    },
+    "컨셉": {
+        "귀여운": ("귀여", "귀엽", "깜찍"), "스타일리쉬": ("스타일리쉬", "스타일리시", "세련"), "근엄": ("근엄", "위엄"),
+        "도도": ("도도",), "코믹": ("코믹", "익살"),
+    },
+    "무게감": {"무거운": ("무거", "무겁", "묵직", "육중"), "가벼운": ("가벼", "가볍", "경쾌")},
+    "속도감": {
+        "빠른": ("빠르", "빠른", "재빠", "날렵"), "느린": ("느리", "느린", "천천"), "부드러운": ("부드럽", "부드러"),
+        "연타": ("연타", "난타", "연속"),
+    },
+}
+#: 값의 윗값 — 「검」으로 찾으면 한손검 · 양손검도 나온다.
+FACET_PARENT = {"한손검": "검", "양손검": "검"}
+#: 한 글자 조각(창 · 총 · 활 · 검 · 칼)이 다른 낱말 속에서 헛걸리지 않게 먼저 지우는 낱말.
+_FACET_DENY = ("창고", "창문", "창작", "창의", "독창", "총합", "총괄", "총무", "총장", "활동", "활용", "활발", "활성", "생활", "활짝",
+               "검색", "검사", "검토", "검증", "검은", "검정", "칼로리")
+#: 뭉뚱그린 낱말 — 혼자서는 순위를 만들지 못한다(공격 칸 5개를 아무렇게나 내놓지 않게).
+_GENERIC = ("공격", "모션", "동작", "느낌", "캐릭터", "애니", "찾아", "보여", "좋음", "좋겠", "있는", "하는", "같은")
+
+
+def _facet_lookup(facet: str, value: str) -> str | None:
+    v = value.strip().lower()
+    for canon, aliases in FACETS.get(facet, {}).items():
+        if v == canon.lower() or v in (a.lower() for a in aliases):
+            return canon
+    return None
+
+
+def read_query(query: str) -> dict[str, Any]:
+    """찾는 말 → 꼬리표 칸 낱말(조각으로) + 남은 낱말. 칸 낱말로 쓴 글자 자리는 비워 남은 낱말에 다시 안 걸리게 한다."""
+    text = " " + (query or "").lower() + " "
+    for d in _FACET_DENY:                                  # 「창고에서 찾아」의 「창」이 무기로 잡히지 않게
+        text = text.replace(d, " " * len(d)) if d in text else text
+    terms: list[tuple[str, str]] = []
+    pieces = sorted(((len(a), f, canon, a.lower()) for f, vals in FACETS.items() for canon, al in vals.items() for a in al),
+                    key=lambda x: -x[0])
+    for _n, facet, canon, alias in pieces:
+        while alias in text:
+            i = text.index(alias)
+            text = text[:i] + " " * len(alias) + text[i + len(alias):]
+            if (facet, canon) not in terms:
+                terms.append((facet, canon))
+    # 칸 낱말을 뺀 자리를 다시 띄어 자르고, 남은 조사 조각(「으로」 · 「한」)은 한 글자면 버린다
+    rest = [w for w in _words(text) if len(w) > 1 and w not in ("으로", "에서", "하는", "하면서", "해서")]
+    return {"facets": terms, "words": rest}
+
+
+def is_generic(word: str) -> bool:
+    return any(word.startswith(g) for g in _GENERIC)
+
+
+def entry_facets(e: dict[str, Any]) -> set[str]:
+    """동작에 붙은 칸 값(윗값 포함). 칸 없이 꼬리표로만 「한손검」을 달아 둔 옛 칸도 센다."""
+    vals: set[str] = set()
+    for facet, got in (e.get("facets") or {}).items():
+        for v in got or []:
+            vals.add(_facet_lookup(facet, v) or str(v).strip())
+    for t in e.get("tags") or []:
+        for facet in FACETS:
+            c = _facet_lookup(facet, str(t))
+            if c:
+                vals.add(c)
+    vals |= {FACET_PARENT[v] for v in list(vals) if v in FACET_PARENT}
+    return vals
+
 
 def template_words(entry: dict[str, Any]) -> list[str]:
     from .template import words
@@ -210,13 +288,21 @@ def entries(root: Path, include_pending: bool = False) -> list[dict[str, Any]]:
 
 
 def _words(query: str) -> list[str]:
-    return [w for w in re.split(r"[\s,·/]+", query.strip().lower()) if w]
+    return [w for w in re.split(r"[\s,·/.!?]+", query.strip().lower()) if w]
 
 
 def find(root: Path, query: str, k: int = 5, character: str = "", origin: str = "") -> list[dict[str, Any]]:
-    """낱말마다: 꼬리표에 그대로 있으면 3점 · 같은 뜻 꼬리표면 2점 · 이름 · 캐릭터 · 메모에 들어 있으면 1점."""
-    words = _words(query)
-    want_models = any(m in w for w in words for m in _MODEL_WORDS)
+    """꼬리표 칸 낱말(무기 · 컨셉 · 무게감 · 속도감)이 맞으면 4점. 남은 낱말마다: 꼬리표에 그대로(또는 꼬리표로 시작 — 「돌진하면서」)
+    3점 · 같은 뜻 꼬리표면 2점 · 이름 · 캐릭터 · 메모에 들어 있으면 1점.
+
+    ★ 11-13: 찾는 말에 뭉뚱그린 낱말(공격 · 모션 …) 말고 다른 것이 있으면, 그것이 하나도 안 맞는 동작은 내놓지 않는다 —
+    「공격」 하나로 아무 공격 5개를 채우던 것을 막는다(그때는 비어 있는 결과와 `query_report` 가 까닭을 말한다).
+    결과마다 무엇이 맞았는지 `matched` 가 붙는다.
+    """
+    q = read_query(query)
+    words = q["words"]
+    want_models = any(m in w for w in _words(query) for m in _MODEL_WORDS)
+    specific_query = bool(q["facets"]) or any(not is_generic(w) for w in words)
     scored = []
     for e in entries(root):
         if e.get("kind") == "model" and not want_models:
@@ -228,18 +314,101 @@ def find(root: Path, query: str, k: int = 5, character: str = "", origin: str = 
         # 회사 템플릿 칸(목록 · 상태 · 클립명 · 변형 — template.py)도 꼬리표로 친다: 「다운」 · 「기본 공격」 · 「Lobby_Get」 같은 클립명
         tags = {t.lower() for t in e.get("tags", [])} | set(template_words(e))
         hay = " ".join([e.get("name", ""), e.get("character", ""), e.get("note", ""), *tags]).lower()
+        # 사전 밖 칸 값도 낱말이 통째로 같으면 걸리게 — 글자 더미(hay)에는 안 넣는다(「양손 다 사용」이 양손검에 걸렸다 · 11-13 손 시험)
+        tags |= {str(v).lower() for vals in (e.get("facets") or {}).values() for v in vals or []}
         score = 2 if (want_models and e.get("kind") == "model") else 0
+        specific = score           # 「메쉬 수정본」처럼 모델 파일을 찾는 말이면 모델 파일이라는 것 자체가 맞은 것
+        matched: list[str] = []
+        have = entry_facets(e)
+        for facet, val in q["facets"]:
+            if val in have:
+                score += 4
+                specific += 4
+                matched.append(f"{facet}:{val}")
         for w in words:
-            if w in tags:
-                score += 3
+            pts = 0
+            if w in tags or (len(w) >= 3 and any(len(t) >= 2 and w.startswith(t) for t in tags)):
+                pts = 3
             elif any(s in tags for s in SYNONYMS.get(w, ())):
-                score += 2
+                pts = 2
             elif w in hay:
-                score += 1
-        if score or not words:
-            scored.append((score, e))
+                pts = 1
+            if pts:
+                score += pts
+                matched.append(w)
+                if not is_generic(w):
+                    specific += pts
+        if specific_query and not specific:
+            continue
+        if score or not (words or q["facets"]):
+            scored.append((score, {**e, "matched": matched}))
     scored.sort(key=lambda x: (-x[0], x[1].get("draft", False), x[1].get("name", "")))
     return [e for _s, e in scored[:max(1, k)]]
+
+
+def query_report(root: Path, query: str) -> dict[str, Any]:
+    """찾기가 비거나 모자랄 때 까닭: 찾는 말에서 읽은 칸 낱말 중 창고에 하나도 안 붙은 것 · 아무 데도 안 맞은 낱말 · 뭉뚱그린 낱말로만 맞는 동작 수."""
+    q = read_query(query)
+    every = [e for e in entries(root) if e.get("kind") == "motion"]
+    have = set().union(*(entry_facets(e) for e in every)) if every else set()
+    tagged = sum(1 for e in every if entry_facets(e))
+    missing = [f"{f}:{v}" for f, v in q["facets"] if v not in have]
+    unknown = []
+    for w in q["words"]:
+        if is_generic(w):
+            continue
+        hit = False
+        for e in every:
+            tags = {t.lower() for t in e.get("tags", [])} | set(template_words(e))
+            hay = " ".join([e.get("name", ""), e.get("character", ""), e.get("note", ""), *tags]).lower()
+            if w in tags or w in hay or any(len(t) >= 2 and w.startswith(t) for t in tags) or any(s in tags for s in SYNONYMS.get(w, ())):
+                hit = True
+                break
+        if not hit:
+            unknown.append(w)
+    generic_hits = 0
+    gw = [w for w in q["words"] if is_generic(w)]
+    if gw:
+        generic_hits = len(find(root, " ".join(gw), k=10_000))
+    return {"read": [f"{f}:{v}" for f, v in q["facets"]], "missing_facets": missing, "unknown_words": unknown,
+            "tagged_motions": tagged, "motions": len(every), "generic_only_matches": generic_hits}
+
+
+def tag(root: Path, eid: str, facets: dict[str, Sequence[str]], who: str = "") -> dict[str, Any]:
+    """꼬리표 칸 달기 · 고치기(사람이 말한 것만). 칸마다 통째로 바꾼다 — 빈 목록이면 그 칸을 지운다. 누가 · 언제를 남긴다."""
+    ej = lib_dir(root) / eid / "entry.json"
+    if not ej.is_file():
+        raise KeyError(f"창고에 {eid} 가 없다 — anim_library_find 로 id 를 받아라")
+    bad = [f for f in facets if f not in FACETS]
+    if bad:
+        raise ValueError(f"칸 이름은 {list(FACETS)} 중 하나 — 받은 것: {bad}")
+    e = json.loads(ej.read_text(encoding="utf-8"))
+    cur: dict[str, list[str]] = dict(e.get("facets") or {})
+    outside: list[str] = []
+    for f, vals in facets.items():
+        canon = []
+        for v in vals or []:
+            v = str(v).strip()
+            if not v:
+                continue
+            c = _facet_lookup(f, v)
+            if c is None:
+                outside.append(f"{f}:{v}")
+            canon.append(c or v)
+        if canon:
+            cur[f] = list(dict.fromkeys(canon))
+        else:
+            cur.pop(f, None)
+    e["facets"] = cur
+    e.setdefault("facets_log", []).append({"when": time.strftime("%Y-%m-%d %H:%M:%S"), "set": {f: list(v or []) for f, v in facets.items()},
+                                          "by": who or "사람 말"})
+    ej.write_text(json.dumps(e, ensure_ascii=False, indent=1), encoding="utf-8")
+    out: dict[str, Any] = {"id": eid, "facets": cur}
+    if outside:
+        out["not_in_dictionary"] = outside
+        out["note"] = ("사전에 없는 값은 그대로 저장했다 — 찾는 말에 그 글자가 그대로 있어야만 걸린다. "
+                       "자주 쓰는 말이면 사전(library.FACETS)에 넣자고 사람에게 말해라.")
+    return out
 
 
 def get(root: Path, eid: str) -> dict[str, Any]:
