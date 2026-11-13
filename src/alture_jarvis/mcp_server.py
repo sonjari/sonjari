@@ -49,7 +49,11 @@ from typing import Any, Iterable
 import httpx
 
 from .brand import MCP_SERVER_NAME, NAME, NAME_KO
+from .config import build_id
 from .outbound import clean_needs
+
+#: 이 연결 프로그램이 **뜰 때** 읽은 코드의 판. 본체가 업데이트돼도 이 값은 그대로라, 본체 판과 다르면 클로드가 옛 판을 쓰는 중이다.
+MCP_BUILD = build_id()
 from .delegation import (
     CANCEL_TOOL, CLAUDE_CODE_MAX_WAIT_SEC, DELEGATION_TOOLS, GUIDE_TOOL, MAX_WAIT_SEC, STATUS_TOOL, STORY_TOOL, TASK_TOOL,
     is_claude_code,
@@ -409,7 +413,8 @@ class JarvisMcpBridge:
 
     async def _http(self) -> Any:
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self.timeout)
+            # 자기가 뜰 때의 판을 매 요청에 붙인다 — 본체가 「클로드가 옛 판 연결을 쓰는 중」을 알아 다시 켜기 카드를 띄운다(11-13).
+            self._client = httpx.AsyncClient(timeout=self.timeout, headers={"X-Sonjari-Mcp-Build": MCP_BUILD})
         return self._client
 
     async def aclose(self) -> None:

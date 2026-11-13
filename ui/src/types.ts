@@ -1220,3 +1220,29 @@ export interface ClaudeHandoff {
   /** 이 판에서 손자리가 한 걸음 수(눈금자에 보인 것). */
   steps: number;
 }
+
+/** Strata 지킴이(2026-11-13 · strata_runtime.py) — 깔린 PC 에서만 available. */
+export interface StrataStatus {
+  available: boolean;
+  selected: boolean;
+  strata: boolean;
+  bridge: boolean;
+  gave_up: boolean;
+  last_error: string;
+  model: string;
+  context: string;
+}
+
+export interface StrataSwitchResult {
+  ok: boolean;
+  error?: "busy" | "already" | "not_installed" | "bad_target" | "no_script" | string;
+  message?: string;
+  restarting?: boolean;
+}
+
+/** 클로드가 쓰는 손자리 연결이 옛 판인가(2026-11-13) — 데스크톱 앱은 list_changed 로 목록을 새로 고치지 않는다. */
+export interface McpFreshness {
+  stale: boolean;
+  app_build: string;
+  mcp_builds: string[];
+}

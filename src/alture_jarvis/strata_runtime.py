@@ -221,6 +221,33 @@ class StrataService:
         self.ensure()
         return self.status()
 
+    # ── 2단계: Strata 로 바꾸기 · 27B(Ollama)로 되돌리기(3D 작업 · 대표 11-13 「3D 할 땐 묶자」) ──
+    #   검증된 scripts/use_strata.ps1 -On/-Off 를 **떼어 낸 프로세스**로 부른다. 그 스크립트는 본체를 내렸다 올린다 —
+    #   본체 안에서 하면 자기를 끄다 끊긴다 · 같은 순서를 두 곳에 두면 어긋난다 · 맥 앞부분 데우기 같은 뒷정리도 거기 있다.
+    def switch(self, to: str, *, busy: bool) -> dict[str, Any]:
+        if to not in {"strata", "ollama"}:
+            return {"ok": False, "error": "bad_target", "message": "to 는 strata 또는 ollama"}
+        if not self.available():
+            return {"ok": False, "error": "not_installed", "message": "이 PC 에는 Strata 가 없습니다"}
+        if busy:
+            return {"ok": False, "error": "busy", "message": "손자리가 일하는 중입니다 — 끝난 뒤에 바꿔 주세요"}
+        selected = is_selected(self.selection())
+        if (to == "strata") == selected:
+            return {"ok": False, "error": "already", "message": "이미 그 모델입니다"}
+        script = self.runtime / "scripts" / "use_strata.ps1"
+        if not script.is_file():
+            return {"ok": False, "error": "no_script", "message": f"{script} 가 없습니다"}
+        if to == "strata":  # 포기 기록을 비운다 — 새로 고른 것이다
+            state = StrataState.load(self.state_path)
+            state.gave_up, state.starts, state.last_error = False, [], ""
+            state.save(self.state_path)
+        log = self.log_dir / f"strata_switch_{to}.log"
+        command = (f"Start-Sleep 2; & '{script}' {'-On' if to == 'strata' else '-Off'} *> '{log}'")  # 2초: 이 응답이 먼저 나간다
+        self.spawn(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", command],
+                   env=None, log=None)
+        return {"ok": True, "to": to, "restarting": True,
+                "message": "손자리가 1~2분 다시 켜집니다 — 맥 손자리도 그동안 쉽니다", "log": str(log)}
+
     def _stop_bridge(self) -> None:
         if sys.platform != "win32":
             return

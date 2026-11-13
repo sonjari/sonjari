@@ -100,24 +100,50 @@ def reread_reason(previous: tuple[str, str, str] | None, current: tuple[str, str
     return ""
 
 
+#: 「짧은 확인」 부르기의 크기 — 일 시작 전 판단(도구 3~6개 · 지침 약 4천 자, 맥 기록 11-13). 일하는 길은 도구 49~114개 · 지침 1.7만 자.
+SMALL_CALL_TOOLS = 8
+SMALL_CALL_SYSTEM_CHARS = 8_000
+
+def is_small_call(body: dict[str, Any]) -> bool:
+    """일 시작 전 짧은 확인 같은 작은 부르기인가 — 도구 `SMALL_CALL_TOOLS` 개 이하 · 지침 `SMALL_CALL_SYSTEM_CHARS` 자 미만."""
+    messages = body.get("messages") if isinstance(body.get("messages"), list) else []
+    system = next((str(item.get("content") or "") for item in messages if isinstance(item, dict) and item.get("role") == "system"), "")
+    tools = body.get("tools") if isinstance(body.get("tools"), list) else []
+    return len(tools) <= SMALL_CALL_TOOLS and len(system) < SMALL_CALL_SYSTEM_CHARS
+
+
 #: 최근 부르기 모양을 몇 개까지 기억하나 — 일하는 길 · 대화 길 · 정찰 · 판정이 번갈아 와도 「같은 앞부분이 전에 있었나」를 본다.
 RECENT_SHAPES = 6
 
 
-def reread_reason_recent(recent: list[tuple[str, str, str]] | None, current: tuple[str, str, str]) -> str:
+def reread_reason_recent(recent: list[tuple[str, str, str]] | None, current: tuple[str, str, str], *,
+                         last_small: bool = False, outside: bool = False, current_small: bool = False) -> str:
     """직전 하나가 아니라 **최근 몇 개**와 견준 까닭 (2026-11-08 대표 맥 첫 걸음 25초).
 
     직전 부르기만 보면, 사이에 낀 짧은 옆 부르기(도구 4개짜리)와 견줘 「도구 목록과 지침이 달라」라고 했다 — 정작 이 부르기의
     앞부분은 11분 전 과제와 글자 하나 다르지 않았고, 느린 까닭은 그 사이 기억이 밀려난(엔진을 다시 띄운) 것이었다.
-    최근에 같은 모양이 있었으면 「사이에 다른 일이 끼어」로 말한다. 없으면 예전처럼 직전과 견준다.
+
+    ★ 2026-11-13 대표 「왜 계속 사이에 일이 끼어든다는 말이 나오노」: 그 말은 맥 Strata 부르기 160번 중 146번이 틀렸다 —
+      끼어든 것은 다른 일이 아니라 **손자리 자신**의 짧은 확인(일 시작 전 판단 · 도구 3~6개, 약 129번)과 도구 목록 바꿈(26번)이었다.
+      PC 쪽 일이 실제로 같이 돈 것은 14번. 그래서 아는 것으로만 가른다:
+      - `outside`: 이 부르기 전에 **다른 기기**(짝지은 맥)의 부르기가 실제로 들어왔다(`note_outside_call`) → 「다른 기기의 일이 끼어」
+      - `last_small`: 바로 앞 부르기가 우리 짧은 확인이었다 → 「짧게 확인한 뒤라」
+      - 그 밖에 바로 앞이 다른 모양의 일하는 부르기였다 → 그것과 실제로 다른 것(도구 · 지침)
+      - 이번 부르기가 짧은 확인 **자신**이면(`current_small`) 까닭을 붙이지 않는다 — 맥 기록 46번이 그 경우였고
+        「끼어들어」도 「도구가 달라」도 거기서는 틀린 말이다.
     """
     recent = list(recent or [])
     if not recent:
         return "first"
+    if outside:
+        return "interleaved"
     if current == recent[-1]:
         return ""
     if current in recent[:-1]:
-        return "interleaved"
+        if current_small:
+            return ""
+        # 바로 앞이 일하는 부르기였으면 그것과 **실제로** 다른 것(도구 · 지침 · 둘 다)을 말한다 — PC 기록 57번은 도구는 같고 지침만 달랐다.
+        return "side_call" if last_small else reread_reason(recent[-1], current)
     return reread_reason(recent[-1], current)
 
 
@@ -1135,7 +1161,14 @@ class OllamaClient:
         body: dict[str, Any] = {"model": self._selected_model(model, role=role), "messages": messages}
         if tools:
             body["tools"] = tools
-        return reread_reason_recent(self.__dict__.get("_recent_shapes"), request_shape(body))
+        return reread_reason_recent(self.__dict__.get("_recent_shapes"), request_shape(body), **self._reread_facts(body))
+
+    def _reread_facts(self, body: dict[str, Any] | None = None) -> dict[str, bool]:
+        """까닭을 가를 때 쓰는 **아는 사실** — 바로 앞 부르기가 짧은 확인이었나 · 그 뒤 다른 기기의 부르기가 들어왔나 ·
+        이번 부르기가 짧은 확인 자신인가 (2026-11-13)."""
+        return {"last_small": bool(self.__dict__.get("_last_call_small")),
+                "outside": bool(self.__dict__.get("_outside_since_last")),
+                "current_small": is_small_call(body) if body is not None else False}
 
     def _start_wait_note(self, body: dict[str, Any]) -> None:
         """`wait_note_to` 가 걸려 있으면 이 흐름의 첫 글자 기다림 표시를 띄운다 — 까닭은 직전 부르기와 견줘서."""
@@ -1157,7 +1190,7 @@ class OllamaClient:
             tokens=estimate_tokens(chars, self.__dict__.get("_last_ratio")),
             english=english,
             publish=send,
-            reason=reread_reason_recent(self.__dict__.get("_recent_shapes"), request_shape(body)),
+            reason=reread_reason_recent(self.__dict__.get("_recent_shapes"), request_shape(body), **self._reread_facts(body)),
         ))
 
     def _log_call(self, body: dict[str, Any], payload: dict[str, Any], first_byte: float, first_token: float = 0.0,
@@ -1200,6 +1233,9 @@ class OllamaClient:
             self.__dict__["_last_shape"] = shape = request_shape(body)
             recent = [item for item in self.__dict__.get("_recent_shapes", []) if item != shape] + [shape]
             self.__dict__["_recent_shapes"] = recent[-RECENT_SHAPES:]
+            # 다음 부르기의 까닭 가르기(`_reread_facts`) — 짧은 확인(도구 몇 개 · 짧은 지침)이었나, 그리고 다른 기기 표시는 여기서 비운다.
+            self.__dict__["_last_call_small"] = is_small_call(body)
+            self.__dict__["_outside_since_last"] = False
             sent_chars = sum(len(str(item.get("content") or "")) for item in messages if isinstance(item, dict))
             if row["prompt_tokens"] and sent_chars:
                 self.__dict__["_last_ratio"] = (sent_chars, row["prompt_tokens"])
@@ -1456,6 +1492,8 @@ class OllamaClient:
         self.cancel_background()
         self.cancel_front_prime()
         self.__dict__["_last_send_at"] = time.monotonic()
+        # 다음 우리 부르기가 느리면 그때는 정말 「다른 기기의 일이 끼어든」 것이다(`reread_reason_recent` · 11-13).
+        self.__dict__["_outside_since_last"] = True
 
     def background_held(self) -> bool:
         return int(self.__dict__.get("_background_hold", 0) or 0) > 0

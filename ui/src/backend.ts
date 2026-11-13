@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Observation, StepRow } from "./workspace/observation";
 import type { HealthOllama } from "./workspace/readiness";
 import type { ModelLoading } from "./workspace/ModelLoadLine";
-import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, GithubStatus, GithubLoginPoll, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, UsageShowStatus, WhatsNewStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, ScribeStatus, BackupSummary, PackInfo, PacksView, McpServerRow, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem, SavingsReceipt, WeeklyReceipt, ReceiptImageSaved } from "./types";
+import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, GithubStatus, GithubLoginPoll, StrataStatus, StrataSwitchResult, McpFreshness, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, UsageShowStatus, WhatsNewStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, ScribeStatus, BackupSummary, PackInfo, PacksView, McpServerRow, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem, SavingsReceipt, WeeklyReceipt, ReceiptImageSaved } from "./types";
 
 declare global {
   interface Window {
@@ -270,6 +270,24 @@ export class JarvisClient {
 
   githubLogout(): Promise<{ ok: boolean; changed: boolean }> {
     return this.request("/v1/github/logout", { method: "POST" });
+  }
+
+  /** Strata(2026-11-13 · strata_runtime.py) — 깔린 PC 에서만. 바꾸기는 손자리를 1~2분 다시 켠다. */
+  strataStatus(): Promise<StrataStatus> {
+    return this.request("/v1/strata/status", { method: "GET" });
+  }
+
+  strataSwitch(to: "strata" | "ollama"): Promise<StrataSwitchResult> {
+    return this.request("/v1/strata/switch", { method: "POST", body: JSON.stringify({ to }) });
+  }
+
+  strataRetry(): Promise<StrataStatus> {
+    return this.request("/v1/strata/retry", { method: "POST" });
+  }
+
+  /** 클로드가 옛 판 연결을 쓰는가 — 「클로드 다시 켜기」 카드를 띄울지(2026-11-13). */
+  claudeMcpFreshness(): Promise<McpFreshness> {
+    return this.request("/v1/claude/mcp-freshness", { method: "GET" });
   }
 
   /** 드라이브에서 파일 고르기 — Google 이 기본 브라우저에 고르는 화면을 띄운다(인수인계 H4). */
