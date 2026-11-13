@@ -30,20 +30,27 @@ def test_the_manifest_has_a_valid_distinctive_name_and_license() -> None:
     assert manifest["displayName"].isascii() and manifest["author"]["name"].isascii()
 
 
-def test_the_readme_is_long_enough_and_says_what_it_runs_and_talks_to() -> None:
+def test_the_readme_is_long_enough_and_says_how_to_connect() -> None:
     text = re.sub(r"```.*?```", "", (PLUGIN / "README.md").read_text(encoding="utf-8"), flags=re.S)
     assert len(text.split()) >= 40
-    for must in ("127.0.0.1", "sonjari-mcp", "control.token", "does nothing on its own"):
+    for must in ("127.0.0.1", "Settings › Connect", "does nothing on its own", "ships no MCP server"):
         assert must in text, must
 
 
-def test_the_mcp_command_has_no_variables_shell_or_inline_program() -> None:
-    config = json.loads((PLUGIN / ".mcp.json").read_text(encoding="utf-8"))
-    server = config["mcpServers"]["sonjari"]
-    words = [server["command"], *server.get("args", [])]
-    assert not any("$" in w or "`" in w or "*" in w for w in words), "변수 · 명령 치환 · 와일드카드는 막힘"
-    assert "-c" not in server.get("args", []), "인라인 프로그램(python -c)은 막힘"
-    assert server["command"] == "sonjari-mcp" and "env" not in server, "토큰 · 경로를 설정에 적지 않는다(다리가 스스로 찾는다)"
+def test_the_plugin_ships_no_local_mcp_server() -> None:
+    """11-13 디렉터리가 v0.4.43 을 거절: 「Local MCP servers accepted only from Verified organizations」.
+    인증 조직이 될 때까지 플러그인은 스킬만 싣는다 — 연결은 앱의 설정 › 연결 › Connect(mcp_connect.py)."""
+    assert not (PLUGIN / ".mcp.json").exists()
+    manifest = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    assert "mcpServers" not in manifest
+
+
+def test_the_skill_tells_the_user_how_to_connect_and_never_installs_itself() -> None:
+    """서버가 없으니 도구가 안 보이는 세션이 기본이다 — 스킬 첫머리가 사람이 할 세 걸음을 말하고, 클로드는 설치하지 않는다
+    (동의 항목 「선언한 서버 밖에서 코드를 실행하지 않는다」)."""
+    head = (PLUGIN / "skills" / "sonjari-guide" / "SKILL.md").read_text(encoding="utf-8")[:2000]
+    for must in ("Microsoft Store", "Settings › Connect", "new Claude session", "Do not install the app"):
+        assert must in head, must
 
 
 def test_only_small_text_files_and_no_system_junk() -> None:

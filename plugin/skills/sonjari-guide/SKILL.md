@@ -3,10 +3,14 @@ name: sonjari-guide
 description: How to use the Sonjari MCP. Use it when the user asks you to find and read things on the web and turn them into a table, document or spreadsheet, or hands you work that needs the real logged-in browser or files on this PC. Also use it for requests like "have Sonjari do it" or "do it with Sonjari".
 ---
 
-> **If the Sonjari MCP tools (`sonjari_task` and the rest) are not available in this session**, the Sonjari desktop app
-> is not installed or not running on this computer. This plugin only connects Claude to that app. Tell the user to
-> install it from the Microsoft Store (https://apps.microsoft.com/detail/9N458V8HPTR2, Windows 10/11 with an NVIDIA GPU; macOS is in beta), open it once,
-> and start a new session. Do not try to install or start it yourself.
+> **If the Sonjari MCP tools (`sonjari_task` and the rest) are not available in this session**, Sonjari is not
+> connected to this Claude yet. This plugin carries only this guide; the connection is made by the Sonjari desktop app.
+> Tell the user these three steps, then stop and wait for them:
+> 1. Install Sonjari from the Microsoft Store (https://apps.microsoft.com/detail/9N458V8HPTR2). Windows 10/11 with an NVIDIA GPU; macOS is in beta.
+> 2. Open the app, go to **Settings › Connect**, and press **Connect** next to Claude Code or Claude Desktop.
+> 3. Start a new Claude session (Claude Desktop restarts itself when you press Connect).
+>
+> Do not install the app, edit Claude's settings, or run any setup command yourself. The user does these steps.
 
 <!-- sonjari-guide: generated -->
 # Sonjari guide
