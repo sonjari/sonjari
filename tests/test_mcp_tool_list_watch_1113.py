@@ -68,3 +68,26 @@ def test_the_server_tells_claude_it_may_change_its_tool_list() -> None:
 
     from alture_jarvis import mcp_server
     assert "NotificationOptions(tools_changed=True)" in inspect.getsource(mcp_server._run)
+
+
+def test_the_app_tells_when_claude_still_runs_an_old_connection(tmp_path) -> None:
+    """데스크톱 앱은 list_changed 로 목록을 새로 고치지 않는다(실측) — 연결 프로그램이 붙이는 판 머리글로 「옛 판」을 가른다."""
+    from fastapi.testclient import TestClient
+
+    from alture_jarvis.api import create_app
+    from alture_jarvis.config import JarvisConfig
+    from alture_jarvis.mcp_server import MCP_BUILD
+
+    config = JarvisConfig(runtime_root=tmp_path, data_dir=tmp_path / "data", output_dir=tmp_path / "outputs",
+                          control_token="t", camera_enabled=False, vision_enabled=False, voice_enabled=False, tts_enabled=False)
+    app = create_app(config, start_services=False)
+    auth = {"X-JARVIS-TOKEN": "t"}
+    with TestClient(app) as client:
+        app_build = client.get("/health").json()["build"]
+        assert client.get("/v1/claude/mcp-freshness", headers=auth).json()["stale"] is False     # 아직 아무 연결도 없음
+        client.get("/health", headers={"X-Sonjari-Mcp-Build": app_build})
+        assert client.get("/v1/claude/mcp-freshness", headers=auth).json()["stale"] is False     # 같은 판
+        client.get("/health", headers={"X-Sonjari-Mcp-Build": "old0build000"})
+        body = client.get("/v1/claude/mcp-freshness", headers=auth).json()
+        assert body["stale"] is True and "old0build000" in body["mcp_builds"]
+    assert len(MCP_BUILD) == 12

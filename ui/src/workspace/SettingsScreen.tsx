@@ -39,6 +39,8 @@ import { SavingsCard } from "./SavingsCard";
 import { ScribeSection } from "./ScribeSection";
 import { TakeoverHowTo } from "./TakeoverHowTo";
 import { GithubSection } from "./GithubSection";
+import { StrataCard } from "./StrataCard";
+import { ClaudeFreshCard } from "./ClaudeFreshCard";
 
 type Section = string;
 type FieldStatus = { state: "saving" | "saved" | "error"; message: string };
@@ -274,6 +276,8 @@ export function SettingsScreen({ client, open, onClose, initialSection = "genera
               />
             </div>
           )}
+          {/* 2026-11-13: Strata 가 깔린 PC 에서만 — 손자리가 켜고 지키고, 3D 땐 27B 로(대표 「3d 할 땐 묶자」). */}
+          {section === "model" && client && <StrataCard client={client} />}
           {section === "model" && (
             // 목록이 먼저다 — 태그를 적는 칸 세 개가 위에 있어 새 목록이 화면 밖으로 밀렸다(2026-09-17 E2E 캡처).
             <ModelSection api={setupApi} onChanged={() => window.dispatchEvent(new Event("ontelic:model-changed"))} />
@@ -308,6 +312,8 @@ export function SettingsScreen({ client, open, onClose, initialSection = "genera
           {section === "connect" && (
             <div className="settings-block">
               {/* 2026-10-19: 클로드를 이은 까닭이 숫자로 보이는 자리 — 연결 설정 바로 위. */}
+              {/* 2026-11-13: 클로드 데스크톱은 업데이트된 도구 목록을 스스로 다시 안 받는다 — 옛 연결일 때만 다시 켜기. */}
+              {client && <ClaudeFreshCard client={client} setupApi={setupApi} />}
               {client && <SavingsCard client={client} />}
               <ConnectPanel api={setupApi} />
               {/* 2026-11-12: 깃허브 연결 — 저장소 받기 · PR 의 바탕(설계 docs/설계_깃허브연결_2026-11-12.ko.md). */}

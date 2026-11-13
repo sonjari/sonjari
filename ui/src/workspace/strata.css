@@ -1,0 +1,34 @@
+/* 설정 › 모델 › Strata · 설정 › 연결 › 클로드 다시 켜기 (2026-11-13).
+   깃허브 카드(github.css)의 면 · 선 · 단추를 그대로 쓴다. 이 칸만의 것은 하나 — 두 갈래 중 지금 쓰는 쪽에 불이 켜지는 줄. */
+
+.strata-card { margin-bottom: 18px; }
+
+.strata-lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.strata-lane {
+  display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 10px; row-gap: 2px;
+  align-items: center; padding: 10px 12px;
+  border: 1px solid rgb(var(--line)); border-radius: var(--r-2); background: rgb(var(--surface-2));
+  color: rgb(var(--text-4));
+}
+.strata-lane .gh-dot { grid-row: 1 / span 2; }
+.strata-lane-name { font-size: var(--fs-3); font-weight: var(--fw-mid); }
+.strata-lane-detail { grid-column: 2 / span 2; font-size: var(--fs-1); color: rgb(var(--text-5)); }
+.strata-lane-state { font-size: var(--fs-1); color: rgb(var(--text-4)); }
+
+.strata-lane.is-active { border-color: rgb(var(--ok) / .55); background: rgb(var(--surface-3)); color: rgb(var(--text-1)); }
+.strata-lane.is-active .strata-lane-state { color: rgb(var(--ok-bright)); }
+.gh-dot.is-wait { background: rgb(var(--signal)); animation: strata-pulse 1.4s ease-in-out infinite; }
+@keyframes strata-pulse { 50% { opacity: .35; } }
+
+.strata-gaveup { display: grid; gap: 8px; justify-items: start; margin: 0 0 12px; }
+.strata-gaveup p { margin: 0; }
+.strata-confirm { margin-bottom: 4px; }
+.strata-note { margin-top: 10px; }
+
+/* 클로드 다시 켜기 — 옛 판일 때만 나타나는 조용한 상자 */
+.claude-fresh { display: grid; gap: 10px; justify-items: start; margin-bottom: 18px; padding: 12px 14px;
+  border: 1px solid rgb(var(--signal-dim)); border-radius: var(--r-2); background: rgb(var(--surface-3)); }
+.claude-fresh .settings-note { margin: 0; }
+
+@media (max-width: 520px) { .strata-lanes { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .gh-dot.is-wait { animation: none; } }

@@ -272,6 +272,19 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             return JSONResponse({"detail": peer_guard.refusal(client)}, status_code=403)
         return await call_next(request)
 
+    # ── 클로드가 쓰는 연결 프로그램의 판(2026-11-13) ─────────────────────────
+    #   실측: 클로드 데스크톱 앱은 list_changed 를 받아도 도구 목록을 새로 고치지 않는다(설계_MCP도구목록_자동갱신 5-1).
+    #   그래서 업데이트 뒤엔 클로드를 다시 켜야 한다 — 「다시 켜야 하나」를 짐작하지 않으려고 연결 프로그램이 매 요청에
+    #   자기가 뜰 때의 판(X-Sonjari-Mcp-Build)을 붙이고, 여기서 최근 3분 안에 본 판을 적어 둔다.
+    mcp_builds_seen: dict[str, float] = {}
+
+    @app.middleware("http")
+    async def note_mcp_build(request: Request, call_next):  # type: ignore[no-untyped-def]
+        seen = request.headers.get("x-sonjari-mcp-build", "").strip()
+        if seen and len(seen) <= 64:
+            mcp_builds_seen[seen] = time.time()
+        return await call_next(request)
+
     # ── 화면 언어 (2026-10-02 영어판 2단계) ─────────────────────────────────
     # 백엔드는 한국어로 만들고 저장한다. 화면이 영어면 **나가는 순간** 사전으로 바꾼다(ui_i18n). JSON 만 —
     # 파일·그림·스트림은 그대로 지나간다.
@@ -2062,6 +2075,21 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     @app.get("/v1/strata/status", dependencies=[Depends(require_token)])
     def strata_status() -> dict[str, Any]:
         return strata_service.status()
+
+    @app.get("/v1/claude/mcp-freshness", dependencies=[Depends(require_token)])
+    def claude_mcp_freshness() -> dict[str, Any]:
+        """클로드가 쓰는 손자리 연결이 옛 판인가 — 화면이 「클로드를 다시 켜야 새 기능이 보입니다」 카드를 띄울지 가른다."""
+        now = time.time()
+        app_build = str((runtime.health() or {}).get("build") or "")
+        recent = sorted(build for build, seen_at in mcp_builds_seen.items() if now - seen_at < 180)
+        return {"stale": bool(app_build) and any(build != app_build for build in recent),
+                "app_build": app_build, "mcp_builds": recent}
+
+    @app.post("/v1/strata/switch", dependencies=[Depends(require_token)])
+    def strata_switch(body: dict[str, Any]) -> dict[str, Any]:
+        """Strata 로 바꾸기(to=strata) · 27B 로 되돌리기(to=ollama · 3D 작업). 일하는 중이면 거절 — 본체가 1~2분 다시 켜진다."""
+        busy = str((runtime.health() or {}).get("state") or "idle") != "idle"
+        return strata_service.switch(str(body.get("to") or ""), busy=busy)
 
     @app.post("/v1/strata/retry", dependencies=[Depends(require_token)])
     def strata_retry() -> dict[str, Any]:

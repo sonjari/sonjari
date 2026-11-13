@@ -3381,6 +3381,9 @@ class BrowserAgent:
             reason = str(reason_for(bounded, tools=tools, **role_args)) if callable(reason_for) else ""
         except Exception:  # noqa: BLE001 — 까닭은 덤이다
             reason = ""
+        # 이번 부르기 직전에 우리가 기록을 접었으면 그것이 까닭이다 — 모양 지문으로는 안 보인다(11-13).
+        if step_folded or append_folded:
+            reason = "folded"
         wait_watch = FirstTokenWatch(
             last=self.__dict__.get("_last_progress", {}).get(job_id),
             tokens=estimate_tokens(transcript_chars(bounded), measured),

@@ -129,3 +129,23 @@ def test_the_app_serves_strata_status_behind_the_token(tmp_path: Path) -> None:
         body = client.get("/v1/strata/status", headers={"X-JARVIS-TOKEN": "test-token"}).json()
     assert set(body) >= {"available", "selected", "strata", "bridge", "gave_up", "last_error"}
     assert body["selected"] is False                                           # 이 시험 집엔 Strata 선택이 없다
+
+
+def test_switch_refuses_when_it_should_and_runs_the_script_detached_otherwise(tmp_path: Path) -> None:
+    """2단계: 바꾸기 · 되돌리기(3D 작업 · 대표 11-13 「3D 할 땐 묶자」)는 검증된 use_strata.ps1 을 떼어 낸 프로세스로 부른다."""
+    clock = [1000.0]
+    svc, spawned = _service(tmp_path, selection=SWIFT, up={"strata": False, "bridge": False}, clock=clock)
+    assert svc.switch("strata", busy=True)["error"] == "busy"               # 일하는 중이면 안 바꾼다(11-08 규칙)
+    assert svc.switch("ollama", busy=False)["error"] == "already"           # 이미 27B
+    assert svc.switch("nope", busy=False)["error"] == "bad_target"
+    assert svc.switch("strata", busy=False)["error"] == "no_script"
+    script = tmp_path / "rt" / "scripts" / "use_strata.ps1"
+    script.parent.mkdir(parents=True)
+    script.write_text("# test", encoding="utf-8")
+    out = svc.switch("strata", busy=False)
+    assert out["ok"] and out["restarting"] and len(spawned) == 1
+    assert spawned[0][0] == "powershell" and "-On" in spawned[0][-1] and "Start-Sleep 2" in spawned[0][-1]
+    svc.selection = lambda: STRATA
+    assert svc.switch("ollama", busy=False)["ok"] and "-Off" in spawned[1][-1]
+    svc.available = lambda: False
+    assert svc.switch("strata", busy=False)["error"] == "not_installed"     # 손님 PC

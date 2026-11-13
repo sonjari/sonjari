@@ -72,7 +72,10 @@ _REASONS = {
     "model": ("다른 모델로 바뀌어", "a different model is answering, so"),
     "first": ("이번이 첫 부르기라", "this is the first call, so"),
     # 11-08: 같은 앞부분이 최근에 있었는데도 느리면 — 사이에 다른 부르기가 끼어 모델이 그 기억을 놓친 것이다(도구 목록 탓이 아니다).
-    "interleaved": ("사이에 다른 일이 끼어들어", "other calls came in between, so"),
+    # ★ 11-13: 「다른 일」이라고 말하는 것은 **다른 기기의 부르기가 실제로 들어왔을 때만**(맥 기록 160번 중 146번이 손자리 자신이었다).
+    "interleaved": ("다른 기기의 일이 사이에 끼어들어", "another device's request came in between, so"),
+    "side_call": ("일을 시작하며 짧게 확인한 뒤라", "a short check ran just before, so"),
+    "folded": ("지난 기록을 접어서", "the earlier record was folded, so"),
 }
 
 
