@@ -17,11 +17,18 @@ sys.path.insert(0, str(ROOT / "src"))
 SKILL_PATH = ROOT / "plugin" / "skills" / "sonjari-guide" / "SKILL.md"
 STORE_URL = "https://apps.microsoft.com/detail/9N458V8HPTR2"
 
+# 2026-11-13: 디렉터리가 v0.4.43 을 거절했다 — 「PC 에서 도는 MCP 서버는 인증된 조직만」. 그래서 플러그인은 스킬만 싣고,
+#   손자리 연결은 앱의 설정 › 연결 › Connect 단추가 한다(mcp_connect.py: Claude Desktop 설정 파일 · Claude Code `claude mcp add-json`).
+#   설치 · 연결을 클로드가 직접 하게 쓰지 않는다 — 동의 항목 「선언한 서버 밖에서 코드를 실행하지 않는다」.
 PLUGIN_NOTE = (
-    "> **If the Sonjari MCP tools (`sonjari_task` and the rest) are not available in this session**, the Sonjari desktop app\n"
-    "> is not installed or not running on this computer. This plugin only connects Claude to that app. Tell the user to\n"
-    f"> install it from the Microsoft Store ({STORE_URL}, Windows 10/11 with an NVIDIA GPU; macOS is in beta), open it once,\n"
-    "> and start a new session. Do not try to install or start it yourself.\n\n"
+    "> **If the Sonjari MCP tools (`sonjari_task` and the rest) are not available in this session**, Sonjari is not\n"
+    "> connected to this Claude yet. This plugin carries only this guide; the connection is made by the Sonjari desktop app.\n"
+    "> Tell the user these three steps, then stop and wait for them:\n"
+    f"> 1. Install Sonjari from the Microsoft Store ({STORE_URL}). Windows 10/11 with an NVIDIA GPU; macOS is in beta.\n"
+    "> 2. Open the app, go to **Settings › Connect**, and press **Connect** next to Claude Code or Claude Desktop.\n"
+    "> 3. Start a new Claude session (Claude Desktop restarts itself when you press Connect).\n"
+    ">\n"
+    "> Do not install the app, edit Claude's settings, or run any setup command yourself. The user does these steps.\n\n"
 )
 
 
