@@ -117,6 +117,7 @@ _NOT_AN_AXIS = {
     # 깃허브 연결 1단계(2026-11-12) — 설정 화면의 gh 받기 · 로그인. 판의 걸음을 안 바꾼다.
     #   2단계(저장소 받기 · PR 도구)가 붙으면 위임 축으로 옮긴다.
     "github_link.py",
+    "strata_runtime.py",  # 11-13 Strata 를 켜 두는 바탕 장치(모델을 고르는 축이 아니다)
     "backup.py",
     "setup_state.py",
     "ollama_install.py",

@@ -2049,6 +2049,25 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
 
     threading.Thread(target=_watch_loop, name="ontelic-context-watch", daemon=True).start()
 
+    # ── Strata 지킴이(2026-11-13 · 설계_Strata_앱이켜고지키기) — 깔린 PC 에서 Strata 를 고른 동안: 본체가 켜질 때(재부팅 뒤) 켜고,
+    #    죽으면 다시 켠다. Strata · 다리는 떼어 낸 프로세스라 본체 재시작 · 클로드 종료와 상관없이 산다. 시험 중엔 안 돈다.
+    from . import strata_runtime as _strata
+    from .model_setup import read_selection as _read_selection
+
+    strata_service = _strata.StrataService(
+        data_dir=Path(runtime.config.data_dir), runtime=Path(runtime.config.runtime_root),
+        selection=lambda: _read_selection(Path(runtime.config.data_dir)))
+    _strata.start_watch(strata_service)
+
+    @app.get("/v1/strata/status", dependencies=[Depends(require_token)])
+    def strata_status() -> dict[str, Any]:
+        return strata_service.status()
+
+    @app.post("/v1/strata/retry", dependencies=[Depends(require_token)])
+    def strata_retry() -> dict[str, Any]:
+        """지킴이가 포기(10분 3번)한 뒤 — 사람이 램을 비우고 누른다."""
+        return strata_service.retry()
+
     @app.get("/v1/setup/context", dependencies=[Depends(require_token)])
     def setup_context() -> dict[str, Any]:
         from .ollama_install import _read_owned, _read_user_context_length

@@ -36,6 +36,9 @@ ANIMATOR_TOOL_NAMES = frozenset({
     "anim_blender_check", "anim_blender_fix", "anim_blender_block",
 })
 
+#: anim_library_tag 의 영문 칸 → 창고의 한글 꼬리표 칸(library.FACETS). 칸 이름 규칙은 specs.LIBRARY_TAG 주석.
+FACET_ARGS: dict[str, str] = {"weapon": "무기", "concept": "컨셉", "weight": "무게감", "speed": "속도감"}
+
 _TRACK_DESC = "다룰 트랙(기본 전부): rx ry rz(회전) px py pz(위치)"
 
 ANIM_OFFSET_READ_TOOL = {
@@ -363,9 +366,15 @@ class AnimatorTools:
     def library_tag(self, arguments: dict[str, Any]) -> dict[str, Any]:
         """꼬리표 칸(무기 · 컨셉 · 무게감 · 속도감) 달기 — 사람이 말한 것만(11-13 · 시험 중)."""
         self._check()
-        facets = {f: arguments[f] for f in library.FACETS if isinstance(arguments.get(f), list)}
+        # 도구 칸은 영문(weapon · concept · weight · speed) — 저장 칸은 한글. 옛 한글 칸 이름으로 와도 받는다.
+        facets: dict[str, Any] = {}
+        for arg, facet in FACET_ARGS.items():
+            value = arguments.get(arg, arguments.get(facet))
+            if isinstance(value, list):
+                facets[facet] = value
         if not facets:
-            raise ValueError("달 꼬리표가 없다 — 무기 · 컨셉 · 무게감 · 속도감 중 하나 이상을 목록으로 줘라(빈 목록이면 그 칸을 지운다)")
+            raise ValueError("달 꼬리표가 없다 — weapon(무기) · concept(컨셉) · weight(무게감) · speed(속도감) 중 하나 이상을 "
+                             "목록으로 줘라(빈 목록이면 그 칸을 지운다)")
         out = library.tag(self.root, str(arguments.get("id") or ""), facets, who=str(arguments.get("by") or ""))
         return {"ok": True, "status": "시험 중", **out}
 
