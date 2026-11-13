@@ -4,8 +4,8 @@
  * 지키는 것: 손님 PC 에선 안 보인다 · 바꾸기는 한 번 묻고 나서만 · 일하는 중 거절은 문구로 · 포기면 다시 켜기 ·
  * 클로드 카드는 옛 연결일 때만 · 단추는 기존 「닫고 · 잇고 · 다시 켜기」 창을 연다(묻기 전엔 아무것도 안 끈다).
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import strataSrc from "./StrataCard.tsx?raw";
+import freshSrc from "./ClaudeFreshCard.tsx?raw";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -140,8 +140,7 @@ it("옛 연결이면 다시 켜기 단추가 기존 확인 창을 열고, 묻기
 
 it("두 카드의 문구는 모두 영어 번역이 있다", () => {
   const dict = en as Record<string, string>;
-  for (const file of ["StrataCard.tsx", "ClaudeFreshCard.tsx"]) {
-    const src = readFileSync(resolve(process.cwd(), "src/workspace", file), "utf-8");
+  for (const [file, src] of [["StrataCard.tsx", strataSrc], ["ClaudeFreshCard.tsx", freshSrc]] as const) {
     const keys = [...src.matchAll(/\bt\("([^"]+)"/g)].map((m) => m[1]);
     expect(keys.length).toBeGreaterThan(3);
     for (const key of keys) expect(dict[key], `${file}: ${key}`).toBeTruthy();
