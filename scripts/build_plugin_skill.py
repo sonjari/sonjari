@@ -43,10 +43,31 @@ def render() -> str:
     return f"{head}{sep}\n{PLUGIN_NOTE}{rest.lstrip()}"
 
 
+CARDS_SOURCE = ROOT / "capabilities"
+CARDS_PATH = SKILL_PATH.parent / "cards"
+
+
+def copy_cards() -> int:
+    """가이드가 「이 스킬 폴더의 cards/ 를 grep 하라」고 한다 — 앱이 깔 때처럼 스킬 옆에 카드를 둔다(11-13).
+    플러그인을 깐 사람에게 앱은 가이드 · 카드 사본을 따로 깔지 않으므로(guide_skill.plugin_guide_path) 여기 있어야 한다."""
+    import shutil
+
+    if CARDS_PATH.exists():
+        shutil.rmtree(CARDS_PATH)
+    count = 0
+    for src in sorted(CARDS_SOURCE.rglob("*.md")):
+        dest = CARDS_PATH / src.relative_to(CARDS_SOURCE)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(src.read_text(encoding="utf-8-sig"), encoding="utf-8", newline="\n")
+        count += 1
+    return count
+
+
 def main() -> int:
     SKILL_PATH.parent.mkdir(parents=True, exist_ok=True)
     SKILL_PATH.write_text(render(), encoding="utf-8", newline="\n")
     print(f"wrote {SKILL_PATH.relative_to(ROOT)} ({SKILL_PATH.stat().st_size} bytes)")
+    print(f"copied {copy_cards()} capability cards → {CARDS_PATH.relative_to(ROOT)}")
     return 0
 
 

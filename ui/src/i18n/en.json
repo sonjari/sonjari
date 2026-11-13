@@ -114,6 +114,7 @@
  "Ollama 를 기다리는 중…": "Waiting for Ollama…",
  "여기서 막혔나요? 문제 보내기": "Stuck here? Send a problem report",
  "claude 명령을 찾지 못했습니다. Claude Code 를 쓰지 않는다면 이 줄은 건너뛰어도 됩니다. 쓰신다면 설치한 뒤 다시 누르거나, 아래 설정을 직접 붙여 넣으세요.": "The claude command was not found. If you do not use Claude Code, you can skip this row. If you do, install it and press again, or paste the settings below yourself.",
+ "Claude 플러그인에 같은 가이드가 있어 따로 넣지 않습니다": "The Claude plugin already has this guide, so it isn't added again",
  "안내 파일 넣음": "Guide file added",
  "Claude Code 없음 · 넣을 곳 없음": "No Claude Code here, so nowhere to put it",
  "여는 중…": "Opening…",

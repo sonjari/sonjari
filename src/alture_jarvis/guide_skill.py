@@ -36,6 +36,7 @@ MCP 안내문(`mcp_server.INSTRUCTIONS`)은 1,500자라 「무엇인가·언제�
 from __future__ import annotations
 
 import io
+import json
 import re
 import time
 import zipfile
@@ -59,6 +60,8 @@ def code_delegation_broad() -> bool:
 __all__ = ["SKILL_NAME", "render_skill", "GuideSkillService"]
 
 SKILL_NAME = "sonjari-guide"
+#: 클로드 디렉터리 플러그인 이름(plugin/.claude-plugin/plugin.json 의 name) — 깔려 있으면 가이드 사본을 깔지 않는다.
+PLUGIN_NAME = "sonjari"
 _MARK = "<!-- sonjari-guide: generated -->"
 _PACK_MARK = "<!-- sonjari-pack-guide: generated -->"
 _NOTE_START = "<!-- sonjari-guide:start -->"
@@ -623,6 +626,12 @@ class GuideSkillService:
         tools = list(tools)
         done: dict[str, Any] = {}
         path = self.claude_code_path()
+        if self.plugin_guide_path() is not None:
+            # 앱을 이은 뒤에 플러그인을 깐 사람 — 사본을 걷는다. 지침 블록은 아래 refresh_packs 가 플러그인 쪽을 가리키게 다시 쓴다.
+            if self._drop_ours_for_plugin():
+                done["claude_code_skill_removed_for_plugin"] = str(path)
+            done["notes"] = self.refresh_packs(tools)
+            return done
         try:
             if path.is_file():
                 old = path.read_text(encoding="utf-8-sig", errors="ignore")
@@ -639,6 +648,43 @@ class GuideSkillService:
 
     def claude_code_path(self) -> Path:
         return self.home / ".claude" / "skills" / SKILL_NAME / "SKILL.md"
+
+    # ── 클로드 플러그인과 겹치지 않게(2026-11-13 대표 「중복으로 들어가는 거 아니가」) ─────────────
+    #   디렉터리의 `sonjari` 플러그인이 같은 가이드(+ cards/)를 싣는다(scripts/build_plugin_skill.py — 같은 render_skill).
+    #   플러그인을 깐 사람에게 앱이 사본을 또 깔면 클로드 스킬 목록에 같은 가이드가 두 줄로 뜬다.
+    #   그래서 플러그인이 있으면 사본을 깔지 않고, 예전에 깐 **우리 표시가 있는** 사본은 걷는다. 전역 지침 몇 줄은 남기되
+    #   플러그인 쪽 가이드를 가리키게 한다. 플러그인을 지우면 다음 잇기 · 앱 켜짐에 사본이 다시 깔린다.
+    def plugin_guide_path(self) -> Path | None:
+        """클로드 코드에 깔린 손자리 플러그인의 가이드 파일. 없거나 못 읽으면 None."""
+        registry = self.home / ".claude" / "plugins" / "installed_plugins.json"
+        try:
+            data = json.loads(registry.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            return None
+        plugins = data.get("plugins") if isinstance(data, dict) else None
+        if not isinstance(plugins, dict):
+            return None
+        for key, entries in plugins.items():
+            if str(key).split("@", 1)[0] != PLUGIN_NAME:
+                continue
+            for entry in entries if isinstance(entries, list) else [entries]:
+                install = entry.get("installPath") if isinstance(entry, dict) else None
+                guide = Path(install) / "skills" / SKILL_NAME / "SKILL.md" if install else None
+                if guide is not None and guide.is_file():
+                    return guide
+        return None
+
+    def _drop_ours_for_plugin(self) -> bool:
+        """플러그인이 가이드를 갖고 있으니 우리가 깐 사본(+카드)을 걷는다. 남이 만든 같은 이름 파일은 두고 False."""
+        path = self.claude_code_path()
+        try:
+            if not (path.is_file() and _MARK in path.read_text(encoding="utf-8-sig", errors="ignore")):
+                return False
+        except OSError:
+            return False
+        self._drop_cards("claude_code")
+        self._remove_pack_file(path)  # 폴더가 비면 같이 걷는다 · 백업(SKILL.md.bak-*)은 남긴다 — 클로드는 SKILL.md 만 읽는다
+        return True
 
     # ── 기능 카드(2026-11-12 · 설계_기능카드) ─────────────────────────────
     #   스킬 옆 참고 파일로 둔다 — 클로드 코드는 필요할 때만 읽는다(부모 기본 입력을 늘리지 않는다).
@@ -664,7 +710,8 @@ class GuideSkillService:
     #: 전역 지침 파일과, 그 지침이 가리킬 스킬 파일.
     def note_targets(self) -> dict[str, dict[str, Path]]:
         return {
-            "claude_code": {"note": self.home / ".claude" / "CLAUDE.md", "guide": self.claude_code_path()},
+            "claude_code": {"note": self.home / ".claude" / "CLAUDE.md",
+                            "guide": self.plugin_guide_path() or self.claude_code_path()},
             "codex": {"note": self.home / ".codex" / "AGENTS.md", "guide": self.home / ".codex" / f"{SKILL_NAME}.md"},
         }
 
@@ -791,12 +838,18 @@ class GuideSkillService:
             "name": SKILL_NAME,
             "claude_code": {"installed": ours, "path": str(path),
                             "available": (self.home / ".claude").exists(),
-                            "foreign": path.exists() and not ours},
+                            "foreign": path.exists() and not ours,
+                            "plugin": str(plugin) if (plugin := self.plugin_guide_path()) else ""},
             "zip": {"exists": self.zip_path().exists(), "path": str(self.zip_path())},
             "notes": self.note_status(),
         }
 
     def install_claude_code(self, tools: Iterable[dict[str, Any]]) -> dict[str, Any]:
+        plugin_guide = self.plugin_guide_path()
+        if plugin_guide is not None:
+            # 플러그인이 같은 가이드 · 카드를 이미 싣는다 — 사본을 깔지 않고, 예전 사본은 걷는다(위 주석).
+            removed = self._drop_ours_for_plugin()
+            return {"ok": True, "path": str(plugin_guide), "skipped": "plugin", "removed_copy": removed}
         path = self.claude_code_path()
         backup = ""
         if path.exists():

@@ -567,7 +567,8 @@ export interface BackupStatus {
 /** 가이드 스킬 `sonjari-guide` (인수인계 H1-b) — Claude 가 온텔릭을 언제·어떻게 부르는지. */
 export interface GuideSkillStatus {
   name: string;
-  claude_code: { installed: boolean; path: string; available: boolean; foreign: boolean };
+  /** plugin: 클로드에 깔린 손자리 플러그인의 가이드 경로(없으면 "" · 옛 백엔드는 칸 없음) — 있으면 앱은 사본을 넣지 않는다(2026-11-13). */
+  claude_code: { installed: boolean; path: string; available: boolean; foreign: boolean; plugin?: string };
   zip: { exists: boolean; path: string };
   notes?: Record<string, GuideNoteRow>;
 }
