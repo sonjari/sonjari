@@ -370,6 +370,19 @@ class JarvisMcpBridge:
         # 승인 게이트가 있어서 실행되지는 않았지만, "안 내보낸다"는 약속이 목록에서만
         # 지켜지고 호출에서는 안 지켜지고 있었다.
         self._allowed: set[str] | None = None
+        #: 도구 목록 자동 갱신(2026-11-13) — 마지막으로 목록을 받아 간 클로드 세션 · 본체 판 지켜보기.
+        self.session: Any = None
+        self.tool_watch = ToolListWatch()
+
+    async def current_build(self) -> str:
+        """본체의 지금 판 지문(/health build). 본체가 꺼져 있거나 재시작 중이면 ""."""
+        try:
+            client = await self._http()
+            response = await client.get(f"{self.base_url}/health", timeout=5)
+            response.raise_for_status()
+            return str(response.json().get("build") or "")
+        except Exception:  # noqa: BLE001 — 판을 못 보면 「안 바뀜」으로 둔다
+            return ""
 
     def say(self, value: Any) -> Any:
         """나가는 글을 이 연결의 언어로. 영어면 화면과 **같은 사전**(`ui_i18n`)으로 바꾼다 — 따로 번역을 두면 갈린다.
@@ -839,7 +852,12 @@ def build_server(bridge: JarvisMcpBridge) -> Any:
     from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool
 
     async def on_list_tools(context: Any, params: Any) -> Any:
-        del context, params
+        del params
+        # 목록을 주는 순간의 세션 · 본체 판을 붙잡아 둔다 — 판이 바뀌면 watch_tool_list 가 이 세션으로 list_changed 를 보낸다.
+        #   원격 문(remote_gateway)도 이 build_server 를 쓰는데 그쪽 다리에는 지켜보기 칸이 없다 — 있을 때만.
+        if hasattr(bridge, "tool_watch") and hasattr(bridge, "current_build"):
+            bridge.session = getattr(context, "session", None)
+            bridge.tool_watch.listed(await bridge.current_build())
         return ListToolsResult(
             tools=[
                 Tool(
@@ -869,6 +887,56 @@ def build_server(bridge: JarvisMcpBridge) -> Any:
     )
 
 
+class ToolListWatch:
+    """본체 판(/health build)이 바뀌면 클로드에게 「도구 목록이 바뀌었다」를 **한 번** 알릴지 가른다 (2026-11-13).
+
+    설계 docs/설계_MCP도구목록_자동갱신_2026-11-13.ko.md. 실측: 클로드 코드 2.1.241 은 list_changed 를 받으면 즉시
+    tools/list 를 다시 부르고 새 도구를 그 세션에서 쓴다 — 신호가 없으면 다시 안 부른다(각 n=1). 손자리를 업데이트할 때마다
+    클로드를 껐다 켜던 일을 없앤다(대표 11-13).
+    """
+
+    def __init__(self) -> None:
+        self.baseline: str | None = None   # 마지막으로 클로드에게 목록을 준 때의 본체 판
+        self.notified: str | None = None   # 이 판으로 이미 알렸다
+
+    def listed(self, build: str) -> None:
+        """클로드가 목록을 받아 갔다 — 그때의 판이 새 기준."""
+        if build:
+            self.baseline = build
+            self.notified = None
+
+    def observe(self, build: str) -> bool:
+        """지켜보기 한 바퀴. 빈 값(본체 재시작 중 · 오류) · 기준 없음(아직 목록을 안 줌)은 알리지 않는다."""
+        if not build or self.baseline is None or build == self.baseline or build == self.notified:
+            return False
+        self.notified = build
+        return True
+
+
+async def watch_tool_list(bridge: Any, interval: float) -> None:
+    """30초마다 본체 판을 보고, 바뀌었으면 붙잡아 둔 세션으로 list_changed 를 보낸다. 실패는 조용히 — 다음 바퀴에 다시 본다.
+
+    stdout 은 JSON-RPC 전용이라 여기서는 아무것도 찍지 않는다(30초마다 쌓이는 로그도 남기지 않는다)."""
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await watch_tool_list_once(bridge)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 — 본체 재시작 중 · 클로드가 끊김 · 무엇이든 다음 바퀴
+            continue
+
+
+async def watch_tool_list_once(bridge: Any) -> bool:
+    session = getattr(bridge, "session", None)
+    if session is None:
+        return False
+    if not bridge.tool_watch.observe(await bridge.current_build()):
+        return False
+    await session.send_tool_list_changed()
+    return True
+
+
 async def _run() -> None:
     from mcp.server.stdio import stdio_server
 
@@ -893,10 +961,22 @@ async def _run() -> None:
             file=sys.stderr,
         )
     server = build_server(bridge)
+    from mcp.server.lowlevel import NotificationOptions
+
+    # 끄는 문(실측 · 문제 생길 때): JARVIS_MCP_TOOL_WATCH_SEC=0. 기본 30초 — /health 한 번(12자 판 지문)이라 본체 비용은 0에 가깝다.
+    try:
+        interval = float(os.environ.get("JARVIS_MCP_TOOL_WATCH_SEC", "30"))
+    except ValueError:
+        interval = 30.0
+    watcher = asyncio.create_task(watch_tool_list(bridge, interval)) if interval > 0 else None
     try:
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(read_stream, write_stream, server.create_initialization_options())
+            # tools.listChanged = true — 이걸 알려야 클로드가 우리 list_changed 를 받는다(설계 문서 2절).
+            await server.run(read_stream, write_stream,
+                             server.create_initialization_options(NotificationOptions(tools_changed=True)))
     finally:
+        if watcher is not None:
+            watcher.cancel()
         await bridge.aclose()
 
 

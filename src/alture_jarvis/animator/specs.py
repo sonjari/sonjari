@@ -41,12 +41,14 @@ LIBRARY_TAG = _tool(
     "사람이 말한 것만 단다(「22번은 한손검 · 빠른 · 스타일리쉬」). 이름 · 사진으로 무기를 짐작해 달지 마라. "
     "칸마다 통째로 바뀐다 — 빈 목록을 주면 그 칸을 지운다. 사전에 없는 값은 그대로 저장되고 not_in_dictionary 로 알려 준다. "
     "단 뒤에는 anim_library_find 가 「무거운 양손검 평타」 같은 말을 그 칸으로 읽어 찾는다.",
+    # ★ 칸 이름은 영문(11-13): 클로드 API 는 칸 이름을 ^[a-zA-Z0-9_.-]{1,64}$ 로만 받는다 — 한글 「무기」 칸 때문에
+    #   이 도구가 클로드 앱에서 통째로 빠졌다(「property key 무기 does not match」). 저장은 그대로 한글 칸(FACET_ARGS).
     {
         "id": {"type": "string", "description": "anim_library_find 가 준 id"},
-        "무기": {"type": "array", "items": {"type": "string"}, "description": "예: 한손검 · 양손검 · 창 · 도끼 · 총 · 표창 · 활 · 맨손 · 마법 · 늘어나는 무기 · 둔기"},
-        "컨셉": {"type": "array", "items": {"type": "string"}, "description": "캐릭터 컨셉. 예: 귀여운 · 스타일리쉬 · 근엄 · 도도 · 코믹"},
-        "무게감": {"type": "array", "items": {"type": "string"}, "description": "예: 무거운 · 가벼운"},
-        "속도감": {"type": "array", "items": {"type": "string"}, "description": "예: 빠른 · 느린 · 부드러운 · 연타"},
+        "weapon": {"type": "array", "items": {"type": "string"}, "description": "무기. 예: 한손검 · 양손검 · 창 · 도끼 · 총 · 표창 · 활 · 맨손 · 마법 · 늘어나는 무기 · 둔기"},
+        "concept": {"type": "array", "items": {"type": "string"}, "description": "캐릭터 컨셉. 예: 귀여운 · 스타일리쉬 · 근엄 · 도도 · 코믹"},
+        "weight": {"type": "array", "items": {"type": "string"}, "description": "무게감. 예: 무거운 · 가벼운"},
+        "speed": {"type": "array", "items": {"type": "string"}, "description": "속도감. 예: 빠른 · 느린 · 부드러운 · 연타"},
         "by": {"type": "string", "description": "누가 단다고 했나(남김용 · 비우면 「사람 말」)"},
     },
     ["id"],

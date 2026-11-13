@@ -192,5 +192,8 @@ def test_tag_tool_then_find(tmp_path: Path) -> None:
     out = t.library_tag({"id": ids["rogue"], "무기": ["도끼"], "컨셉": ["귀여운"]})
     assert out["ok"] and out["facets"] == {"무기": ["도끼"], "컨셉": ["귀여운"]}
     assert [e["id"] for e in t.library_find({"query": "엄청 귀여운 느낌의 도끼 공격 모션"})["found"]] == [ids["rogue"]]
+    # 클로드가 실제로 보내는 영문 칸(11-13 · 한글 칸 이름은 클로드 API 가 거절해 도구가 빠졌다) — 위 한글 칸은 옛 이름 호환
+    out = t.library_tag({"id": ids["rogue"], "weapon": ["양손검"], "weight": ["무거운"]})
+    assert out["facets"] == {"무기": ["양손검"], "컨셉": ["귀여운"], "무게감": ["무거운"]}
     with pytest.raises(ValueError):
         t.library_tag({"id": ids["rogue"]})                                                 # 달 것이 없으면 거절
