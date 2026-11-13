@@ -80,6 +80,15 @@ def test_readme_links_are_https_only() -> None:
     assert "http://" not in (PLUGIN / "README.md").read_text(encoding="utf-8")
 
 
+def test_the_plugin_carries_the_same_capability_cards_the_app_installs() -> None:
+    """가이드가 「이 스킬 폴더의 cards/ 를 grep」 하라고 한다 — 플러그인을 깐 사람에게 앱은 카드를 따로 깔지 않으므로 여기 있어야 한다."""
+    source = ROOT / "capabilities"
+    shipped = PLUGIN / "skills" / "sonjari-guide" / "cards"
+    want = {p.relative_to(source).as_posix(): p.read_text(encoding="utf-8-sig") for p in source.rglob("*.md")}
+    have = {p.relative_to(shipped).as_posix(): p.read_text(encoding="utf-8") for p in shipped.rglob("*.md")}
+    assert want and have == want, "카드를 고치고 `python scripts/build_plugin_skill.py` 를 안 돌렸다"
+
+
 def test_the_skill_is_the_same_guide_the_app_installs() -> None:
     """두 벌 금지 — 가이드를 고치고 `python scripts/build_plugin_skill.py` 를 안 돌리면 여기서 떨어진다."""
     saved = (PLUGIN / "skills" / "sonjari-guide" / "SKILL.md").read_text(encoding="utf-8")

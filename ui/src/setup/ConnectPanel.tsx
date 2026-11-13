@@ -146,7 +146,7 @@ export function ClaudeRestartDialog({ api, doneLabel, onDone, onClose }: {
  * 스킬이 「언제 맡기고 결과를 어떻게 전하는지」를 알려 준다. Claude Code 는 폴더에 넣으면 끝,
  * Claude Desktop 은 사용자가 zip 을 올려야 한다(앱이 폴더를 안 읽는다) — 올린 척하지 않고 올릴 곳을 말한다.
  */
-function GuideSkillRow({ api, busy, setBusy, auto = false }: {
+export function GuideSkillRow({ api, busy, setBusy, auto = false }: {
   api: SetupApi; busy: string; setBusy: Dispatch<SetStateAction<string>>; auto?: boolean;
 }) {
   const [status, setStatus] = useState<GuideSkillStatus | null>(null);
@@ -170,7 +170,7 @@ function GuideSkillRow({ api, busy, setBusy, auto = false }: {
     if (!auto || !status || autoGuide.current) return;
     autoGuide.current = true;
     const code = status.claude_code;
-    if (code.available && !code.installed && !code.foreign) void run("install_claude_code");
+    if (code.available && !code.installed && !code.foreign && !code.plugin) void run("install_claude_code");
   }, [auto, status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = async (action: GuideSkillAction) => {
@@ -198,13 +198,14 @@ function GuideSkillRow({ api, busy, setBusy, auto = false }: {
         <li className={`imp-row${code.available ? "" : " is-off"}`}>
           <span className="imp-name">
             <b>Claude Code</b>
-            <span className={`imp-note is-${code.installed ? "ok" : code.foreign ? "signal" : "quiet"}`}>
+            <span className={`imp-note is-${code.installed || code.plugin ? "ok" : code.foreign ? "signal" : "quiet"}`}>
               {/* ★ 이 줄은 **안내 파일**의 상태다. 「설치됨」이라 적었더니 바로 위의 「Claude Code — 명령을 찾지 못함」과
-                  나란히 떠서 「설치됐다면서 왜 못 찾나」로 읽혔다(2026-10-06 첫 설치). 프로그램의 설치와 다른 말을 쓴다. */}
-              {code.installed ? t("안내 파일 넣음") : code.foreign ? t("같은 이름의 다른 스킬이 있어 건드리지 않습니다") : code.available ? t("아직 안 넣음") : t("Claude Code 없음 · 넣을 곳 없음")}
+                  나란히 떠서 「설치됐다면서 왜 못 찾나」로 읽혔다(2026-10-06 첫 설치). 프로그램의 설치와 다른 말을 쓴다.
+                  ★ 2026-11-13: 손자리 클로드 플러그인이 같은 가이드를 싣는다 — 있으면 사본을 넣지 않고 그렇게 말한다(같은 스킬이 두 줄로 뜬다). */}
+              {code.plugin ? t("Claude 플러그인에 같은 가이드가 있어 따로 넣지 않습니다") : code.installed ? t("안내 파일 넣음") : code.foreign ? t("같은 이름의 다른 스킬이 있어 건드리지 않습니다") : code.available ? t("아직 안 넣음") : t("Claude Code 없음 · 넣을 곳 없음")}
             </span>
           </span>
-          <span className="imp-row-actions">
+          <span className="imp-row-actions" hidden={Boolean(code.plugin)}>
             {code.installed && (
               <button type="button" className="imp-link is-stop" onClick={() => void run("remove_claude_code")} disabled={busy !== ""}>
                 {t("빼기")}

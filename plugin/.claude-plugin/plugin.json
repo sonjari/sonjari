@@ -1,8 +1,8 @@
 {
   "name": "sonjari",
   "displayName": "Sonjari",
-  "version": "0.4.44",
-  "description": "Hand token-heavy work to a local AI on your own GPU: browsing in your logged-in Chrome, reading many pages, and narrow coding jobs in your repo. Only the answer and its sources come back. Needs the Sonjari desktop app (Windows, NVIDIA GPU).",
+  "version": "0.4.45",
+  "description": "Lets Claude hand token-heavy work (browsing in your logged-in Chrome, reading many pages, narrow coding jobs) to Sonjari, a free local AI on your own GPU. Only answers and sources come back. Requires the Sonjari app for Windows (NVIDIA GPU), connected from its Settings › Connect.",
   "author": {
     "name": "Sonjari",
     "url": "https://github.com/sonjari"
@@ -13,5 +13,5 @@
   "supportUrl": "https://github.com/sonjari/sonjari/issues",
   "documentationUrl": "https://github.com/sonjari/sonjari/blob/main/plugin/README.md",
   "license": "Apache-2.0",
-  "keywords": ["local-ai", "subagent", "browser", "research", "gpu"]
+  "keywords": ["local-ai", "local-llm", "subagent", "browser", "web-research", "research", "spreadsheet", "gpu", "windows"]
 }
