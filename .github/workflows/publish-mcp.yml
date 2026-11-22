@@ -1,0 +1,43 @@
+# Publish server.json to the official MCP Registry (registry.modelcontextprotocol.io).
+# Manual: Actions -> "Publish to MCP Registry" -> Run workflow.
+# Uses GitHub OIDC, so it can publish under io.github.sonjari/* (needs an org Owner to run it).
+name: Publish to MCP Registry
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Install mcp-publisher (signature checked)
+        run: |
+          base="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          file="mcp-publisher_linux_amd64.tar.gz"
+          curl -fsSL -o "$file" "$base/$file"
+          curl -fsSL -o "$file.sigstore.json" "$base/$file.sigstore.json"
+          cosign verify-blob "$file" --bundle "$file.sigstore.json" \
+            --certificate-identity-regexp '^https://github.com/modelcontextprotocol/registry/\.github/workflows/release\.yml@refs/tags/v' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          tar xzf "$file" mcp-publisher
+
+      - name: Check server.json
+        run: ./mcp-publisher validate
+
+      - name: Log in with GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish
+        run: ./mcp-publisher publish

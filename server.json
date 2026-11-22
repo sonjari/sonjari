@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sonjari/sonjari",
+  "title": "Sonjari",
+  "description": "Hand web research, file and document work to a free local AI agent on your own PC or Mac.",
+  "repository": {
+    "url": "https://github.com/sonjari/sonjari",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/sonjari/sonjari",
+  "version": "0.4.52",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/sonjari/sonjari/releases/download/v0.4.52-mac/sonjari-mcp-0.4.52.mcpb",
+      "version": "0.4.52",
+      "fileSha256": "a9a9e7671e93af8dc0384882d075412467723d90d8c44170e4b43df2be407798",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
