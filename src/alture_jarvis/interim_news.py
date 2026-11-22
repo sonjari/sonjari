@@ -77,7 +77,8 @@ def _is_github_repo(url: str) -> bool:
 
 def _name(title: str, url: str) -> str:
     text = re.sub(r"\s+", " ", str(title or "")).strip()
-    if "github.com" in url:
+    # 2026-11-23 CodeQL: 글자 포함(「github.com」이 경로나 다른 도메인 안에 있어도 참)이 아니라 주소의 집 이름으로 본다.
+    if (urlsplit(url).hostname or "").lower() in {"github.com", "www.github.com"}:
         github = _GITHUB_TITLE.match(text)
         if github:
             return github.group(1)[:NAME_MAX]
