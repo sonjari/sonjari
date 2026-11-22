@@ -2457,6 +2457,50 @@ _SEARCH_WORD_IN_PATH = re.compile(r"(?:^|/)search(?:/(?:keyword|q|query))?/([^/?
 _UPLOAD_LOOKING = re.compile(r"업로드|파일|첨부|찾아보기|사진|이미지|upload|attach|browse|choose\s*file", re.IGNORECASE)
 
 
+class _OpenedProcess:
+    """맥에서 `open` 으로 띄운 크롬 — 우리 자식이 아니라 pid 만 안다. `subprocess.Popen` 에서 쓰던 만큼(pid · poll · terminate ·
+    kill · wait)만 흉내 낸다(11-18 · `BrowserWorker._mac_open_chrome`)."""
+
+    def __init__(self, pid: int) -> None:
+        self.pid = int(pid)
+        self.returncode: int | None = None
+
+    def poll(self) -> int | None:
+        if self.returncode is not None:
+            return self.returncode
+        try:
+            os.kill(self.pid, 0)
+        except ProcessLookupError:
+            self.returncode = 0
+        except PermissionError:
+            return None
+        return self.returncode
+
+    def _signal(self, number: int) -> None:
+        try:
+            os.kill(self.pid, number)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+    def terminate(self) -> None:
+        import signal
+
+        self._signal(signal.SIGTERM)
+
+    def kill(self) -> None:
+        import signal
+
+        self._signal(getattr(signal, "SIGKILL", signal.SIGTERM))
+
+    def wait(self, timeout: float | None = None) -> int:
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while self.poll() is None:
+            if deadline is not None and time.monotonic() > deadline:
+                raise subprocess.TimeoutExpired(f"pid {self.pid}", timeout or 0)
+            time.sleep(0.05)
+        return int(self.returncode or 0)
+
+
 class BrowserWorker:
     """Serialized, persistent Playwright worker for JARVIS.
 
@@ -4355,9 +4399,23 @@ class BrowserWorker:
             return self._playwright.chromium.launch_persistent_context(
                 channel="msedge" if self._is_edge else "chrome", **launch_args
             )
-        except Exception:
-            if not self._browser_exe():
+        except Exception as first:
+            found = self._browser_exe()
+            if not found:
                 raise RuntimeError(NO_BROWSER_MESSAGE) from None
+            # ★ 2026-11-17 맥 새 계정 시험: 찾은 브라우저로 못 띄우자 Playwright 전용 크로미움으로 넘어갔는데, 맥 · 스토어
+            #   설치는 그걸 받아 오지 않는다 — 화면엔 「playwright install 하라」만 남고 진짜 까닭(첫 실패)이 사라졌다.
+            #   전용 크로미움이 실제로 있을 때만 넘어가고, 없으면 첫 실패의 까닭과 사람이 할 일을 그대로 말한다.
+            try:
+                bundled = Path(str(self._playwright.chromium.executable_path or ""))
+            except Exception:  # noqa: BLE001 — 경로를 못 물으면 없는 것으로 본다
+                bundled = Path("")
+            if not str(bundled) or not bundled.exists():
+                reason = str(first).splitlines()[0][:300] if str(first) else type(first).__name__
+                raise RuntimeError(
+                    f"browser_start_failed — 찾은 브라우저({found})를 띄우지 못했습니다: {reason}. "
+                    "그 브라우저를 한 번 직접 열어 첫 실행 창을 끝내 주시거나, 크롬(https://www.google.com/chrome)을 설치한 뒤 다시 시켜 주세요."
+                ) from first
             return self._playwright.chromium.launch_persistent_context(**launch_args)
 
     def _attach_chrome(self, port: int | None = None) -> Any:
@@ -4858,13 +4916,21 @@ class BrowserWorker:
         if quiet_start:
             self._sink_settled.clear()
             self._start_birth_guard()  # ★ 띄우기 **전에** — 창이 태어난 뒤에는 늦다
-        self._chrome_proc = subprocess.Popen(  # noqa: S603 - 경로는 우리가 찾은 chrome.exe
-            arguments,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=creationflags,
-            startupinfo=startupinfo,
-        )
+        if sys.platform == "darwin" and bool(getattr(self.config, "mac_chrome_via_open", True)):
+            # ★ 2026-11-18 맥 새 계정 시험: 크롬을 처음 띄운 무렵 「python3.12 가 앱을 수정하려는 시도를 차단」 ·
+            #   「로컬 네트워크 기기를 찾도록 허용?」 · 「다른 앱의 데이터 접근」이 줄줄이 떴다. 맥은 허락을 「책임 프로세스」
+            #   이름으로 묻는데, 파이썬이 크롬을 **자식으로** 띄우면 크롬이 하는 일(자기 업데이트 · 기기 찾기 …)의 책임자가
+            #   파이썬이 된다. `open`(Finder 와 같은 LaunchServices 길)으로 띄우면 크롬이 제 책임자다(Qt 「responsible
+            #   process」 글 · Apple 포럼 731504). 진짜 크롬 pid 는 우리 프로필 경로로 찾는다(`open` 은 바로 끝난다).
+            self._chrome_proc = self._mac_open_chrome(arguments)
+        else:
+            self._chrome_proc = subprocess.Popen(  # noqa: S603 - 경로는 우리가 찾은 chrome.exe
+                arguments,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=creationflags,
+                startupinfo=startupinfo,
+            )
         if mac_quiet:
             self._start_mac_hide_guard(int(self._chrome_proc.pid))
         if quiet_start:
@@ -4877,6 +4943,28 @@ class BrowserWorker:
             self._sink_settled.clear()
             self._sunk_hwnds.clear()
             threading.Thread(target=self._sink_new_chrome_window, daemon=True).start()
+
+    #: `open` 뒤 우리 크롬 본 프로세스가 보일 때까지 기다리는 상한(초). 맥미니 실측 첫 실행 1초 안팎.
+    MAC_OPEN_FIND_SEC = 15.0
+
+    def _mac_open_chrome(self, arguments: list[str]) -> "_OpenedProcess":
+        """맥: 크롬을 `open -n -g -a <앱> --args …` 로 띄우고 **우리 프로필의 본 프로세스** pid 를 찾아 감싼다(11-18)."""
+        executable = str(arguments[0])
+        marker = ".app/"
+        bundle = executable[: executable.index(marker) + len(".app")] if marker in executable else executable
+        subprocess.run(  # noqa: S603 — 경로는 우리가 찾은 크롬 앱
+            ["/usr/bin/open", "-n", "-g", "-a", bundle, "--args", *arguments[1:]],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20, check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),  # 맥에선 0 — 콘솔 창 규칙(test_no_console_window_popups)을 같이 지킨다
+        )
+        profile = next((item.split("=", 1)[1] for item in arguments if item.startswith("--user-data-dir=")), "")
+        deadline = time.time() + self.MAC_OPEN_FIND_SEC
+        while time.time() < deadline:
+            for pid, command in self._chrome_scan(max_age_sec=0.0).items():
+                if profile and f"--user-data-dir={profile}" in command and "--type=" not in command:
+                    return _OpenedProcess(int(pid))
+            time.sleep(0.1)
+        raise RuntimeError(f"browser_start_failed — 크롬을 띄웠지만 {int(self.MAC_OPEN_FIND_SEC)}초 안에 보이지 않았습니다")
 
     # ── 맥: 우리 크롬 숨기기 (2026-11-03 · 설계 D3) ──────────────────────────────────────────────
     #

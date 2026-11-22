@@ -146,31 +146,63 @@ def search(query: str, cards: Iterable[Card] | None = None, limit: int = 3) -> t
     return picked, more
 
 
+def _off_pack_lines(off_packs: list[dict[str, str]] | None, lang: str) -> str:
+    """꺼진 팩 목록 — 카드가 없는 팩(애니메이터 · 영상)도 클로드가 있는 줄 알게(11-16 맥 실측: 「블렌더 · 모션」 검색 0)."""
+    rows = [row for row in (off_packs or []) if row.get("id")]
+    if not rows:
+        return ""
+    if lang == "en":
+        head = ("\n\nPacks turned off on this PC (their tools are hidden). If the task needs one, ask the user in the chat first, "
+                "then call `sonjari_pack_request` (pack=…, why=…):")
+    else:
+        head = ("\n\n이 PC 에서 꺼진 팩(도구가 목록에 안 보임). 일에 필요하면 대화에서 사용자에게 먼저 묻고 "
+                "`sonjari_pack_request`(pack=…, why=…) 로 켜 달라고 청하세요:")
+    lines = [f"- {row['id']}({row.get('name') or row['id']}): {str(row.get('summary') or '').split('. ')[0].strip().rstrip('.')}"
+             for row in rows]
+    return head + "\n" + "\n".join(lines)
+
+
 def render_search(query: str, *, enabled_packs: set[str] | None = None, lang: str = "ko",
-                  cards: Iterable[Card] | None = None, limit: int = 3) -> str:
+                  cards: Iterable[Card] | None = None, limit: int = 3,
+                  off_packs: list[dict[str, str]] | None = None) -> str:
     pool = list(cards) if cards is not None else load_cards()
     picked, more = search(query, pool, limit)
     if not pool:
         return ("Capability cards are not installed with this build." if lang == "en"
                 else "이 판에는 기능 카드가 없습니다.")
     if not picked:
+        off = _off_pack_lines(off_packs, lang)
         if lang == "en":
             return (f"No capability card for \"{query}\". Do not assume Sonjari can do it — hand it off with sonjari_task "
-                    "and read model_hint in the result, or ask the user.")
+                    "and read model_hint in the result, or ask the user." + off)
         return (f"「{query}」 에 맞는 기능 카드가 없습니다. 된다고 가정하지 말고, sonjari_task 로 맡겨 결과의 model_hint 를 보거나 "
-                "사용자에게 물으세요.")
+                "사용자에게 물으세요." + off)
     parts: list[str] = []
     for card in picked:
         note = ""
-        if enabled_packs is not None and card.group in _pack_groups(pool) and card.group not in enabled_packs:
-            note = (f"> This PC has the `{card.group}` pack turned off. The user turns it on in Sonjari Settings › Packs — do not turn it on yourself.\n\n"
+        pack_id = pack_of_group(card.group)
+        if enabled_packs is not None and card.group in _pack_groups(pool) and pack_id not in enabled_packs:
+            # 11-16(설계_팩켜기UX §4-2): 「설정에서 켜라」 글로 끝내지 않고, 그 자리에서 사람에게 청하는 문을 가리킨다.
+            note = (f"> This PC has the `{pack_id}` pack turned off. Ask the user to turn it on with "
+                    f"`sonjari_pack_request` (pack=\"{pack_id}\", why=…) — the user presses it on a card in Sonjari. "
+                    "Do not turn it on yourself.\n\n"
                     if lang == "en" else
-                    f"> 지금 이 PC 에선 `{card.group}` 팩이 꺼져 있습니다. 사용자가 손자리 설정 › 팩에서 켜야 합니다 — 대신 켜지 마세요.\n\n")
+                    f"> 지금 이 PC 에선 `{pack_id}` 팩이 꺼져 있습니다. `sonjari_pack_request`(pack=\"{pack_id}\", why=…) 로 "
+                    "사용자에게 켜 달라고 청하세요(사람이 카드에서 누릅니다) — 대신 켜지 마세요.\n\n")
         parts.append(note + card.text.strip())
     tail = ""
     if more:
         tail = ("\n\n---\nAlso matched: " if lang == "en" else "\n\n---\n더 걸린 카드: ") + ", ".join(more)
     return "\n\n---\n\n".join(parts) + tail
+
+
+#: 카드 분류 → 팩 id. 이름이 다른 것만 적는다(2026-11-16: 카드 분류 `3d` · 팩 id `gen3d` 가 달라서, 3D 팩을 켜도 카드에
+#: 「꺼짐」이 붙었고 켜 달라는 문에 없는 팩 이름이 갈 뻔했다). 시험이 카드 분류마다 실린 팩이 있는지 본다.
+GROUP_PACK = {"3d": "gen3d"}
+
+
+def pack_of_group(group: str) -> str:
+    return GROUP_PACK.get(group, group)
 
 
 def _pack_groups(pool: list[Card]) -> set[str]:

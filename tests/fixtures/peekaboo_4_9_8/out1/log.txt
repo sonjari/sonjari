@@ -1,0 +1,10 @@
+te_launch rc=0 .127491초
+te_new rc=1 .058142초
+te_see1 rc=1 .1208808초
+te_type rc=1 .0728991초
+te_see2 rc=0 .1643011초
+fi_launch rc=0 .0840933초
+fi_see rc=1 .127872초
+fi_click rc=1 .0548078초
+fi_see2 rc=0 .269508초
+ch_see rc=1 .1013778초

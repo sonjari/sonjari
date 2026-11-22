@@ -64,6 +64,22 @@ TARGETS = {
 # 드러난다. 조용히 빠지는 것이 제일 나쁘다.
 WRITE_TOOLS = frozenset(
     {
+        "gen_3d",  # 3D 생성 팩(2026-11-14) — 그래픽카드로 새 GLB · 프린트 파일을 만든다
+        "gen_3d_print",  # 3D 생성 팩(2026-11-14) — 끝난 판으로 프린트 파일을 새 칸에 다시 만든다
+        "gen_3d_prep",  # 3D 사진 손질(2026-11-15) — prep/ 새 칸에 그림
+        "gen_3d_views",  # 3D 여섯 방향 판(2026-11-15) — 판 폴더에 그림
+        "gen_3d_finish",  # 3D 블렌더 마무리(2026-11-16) — finish_v 새 칸에 GLB · 그림
+        "gen_3d_render",  # 3D 렌더(2026-11-18) — render_v 새 칸에 그림 · mp4
+        "gen_3d_export",  # 3D 내보내기(2026-11-18) — export_v 새 칸에 FBX · GLB
+        "gen_3d_blender",  # 블렌더 받기(2026-11-18) — 동의 뒤 공식 자리에서 받아 손자리 자리에 푼다
+        "anim_blender_setup",  # 같은 받기의 애니 팩 이름(2026-11-18)
+        "gen_3d_split_plan",  # 3D 조립 나누기(2026-11-14) — 새 칸에 후보 그림
+        "gen_3d_split",  # 3D 조립 나누기(2026-11-14) — 새 칸에 부품 · 핀 · 판 파일
+        "gen_3d_fit_test",  # 3D 끼움 시험 조각(2026-11-14) — 새 칸에 파일
+        "gen_3d_fit_set",  # 3D 끼움 틈 저장(2026-11-14) — 설정 파일 하나
+        "gen_video_prep",  # 영상 생성 팩(2026-11-16) — prep/ 새 칸에 첫 그림
+        "gen_video_batch",  # 영상 생성 팩(2026-11-16) — 그래픽카드로 새 시안 영상 · 판
+        "gen_video_finish",  # 영상 생성 팩(2026-11-16) — 고른 컷 본판 영상
         "naver_blog_fill_editor",
         "naver_blog_save_draft",
         "naver_blog_publish",
@@ -96,6 +112,9 @@ WRITE_TOOLS = frozenset(
         # 프로그램을 실제로 띄운다(둘 다 L2, 화면 승인 대상).
         "windows_open_path",
         "windows_execute_preview",
+        # 맥 짝(2026-11-16 · desktop_tools.py 역할 표 — `test_desktop_tools` 가 윈도우 이름과 같은 칸인지 본다).
+        "mac_open_path",
+        "mac_execute_preview",
         # 초안을 확정해 **앞으로 실제로 쓰이게** 한다.
         "site_promote_draft",
         "local_open_path",
@@ -217,6 +236,8 @@ COMMIT_TOOLS = frozenset(
         "camera_register_face",
         "windows_execute_preview",
         "windows_open_path",
+        "mac_execute_preview",
+        "mac_open_path",
         "local_open_path",
         "local_write_file",
         "local_apply_edit",
@@ -283,11 +304,18 @@ NEUTRAL_TOOLS = frozenset(
         "sonjari_task_cancel",  # 맡긴 잡을 멈추는 문(2026-11-07) — 잡 안 걸음이 아니다
         "sonjari_guide",  # 가이드 본문을 돌려주는 읽기 전용 문(2026-09-17) — 잡이 아니다
         "sonjari_story",  # 서기 카드를 돌려주는 읽기 전용 문(2026-10-21) — 잡이 아니다
+        "sonjari_tool",  # 고정 문(2026-11-15) — 바깥 AI 가 본체 도구를 이름으로 부르는 껍데기. 잡 안 걸음으로는 안 나온다
         "unity_list_recipes",  # 레시피 목록(2026-09-27) — 무엇을 할 수 있나일 뿐, 읽은 근거가 아니다
         "unity_try_script",  # 바깥 AI 전용 초안 문(2026-09-27) — 온텔릭 잡 안 걸음으로는 안 나온다
         # 애니메이터 팩(2026-11-02) — 클로드가 3dsmax-mcp 와 오가며 부르는 바깥 AI 전용 문. 손자리 잡 안 걸음으로는 안 나온다
         "anim_offset_read",
         "anim_offset_plan",
+        # 3D 생성 팩(2026-11-14) — 상태 · 입력 검사는 영수증 · 숫자를 돌려줄 뿐 근거를 읽는 걸음이 아니다
+        "gen_3d_status",
+        "gen_3d_check",
+        # 영상 생성 팩(2026-11-16) — 「되나」 · 상태는 영수증 · 숫자를 돌려줄 뿐 근거를 읽는 걸음이 아니다
+        "gen_video_check",
+        "gen_video_status",
         # MCP 서버 꽂기(2026-11-04): 찾기는 「무엇을 할 수 있나」일 뿐 근거가 아니다. 부르기는 읽기도 쓰기도 될 수 있어
         #   (대상 도구 표시로 갈림) 한쪽으로 세면 분모가 틀어진다 — 실사용 기록이 쌓이면 읽기/쓰기로 나눠 센다.
         "mcp_find", "local_view_image",
@@ -310,6 +338,8 @@ NEUTRAL_TOOLS = frozenset(
         "local_request_path_access",
         # 사람에게 선택지로 **묻는** 문 (2026-09-30). 읽은 근거도 쓰기 실적도 아니다.
         "ask_user",
+        # 팩을 켜 달라고 **사람에게 청하는** 문(2026-11-16 · 설계_팩켜기UX). 읽은 근거도 쓰기 실적도 아니다.
+        "sonjari_pack_request",
         # 만든 페이지를 루프백에 띄워 보는 문 (2026-09-20). 파일을 안 건드린다.
         "local_preview_page",
         # 셸 (2026-09-20). 보는 명령이 대부분이고, 바꾸는 것은 승인 카드를 지난다 —
@@ -361,6 +391,12 @@ NEUTRAL_TOOLS = frozenset(
         "windows_uia_preview",
         # 설명에 "화면을 바꾸지 않고 원래 클립보드도 되돌려 놓는다"고 적혀 있다.
         "windows_copy_from_window",
+        # 맥 짝(2026-11-16 · desktop_tools.py 역할 표 — `test_desktop_tools` 가 윈도우 이름과 같은 칸인지 본다).
+        "mac_list_open_windows",
+        "mac_focus_window",
+        "mac_ax_snapshot",
+        "mac_ax_preview",
+        "mac_copy_from_window",
         # ── 2026-08-14 추가 ──────────────────────────────────────────────────
         #
         # 보는 자리를 옮길 뿐 아무것도 확정하지 않는다. 본문을 손에 쥐여 주는 것은

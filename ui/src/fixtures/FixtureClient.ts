@@ -419,7 +419,7 @@ export class FixtureClient extends JarvisClient {
     return this.packsView();
   }
 
-  override async setPack(packId: string, on: boolean): Promise<PackInfo> {
+  override async setPack(packId: string, on: boolean, _options: { fetch?: boolean } = {}): Promise<PackInfo> {
     await new Promise((resolve) => window.setTimeout(resolve, 250));
     const row = this.packRows.find((item) => item.id === packId);
     if (!row) throw new Error("unknown_pack");

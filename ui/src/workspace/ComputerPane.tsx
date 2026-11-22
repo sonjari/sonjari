@@ -44,6 +44,8 @@ import { advanceThinkingMeter, lastFileNameIn, THINKING_RESUMED_CHARS, thinkingL
 import { CodePreview } from "./CodePreview";
 import { LiveStage } from "./LiveStage";
 import { DeckStage, type DeckState, type DeckAnswer, type DeckPhoto } from "./DeckStage";
+import { Gen3dStage, type Gen3dAction, type Gen3dLoad } from "./Gen3dStage";
+import type { Gen3dState } from "./gen3dState";
 import { paneWidth } from "./jobs";
 import { UnityStageView } from "./UnityEditorSection";
 import { HandoffCard } from "../claudeAgent/HandoffCard";
@@ -95,6 +97,11 @@ export function ComputerPane(props: {
   onControlChange?: (active: boolean) => void;
   /** 이 판에서 그리는 장표(2026-10-25 · `DeckStage`). 있으면 무대의 주인공이 브라우저 대신 장표다. */
   deck?: DeckState;
+  /** 이 판에서 만드는 3D(2026-11-14 · `Gen3dStage`). 있으면 무대의 주인공이 3D 다 — 장표보다 앞선다(한 판에 둘이면 지금 도는 쪽이 3D). */
+  gen3d?: Gen3dState;
+  gen3dLoad?: Gen3dLoad;
+  onGen3dAction?: Gen3dAction;
+  onGen3dPick?: (genId: string) => void;
   /** 장표 같이 만들기의 답(결 · 이야기판 · 한마디 · 멈춤). 없으면 보기만 한다. */
   onDeckAnswer?: DeckAnswer;
   /** 다 구운 PPTX 를 이 PC 의 앱으로 열기 · 탐색기에서 짚기. */
@@ -538,8 +545,11 @@ export function ComputerPane(props: {
                   `compact` 는 본문이 **있을 자리인가**로 정한다. `loading` 에 걸면
                   걸음을 고를 때마다 그림이 컸다 작았다 튄다 — 읽던 자리가 발밑에서
                   움직이는 것이 이 칸에서 제일 나쁜 일이다. */}
-              {!unityEditorJob && !codeMode && props.deck && <DeckStage deck={props.deck} onAnswer={props.onDeckAnswer} onOpen={props.onDeckOpen} onPhoto={props.onDeckPhoto} />}
-              {!unityEditorJob && !codeMode && !props.deck && (
+              {!unityEditorJob && !codeMode && props.gen3d && (
+                <Gen3dStage state={props.gen3d} load={props.gen3dLoad} onAction={props.onGen3dAction} onPick={props.onGen3dPick} />
+              )}
+              {!unityEditorJob && !codeMode && !props.gen3d && props.deck && <DeckStage deck={props.deck} onAnswer={props.onDeckAnswer} onOpen={props.onDeckOpen} onPhoto={props.onDeckPhoto} />}
+              {!unityEditorJob && !codeMode && !props.gen3d && !props.deck && (
                 <LiveStage
                   client={client}
                   active={open}

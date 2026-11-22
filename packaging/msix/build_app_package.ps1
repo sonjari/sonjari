@@ -183,6 +183,11 @@ $lib = Join-Path $py "Lib"
 & robocopy (Join-Path $Root "packs") (Join-Path $lib "packs") /E /XD __pycache__ /XF "*.pyc" /NFL /NDL /NJH /NJS /NP | Out-Null
 # 2026-11-12 capability cards (docs/design capability cards 2026-11-12): capability_cards.cards_dir() looks for lib\capabilities next to packs.
 & robocopy (Join-Path $Root "capabilities") (Join-Path $lib "capabilities") /E /XD __pycache__ /XF "*.pyc" /NFL /NDL /NJH /NJS /NP | Out-Null
+# 2026-11-16 (founder): packs marked "store": false in pack.json (gen3d for now) stay out of the STORE package only -
+# dev, the C: runtime sync and the mac install keep them. Their capability cards go too (they would tell Claude to turn on a pack that is not there).
+$storeEx = & $VenvPython (Join-Path $Here "store_exclusions.py") $lib 2>&1 | Out-String
+Write-Host $storeEx
+if ($LASTEXITCODE -ne 0) { throw "store exclusions failed - see above" }
 # NOT alture_jarvis.api: importing it builds a runtime and writes a token/db under %LOCALAPPDATA% (seen 2026-09-15).
 $check = & (Join-Path $py "python.exe") -c "import alture_jarvis, alture_jarvis.runtime, alture_jarvis.mcp_server; print(alture_jarvis.__file__)" 2>&1 | Out-String
 Write-Host "bundled python import: $check"
@@ -198,6 +203,11 @@ if ($LASTEXITCODE -ne 0) { throw "bundled python is missing required modules - s
 $people = & $VenvPython (Join-Path $Here "scan_package_people.py") $App 2>&1 | Out-String
 Write-Host $people
 if ($LASTEXITCODE -ne 0) { throw "the package carries personal names or facts - see the list above; fix the source and build again" }
+# 2026-11-18: the secret scan only ran for the NAS update channel (publish_update_channel.ps1), never for the store
+# package - 0.4.48 was checked by hand. Same scanner, same rule: a hit stops the build (fix the source).
+$secrets = & $VenvPython (Join-Path $Here "scan_package_secrets.py") $App 2>&1 | Out-String
+Write-Host $secrets
+if ($LASTEXITCODE -ne 0) { throw "the package carries something that looks like a secret - see the list above; fix the source and build again" }
 
 # 3) manifest + pack (pack validates the schema; the loose folder is what gets registered)
 $template = [IO.File]::ReadAllText((Join-Path $Here "AppxManifest.template.xml"))

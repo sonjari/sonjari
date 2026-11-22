@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>com.sonjari.engine</string>
+  <key>CFBundleName</key><string>손자리</string>
+  <key>CFBundleDisplayName</key><string>손자리</string>
+  <key>CFBundleExecutable</key><string>SonjariEngine</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <!-- 독(Dock)에 안 뜨는 뒤쪽 도우미 -->
+  <key>LSUIElement</key><true/>
+  <key>LSBackgroundOnly</key><true/>
+  <key>NSDocumentsFolderUsageDescription</key><string>시키신 일로 문서 폴더의 파일을 읽거나 새 파일을 만들 때 필요해요. 파일은 이 맥 밖으로 나가지 않습니다.</string>
+  <key>NSDesktopFolderUsageDescription</key><string>시키신 일로 바탕화면의 파일을 읽거나 새 파일을 둘 때 필요해요. 파일은 이 맥 밖으로 나가지 않습니다.</string>
+  <key>NSDownloadsFolderUsageDescription</key><string>시키신 일로 다운로드 폴더의 파일을 읽을 때 필요해요. 파일은 이 맥 밖으로 나가지 않습니다.</string>
+  <key>NSRemovableVolumesUsageDescription</key><string>시키신 일로 꽂아 둔 외장 저장 장치의 파일을 읽을 때 필요해요.</string>
+  <key>NSNetworkVolumesUsageDescription</key><string>시키신 일로 네트워크 드라이브의 파일을 읽을 때 필요해요.</string>
+  <key>NSLocalNetworkUsageDescription</key><string>같은 와이파이에 있는 집 PC 의 손자리와 짝을 지을 때 필요해요. 짝짓기를 쓰지 않으면 거절하셔도 됩니다.</string>
+  <key>NSAppleEventsUsageDescription</key><string>시키신 일로 다른 앱(워드 · 엑셀 · 파인더 등)을 대신 다룰 때 필요해요.</string>
+</dict>
+</plist>

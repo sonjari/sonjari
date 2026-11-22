@@ -44,14 +44,26 @@ def build_id() -> str:
     git sha 를 쓰지 않는 이유도 같다 — C: 런타임은 git 저장소가 아니다. 게다가 커밋
     안 한 수정으로 도는 일이 잦아서(오늘도 그랬다) sha 는 실제로 도는 코드를 못 가리킨다.
     """
-    package = Path(__file__).resolve().parent
+    return code_digest(Path(__file__).resolve().parent)
+
+
+def code_digest(package: Path) -> str:
+    """패키지 바로 아래 `.py` 의 내용 지문 12자 — 판 번호를 세는 **단 하나의 규칙**.
+
+    `build_id`(지금 도는 코드) · `updater.staged_build`(받아 푼 묶음) · `scripts/mac/build_mac_update.py`(올릴 묶음)
+    가 모두 이것을 부른다. 셋이 규칙을 각자 베껴 두면 한 곳만 바뀐다(사고 Q).
+
+    ★ 2026-11-23: 줄 끝(CRLF/LF)은 세지 않는다. 같은 커밋인데 `git archive` 는 CRLF, PC 작업 폴더 일부는 LF 라
+      맥 0.4.51 에 「새 버전이 있습니다 ef9a600c → 3fb52d39」가 떴다(내용은 302개 파일 모두 같았음).
+    """
     digest = hashlib.sha256()
-    for path in sorted(package.glob("*.py")):
+    for path in sorted(Path(package).glob("*.py")):
         try:
-            digest.update(path.name.encode())
-            digest.update(path.read_bytes())
+            data = path.read_bytes()
         except OSError:
             continue
+        digest.update(path.name.encode())
+        digest.update(data.replace(b"\r\n", b"\n"))
     return digest.hexdigest()[:12]
 
 
@@ -107,6 +119,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "answer_gate.py",
         # 답 안의 클레임(성공·완료·출처·끝맺음) 판정과 자기 모순 검사 — agent.py 에서 분리(2026-10-10). 조사 답의 완성 판정이 바뀐다.
         "answer_claims.py",
+        # 답에 적힌 산출물 경로가 이 판에서 쓴 파일이거나 디스크에 있는지 — 없으면 그 줄을 지우고 머리 한 줄(2026-11-17 맥 hwp 판). 답 글이 바뀐다.
+        "artifact_claims.py",
         # 「없다 · 아직 없다」에 본 범위(목록 화면 · 연 글 수)를 붙인다(2026-10-19) — 조사 답에 붙는 글이 바뀐다.
         "absence_scope.py",
         # 한 번도 안 연 곳의 줄에 값이 채워졌으면 답 끝에 밝힌다(2026-10-24 bf69599d) — 조사 답에 붙는 글과 판 기록이 바뀐다.
@@ -138,6 +152,10 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "unity_editor.py", "unity_stage.py", "unity_schedule.py",
         # 영상 팩(2026-11-02): 영상 페이지를 틀어 짜임을 읽는 도구. 결과 표가 답의 근거가 된다.
         "video_tools.py",
+        # 3D 생성 팩(2026-11-14): 그림 → 3D 초안 · 영수증(면 수 · 닫힌 메시 · 프린트 파일). 결과 숫자가 답의 근거가 된다.
+        "gen3d_tools.py",
+        # 영상 생성 팩(2026-11-16): 콘티 → 컷 시안 · 본판 · 영수증(걸린 초 · 검사 숫자). 결과 숫자가 답의 근거가 된다.
+        "genvideo_tools.py",
         # 애니메이터 팩(2026-11-02): 3ds Max 엇박자 루프 계산 · 스크립트. 맥스에 쓰는 키를 직접 정한다.
         "animator_tools.py",
         # MCP 서버 꽂기(2026-11-04): 사람이 꽂은 남의 MCP 도구를 찾고 부른다. 그 도구가 돌려준 것이 답의 근거가 되고, 승인 등급을 정한다.
@@ -146,6 +164,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "image_look.py",
         # 분야 팩(2026-09-27). 켜고 끄면 모델이 보는 도구·스킬·「시킨 것」이 바뀐다 — 성적을 직접 바꾸는 층이다.
         "packs.py",
+        # 팩 켜 달라고 청하는 문(2026-11-16): 켜지 않은 팩이 있으면 모델 목록에 끼고, 사람이 누르면 도구가 바뀐다 — packs.py 와 같은 층.
+        "pack_request.py",
         # 이름 하나로 정의·참조·줄 범위를 찾는 쪽(2026-09-21). 색인이 「무엇이 있나」라면
         # 이쪽은 「고치면 어디가 깨지나」다 — 둘 다 읽기 축이다.
         "symbol_index.py",
@@ -198,6 +218,8 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         # 출력 한도에 잘린 도구 인자는 실행하지 않고 「잘렸다 · 나눠 써라」를 돌려준다(2026-11-09 · 하네스 후보 20) — 판의 걸음과 파일 쓰기 결과를 바꾼다.
         "truncated_call.py",
         "windows_automation.py", "ui_vision.py", "sandbox.py", "scheduler.py",
+        # 맥 창 조종(2026-11-16 · Peekaboo 감싸기) — windows_automation 의 짝. 역할 표(desktop_tools)는 판정 자리들이 보는 이름 표라 같은 자리.
+        "mac_automation.py", "desktop_tools.py",
         # 화면 밖 · 최소화된 창을 주 모니터로 데려온다(2026-10-19 ae395490 뒤) — 창 자리를 바꾸는 손이라 windows_automation 과 같은 자리.
         "window_view.py",
         "watch_service.py", "external_actions.py", "mimo_control.py",
@@ -795,6 +817,8 @@ class JarvisConfig:
     startup_warmup_enabled: bool = True
     # 한가할 때 고정 앞부분(도구 목록 + 고정 지침)을 데워 둔다 — 새 일의 첫 걸음이 그것을 처음부터 다시 읽지 않게(`ollama.prime_front`).
     front_prime_enabled: bool = True
+    #: 맥에서 크롬을 `open -a` 로 띄운다(11-18 · 크롬이 제 허락 책임자 — python3.12 이름 허락 창 줄이기). 끄면 예전처럼 자식으로.
+    mac_chrome_via_open: bool = True
     # 계획 요구로 판 도중에 모델을 미는가(되받기 · 힌트 · 단계 거절 · 대신 열기). 끄면 끝 검사만(2026-10-21 「밀기 켬/끔」 측정 — 요청의 `plan_push` 가 판마다 이긴다).
     plan_push_enabled: bool = True
     # 서기(2026-10-21 · `scribe`): 손자리가 놀 때 클로드 코드 대화 기록을 읽어 「이야기 카드」 초안을 쌓는다. **기본 꺼짐** —
@@ -887,6 +911,14 @@ class JarvisConfig:
     tts_voice_max_chars: int = 70
     tts_summary_max_chars: int = 72
     tts_warmup_enabled: bool = True
+    # ── 말하기 엔진 (2026-11-16 맥판 음성 · 대표 결정: 맥은 시리처럼 맥 기본 기능으로) ──
+    #   auto = 맥은 `say`(맥 내장 목소리 · 이 맥 안에서 만든다) · 그 밖(윈도우)은 Supertonic 그대로.
+    #   supertonic / macos 로 못박을 수 있다. 맥에서 Supertonic 을 쓰려면 JARVIS_TTS_ENGINE=supertonic.
+    tts_engine: str = "auto"
+    mac_tts_voice: str = "Yuna"
+    mac_tts_voice_en: str = "Samantha"
+    #: 1분에 읽는 낱말 수(`say -r`). 0 이면 맥 기본 빠르기.
+    mac_tts_rate: int = 0
 
     camera_enabled: bool = False
     camera_name: str = ""
@@ -957,6 +989,10 @@ class JarvisConfig:
     stt_cpu_model: str = "small"
     # 받아쓰기 언어. "auto" 면 모델이 알아서 고른다(영어판 P0 에서 화면 언어와 잇는다).
     stt_language: str = "ko"
+    # 받아쓰기 엔진(2026-11-16). auto = 맥은 애플 받아쓰기(기기 안에서만 · SonjariVoice.app) · 그 밖은 faster-whisper 그대로.
+    stt_engine: str = "auto"
+    #: 맥 음성 도우미(SonjariVoice.app) 자리. 비면 앱 폴더의 voice/SonjariVoice.app.
+    mac_voice_helper: str = ""
     hotkey_enabled: bool = True
     hotkey: str = "f9"
     hotkey_suppress: bool = True
@@ -1088,6 +1124,20 @@ class JarvisConfig:
     # 레시피 실행 시간 상한 — 배치 모드는 프로젝트를 여는 데만 1분 남짓 든다(FPS Microgame 실측 71초).
     unity_editor_roots: str = r"C:\Program Files\Unity\Hub\Editor"
     unity_run_timeout_sec: int = 900
+    # 3D 생성 팩(2026-11-14): 실행기(trellis-cli) 폴더 · 모델(GGUF) 폴더. 비면 `<data_dir>/tools/gen3d/trellis-cpp` ·
+    # `<data_dir>/models/gen3d/trellis2-q8`(팩이 받아 놓는 자리 · `gen3d_tools.gen3d_dirs`). 개발 PC 는 D: 의 실측 자리를 가리킨다.
+    gen3d_bin_dir: str = ""
+    #: 팩 모델 · 실행기를 받는 자리(2026-11-16). 비면 데이터 폴더. 설정 › 일반 「팩 파일 자리」 · `JARVIS_PACK_FILES_DIR`.
+    pack_files_dir: str = ""
+    gen3d_models_dir: str = ""
+    # 영상 생성 팩(2026-11-16): 실행기(sd-cli) 폴더 · 모델 폴더(아래 두 칸까지 이름으로 찾는다) · LTX 자리(사용자가 직접 받아 두는 곳) ·
+    # 굽는 카드 번호(비면 남은 메모리가 가장 많은 카드) · 다른 기기 손자리 바쁨 확인 명령(출력에 working 이면 기다림).
+    # 비면 `<data_dir>/tools/genvideo/sdcpp` · `<data_dir>/models/genvideo` · `<data_dir>/models/genvideo/ltx25`(`genvideo_tools.genvideo_dirs`).
+    genvideo_bin_dir: str = ""
+    genvideo_models_dir: str = ""
+    genvideo_ltx_dir: str = ""
+    genvideo_gpu: str = ""
+    genvideo_busy_cmd: str = ""
     # 밖에서 가져온 지식(스킬). 레시피와 같은 이유로 패키지 기준이다 — 코드와 함께
     # 버전이 매겨지는 자료지 PC 마다 다른 상태가 아니다.
     #
@@ -1104,6 +1154,8 @@ class JarvisConfig:
     # 사람이 스킬팩을 넣는 폴더(2026-10-11). 비워 두면 문서 폴더 안의 `skillpacks` 다(`skillpacks_dir`) — 문서 폴더를
     # 옮기면 같이 따라가야 해서 여기에 경로를 박지 않는다. ↓ `load()` 의 `JARVIS_USER_PACKS_DIR` 와 짝.
     user_packs_dir: Path | None = None
+    # 팩이 받는 모델 · 실행기의 거울(2026-11-14 · 설계 §3-10): 로컬에 마운트된 폴더. 같은 이름이 있으면 인터넷에 안 나가고 거기서 복사한다.
+    model_mirror: str = field(default_factory=lambda: _env("JARVIS_MODEL_MIRROR"))
     # ── 역할: 이 자비스가 「본체」인가 「위성」인가 (2026-08-21) ──────────────
     #
     # 위성은 **자기 PC 의 손과 눈**(파일·창·브라우저)을 그대로 갖되, 무거운 것만
@@ -1368,6 +1420,17 @@ class JarvisConfig:
     # product assumption.
     naver_blog_enabled: bool = False
     private_update_enabled: bool = False
+    # 맥 업데이트(2026-11-16 · docs/설계_맥업데이트_2026-11-16.ko.md). 목록 파일(`sonjari-mac.json`) 주소 — **비어 있으면 꺼짐.**
+    # 공개 열쇠는 설정이 아니라 묶음 안 `update_pubkey.txt` 에 박는다(서명된 것으로만 바뀌게).
+    # ★ 11-16 대표 결정: GitHub Releases(`mac_update.DEFAULT_MANIFEST_URL` 과 같은 값). 공개 열쇠가 비어 있는 동안은 이 주소가 있어도 꺼져 있다.
+    mac_update_url: str = "https://github.com/sonjari/sonjari/releases/latest/download/sonjari-mac.json"
+    #: 앱 꾸러미(타우리) 갈래 — 11-16 대표: Developer ID 서명 · 공증 뒤에 켠다 → 11-20 · 11-22 공증 dmg 공개로 조건이 채워져 **기본 켬**
+    #: (11-22 대표 「새 판이 있습니다 · 설치」 · 설계_맥앱안업데이트_2026-11-22). 끄는 스위치는 JARVIS_MAC_APP_UPDATE_ENABLED=0.
+    mac_app_update_enabled: bool = True
+    # http 주소를 받을지 — 로컬 시험(127.0.0.1)만을 위한 칸. 서명이 믿음의 근거라 http 도 가짜는 못 깔지만, 운영은 https 만.
+    mac_update_allow_http: bool = False
+    #: 판 맞춤(설계 §5)에 쓰는 화면 앱 자리.
+    mac_app_path: str = "/Applications/Sonjari.app"
     naver_blog_allowed_hosts: str = "blog.naver.com;admin.blog.naver.com;nid.naver.com"
     naver_blog_image_max_bytes: int = 10 * 1024 * 1024
     naver_blog_image_max_count: int = 20
@@ -1414,6 +1477,14 @@ class JarvisConfig:
     local_file_scan_limit: int = 400000
     local_file_scan_seconds: float = 20.0
     windows_control_enabled: bool = True
+    # 맥 창 조종(Peekaboo 감싸기 · 2026-11-16 설계 `docs/설계_맥_컴퓨터유즈_2026-11-16.ko.md`). **기본 꺼짐** — 허락 주인 실측(§6-1)과
+    #   맥 한 판(§6-4) 뒤에 켠다. 부르는 길은 한 칸으로 갈아끼운다: app(기본) = 서명한 「손자리 화면 도우미.app」을 `open -a` 로 —
+    #   허락이 그 꾸러미에 붙는다(11-16 주력 세션 실측 · 다리 소켓은 see 를 거절해 버림) · direct = 실행 파일 직접(시험 · 개발용).
+    #   어느 길이든 `--no-remote` 로 끝나고 AI 분석은 쓰지 않는다(mac_automation 이 막는다). 꾸러미 경로는 확인 전이라 기본 빈 칸.
+    mac_control_enabled: bool = False
+    mac_peekaboo_bin: str = ""
+    mac_peekaboo_transport: str = "app"
+    mac_peekaboo_app: str = ""
     # 한글 오토메이션은 로컬 Windows + 설치된 한글에서만 돈다. COM 호출은
     # 별도 제한시간 프로세스에서 실행해 JobRunner 하나를 영원히 붙들지 않는다.
     hwp_enabled: bool = True
@@ -1588,6 +1659,7 @@ class JarvisConfig:
             agent_page_view=_bool("JARVIS_AGENT_PAGE_VIEW", False),
             startup_warmup_enabled=_bool("JARVIS_STARTUP_WARMUP_ENABLED", True),
             front_prime_enabled=_bool("JARVIS_FRONT_PRIME_ENABLED", True),
+            mac_chrome_via_open=_bool("JARVIS_MAC_CHROME_VIA_OPEN", True),
             plan_push_enabled=_bool("JARVIS_PLAN_PUSH", True),
             scribe_enabled=_bool("JARVIS_SCRIBE_ENABLED", False),
             scribe_folders=_env("JARVIS_SCRIBE_FOLDERS", ""),
@@ -1630,6 +1702,10 @@ class JarvisConfig:
             tts_voice_max_chars=_int("JARVIS_TTS_VOICE_MAX_CHARS", 70),
             tts_summary_max_chars=_int("JARVIS_TTS_SUMMARY_MAX_CHARS", 72),
             tts_warmup_enabled=_bool("JARVIS_TTS_WARMUP_ENABLED", True),
+            tts_engine=_env("JARVIS_TTS_ENGINE", "auto"),
+            mac_tts_voice=_env("JARVIS_MAC_TTS_VOICE", "Yuna"),
+            mac_tts_voice_en=_env("JARVIS_MAC_TTS_VOICE_EN", "Samantha"),
+            mac_tts_rate=_int("JARVIS_MAC_TTS_RATE", 0),
             camera_enabled=_bool("JARVIS_CAMERA_ENABLED", False),
             camera_name=_env("JARVIS_CAMERA_NAME", ""),
             camera_index=_int("JARVIS_CAMERA_INDEX", 0),
@@ -1674,6 +1750,8 @@ class JarvisConfig:
             stt_compute_type=_env("JARVIS_STT_COMPUTE_TYPE", "int8_float16"),
             stt_cpu_model=_env("JARVIS_STT_CPU_MODEL", "small"),
             stt_language=_env("JARVIS_STT_LANGUAGE", "ko"),
+            stt_engine=_env("JARVIS_STT_ENGINE", "auto"),
+            mac_voice_helper=_env("JARVIS_MAC_VOICE_HELPER", ""),
             hotkey_enabled=_bool("JARVIS_HOTKEY_ENABLED", True),
             hotkey=_env("JARVIS_HOTKEY", "f9"),
             hotkey_suppress=_bool("JARVIS_HOTKEY_SUPPRESS", True),
@@ -1744,6 +1822,16 @@ class JarvisConfig:
             # ↑ dataclass 기본값과 **짝이다.** 위를 고치면 여기도 고친다.
             unity_editor_roots=_env("JARVIS_UNITY_EDITOR_ROOTS", r"C:\Program Files\Unity\Hub\Editor"),
             unity_run_timeout_sec=_int("JARVIS_UNITY_RUN_TIMEOUT_SEC", 900),
+            # ↑ 와 짝 — 빈 값이면 data_dir 아래 기본 자리(`gen3d_tools.gen3d_dirs`).
+            gen3d_bin_dir=_env("JARVIS_GEN3D_BIN_DIR"),
+            pack_files_dir=_env("JARVIS_PACK_FILES_DIR"),
+            gen3d_models_dir=_env("JARVIS_GEN3D_MODELS_DIR"),
+            # ↑ 와 짝 — 빈 값이면 data_dir 아래 기본 자리(`genvideo_tools.genvideo_dirs`).
+            genvideo_bin_dir=_env("JARVIS_GENVIDEO_BIN_DIR"),
+            genvideo_models_dir=_env("JARVIS_GENVIDEO_MODELS_DIR"),
+            genvideo_ltx_dir=_env("JARVIS_GENVIDEO_LTX_DIR"),
+            genvideo_gpu=_env("JARVIS_GENVIDEO_GPU"),
+            genvideo_busy_cmd=_env("JARVIS_GENVIDEO_BUSY_CMD"),
             skills_dir=Path(
                 _env("JARVIS_SKILLS_DIR", str(Path(__file__).resolve().parents[2] / "skills"))
             ),
@@ -1859,6 +1947,10 @@ class JarvisConfig:
             external_action_dedupe_window_sec=_int("JARVIS_EXTERNAL_ACTION_DEDUPE_WINDOW_SEC", 600),
             naver_blog_enabled=_bool("JARVIS_NAVER_BLOG_ENABLED", False),
             private_update_enabled=_bool("JARVIS_PRIVATE_UPDATE_ENABLED", False),
+            mac_update_url=_env("JARVIS_MAC_UPDATE_URL", "https://github.com/sonjari/sonjari/releases/latest/download/sonjari-mac.json"),
+            mac_app_update_enabled=_bool("JARVIS_MAC_APP_UPDATE_ENABLED", True),
+            mac_update_allow_http=_bool("JARVIS_MAC_UPDATE_ALLOW_HTTP", False),
+            mac_app_path=_env("JARVIS_MAC_APP_PATH", "/Applications/Sonjari.app"),
             naver_blog_allowed_hosts=_env(
                 "JARVIS_NAVER_BLOG_ALLOWED_HOSTS",
                 "blog.naver.com;admin.blog.naver.com;nid.naver.com",
@@ -1881,6 +1973,10 @@ class JarvisConfig:
             local_file_scan_limit=_int("JARVIS_LOCAL_FILE_SCAN_LIMIT", 400000),
             local_file_scan_seconds=_float("JARVIS_LOCAL_FILE_SCAN_SECONDS", 20.0),
             windows_control_enabled=_bool("JARVIS_WINDOWS_CONTROL_ENABLED", True),
+            mac_control_enabled=_bool("JARVIS_MAC_CONTROL_ENABLED", False),
+            mac_peekaboo_bin=_env("JARVIS_MAC_PEEKABOO_BIN", ""),
+            mac_peekaboo_transport=_env("JARVIS_MAC_PEEKABOO_TRANSPORT", "app"),
+            mac_peekaboo_app=_env("JARVIS_MAC_PEEKABOO_APP", ""),
             hwp_enabled=_bool("JARVIS_HWP_ENABLED", True),
             hwp_security_module_name=_env(
                 "JARVIS_HWP_SECURITY_MODULE_NAME", "FilePathCheckerModuleExample"

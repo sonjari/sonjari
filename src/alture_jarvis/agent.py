@@ -20,6 +20,7 @@ from typing import Any, Callable
 
 from .hostname import on_domain, url_on_domain
 from .page_view import PAGE_VIEW_MARKS, build_page_view, last_browser_failure, last_browser_tool
+from . import artifact_claims as _artifact_claims
 from . import brand as _brand
 from . import english as _english
 from .answer_gate import (
@@ -32,6 +33,7 @@ from .answer_gate import (
     has_explicit_url, named_sources, nothing_was_left_unread, table_cells,
 )
 from . import ui_i18n
+from . import desktop_tools as _desktop
 from .absence_scope import absence_scope_note
 from .attention import AttentionService
 from .browser import BrowserWorker, clean_find_terms
@@ -98,6 +100,7 @@ from .code_look_gate import (
 from .code_runtime import (
     CodeToolProfile,
     browser_verification_indices,
+    shell_run_verification_indices,
     code_ready_for_final_answer,
     browser_action_awaits_look,
     code_verification_is_current,
@@ -157,7 +160,7 @@ from .plan_nudges import (
     _fresh_read_for_everything, _reads_page_just_opened, _url_was_read, _reopens_unread_page, _REPAIR_READ_OPENS,
     _goes_to_unread_site, _read_more_since, _pushback_stalled, _keep_answer_over_reply, _stage_guess_failed, _invented_ratios,
     _rewrote_a_finished_document,
-    _repair_read_after_write_feedback, _own_written_messages, _artifact_requirements_met, _cleans_up,
+    _repair_read_after_write_feedback, _own_written_messages, _artifact_requirements_met, _cleans_up, count_reads_owed,
     _deletes_own_file, _owed_read_site, _OWED_READ_SITES, _OWED_READ_CALLS_PER_SITE, _OWED_READ_REWRITE_NOTE,
     _with_owed_read_note, stage_gate_lets_through, stage_refusal_note, page_key, _OWED_READ_PAGES,
     fresh_pages_read, _page_named_in,
@@ -233,7 +236,7 @@ from .grounding_scout import confirm_names as scout_confirm_names
 from .task_contract import compile_task_contract
 from .ask_user import question_from_text
 from . import big_code
-from .tool_gateway import ASK_USER_TOOL, ToolGateway
+from .tool_gateway import ASK_USER_TOOL, ToolGateway, tool_runs_here
 
 from .answer_claims import (
     _ANSWERABLE_EVIDENCE, _nothing_to_answer_from, _SUCCESS_CLAIM, _DONE_CLAIM, _SOURCED_CLAIM, _LISTING_TOOLS,
@@ -1735,10 +1738,12 @@ class AgentToolCatalog:
 
     @property
     def ollama_tools(self) -> list[dict[str, Any]]:
+        # 손이 없는 OS 의 도구는 모델에게 보이지 않는다(`tool_gateway.tool_runs_here` — 게이트웨이 등록과 같은 표).
         return [
             tool
             for collection in self.collections
             for tool in getattr(collection, "active_ollama_tools", collection.ollama_tools)
+            if tool_runs_here(str(((tool or {}).get("function") or {}).get("name") or ""))
         ]
 
     @property
@@ -1819,7 +1824,9 @@ def _finishes_at_wrap_up(prompt: str, *, model_role: str, require_sandbox: bool)
 #: 「하는 말」은 한 문장이다(`narration.NARRATION_INSTRUCTION`). 이보다 길면 답을 쓴 것으로 본다.
 _WRAP_UP_ANSWER_MIN_CHARS = 200
 #: 창 동작을 **미리 보기만** 하는 도구 — 실행이 아니라서 걸음 예산을 깎지 않는다(위 루프의 `preview_grace`).
-_PREVIEW_TOOLS = frozenset({"windows_uia_preview", "windows_visual_preview"})
+_PREVIEW_TOOLS = _desktop.names(_desktop.PREVIEW, _desktop.VISUAL_PREVIEW)
+#: 창에서 **실행한** 동작(승인 뒤) — 진척으로 센다(아래 제자리 판정 · 산출물 진척). 윈도우 · 맥 같은 역할(`desktop_tools.py`).
+_DESKTOP_EXECUTE_TOOLS = _desktop.names(_desktop.EXECUTE)
 #: 최종 답이 도구와 같이 쓴 가장 긴 글의 이 비율보다 짧으면 끝내기를 한 번 되돌린다(아래 `agent_final_sent_back`).
 _FINAL_TOO_SHORT_RATIO = 0.5
 
@@ -1992,8 +1999,7 @@ class BrowserAgent:
                     "browser_pick_suggestion", "browser_click", "browser_click_confirmed",
                     "browser_click_at", "browser_type_at",
                     "browser_file_upload", "browser_handle_dialog", "browser_press",
-                    "windows_execute_preview",
-                } or action in {
+                } or tool in _DESKTOP_EXECUTE_TOOLS or action in {
                     "filled", "form_filled", "option_selected", "suggestion_picked",
                     "clicked", "file_uploaded", "dialog_handled",
                 } or str(evidence.get("verdict") or "").lower() == "yes":
@@ -2178,7 +2184,7 @@ class BrowserAgent:
                 pass
         return int(self.config.num_ctx_for(role) or 0)
 
-    def _step_budget(self, plan: list[Any], *, code: bool = False) -> int:
+    def _step_budget(self, plan: list[Any], *, code: bool = False, finish_all: bool = False) -> int:
         """시킨 일의 **크기**에 맞춰 걸음 예산을 잡는다.
 
         ★ 2026-08-12 실측. "공고 4개는 직접 열어 읽어라"를 시켰는데 예산은 12걸음
@@ -2240,9 +2246,18 @@ class BrowserAgent:
             elif kind == "reach":
                 extra += 6          # 그 화면까지: 열기 · 고르기 · 누르기 · 다음 · 확인 몇 번(10-29 결제 화면 판은 3~9걸음)
         if wanted <= 0:
-            return base if not extra else min(base + extra, ceiling)
-        # 하나를 제대로 읽는 데 두 걸음(열기 + 본문 추출), 준비·실패 몫으로 여섯.
-        return max(base, min(wanted * 2 + 6 + extra, ceiling))
+            budget = base if not extra else min(base + extra, ceiling)
+        else:
+            # 하나를 제대로 읽는 데 두 걸음(열기 + 본문 추출), 준비·실패 몫으로 여섯.
+            budget = max(base, min(wanted * 2 + 6 + extra, ceiling))
+        # ★ **맡긴 쪽이 「끝까지」를 켰으면 바깥 상한까지 준다** (2026-11-15 대표 결정 · MCP `sonjari_task` 의 `finish_all`).
+        #   PC 판 e16a4f31 · be3cd1b5: 주소 넷 · 셋을 줬는데 개수를 못 세 12걸음에서 첫 페이지 하나로 끝났다. 요구 뽑기는
+        #   고쳤지만(`plan.listed_urls_to_read`) 글로 셀 수 없는 일은 또 있다 — 시킨 쪽(호스트)이 일의 크기를 알면 칸으로 말하게 한다.
+        #   **무제한은 아니다**: 위 docstring 의 11.7분 판처럼 큰 예산은 헛돌 자리도 준다. 상한은 `agent_autonomous_max_steps`(48)이고,
+        #   Code 판 상한(`code_autonomous_max_steps`)이 더 낮게 잡혀 있으면 그쪽을 따른다. 이미 더 큰 예산은 줄이지 않는다.
+        if finish_all:
+            budget = max(budget, min(self.config.agent_autonomous_max_steps, ceiling))
+        return budget
 
     def _autonomous_extension(
         self,
@@ -2378,7 +2393,7 @@ class BrowserAgent:
                     # ★ 프로그램 창으로 파일을 만드는 판은 **실행한 창 동작**이 산출물 진척이다 (2026-10-17 앱 묶음 · 엑셀 45f19094).
                     #   칸 넷을 채우고 저장 창에 이름을 넣던 판이 걸음 경계에서 「남은 목표에 진척 없음」으로 34걸음에 멈췄다 —
                     #   파일 쓰기 도구만 진척으로 봤다. 미리보기는 세지 않는다(바꾸는 것이 없다).
-                    or tool == "windows_execute_preview"
+                    or tool in _DESKTOP_EXECUTE_TOOLS
                 ):
                     return True
 
@@ -2756,6 +2771,7 @@ class BrowserAgent:
             "windows_visual_preview": "화면에서 목표 좌표를 판독하는 중",
             "windows_execute_preview": "승인된 Windows 동작을 실행하는 중",
             "windows_copy_from_window": "창의 내용을 복사해 읽는 중",
+            **_desktop.MAC_PROGRESS_LABELS,
             "clipboard_read": "클립보드에 있는 글을 확인하는 중",
             "clipboard_write": "클립보드에 올리는 중",
             "local_write_document": "문서를 만드는 중",
@@ -3384,8 +3400,17 @@ class BrowserAgent:
         # 이번 부르기 직전에 우리가 기록을 접었으면 그것이 까닭이다 — 모양 지문으로는 안 보인다(11-13).
         if step_folded or append_folded:
             reason = "folded"
+        # ★ 11-18: 판에 아직 걸음 줄이 없으면(첫 부르기) 줄 하나를 만들어 기다림을 보인다 — 가장 오래 기다리는 순간에 화면이 조용했다.
+        last_line = self.__dict__.get("_last_progress", {}).get(job_id)
+        if last_line is None and job_id:
+            last_line = {"job_id": job_id, "phase": "planning", "step": 0, "tool": "", "status": "running",
+                         "message": "Choosing the first step" if _shown_in_english() else "첫 걸음을 고르는 중"}
+        from .prefill_progress import PrefillProgress
+
+        prefill = PrefillProgress.for_ollama(str(getattr(self.config, "ollama_base_url", "") or ""))
         wait_watch = FirstTokenWatch(
-            last=self.__dict__.get("_last_progress", {}).get(job_id),
+            last=last_line,
+            progress=prefill.fraction,
             tokens=estimate_tokens(transcript_chars(bounded), measured),
             english=_shown_in_english(),
             publish=lambda payload: self.events.publish("agent_progress", payload),
@@ -7547,6 +7572,31 @@ class BrowserAgent:
         except Exception:  # noqa: BLE001 — 값 칸 때문에 읽기를 망치지 않는다(원문 그대로 간다)
             return observation
 
+    def _publish_interim_news(self, job_id: str, name: str, observation: dict[str, Any], step_number: int) -> None:
+        """중간 소식 한 줄을 `agent_interim_news` 로 내보낸다. 무슨 일이 있어도 판을 막지 않는다."""
+        if not job_id:
+            return
+        try:
+            from .interim_news import READ_TOOLS, news_line
+
+            if name not in READ_TOOLS:
+                return
+            cells = None
+            result = observation.get("result") if isinstance(observation.get("result"), dict) else {}
+            directory = getattr(getattr(self, "config", None), "user_recipes_dir", None)
+            if directory is not None:
+                from urllib.parse import urlparse as _urlparse
+
+                from .value_cells import ValueCellBook
+
+                host = (_urlparse(str(result.get("url") or "")).hostname or "").lower()
+                cells = ValueCellBook(Path(directory) / "value_cells").cells(host) if host else None
+            line = news_line(name, observation, step=step_number, cells=cells)
+            if line:
+                self.events.publish("agent_interim_news", {"job_id": job_id, **line})
+        except Exception:  # noqa: BLE001 — 중간 소식 때문에 판을 죽이지 않는다
+            return
+
     def _record_observation(
         self,
         *,
@@ -7569,6 +7619,7 @@ class BrowserAgent:
         observation): track any fresh action_id, append the step/progress
         record, and append the tool-response message so the transcript stays
         well-formed for the next model turn."""
+        read_as_is = observation  # 값 칸으로 줄이기 **전** 본문 — 중간 소식은 이것으로 만든다(`interim_news`)
         observation = self._with_learned_value_cells(job_id, name, observation, messages)
         observation = self._github_to_browser(name, arguments, observation)
         result_payload = observation.get("result")
@@ -7648,6 +7699,9 @@ class BrowserAgent:
             )
             step_record["code_phase"] = "repair" if had_failed_verify else "verify"
         steps.append(step_record)
+        # ★ 중간 소식(2026-11-14 대표 「중간에 한 번만 알려줘도 기다릴 맛이 난다」) — 한 항목을 실제로 읽어 확인한 걸음이면
+        #   읽은 본문에서 결정론으로 만든 한 줄을 내보낸다. 모델 글은 안 싣고, 숫자는 그 본문에 있는 것만(`interim_news`).
+        self._publish_interim_news(job_id, name, read_as_is, step_number)
         # 장부와 **따로** 원문을 보관한다. 이벤트에는 계속 짧은 것만 나가고, 화면은
         # 걸음을 누를 때만 이걸 물어본다 — 8,000자가 웹소켓을 막지 않는 이유다.
         # `getattr` 인 이유: `_record_observation` 만 떼어 확인하는 검사가 있고
@@ -7934,6 +7988,8 @@ class BrowserAgent:
         # 바깥 AI 가 맡기며 정한 「돌려받을 항목」(`sonjari_task` 의 needs · 2026-10-24). 본문 읽기(`browser_extract`)에
         #   하네스가 찾을 칸으로 붙인다 — 모델이 고르지 않아도 페이지 전체(옆 칸 포함)에서 그 말이 든 줄이 온다.
         find_terms: tuple[str, ...] = (),
+        # ★ 맡긴 쪽(호스트)이 「끝까지」를 켰다(`sonjari_task` 의 finish_all · 2026-11-15). 걸음 예산을 바깥 상한까지 준다(`_step_budget`).
+        finish_all: bool = False,
         # 같은 대화방에서 방금 끝난 판이 **실제로 본문을 읽은 주소**와 그 답(2026-09-24). 이번 판의 읽기·사이트 요구 중
         # 그것으로 이미 채워지는 것은 다시 시키지 않는다(`_carry_prior_reads`).
         prior_reads: list[str] | None = None,
@@ -8935,7 +8991,7 @@ class BrowserAgent:
         deadline = segment_started + lease_sec
         warning_at = deadline - max(5, self.config.agent_time_warning_sec)
         warning_sent = False
-        step_limit = len(steps) + self._step_budget(plan, code=model_role == "code")
+        step_limit = len(steps) + self._step_budget(plan, code=model_role == "code", finish_all=finish_all)
         preview_grace = 0  # 창 동작 미리보기는 예산을 깎지 않는다(아래 `_PREVIEW_TOOLS`)
         # 이 판이 **왜 끝났는지.** 빈 값이면 while 조건이 거짓이 돼서 나온 것이다.
         #
@@ -9272,7 +9328,7 @@ class BrowserAgent:
                     if auto_continue_budget:
                         step_limit = max(
                             step_limit,
-                            len(steps) + max(6, self._step_budget(plan, code=model_role == "code")),
+                            len(steps) + max(6, self._step_budget(plan, code=model_role == "code", finish_all=finish_all)),
                         )
                     else:
                         step_limit = max(
@@ -9571,6 +9627,8 @@ class BrowserAgent:
                     # 조사 판은 본문을 하나라도 받아 온 뒤에 건다 — 읽은 것이 없는데 「쓸 차례」로 가게 여는 손을 막지 않는다.
                     web_research=web_research_job, read_sources=len(self._sources_actually_read(steps)),
                     items_left=self._enumerated_items_left(steps),
+                    # 시킨 개수를 아직 못 채웠으면 쓸 차례를 미룬다(2026-11-16 맥 판 3655b7e4 · e44e4720 · `count_reads_owed`).
+                    count_short=count_reads_owed(current_plan_results),
                 )
                 # ★ 시킨 파일이 **이미 다 있으면** 차례를 푼다 (2026-10-04 도구 전수조사 7). 접기 전 차례는 한 번 켜지면 안 꺼져서,
                 #   파일을 만든 뒤 남은 마무리(확인·올리기)를 「파일을 만들 차례다」로 거절했다. 차례를 좁힌 이유(9d6942f2)는
@@ -9636,9 +9694,12 @@ class BrowserAgent:
                         self.events.publish("agent_route_list_narrowed", noted)
                         self.store.add_audit("agent_route_list_narrowed", job_id, noted)
                     available_model_tools = route_scoped_tools
+                from .tool_roster import PACK_LEAN_MAX_CTX
+
                 available_model_tools = _platform_scoped_tool_definitions(
                     available_model_tools, platform_request_text, compact=compact_surface,
                     planned=planned_action_tools,
+                    pack_lean=0 < int(window_for_job or 0) <= PACK_LEAN_MAX_CTX,
                 )
                 # 작은 창의 조사 판에는 묶음만(스위치 · 10-13 부터 기본 켜짐 — `_SMALL_WINDOW_RESEARCH_BUNDLE` 주석).
                 available_model_tools = _small_window_research_tools(
@@ -9877,7 +9938,8 @@ class BrowserAgent:
                         )
                     )
                     for step in steps
-                ) or bool(browser_verification_indices(steps)) or _deck_built(steps)  # 이 PC 안 페이지를 만지고 읽은 확인(2026-09-30)
+                ) or bool(browser_verification_indices(steps)) or _deck_built(steps) \
+                    or bool(shell_run_verification_indices(steps))  # 이 PC 안 페이지 확인(09-30) · 쓴 파일을 셸로 직접 돌림(11-17)
                 code_mutated = _deck_built(steps) or any(
                     step.get("ok")
                     and (
@@ -9937,7 +9999,7 @@ class BrowserAgent:
                             deadline = max(deadline, now + max(1, lease_sec))
                             step_limit = max(
                                 step_limit,
-                                len(steps) + max(6, self._step_budget(plan, code=model_role == "code")),
+                                len(steps) + max(6, self._step_budget(plan, code=model_role == "code", finish_all=finish_all)),
                             )
                         coding_pushbacks += 1
                         # 무시한 답을 남긴다. 5판이 되받기를 세 번 무시하고 죽었는지
@@ -12218,6 +12280,25 @@ class BrowserAgent:
         counts_note = self._search_counts_note(asked, steps, answer)
         # 저장 안내는 **맨 앞**에 둔다 — 뒤의 경고·대조표는 다음 턴에 모델에게 가기 전에 끝에서부터 떼이는데
         # (`memory.without_our_tail`), 이 한 줄은 모델도 알아야 하는 사실이라 남아야 한다(파일이 이미 있다).
+        # ★ 2026-11-17 맥 새 계정 hwp 판: 도구 0걸음으로 「한글 파일로 정리했습니다 · 저장 경로 /Users/sonjari/…」가 나갔다.
+        #   위 검사 묶음은 `"" if not steps` 로 걸음이 0이면 통째로 건너뛴다 — 이 검사는 걸음 수와 상관없이 늘 돈다.
+        #   답에 적힌 산출물 경로가 이 판에서 쓴 파일도 아니고 디스크에도 없으면 그 줄을 지우고 맨 위에 한 줄(artifact_claims).
+        #   헛걸림을 막으려고 「파일을 만들라는 일」이거나 「답이 파일을 만들었다고 말할 때」만 본다 — 운영 기록 역검증(5,827판)에서
+        #   「내 상태 알려 줘」의 예시 경로 · 경로 처리 코드를 고치는 판의 시험 문자열이 걸렸다.
+        asks_for_a_file = any(
+            getattr(item[0] if isinstance(item, tuple) else item, "kind", "") == "artifact" for item in every_plan_result or []
+        )
+        false_artifact_paths: list[str] = []
+        if asks_for_a_file or _says_it_made_a_file(answer):
+            answer, false_artifact_paths = _artifact_claims.drop_false_paths(
+                answer, steps, lambda ko, en, _said=answer: _say(ko, en, _said)
+            )
+        if false_artifact_paths:
+            self.events.publish(
+                "agent_false_artifact_path",
+                {"job_id": job_id, "paths": false_artifact_paths[:5], "steps": len(steps),
+                 "wrote_any": _artifact_claims.wrote_any(steps)},
+            )
         appended = closing_artifact_note + correction + friction_note + counts_note
         if appended:
             answer += appended
@@ -12374,7 +12455,9 @@ class BrowserAgent:
             "stop_reason": stop_reason,
             "completion_state": completion_state,
             "step_limit": step_limit,
-            "answer_corrected": bool(check_notes.full(correction)),
+            "answer_corrected": bool(check_notes.full(correction)) or bool(false_artifact_paths),
+            # 답에 적혔지만 쓰지도 않았고 디스크에도 없어 지운 산출물 경로(2026-11-17 · artifact_claims).
+            "false_artifact_paths": false_artifact_paths[:5],
             # 사람이 시킨 판의 창에 대조 덩어리 대신 보인 한 줄(빈 글 = 다 함). 덩어리 원문은 판 기록의 `host_answer` 에.
             "checks_line": checks_line,
             "artifact_fallback": artifact_fallback_note,

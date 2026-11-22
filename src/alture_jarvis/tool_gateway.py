@@ -184,10 +184,103 @@ class ToolSpec:
         }
 
 
+#: **이 OS 에서만 손이 있는 도구.** 이름 앞머리(또는 온 이름) → 손이 있는 `sys.platform` 들.
+#
+# ★ 2026-11-13 맥 조사: 맥 `/v1/tools` 에 `windows_*` 8개 · `clipboard_*` 2개가 「켜짐」으로 올라가 있었고, 모델 앞부분
+#   (`front_prime.json` 114개)에는 `hwp_*` 7개 · `sandbox_*` 3개까지 실렸다 — 부르면 `windows_only` · `wsl.exe 없음` 으로 반드시 진다.
+#   등록하는 자리(windows_automation · local_computer · hwp · sandbox)가 저마다 OS 를 보거나 안 봤다. 자리마다 막으면 다음 묶음에서
+#   또 샌다 — **게이트웨이 등록 · 에이전트 목록 두 문이 이 표 하나를 본다**(`tool_runs_here`).
+# ★ 맥에서 되게 만들면 여기 `darwin` 을 더한다(클립보드처럼). 표에 없는 도구는 어디서나 된다고 본다.
+_PLATFORM_ONLY: tuple[tuple[str, frozenset[str]], ...] = (
+    ("windows_", frozenset({"win32"})),   # pywinauto · UIA · ImageGrab
+    ("mac_", frozenset({"darwin"})),      # Peekaboo CLI(맥 손쉬운 사용 · 화면 기록 · mac_automation.py · 2026-11-16)
+    ("hwp_", frozenset({"win32"})),       # 한글 COM(win32com)
+    ("sandbox_", frozenset({"win32"})),   # WSL(wsl.exe)
+    ("clipboard_", frozenset({"win32", "darwin"})),  # win32clipboard · 맥 pbcopy/pbpaste(macos.clipboard_*)
+    # 3D 생성 팩(2026-11-14): 윈도우 CUDA 판 · 맥 Metal 판(직접 빌드 · 맥 미니 M4 실측). 맥에 실행기가 없으면 도구가
+    #   「not_ready: 이 맥용 실행기가 없다」로 거절한다 — 리눅스는 아직 안 쟀다.
+    ("gen_3d", frozenset({"win32", "darwin"})),
+    # 영상 생성 팩(2026-11-16): 윈도우 CUDA 판 sd-cli 만 쟀다(3060 12GB). 맥 Metal 판은 아직 안 쟀다 — 재면 darwin 을 더한다.
+    ("gen_video", frozenset({"win32"})),
+    # 애니메이터 · 영상 → 포즈(2026-11-16): onnxruntime · cv2 가 맥 venv 에 없다(11-13 조사 실측). 맥에선 켜진 채 보이다가
+    #   부르면 떼어 낸 프로세스 안에서 진다 → 모델에게 안 보이게 하고, 불리면 「맥에서는 아직」을 준다(_NOT_YET_ON_MAC).
+    ("anim_pose_sheet", frozenset({"win32"})),
+    ("anim_video_to_biped", frozenset({"win32"})),
+)
+
+
+def tool_runs_here(name: str, platform: str | None = None) -> bool:
+    """이 도구의 손이 이 OS 에 있는가. `platform` 은 시험용(기본은 `sys.platform`)."""
+    import sys
+
+    here = platform or sys.platform
+    for prefix, platforms in _PLATFORM_ONLY:
+        if str(name).startswith(prefix):
+            return here in platforms
+    return True
+
+
 #: 꺼진 도구가 하려던 일을 **대신 하는 도구.** 없으면 적지 않는다(지어내지 않는다).
 _DISABLED_ALTERNATIVE = {
     "sandbox_run": " 표·문서 파일(xlsx·docx·md)을 만들려던 것이면 코드가 필요 없다 — local_write_document 가 직접 만든다.",
 }
+
+#: **맥에서는 아직** (2026-11-16 · 설계 docs/설계_맥업데이트_2026-11-16.ko.md §8 · 11-04 대표 결정 3번).
+#
+#   (도구 이름 앞머리 또는 기능 열쇠, 갈래, 기능 이름, 대신 쓸 것)
+#   갈래 `tool`    — 게이트웨이가 꺼진 도구를 불렀을 때 이 말을 돌려준다(모델 · MCP 문 둘 다 여기를 지난다).
+#   갈래 `feature` — 도구가 아닌 기능(단축키 · 음악 멈춤). `/health` 의 그 칸에 얹는다.
+#   ★ 맥에서 되게 만든 날엔 그 줄을 **지운다** — 시험(tests/test_mac_not_yet_1116.py)이 「맥에서 도는 도구가 표에 남았나」를 본다.
+#   ★ 「대신」은 실제로 있는 길만 적는다. 없으면 없다고 적는다(지어내지 않는다 — `_DISABLED_ALTERNATIVE` 와 같은 규칙).
+_NOT_YET_ON_MAC: tuple[tuple[str, str, str, str], ...] = (
+    # 11-16 저녁: 맥 컴퓨터 유즈가 들어왔다(mac_* · Peekaboo) — 윈도우 이름의 도구만 맥에 없다는 뜻으로 바꿈.
+    ("windows_", "tool", "윈도우 전용 화면 조종 도구(windows_*)",
+     "맥에서는 같은 일을 mac_* 도구(mac_list_open_windows · mac_ax_snapshot · mac_ax_preview · mac_execute_preview)로 하세요 — "
+     "mac_* 도구가 목록에 없으면 이 맥에서 화면 조종이 꺼진 것이니 사람에게 알리세요(켜는 화면 칸은 아직 없습니다)."),
+    ("hwp_", "tool", "한글(HWP) 프로그램 조종", "한글 대신 워드 문서(docx)로 괜찮으면 local_write_document 로 만드세요."),
+    ("sandbox_", "tool", "격리된 코드 실행(샌드박스 · WSL)",
+     "표 · 문서 파일을 만들려던 것이면 코드가 필요 없습니다 — local_write_document 가 직접 만듭니다."),
+    ("camera_", "tool", "카메라(보기 · 얼굴 · 짐벌)", "대신할 도구가 없습니다 — 지금은 윈도우판에서만 됩니다."),
+    ("anim_pose_sheet", "tool", "영상에서 자세 뽑기(포즈 시트)", "윈도우 PC 의 손자리에서 하세요."),
+    ("anim_video_to_biped", "tool", "영상 자세를 바이페드로 옮기기", "3ds Max 가 있는 윈도우 PC 의 손자리에서 하세요."),
+    ("gen_video", "tool", "영상 생성(콘티 → 컷 시안 · 본판 굽기)",
+     "엔비디아 그래픽카드(12GB 이상)가 있는 윈도우 PC 의 손자리에서 하세요 — 굽는 실행기가 CUDA 판만 있습니다(맥 Metal 판은 아직 안 쟀습니다)."),
+    ("hotkey", "feature", "음성 단축키", "대신할 길이 아직 없습니다 — 글로 시켜 주세요."),
+    ("media", "feature", "말할 때 음악 자동 멈춤", "말을 걸기 전에 음악을 직접 멈춰 주세요."),
+)
+
+
+def not_yet_on_mac(name: str, platform: str | None = None, *, kind: str = "tool") -> dict[str, str] | None:
+    """맥에서 아직 안 되는 것이면 `{feature, instead, message}`. 맥이 아니거나 표에 없으면 None."""
+    import sys
+
+    if (platform or sys.platform) != "darwin":
+        return None
+    for key, entry_kind, feature, instead in _NOT_YET_ON_MAC:
+        if entry_kind != kind:
+            continue
+        if (kind == "tool" and str(name).startswith(key)) or (kind == "feature" and name == key):
+            return {"feature": feature, "instead": instead, "message": f"맥에서는 아직 안 됩니다: {feature}. {instead}"}
+    return None
+
+
+def mac_not_yet(platform: str | None = None) -> list[dict[str, str]]:
+    """`/health` 의 `mac_not_yet` — 맥에서 아직 안 되는 것 전부. 맥이 아니면 빈 목록."""
+    import sys
+
+    if (platform or sys.platform) != "darwin":
+        return []
+    return [{"key": key, "kind": kind, "feature": feature, "instead": instead}
+            for key, kind, feature, instead in _NOT_YET_ON_MAC]
+
+
+def mark_not_on_mac(feature: str, status: Any, platform: str | None = None) -> Any:
+    """`/health` 의 기능 칸(dict)에 「맥에서는 아직」을 얹는다. 맥이 아니면 **받은 그대로** 돌려준다."""
+    gap = not_yet_on_mac(feature, platform, kind="feature")
+    if gap is None or not isinstance(status, dict):
+        return status
+    return {**status, "not_on_mac": gap["message"]}
+
 
 class ToolGateway:
     """Single enforcement point for all tool calls.
@@ -244,6 +337,20 @@ class ToolGateway:
         #: 카드를 만들기 **전에** 인자를 거르는 함수(도구 이름 → 검사, 못 쓰면 예외). 선택지 없는 질문처럼
         #: 사람이 답할 수 없는 카드로 판을 30분 멈추지 않게 한다 — 대신 모델에게 고칠 말을 돌려준다.
         self.pre_approval_checks: dict[str, Callable[[dict[str, Any]], None]] = {}
+        #: 「권한 무시」에서도 **이 부름만은** 사람이 본다 — 인자를 보고 되돌릴 수 없는 동작이면 True (2026-11-16 대표).
+        #: 화면 조종 실행(맥 · 윈도우)이 미리보기의 단축키가 닫기 · 끝내기 · 지우기면 True 를 돌려준다.
+        self.bypass_still_asks: dict[str, Callable[[dict[str, Any]], bool]] = {}
+        #: `pre_approval_checks` 와 같되 **일 번호도** 받는다(2026-11-16 팩 켜기) — 「같은 일에서 거절된 카드를 다시 띄우지 않기」처럼
+        #: 어느 일에서 불렀는지 알아야 하는 검사. 못 쓰면 예외 → 카드 없이 그 글을 돌려준다.
+        self.pre_approval_job_checks: dict[str, Callable[[dict[str, Any], str], None]] = {}
+        #: **사람이 미리 맡긴** 부름이면 True(2026-11-16 · ADR-PACK-1) — (인자, 일 번호). 지금은 팩 켜기 하나: 사람이 손자리 쪽에서
+        #: 「클로드에게 맡기기」를 켰고 바깥 클로드(일 번호 없음)가 부른 것만. 판정이 터지면 사람이 본다(카드).
+        self.delegated_approvals: dict[str, Callable[[dict[str, Any], str], bool]] = {}
+        #: 목록을 줄 때마다 새로 만드는 설명(이름 → 함수). 「지금 꺼진 팩 · 이 PC 에 맞는 까닭」처럼 때마다 다른 글(11-16).
+        self.description_providers: dict[str, Callable[[], str]] = {}
+        #: 성공한 결과를 모델에게 보내기 전에 한 번 손질한다(도구 이름, 결과) → 결과. 팩 도구 영수증 끝의 「다음 팩」 한 줄(11-16).
+        #: 터지면 원래 결과 그대로 — 덧붙이는 말 때문에 일이 실패하지 않는다.
+        self.result_note: Callable[[str, Any], Any] | None = None
         self.approval_ttl_sec = approval_ttl_sec
         self.undo_ttl_sec = undo_ttl_sec
         self.notifications = notifications
@@ -275,7 +382,17 @@ class ToolGateway:
             ),
         }
 
-    def _auto_approvable(self, spec: "ToolSpec", risk: RiskLevel) -> bool:
+    def _delegated(self, name: str, arguments: dict[str, Any] | None, job_id: str) -> bool:
+        """사람이 미리 맡긴 부름인가(ADR-PACK-1). 모르면(검사가 터지면) 맡기지 않은 것으로 — 카드."""
+        check = self.delegated_approvals.get(name)
+        if check is None:
+            return False
+        try:
+            return bool(check(dict(arguments or {}), job_id or ""))
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _auto_approvable(self, spec: "ToolSpec", risk: RiskLevel, arguments: dict[str, Any] | None = None) -> bool:
         """이 동작을 사람 없이 지나가게 해도 되는가.
 
         셋을 **동시에** 만족할 때만: ① 설정이 자동 ② 등록 등급이 L2 미만인데 **대상 때문에** 올라갔다
@@ -287,7 +404,17 @@ class ToolGateway:
         # 「권한 무시」— 돈이 오가거나 남에게 나가는 것만 사람이 본다(사장님이 고른 범위).
         #   `ALWAYS_ASK` 보다 **먼저** 본다: 이 모드는 지우기·폴더 권한·PC 설정까지 여는 자리다.
         if self.auto_approve_all:
-            return spec.name not in NEVER_BYPASS
+            if spec.name in NEVER_BYPASS:
+                return False
+            # ★ 2026-11-16 대표: 권한 무시여도 되돌릴 수 없는 **화면 동작**(창 닫기 · 앱 끝내기 · 지우기 단축키)은 묻는다.
+            #   판정을 모르면(검사가 터지면) 묻는 쪽으로.
+            if (still := self.bypass_still_asks.get(spec.name)) is not None:
+                try:
+                    if still(dict(arguments or {})):
+                        return False
+                except Exception:  # noqa: BLE001
+                    return False
+            return True
         # ★ 그 밖의 모드에서는 사람이 본다 — 설정이 아니라 규칙이다.
         #   밖으로 나가거나, 남의 것을 지우거나, 돈이 오가거나, 이 PC 를 바꾸는 것.
         if spec.name in ALWAYS_ASK:
@@ -351,10 +478,26 @@ class ToolGateway:
         timer.start()
 
     def register(self, spec: ToolSpec) -> None:
+        # 손이 없는 OS 면 등록은 하되 꺼 둔다 — 누가 이름으로 불러도 `unknown_tool` 대신 「꺼져 있다 · 다른 도구로」를 받는다.
+        if spec.enabled and not tool_runs_here(spec.name):
+            spec.enabled = False
         self._tools[spec.name] = spec
 
     def list_tools(self) -> list[dict[str, Any]]:
-        return [self._tools[name].public_dict() for name in sorted(self._tools)]
+        out = []
+        for name in sorted(self._tools):
+            item = self._tools[name].public_dict()
+            if (provide := self.description_providers.get(name)) is not None:
+                try:
+                    item["description"] = str(provide()) or item["description"]
+                except Exception:  # noqa: BLE001 — 새 글을 못 만들면 등록 때 글 그대로
+                    pass
+            # 맥에서 꺼진 까닭을 목록에도 싣는다 — MCP 고정 문이 이 값으로 「맥에서는 아직」을 답한다(2026-11-16).
+            gap = None if item["enabled"] else not_yet_on_mac(name)
+            if gap is not None:
+                item["not_on_mac"] = gap["message"]
+            out.append(item)
+        return out
 
     def execute(
         self,
@@ -372,6 +515,12 @@ class ToolGateway:
             # ★ 「tool_disabled」 한 낱말만 주면 모델은 왜 안 되는지도, 대신 무엇을 할지도 모른다 (2026-10-05 영어 촬영 판 9cae577f:
             #   엑셀을 만들려고 상자에서 pandas 를 돌리려다 이 한 낱말을 받고 파일 만들기를 통째로 접었다). 꺼져 있다는 사실과,
             #   그 일을 대신 하는 도구가 있으면 그것을 말해 준다.
+            # ★ 맥에 손이 없는 도구면 「꺼져 있다」가 아니라 **「맥에서는 아직」**과 대신 쓸 길을 준다(2026-11-16 · 표 `_NOT_YET_ON_MAC`).
+            #   첫 낱말(`tool_disabled`)은 그대로 둔다 — 그 낱말로 가르는 쪽이 있다.
+            gap = not_yet_on_mac(name)
+            if gap is not None:
+                return ToolResult(False, name, status="disabled", result={"not_on_mac": True, **gap},
+                                  error=f"tool_disabled — {gap['message']} 다시 부르지 말라.")
             hint = _DISABLED_ALTERNATIVE.get(name, "")
             return ToolResult(False, name, status="disabled",
                               error=f"tool_disabled — {name} 은(는) 이 PC 에서 꺼져 있다. 다시 부르지 말고 다른 도구로 하라.{hint}")
@@ -442,6 +591,13 @@ class ToolGateway:
                         return ToolResult(
                             False, name, status="failed", error=str(exc), risk_level=risk.label(),
                         )
+                if (job_check := self.pre_approval_job_checks.get(name)) is not None:
+                    try:
+                        job_check(arguments, job_id)
+                    except Exception as exc:  # noqa: BLE001
+                        return ToolResult(
+                            False, name, status="failed", error=str(exc), risk_level=risk.label(),
+                        )
                 if spec.proof is not None:
                     try:
                         proof_before = dict(spec.proof.capture_before(execution_arguments) or {})
@@ -458,16 +614,20 @@ class ToolGateway:
                             error=str(exc),
                             risk_level=risk.label(),
                         )
-                if self._auto_approvable(spec, risk):
+                delegated = self._delegated(name, arguments, job_id)
+                if delegated or self._auto_approvable(spec, risk, arguments):
                     # 자동으로 지나가되 **조용히는 안 한다** — 기록에 남기고, 화면·알림에 「자동 승인함」을 띄운다.
                     payload = {"tool": name, "job_id": job_id, "risk_level": risk.label(),
                                "registered_risk": spec.risk_level.label(),
-                               "reason": ("permission_bypass" if self.auto_approve_all
+                               "arguments": dict(arguments) if delegated else None,
+                               "reason": ("delegated_by_person" if delegated
+                                          else "permission_bypass" if self.auto_approve_all
                                           else "shell_autorun_opt_in" if name == "local_run_shell"
                                           else "reversible_target_escalation")}
                     self.store.add_audit("approval_auto_approved", job_id or name, payload)
                     self.events.publish("approval_auto_approved", payload)
-                    if self.notifications is not None:
+                    # 맡긴 부름은 그 도구가 스스로 결과 알림(「○○ 켜짐 · 되돌리기」)을 낸다 — 뜻 없는 「자동 승인」을 겹쳐 띄우지 않는다.
+                    if self.notifications is not None and not delegated:
                         try:
                             self.notifications.notify(
                                 "Sonjari · 자동 승인",
@@ -547,6 +707,11 @@ class ToolGateway:
                 },
             )
             self._offer_undo(spec, job_id, result)
+            if self.result_note is not None:
+                try:
+                    result = self.result_note(name, result)
+                except Exception:  # noqa: BLE001
+                    pass
             # 되돌리기 손잡이까지 남긴 **뒤에** 가린다 — 손잡이는 원래 값으로 일해야 한다. 모델·걸음 장부로 가는 것은 가린 쪽이다.
             result = self._hide_known_secrets(execution_arguments, result)
             return ToolResult(

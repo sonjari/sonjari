@@ -13,7 +13,8 @@ describe("steering a running job", () => {
   });
 
   it("tries the running job before queueing a new one", () => {
-    const send = app.slice(app.indexOf("const send = async"), app.indexOf("const sendRef = useRef(send)"));
+    // 윈도우 작업본은 줄 끝이 CRLF 다(autocrlf) — 줄 끝을 맞춘 뒤 비교한다(11-18 · 윈도우에서만 늘 떨어지던 것).
+    const send = app.slice(app.indexOf("const send = async"), app.indexOf("const sendRef = useRef(send)")).split("\r\n").join("\n");
     const steer = send.indexOf("client.steerJob(steerTarget, prompt)");
     const queue = send.indexOf("client.sendChat(");
     expect(steer).toBeGreaterThan(0);

@@ -2,6 +2,8 @@
 """애니메이터 팩 v1 도구 설명 — 모션 창고 · 관절 부품 · 포즈 시트 · 영상 → 바이페드 (2026-11-03 · 설계 §13~14)."""
 from __future__ import annotations
 
+from ..blender_host import install as _blender_install
+
 from .library import ORIGINS
 
 _ORIGIN_DESC = ("이 동작이 어디서 왔나 — company(회사 작업물) · own(직접 만든 것) · bip_file(받아 온 .bip, 예: 퀵매직) · "
@@ -31,6 +33,7 @@ LIBRARY_ADD = _tool(
         "biped": {"type": "string", "description": "바이페드 COM 이름(비우면 장면에서 처음 찾은 바이페드)"},
         "note": {"type": "string", "description": "메모(쓰임 · 주의)"},
         "include_backup": {"type": "boolean", "description": "max_folder: backup · old 같은 예전 판 폴더도 넣기(기본 false — 하위 폴더는 다 보되 예전 판은 뺀다)"},
+        "include_nobiped": {"type": "boolean", "description": "max_folder: 지난 일괄에서 바이페드가 없다고 나온 .max 도 다시 넣기(기본 false — 그 파일에 바이페드를 넣었을 때만)"},
     },
     ["source", "origin"],
 )
@@ -40,18 +43,21 @@ LIBRARY_TAG = _tool(
     "(클로드 · 코덱스용 · 시험 중) 창고 동작에 꼬리표 칸을 단다 — 무기 · 컨셉 · 무게감 · 속도감(현업 애니메이터가 찾을 때 쓰는 기준). "
     "사람이 말한 것만 단다(「22번은 한손검 · 빠른 · 스타일리쉬」). 이름 · 사진으로 무기를 짐작해 달지 마라. "
     "칸마다 통째로 바뀐다 — 빈 목록을 주면 그 칸을 지운다. 사전에 없는 값은 그대로 저장되고 not_in_dictionary 로 알려 준다. "
-    "단 뒤에는 anim_library_find 가 「무거운 양손검 평타」 같은 말을 그 칸으로 읽어 찾는다.",
+    "단 뒤에는 anim_library_find 가 「무거운 양손검 평타」 같은 말을 그 칸으로 읽어 찾는다. "
+    "동작은 id 하나, 또는 창고 목록(anim_library_find list=true)의 고정 번호 no(하나) · nos(여럿 — 묶음 단위로 한 번에)로 고른다.",
     # ★ 칸 이름은 영문(11-13): 클로드 API 는 칸 이름을 ^[a-zA-Z0-9_.-]{1,64}$ 로만 받는다 — 한글 「무기」 칸 때문에
     #   이 도구가 클로드 앱에서 통째로 빠졌다(「property key 무기 does not match」). 저장은 그대로 한글 칸(FACET_ARGS).
     {
-        "id": {"type": "string", "description": "anim_library_find 가 준 id"},
-        "weapon": {"type": "array", "items": {"type": "string"}, "description": "무기. 예: 한손검 · 양손검 · 창 · 도끼 · 총 · 표창 · 활 · 맨손 · 마법 · 늘어나는 무기 · 둔기"},
-        "concept": {"type": "array", "items": {"type": "string"}, "description": "캐릭터 컨셉. 예: 귀여운 · 스타일리쉬 · 근엄 · 도도 · 코믹"},
+        "id": {"type": "string", "description": "anim_library_find 가 준 id(no · nos 를 쓰면 비운다)"},
+        "no": {"type": "integer", "description": "창고 목록의 고정 번호 하나"},
+        "nos": {"type": "array", "items": {"type": "integer"}, "description": "창고 목록의 고정 번호 여럿 — 같은 꼬리표를 한 번에"},
+        "weapon": {"type": "array", "items": {"type": "string"}, "description": "무기. 예: 한손검 · 양손검 · 창 · 도끼 · 총 · 표창 · 활 · 맨손 · 마법(지팡이 · 투사체 · 부유무기도 마법) · 늘어나는 무기 · 둔기"},
+        "concept": {"type": "array", "items": {"type": "string"}, "description": "캐릭터 컨셉. 예: 귀여운 · 스타일리쉬 · 근엄 · 도도 · 코믹 · 정직한"},
         "weight": {"type": "array", "items": {"type": "string"}, "description": "무게감. 예: 무거운 · 가벼운"},
-        "speed": {"type": "array", "items": {"type": "string"}, "description": "속도감. 예: 빠른 · 느린 · 부드러운 · 연타"},
+        "speed": {"type": "array", "items": {"type": "string"}, "description": "속도감. 예: 빠른 · 느린 · 부드러운 · 연타 · 가감속"},
         "by": {"type": "string", "description": "누가 단다고 했나(남김용 · 비우면 「사람 말」)"},
     },
-    ["id"],
+    [],
 )
 
 HABIT = _tool(
@@ -74,12 +80,17 @@ LIBRARY_FIND = _tool(
     "결과마다 id · 이름 · 캐릭터 · 출처 · 프레임 수 · 루프 여부 · 대표 장면 사진 경로가 온다. 사진을 사람에게 보여 고르게 하고, "
     "고른 id 로 anim_library_apply 를 불러라. 출처가 「영상 변환 초안」인 것은 초안이라고 꼭 말해라. "
     "무기 · 컨셉 · 무게감 · 속도감 낱말(「무거운 양손검」 · 「창으로 빠르게」)은 꼬리표 칸으로 읽는다 — 결과마다 matched 가 무엇이 맞았는지다. "
-    "비거나 query_report 가 오면 무엇이 창고에 없는지 그대로 전해라(엉뚱한 동작으로 채우지 않는다).",
+    "비거나 query_report 가 오면 무엇이 창고에 없는지 그대로 전해라(엉뚱한 동작으로 채우지 않는다). "
+    "찾는 무기가 창고에 아예 없으면 다른 칸만 맞는 동작은 내놓지 않고 none_because 가 온다 — 「없다」를 먼저 말해라. "
+    "empty_slots 가 오면 빈 칸(바이페드 없는 .max 등) 수를 같이 말해라. "
+    "list=true 면 찾지 않고 창고 목록 한 장(고정 번호 · 이름 · 프레임 수 · 묶음 · 꼬리표 칸)을 준다 — 꼬리표 달 동작을 번호로 말하게.",
     {
         "query": {"type": "string", "description": "찾는 동작을 사람 말 그대로(비우면 전부)"},
         "character": {"type": "string", "description": "이 캐릭터 것만"},
         "origin": {"type": "string", "enum": list(ORIGINS), "description": "이 출처만"},
-        "k": {"type": "integer", "description": "몇 개(기본 5, 최대 20)"},
+        "limit": {"type": "integer", "description": "몇 개(기본 5, 최대 20)"},
+        "k": {"type": "integer", "description": "limit 의 옛 이름(같은 뜻)"},
+        "list": {"type": "boolean", "description": "true 면 창고 목록 한 장(번호 · 이름 · 프레임 수 · 묶음 · 꼬리표) — query 는 안 본다"},
     },
     [],
 )
@@ -93,7 +104,9 @@ LIBRARY_APPLY = _tool(
     "**체형이 다른 캐릭터**(예: 8등신 동작 → 2~3등신 캐릭터)면 stride · arm_spread 로 보정한다 — 현업 애니메이터가 고른 판은 "
     "stride 0.5 · arm_spread 35(한 동작 · 「제일 가깝다」). 숫자를 사람에게 묻지 말고 두세 벌(예: 그대로 · 0.5/20 · 0.5/35) 만들어 "
     "재생해 보고 고르게 하라 — 도구는 판단하지 않는다. "
-    "**두 동작을 섞기**: blend_with 에 다른 칸 id, blend 에 그 동작 비율(0~1). 비율은 사람이 정한다 — 모르면 두세 벌(예 0.3 · 0.5 · 0.7) 만들어 보이고 고르게 하라.",
+    "**두 동작을 섞기**: blend_with 에 다른 칸 id, blend 에 그 동작 비율(0~1). 비율은 사람이 정한다 — 모르면 두세 벌(예 0.3 · 0.5 · 0.7) 만들어 보이고 고르게 하라. "
+    "**메인 키포즈만 남기기**(시험 중): 입힌 동작은 프레임마다 키가 찍혀 온다. 사람이 남길 프레임을 말하면 keep_keys=[0, 4, 6, …] 로 — 다 입힌 뒤 그 자리 키만 남긴다(첫 · 끝은 늘 남김). "
+    "목록이 없으면 keep_keys 없이 입힌 뒤 keypose_check=true 로 다시 불러 「움직임이 멈추는」 후보 프레임을 받아 사람이 고르게 하라(자동으로 지우지 않는다).",
     {
         "id": {"type": "string", "description": "anim_library_find 가 준 id"},
         "blend_with": {"type": "string", "description": "섞을 다른 동작의 id(비우면 섞지 않음)"},
@@ -103,8 +116,11 @@ LIBRARY_APPLY = _tool(
         "match_height": {"type": "boolean", "description": "키 맞춤(맥스 기본 #retargetHeight). 기본 true"},
         "stride": {"type": "number", "description": "다리 보폭 · 몸통 이동 배율(0.1~2 · 기본 1 = 그대로). 다리가 짧은 캐릭터면 다리 길이 비율쯤(예 0.5)"},
         "arm_spread": {"type": "number", "description": "위팔을 몸 바깥쪽으로 더 벌리는 도(0~60 · 기본 0). 머리가 커서 팔이 가리면(예 20 · 35)"},
+        "raw": {"type": "boolean", "description": "원본 그대로 입히기(기본 false) — 무게중심 맞춤 · 첫끝 덮기 · 발 고정 · 체형 보정을 모두 건너뛰고 키 높이 맞춤만. 현업 원칙(11-19 lab): 「원본 .bip 를 그대로 입힌다 — 맞춤 · 덮기가 발을 틀어지게 했다」. 사람이 원본 그대로를 원하면 true. 입힌 뒤 anim_balance_check 로 점검해 보여라"},
         "foot_lock": {"type": "boolean", "description": "발 고정(기본 true): 원본에서 땅에 붙은 발을 입힌 뒤에도 그 자리에(보폭 보정 · 첫끝 덮기가 발을 끌지 않게). 미끄러지는 동작이면 false"},
         "character": {"type": "string", "description": "입힐 캐릭터 이름(다듬은 것 기억하기의 상황 열쇠 — 비우면 바이페드 이름). 같은 캐릭터 · 같은 목록에서 같은 손질을 두 번 하면 남길지 묻는다"},
+        "keep_keys": {"type": "array", "items": {"type": "integer"}, "description": "남길 키포즈 프레임(사람이 고른 것). 주면 나머지 키를 지운다 · 첫끝은 늘 남긴다"},
+        "keypose_check": {"type": "boolean", "description": "true 면 입히지 않고, 지난 입히기의 움직임 양 표로 키포즈 후보 프레임을 준다"},
     },
     ["id"],
 )
@@ -194,6 +210,39 @@ FIT_FIX = _tool(
 _BLEND = {"type": "string", "description": "이 PC 의 .blend 파일 경로(원본은 덮어쓰지 않는다)"}
 _ARM = {"type": "string", "description": "뼈대 오브젝트 이름(비우면 메시가 붙은 뼈대를 알아서 고른다)"}
 
+BALANCE_CHECK = _tool(
+    "anim_balance_check",
+    "(클로드 · 코덱스용 · 3ds Max · 시험 중) 입힌 뒤 균형 점검(읽기 전용 · 장면을 바꾸지 않는다): ① COM 앞뒤 어긋남 ② 홀딩 구간 딛은 발 밀림 "
+    "③ 애매하게 뜬 발 ④ COM 좌우 균형 ⑤ 키 정렬(COM 키 프레임에 Spine · Spine1 · Neck · Head · COM 회전 키) · COM 곡선. "
+    "결과의 run_line 을 execute_maxscript 로 보내면 맥스가 점검표 글을 돌려준다 — 그 글을 사람에게 그대로 보여라. "
+    "현업 협업자가 lab 에서 만든 점검(v6)을 그대로 옮긴 것이고 기준 숫자는 동작 몇 개로 맞춘 임시값이다. "
+    "**「어디를 볼지 짚어 주는 표 · 문제인지는 재생해 보고 사람이 정한다」고 말해라.** 물리에 어긋나도 12원칙상 맞을 수 있다. "
+    "⑤ 키 빠짐이 있으면 anim_key_align 을 권할 수 있다. 고치는 것은 하지 않는다.",
+    {
+        "start": {"type": "integer", "description": "볼 구간 시작(비우면 장면의 애니메이션 구간)"},
+        "end": {"type": "integer", "description": "볼 구간 끝"},
+        "biped": {"type": "string", "description": "바이페드 COM 이름(기본 Bip001)"},
+        "thresholds": {"type": "object", "description": "기준 숫자 바꾸기(사람이 정한 값만): groundTol · fwdTol · holdSpeed · slideRatio · "
+                       "slideMinFrames · floatLo · floatMinFrames · floatAvg · latTol · accTol"},
+    },
+    [],
+)
+
+KEY_ALIGN = _tool(
+    "anim_key_align",
+    "(클로드 · 코덱스용 · 3ds Max · 시험 중) 보정 A 키 정렬: COM 에 키가 있는 프레임마다 Spine · Spine1 · Neck · Head · COM 회전에 "
+    "**그 프레임의 현재 값 그대로** 키를 찍는다(기존 키는 지우지 않고 값도 안 바꿈 · 현업 원칙 「COM · Spine · Head 는 같은 프레임에 키」). "
+    "1걸음 apply=false(기본): 빠진 키 목록만 받는다(장면 안 바뀜) → 몇 개를 어디에 찍는지 사람에게 말한다. "
+    "2걸음: 사람이 「해」라고 한 뒤에만 apply=true 의 run_line 을 보낸다 — 적용 직전 장면 보관(Hold) + **복사본 저장**(경로가 결과에 온다). "
+    "돌아온 「자세 변화 최대 ○°」와 키 시간을 그대로 전하고, 「★ 경고」(키가 거의 매 프레임)가 오면 멈추고 편집 › 가져오기(Fetch)를 권해라. "
+    "키를 찍으면 맥스가 곡선을 다시 계산해 자세가 조금 바뀐다(lab 시험 최대 약 2.3°) — 눈으로 확인하게 해라.",
+    {
+        "apply": {"type": "boolean", "description": "true = 적용(사람이 「해」 한 뒤에만). 기본 false = 제안만"},
+        "biped": {"type": "string", "description": "바이페드 COM 이름(기본 Bip001)"},
+    },
+    [],
+)
+
 BLENDER_CHECK = _tool(
     "anim_blender_check",
     "(클로드 · 코덱스용 · 블렌더 · 시험 중) .blend 의 동작에서 손 · 팔이 머리 · 가슴 · 배를, 무릎이 배 · 가슴을 뚫은 프레임 수와 구간 — "
@@ -215,6 +264,9 @@ BLENDER_FIX = _tool(
     ["blend"],
 )
 
+BLENDER_SETUP = {"type": "function", "function": {"name": "anim_blender_setup", "description": "(클로드 · 코덱스용) " + _blender_install.TOOL_DESC,
+                                                  "parameters": _blender_install.TOOL_PARAMS}}
+
 BLENDER_BLOCK = _tool(
     "anim_blender_block",
     "(클로드 · 코덱스용 · 블렌더) 영상 → 블렌더 뼈대 블로킹 초안: anim_pose_sheet 가 고른 장면(poses)마다 3D 관절을 읽어 척추 · 팔 · 다리 방향을 맞춘 키를 "
@@ -227,4 +279,4 @@ BLENDER_BLOCK = _tool(
 )
 
 V1_TOOLS = (LIBRARY_ADD, LIBRARY_FIND, LIBRARY_TAG, HABIT, LIBRARY_APPLY, PARTS, POSE_SHEET, VIDEO_TO_BIPED, FIT_CHECK, FIT_FIX,
-            BLENDER_CHECK, BLENDER_FIX, BLENDER_BLOCK)
+            BLENDER_CHECK, BLENDER_FIX, BLENDER_BLOCK, BLENDER_SETUP, BALANCE_CHECK, KEY_ALIGN)

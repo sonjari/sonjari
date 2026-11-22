@@ -87,7 +87,8 @@ def _offered_and_allowed(
 
 
 def _artifact_turn_is_due(
-    *, stage_says: bool, deliver_turn: bool, web_research: bool, read_sources: int, items_left: bool = False
+    *, stage_says: bool, deliver_turn: bool, web_research: bool, read_sources: int, items_left: bool = False,
+    count_short: bool = False,
 ) -> bool:
     """「파일을 만들 차례」(파일 쓰는 손만 받는다)를 지금 걸어도 되는가.
 
@@ -98,10 +99,14 @@ def _artifact_turn_is_due(
     ★ 걸음이 바닥나기 전에 주는 차례(`deliver_turn`)는 그대로 둔다 — 그 자리에서는 못 했다고 적어 내는 것이 맞다.
     ★ 2026-10-20 (잡 eec113c2): 번호로 적어 준 항목이 아직 남았으면(`items_left`) 되받기가 건 차례도 미룬다 — 「질문 5개를 하나씩」에서
       다섯째 질문을 넣고 보내는 엔터가 `not_this_stage` 로 막혔다. 접기 전 차례(`deliver_turn`)는 그대로 건다(걸음이 바닥났다).
+    ★ 2026-11-16 맥 판 3655b7e4 · e44e4720: 시킨 **개수를 아직 못 채웠으면**(`count_short` · 대조표의 개수 칸) 같은 자리에서 미룬다.
+      「5~10개 찾아」를 넷만 읽고 쓸 차례가 걸려, 다섯째 후보 열기가 `not_this_stage` 로 두 번 막히고 목록이 107 → 14 로 좁혀져
+      Strata 가 앞부분 3.1만 토큰을 두 번 다시 읽었다(20초씩). 좁히기(`_offered_and_allowed`)는 그대로 — 쓸 차례를 일찍 걸지 않을 뿐이다.
+      접기 전 차례(`deliver_turn`)는 그대로 건다 — 걸음이 바닥났으면 못 채운 대로 적어 내는 것이 맞다.
     """
     if deliver_turn:
         return True
-    if not stage_says or items_left:
+    if not stage_says or items_left or count_short:
         return False
     return not (web_research and read_sources <= 0)
 
@@ -371,11 +376,38 @@ _COMPACT_UNREQUESTED_FAMILIES: tuple[tuple[tuple[str, ...], tuple[str, ...]], ..
         ("hwp_",),
         ("한글", "hwp", "hwpx", "아래한글"),
     ),
+    # ★ 2026-11-17 맥 4B · 창 32K · 팩 켠 맥: 「워드 문서 만들어 줘」를 MCP 로 맡기자 도구 109개(3D 11 · 유니티 9 · 영상 1 =
+    #   도구 글자의 27%)가 실려 앞부분만 25,745토큰 — 대화 기록 자리가 없어 걸음마다 앞 결과를 못 보고 같은 문서를 다섯 번 썼다.
+    #   팩 도구는 그 일을 말했을 때만 싣는다(작은 창일 때만 · 큰 창은 그대로). 클로드가 MCP 로 바로 부르는 팩 도구는 이 목록과 상관없다.
+    (
+        ("gen_3d",),
+        ("3d", "입체", "모델링", "메시", "mesh", "stl", "glb", "obj", "피규어", "프린트", "출력물", "3차원", "print"),
+    ),
+    (
+        ("unity_",),
+        ("유니티", "unity", "게임", "씬", "프리팹", "prefab", "scene"),
+    ),
+    (
+        ("video_",),
+        ("영상", "동영상", "비디오", "video", "클립", "mp4", "mov", "유튜브", "youtube", "쇼츠"),
+    ),
+    (
+        ("anim_",),
+        ("애니", "모션", "바이페드", "biped", "맥스", "3ds", "max", "리깅", "포즈", "블렌더", "blender", "animation", "키프레임"),
+    ),
 )
 
 
-def _compact_family_unrequested(name: str, request_text: str) -> bool:
+#: 팩 도구 무리 — 창이 이보다 작거나 같으면(작은 창 압축과 따로) 말 안 나온 팩 도구를 뺀다(11-18 맥 9B · 64K: 도구 115개 · 앞부분 3.1만 토큰 ·
+#: 처음 읽기 193초). 큰 창(PC 128K)은 그대로 — 앞부분을 빨리 읽고, 목록을 요청마다 바꾸면 저장점이 깨진다(11-06).
+PACK_LEAN_MAX_CTX = 65_536
+_PACK_PREFIXES = ("gen_3d", "unity_", "video_", "anim_")
+
+
+def _compact_family_unrequested(name: str, request_text: str, *, packs_only: bool = False) -> bool:
     lowered = (request_text or "").lower()
+    if packs_only and not name.startswith(_PACK_PREFIXES):
+        return False
     for prefixes, subjects in _COMPACT_UNREQUESTED_FAMILIES:
         if name.startswith(prefixes):
             return not any(subject in lowered for subject in subjects)
@@ -432,7 +464,7 @@ def _compact_tool_descriptions(tools: list[dict[str, Any]]) -> list[dict[str, An
 
 def _platform_scoped_tool_definitions(
     tools: list[dict[str, Any]], request_text: str, *, compact: bool = False,
-    planned: frozenset[str] | set[str] = frozenset(),
+    planned: frozenset[str] | set[str] = frozenset(), pack_lean: bool = False,
 ) -> list[dict[str, Any]]:
     """`compact`(작은 컨텍스트)일 때만 요청에 없는 서비스에 올리는 손과 이야기가 안 나온 도구 가족을 모델 표면에서 뺀다.
 
@@ -448,6 +480,8 @@ def _platform_scoped_tool_definitions(
         if compact and _platform_write_unrequested(name, request_text, planned):
             continue
         if compact and name not in _ALWAYS_ON_TOOLS and _compact_family_unrequested(name, request_text):
+            continue
+        if pack_lean and not compact and _compact_family_unrequested(name, request_text, packs_only=True):
             continue
         kept.append(tool)
     return kept

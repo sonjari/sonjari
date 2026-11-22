@@ -1,0 +1,2 @@
+⛔ Action refused before dispatch; refresh the target before retrying
+Error: Invalid input: Invalid target: The selected process has multiple eligible windows. Hint: Add a window selector or fresh snapshot

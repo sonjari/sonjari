@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import functools
 import json
 import re
 import shutil
@@ -71,45 +72,94 @@ FACETS: dict[str, dict[str, tuple[str, ...]]] = {
         "한손검": ("한손검", "한손 검", "외손검", "한 손 검"), "양손검": ("양손검", "양손 검", "대검", "투핸드"),
         "검": ("검", "칼", "sword"), "창": ("창", "spear", "랜스"), "도끼": ("도끼", "axe"), "총": ("총", "권총", "라이플", "gun"),
         "표창": ("표창", "수리검"), "활": ("활", "석궁", "bow"), "맨손": ("맨손", "주먹", "권법", "격투"),
-        "마법": ("마법", "지팡이", "스태프", "magic"), "늘어나는 무기": ("늘어나는", "채찍", "사슬", "체인"),
+        # ★ 11-18 현업 사용기: 지팡이 · 투사체 · 떠 있는(부유) 무기를 모두 「마법」 한 갈래로 읽어 달라.
+        #   「부유」 · 「떠 있는」은 혼자서는 무기가 아니다(「공중에 떠 있는 대기」 · 「부유한 귀족」) → 「무기」와 붙은 꼴만.
+        #   「투사」(투사 = 싸움꾼)는 넣지 않고 「투사체」부터.
+        "마법": ("마법", "지팡이", "스태프", "magic", "투사체", "부유무기", "부유 무기", "부유하는 무기", "떠다니는 무기",
+                 "떠 있는 무기", "떠있는 무기"),
+        "늘어나는 무기": ("늘어나는", "채찍", "사슬", "체인"),
         "둔기": ("둔기", "망치", "해머", "메이스"),
     },
     "컨셉": {
         "귀여운": ("귀여", "귀엽", "깜찍"), "스타일리쉬": ("스타일리쉬", "스타일리시", "세련"), "근엄": ("근엄", "위엄"),
         "도도": ("도도",), "코믹": ("코믹", "익살"),
+        # 11-18 현업 말: 「정직한」 = 과장 없이 곧은 동작(몸의 결이라 컨셉 칸)
+        "정직한": ("정직",),
     },
     "무게감": {"무거운": ("무거", "무겁", "묵직", "육중"), "가벼운": ("가벼", "가볍", "경쾌")},
     "속도감": {
         "빠른": ("빠르", "빠른", "재빠", "날렵"), "느린": ("느리", "느린", "천천"), "부드러운": ("부드럽", "부드러"),
         "연타": ("연타", "난타", "연속"),
+        # 11-18 현업 말: 「가감속이 확실한」 = 빨라지고 느려짐이 또렷한(속도의 결이라 속도감 칸)
+        "가감속": ("가감속", "완급"),
     },
 }
 #: 값의 윗값 — 「검」으로 찾으면 한손검 · 양손검도 나온다.
 FACET_PARENT = {"한손검": "검", "양손검": "검"}
 #: 한 글자 조각(창 · 총 · 활 · 검 · 칼)이 다른 낱말 속에서 헛걸리지 않게 먼저 지우는 낱말.
 _FACET_DENY = ("창고", "창문", "창작", "창의", "독창", "총합", "총괄", "총무", "총장", "활동", "활용", "활발", "활성", "생활", "활짝",
-               "검색", "검사", "검토", "검증", "검은", "검정", "칼로리")
+               "검색", "검사", "검토", "검증", "검은", "검정", "칼로리", "정직원")
+#: 무기 칸 — 찾는 말의 무기가 창고에 하나도 없으면 다른 칸만 맞은 동작을 내밀지 않는다(11-18 현업 사용기 · find 주석).
+_HARD_FACET = "무기"
 #: 뭉뚱그린 낱말 — 혼자서는 순위를 만들지 못한다(공격 칸 5개를 아무렇게나 내놓지 않게).
 _GENERIC = ("공격", "모션", "동작", "느낌", "캐릭터", "애니", "찾아", "보여", "좋음", "좋겠", "있는", "하는", "같은")
 
 
+def _compact(s: str) -> str:
+    """띄어쓰기 · 괄호 · 문장부호를 뺀 꼴 — 「투사체 공격」 ↔ 「투사체공격」 · 「마법(투사체)」를 같은 글자로 대 본다(11-18)."""
+    return re.sub(r"[\s()\[\]{}<>「」『』·,./!?~_-]+", "", (s or "").lower())
+
+
+# ★ 사전 조회는 같은 낱말을 창고 칸마다 다시 하므로 캐시한다(11-18 코드 검토: 500칸 창고에서 찾기 한 번 1.5~1.8초 + 까닭 보고 1.7~2.8초).
+#   FACETS 는 모듈 상수다 — 실행 중에 바꾸지 않는다(바꾸면 _facet_lookup.cache_clear() · _read_query_cached.cache_clear()).
+@functools.lru_cache(maxsize=8192)
 def _facet_lookup(facet: str, value: str) -> str | None:
     v = value.strip().lower()
+    vc = _compact(v)
     for canon, aliases in FACETS.get(facet, {}).items():
         if v == canon.lower() or v in (a.lower() for a in aliases):
             return canon
+        # 띄어쓰기만 다른 꼴(「부유 무기」 ↔ 「부유무기」)도 같은 값 — 사람이 단 값이 사전 값과 띄어쓰기만 달라 안 맞던 것(11-18)
+        if len(vc) >= 2 and (vc == _compact(canon) or vc in (_compact(a) for a in aliases)):
+            return canon
+    return None
+
+
+@functools.lru_cache(maxsize=8192)
+def _facet_lookup_any(facet: str, value: str) -> str | None:
+    """제 칸에서 못 찾으면 다른 칸에서도 — 「가감속이 확실한」을 컨셉 칸에 달아 둬도 속도감 「가감속」으로 센다(11-18)."""
+    got = _facet_lookup(facet, value)
+    if got:
+        return got
+    for other in FACETS:
+        if other != facet:
+            got = _facet_lookup(other, value)
+            if got:
+                return got
     return None
 
 
 def read_query(query: str) -> dict[str, Any]:
     """찾는 말 → 꼬리표 칸 낱말(조각으로) + 남은 낱말. 칸 낱말로 쓴 글자 자리는 비워 남은 낱말에 다시 안 걸리게 한다."""
-    text = " " + (query or "").lower() + " "
+    facets, words = _read_query_cached(query or "")
+    return {"facets": list(facets), "words": list(words)}
+
+
+@functools.lru_cache(maxsize=1)
+def _pieces() -> tuple[tuple[int, str, str, str], ...]:
+    # 띄어 쓴 조각(「부유 무기」)은 붙여 쓴 꼴(「부유무기」)도 같이 본다(11-18) — 긴 조각부터
+    return tuple(sorted({(len(v), f, canon, v) for f, vals in FACETS.items() for canon, al in vals.items() for a in al
+                         for v in {a.lower(), a.lower().replace(" ", "")}},
+                        key=lambda x: (-x[0], x[1], x[2], x[3])))
+
+
+@functools.lru_cache(maxsize=4096)
+def _read_query_cached(query: str) -> tuple[tuple[tuple[str, str], ...], tuple[str, ...]]:
+    text = " " + query.lower() + " "
     for d in _FACET_DENY:                                  # 「창고에서 찾아」의 「창」이 무기로 잡히지 않게
         text = text.replace(d, " " * len(d)) if d in text else text
     terms: list[tuple[str, str]] = []
-    pieces = sorted(((len(a), f, canon, a.lower()) for f, vals in FACETS.items() for canon, al in vals.items() for a in al),
-                    key=lambda x: -x[0])
-    for _n, facet, canon, alias in pieces:
+    for _n, facet, canon, alias in _pieces():
         while alias in text:
             i = text.index(alias)
             text = text[:i] + " " * len(alias) + text[i + len(alias):]
@@ -117,7 +167,7 @@ def read_query(query: str) -> dict[str, Any]:
                 terms.append((facet, canon))
     # 칸 낱말을 뺀 자리를 다시 띄어 자르고, 남은 조사 조각(「으로」 · 「한」)은 한 글자면 버린다
     rest = [w for w in _words(text) if len(w) > 1 and w not in ("으로", "에서", "하는", "하면서", "해서")]
-    return {"facets": terms, "words": rest}
+    return tuple(terms), tuple(rest)
 
 
 def is_generic(word: str) -> bool:
@@ -129,7 +179,14 @@ def entry_facets(e: dict[str, Any]) -> set[str]:
     vals: set[str] = set()
     for facet, got in (e.get("facets") or {}).items():
         for v in got or []:
-            vals.add(_facet_lookup(facet, v) or str(v).strip())
+            c = _facet_lookup_any(facet, str(v))
+            if c:
+                vals.add(c)
+                continue
+            vals.add(str(v).strip())
+            # 사전 밖 말이라도 사전 조각이 들어 있으면 그 값으로도 센다(11-18): 「투사체공격」 · 「지팡이공격」 → 마법.
+            #   말 자체는 그대로 둔다 — 「투사체 공격」으로 찾으면 그 말이 붙은 동작이 먼저 나오게.
+            vals |= {canon for _f, canon in read_query(str(v))["facets"]}
     for t in e.get("tags") or []:
         for facet in FACETS:
             c = _facet_lookup(facet, str(t))
@@ -200,6 +257,50 @@ def tags_from_name(name: str) -> list[str]:
     return out
 
 
+# ── 고정 번호(11-18 현업 사용기: 「번호가 없어 꼬리표 달 동작을 말하기 어려웠다」) ─────────────────
+#: 번호는 한 번 붙으면 안 바뀐다 — 넣은 순서 · 이름순으로 다시 매기지 않는다. 지운 칸의 번호도 다시 쓰지 않는다(카운터 파일).
+_COUNTER = "_next_no.txt"
+
+
+def ensure_numbers(root: Path) -> int:
+    """번호 없는 옛 칸에 번호를 단다(만든 시각 → id 순) · 다음 번호를 돌려준다. 이미 붙은 번호는 건드리지 않는다."""
+    base = lib_dir(root)
+    if not base.is_dir():
+        return 1
+    have: list[tuple[str, str, Path, dict[str, Any]]] = []
+    top = 0
+    for ej in base.glob("*/entry.json"):
+        try:
+            e = json.loads(ej.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        if isinstance(e.get("no"), int):
+            top = max(top, e["no"])
+        else:
+            have.append((str(e.get("created") or ""), str(e.get("id") or ej.parent.name), ej, e))
+    try:
+        top = max(top, int((base / _COUNTER).read_text(encoding="utf-8").strip()) - 1)
+    except (OSError, ValueError):
+        pass
+    for _c, _i, ej, e in sorted(have, key=lambda x: (x[0], x[1])):
+        top += 1
+        e["no"] = top
+        ej.write_text(json.dumps(e, ensure_ascii=False, indent=1), encoding="utf-8")
+    (base / _COUNTER).write_text(str(top + 1), encoding="utf-8")
+    return top + 1
+
+
+def _take_number(root: Path) -> int:
+    base = lib_dir(root)
+    try:
+        nxt = int((base / _COUNTER).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        nxt = ensure_numbers(root)          # 카운터가 없으면(첫 칸 · 옛 창고) 한 번 훑어 옛 칸부터 번호를 단다
+    base.mkdir(parents=True, exist_ok=True)
+    (base / _COUNTER).write_text(str(nxt + 1), encoding="utf-8")
+    return nxt
+
+
 def new_entry(root: Path, *, name: str, origin: str, character: str = "", tags: Sequence[str] = (),
               source: str = "", note: str = "") -> dict[str, Any]:
     if origin not in ORIGINS:
@@ -207,11 +308,12 @@ def new_entry(root: Path, *, name: str, origin: str, character: str = "", tags: 
     name = name.strip() or "이름없음"
     slug = _ID_SAFE.sub("_", f"{character}_{name}" if character else name).strip("_")[:60] or "motion"
     eid = f"{slug}_{uuid.uuid4().hex[:6]}"
+    no = _take_number(root)
     folder = lib_dir(root) / eid
     (folder / "shots").mkdir(parents=True, exist_ok=True)
     auto = tags_from_name(name)
     entry = {
-        "id": eid, "name": name, "character": character.strip(), "origin": origin, "origin_label": ORIGINS[origin],
+        "id": eid, "no": no, "name": name, "character": character.strip(), "origin": origin, "origin_label": ORIGINS[origin],
         "draft": origin == "video_draft", "tags": list(dict.fromkeys([*(t.strip() for t in tags if t.strip()), *auto])),
         "source": source, "note": note, "created": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -262,11 +364,49 @@ def _read_max_meta(folder: Path) -> dict[str, Any]:
     return meta
 
 
+NOBIPED_MARK = "nobiped.txt"
+
+
+def nobiped_logged(root: Path) -> tuple[set[str], set[str]]:
+    """일괄 기록(_batch_*_log.txt)의 「nobiped …」 줄 → (전체 경로들, 이름만 남은 것들).
+    11-18 전 기록은 파일 이름만 남겼다 — 그 이름은 다른 폴더의 같은 이름 파일에도 걸릴 수 있어 옛 기록에만 쓴다."""
+    paths: set[str] = set()
+    names: set[str] = set()
+    base = lib_dir(root)
+    if not base.is_dir():
+        return paths, names
+    for log in base.glob("_batch_*_log.txt"):
+        raw = log.read_bytes()
+        for enc in ("utf-8-sig", "cp949"):
+            try:
+                text = raw.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            continue
+        for line in text.splitlines():
+            if line.startswith("nobiped "):
+                v = line[len("nobiped "):].strip()
+                if v:
+                    (paths if ("\\" in v or "/" in v) else names).add(v)
+    return paths, names
+
+
+def _is_nobiped(folder: Path, e: dict[str, Any], logged: tuple[set[str], set[str]]) -> bool:
+    if (folder / NOBIPED_MARK).is_file():
+        return True
+    src = str(e.get("source") or "")
+    return bool(src) and (src in logged[0] or Path(src.replace("\\", "/")).name in logged[1])
+
+
 def entries(root: Path, include_pending: bool = False) -> list[dict[str, Any]]:
+    """창고 칸들. 기본은 .bip 가 있는 칸만. include_pending 이면 빈 칸도 — 빈 칸 중 바이페드 없는 .max 에서 온 것은 no_biped=True(11-18)."""
     out = []
     base = lib_dir(root)
     if not base.is_dir():
         return out
+    logged: tuple[set[str], set[str]] | None = None
     for folder in sorted(base.iterdir()):
         ej = folder / "entry.json"
         if not ej.is_file():
@@ -278,6 +418,9 @@ def entries(root: Path, include_pending: bool = False) -> list[dict[str, Any]]:
         ready = (folder / "motion.bip").is_file()
         if not ready and not include_pending:
             continue
+        if not ready:
+            logged = logged if logged is not None else nobiped_logged(root)
+            e["no_biped"] = _is_nobiped(folder, e, logged)
         e.update(_read_max_meta(folder))
         e["ready"] = ready
         e["kind"] = "model" if is_model_file(e.get("name", "")) else "motion"
@@ -288,7 +431,8 @@ def entries(root: Path, include_pending: bool = False) -> list[dict[str, Any]]:
 
 
 def _words(query: str) -> list[str]:
-    return [w for w in re.split(r"[\s,·/.!?]+", query.strip().lower()) if w]
+    # 괄호도 끊는다(11-18): 「마법(투사체)」의 괄호 안 말이 「(투사체)」 한 덩어리로 남아 모르는 말이 됐다
+    return [w for w in re.split(r"[\s,·/.!?()\[\]{}<>「」『』]+", query.strip().lower()) if w]
 
 
 def find(root: Path, query: str, k: int = 5, character: str = "", origin: str = "") -> list[dict[str, Any]]:
@@ -303,8 +447,18 @@ def find(root: Path, query: str, k: int = 5, character: str = "", origin: str = 
     words = q["words"]
     want_models = any(m in w for w in _words(query) for m in _MODEL_WORDS)
     specific_query = bool(q["facets"]) or any(not is_generic(w) for w in words)
+    every = entries(root)
+    # ★ 11-18 현업 사용기: 「창으로 빠르게 찌르는」(창 동작은 창고에 없음)에 「무기:창 없음」을 알리면서 속도감만 맞은 5개를 내밀었다.
+    #   무기는 동작 자체가 다르다(창 동작을 한손검 동작으로 갈음하지 못한다) → 찾는 말의 무기가 창고 동작 어디에도 없으면 빈 결과.
+    #   컨셉 · 무게감 · 속도감은 결이라 그것만 빠졌으면 결과를 낸다(빠진 것은 query_report 의 missing_facets 가 알린다).
+    asked_weapons = [v for f, v in q["facets"] if f == _HARD_FACET]
+    if asked_weapons:
+        have_all = set().union(*(entry_facets(e) for e in every if e.get("kind") == "motion")) if every else set()
+        if not any(v in have_all for v in asked_weapons):
+            return []
+    compact_q = _compact(query)
     scored = []
-    for e in entries(root):
+    for e in every:
         if e.get("kind") == "model" and not want_models:
             continue
         if character and character.strip() and character.strip() not in e.get("character", ""):
@@ -325,12 +479,26 @@ def find(root: Path, query: str, k: int = 5, character: str = "", origin: str = 
                 score += 4
                 specific += 4
                 matched.append(f"{facet}:{val}")
+        # 붙여 쓴 꼬리표(「투사체공격」)가 찾는 말에 띄어쓰기 · 괄호만 달리 들어 있으면(「투사체 공격」 · 「마법(투사체 공격)」) 그대로 맞은 것(11-18)
+        # 사전 값 그대로인 꼬리표(양손검 · 무거운 …)는 칸 맞춤이 이미 센다 — 아래 붙여 쓰기 · 부분 말 규칙에서 빼서 두 번 세지 않고,
+        # 「양손 다 사용」의 「양손」이 「양손검」에 붙지 않게 한다(11-13 반례)
+        loose = {t for t in tags if _facet_lookup_any("", t) != t}
+        for t in sorted(loose):
+            tc = _compact(t)
+            if len(tc) >= 3 and tc in compact_q and tc not in {_compact(w) for w in words}:
+                score += 3
+                specific += 3
+                matched.append(t)
+        # 그 꼬리표 안의 낱말(「공격」)도 따로 센다 — 다른 꼬리표(「공격」)에 맞은 것이라 두 번 세는 게 아니다.
+        #   (11-18 처음엔 건너뛰었더니 「투사체공격」이 붙은 동작이 「공격」 점수를 잃어 붙지 않은 동작과 동점이 됐다)
         for w in words:
             pts = 0
             if w in tags or (len(w) >= 3 and any(len(t) >= 2 and w.startswith(t) for t in tags)):
                 pts = 3
             elif any(s in tags for s in SYNONYMS.get(w, ())):
                 pts = 2
+            elif len(w) >= 2 and not is_generic(w) and any(t.startswith(w) for t in loose):
+                pts = 2            # 부분 말: 「투사체」 → 꼬리표 「투사체공격」(11-18 · 뭉뚱그린 말은 빼서 「공격」이 「공격력」에 붙지 않게)
             elif w in hay:
                 pts = 1
             if pts:
@@ -361,7 +529,9 @@ def query_report(root: Path, query: str) -> dict[str, Any]:
         for e in every:
             tags = {t.lower() for t in e.get("tags", [])} | set(template_words(e))
             hay = " ".join([e.get("name", ""), e.get("character", ""), e.get("note", ""), *tags]).lower()
-            if w in tags or w in hay or any(len(t) >= 2 and w.startswith(t) for t in tags) or any(s in tags for s in SYNONYMS.get(w, ())):
+            tags |= {str(v).lower() for vals in (e.get("facets") or {}).values() for v in vals or []}
+            if (w in tags or w in hay or any(len(t) >= 2 and w.startswith(t) for t in tags) or any(s in tags for s in SYNONYMS.get(w, ()))
+                    or (len(w) >= 2 and any(_compact(t).startswith(_compact(w)) for t in tags if _facet_lookup_any("", t) != t))):
                 hit = True
                 break
         if not hit:
@@ -392,8 +562,8 @@ def tag(root: Path, eid: str, facets: dict[str, Sequence[str]], who: str = "") -
             if not v:
                 continue
             c = _facet_lookup(f, v)
-            if c is None:
-                outside.append(f"{f}:{v}")
+            if c is None and not read_query(v)["facets"]:
+                outside.append(f"{f}:{v}")      # 사전 조각도 없는 말만(「투사체공격」은 마법으로 읽히니 알리지 않는다)
             canon.append(c or v)
         if canon:
             cur[f] = list(dict.fromkeys(canon))
@@ -416,6 +586,50 @@ def get(root: Path, eid: str) -> dict[str, Any]:
         if e["id"] == eid:
             return e
     raise KeyError(f"창고에 {eid} 가 없다 — anim_library_find 로 id 를 받아라")
+
+
+def id_of_number(root: Path, no: int) -> str:
+    """고정 번호 → id(11-18). 번호 없는 옛 칸이 있으면 먼저 번호를 단다."""
+    ensure_numbers(root)
+    for e in entries(root, include_pending=True):
+        if e.get("no") == int(no):
+            return e["id"]
+    raise KeyError(f"창고에 {no}번이 없다 — anim_library_find(list=true) 로 번호를 봐라")
+
+
+def _group(e: dict[str, Any]) -> str:
+    """묶음(캐릭터): 넣을 때 준 캐릭터 이름 → 없으면 원본 .max 가 든 폴더 이름(애니 · backup 같은 칸 폴더는 한 칸 위로)."""
+    if str(e.get("character") or "").strip():
+        return str(e["character"]).strip()
+    src = str(e.get("source") or "")
+    if not src or src == "열린 맥스 장면":
+        return ""
+    skip = re.compile(r"^(animation|animations|anim|ani|motion|motions|max|애니|애니메이션|모션|backup|old)$", re.I)
+    for part in reversed(Path(src.replace("\\", "/")).parts[:-1]):
+        if part and not skip.match(part) and ":" not in part and part not in ("/", "\\"):   # 드라이브(D:/) · 뿌리는 묶음이 아니다
+            return part
+    return ""
+
+
+def listing(root: Path) -> dict[str, Any]:
+    """창고 목록 한 장(11-18): 고정 번호 · 이름 · 프레임 수 · 묶음 · 꼬리표 칸 · 상태. 빈 칸(바이페드 없음 · 아직 안 돈 것)도 따로 센다."""
+    ensure_numbers(root)
+    rows = []
+    counts = {"ready": 0, "no_biped": 0, "pending": 0, "model_files": 0}
+    for e in sorted(entries(root, include_pending=True), key=lambda x: (x.get("no") or 0, x["id"])):
+        state = "ready" if e.get("ready") else ("no_biped" if e.get("no_biped") else "pending")
+        counts[state] += 1
+        if e.get("ready") and e.get("kind") == "model":
+            counts["model_files"] += 1
+        facets = " · ".join(f"{f}:{'/'.join(v)}" for f, v in (e.get("facets") or {}).items() if v)
+        row: dict[str, Any] = {"no": e.get("no"), "name": e.get("name"), "frames": e.get("frames"), "group": _group(e),
+                               "facets": facets, "id": e["id"]}
+        if state != "ready":
+            row["state"] = {"no_biped": "바이페드 없음(빈 칸)", "pending": "빈 칸(.bip 아직 없음)"}[state]
+        elif e.get("kind") == "model":
+            row["state"] = "모델 파일(찾기에서 뺌)"
+        rows.append(row)
+    return {"rows": rows, "counts": counts, "folders": len(rows)}
 
 
 # ── 맥스 스크립트 ────────────────────────────────────────────────────────────
@@ -541,12 +755,17 @@ def add_folder_batch_script(jobs: Sequence[tuple[Path, Path]], biped: str = "", 
     """
     log = _q(log_path or (jobs[0][1].parent / "_batch_log.txt"))
     lines = ["-- 손자리 애니메이터 팩: .max 폴더를 모션 창고로(3dsmaxbatch 전용)", "(", _FIND_BIPED, _SAVE_ONE,
-             f'fn sjLog s = (dotNetClass "System.IO.File").AppendAllText {log} (s + "\\r\\n")']
+             f'fn sjLog s = (dotNetClass "System.IO.File").AppendAllText {log} (s + "\\r\\n")',
+             # ★ 11-18 현업 사용기: 바이페드 없는 .max 2개가 빈 칸(.bip · 사진 없음)으로 남아 창고 폴더 88 · 손자리 셈 86 이 어긋났다.
+             #   → 바이페드가 없으면 손자리가 미리 만든 빈 칸 폴더를 지우고 기록에 전체 경로를 남긴다(다음 넣기는 기록을 보고 건너뛴다).
+             #   지우기가 안 되면 칸에 표시 파일(nobiped.txt)을 남겨 찾기 · 셈에서 빈 칸으로 알린다.
+             'fn sjDropEmpty folder = (try ((dotNetClass "System.IO.Directory").Delete folder true) catch '
+             f'(try ((dotNetClass "System.IO.File").WriteAllText (folder + "\\\\{NOBIPED_MARK}") "nobiped") catch ()))']
     for src, folder in jobs:
         lines.append(f'sjLog ("start " + {_q(src.name)})')
         lines.append(
             f'try (loadMaxFile {_q(src)} quiet:true useFileUnits:true; local com = sjFindBiped "{biped}"; '
-            f'if com == undefined then sjLog ("nobiped " + {_q(src.name)}) '
+            f'if com == undefined then (sjLog ("nobiped " + {_q(src)}); sjDropEmpty {_q(folder)}) '
             f'else (sjSaveMotion com {_q(folder)} true; sjLog ("ok " + {_q(src.name)}))) '
             f'catch (sjLog ("error " + {_q(src.name)} + " " + (getCurrentException() as string)))'
         )
@@ -898,15 +1117,161 @@ fn sjBlend com bipB w SB EB = (
 '''
 
 
+# ── 메인 키포즈만 남기기(11-18 현업 사용기 요청 1) ───────────────────────────────────────
+# ★ 까닭: 입힌 동작은 프레임마다 키가 찍혀 와서 「첫 · 끝 키를 맞췄는데도 이어지는 포즈가 부자연스럽다 — 메인 키포즈만 남겨야 자연스럽다」.
+#   그날은 클로드가 맥스 스크립트로 손수 26프레임 중 0 · 4 · 6 · 13 · 18 · 23 · 26 만 남겼다(24줄 27키 → 7키).
+#   (a) 사람이 프레임 목록을 주면 그 자리만 남기고 나머지 키를 지운다(첫 · 끝은 늘 남긴다 — 첫끝 = 이 캐릭터 포즈).
+#   (b) 목록이 없으면 지우지 않는다. 맥스가 프레임별 움직임 양 표를 쓰고, 손자리가 「움직임이 멈추는」 프레임을 후보로 고른다 — 사람이 고른다.
+
+def keep_frames(keep: Sequence[Any], start: int | None = None, end: int | None = None) -> dict[str, Any]:
+    """남길 키 프레임 정리: 정수로 · 겹친 것 빼고 · 차례로. 구간을 알면 구간 밖은 빼서 알리고 첫 · 끝을 더한다."""
+    frames: list[int] = []
+    bad: list[str] = []
+    for v in keep or []:
+        try:
+            f = int(round(float(v)))
+        except (TypeError, ValueError):
+            bad.append(str(v))
+            continue
+        frames.append(f)
+    out_of_range: list[int] = []
+    added: list[int] = []
+    if start is not None and end is not None and end > start:
+        out_of_range = sorted({f for f in frames if f < start or f > end})
+        frames = [f for f in frames if start <= f <= end]
+        for f in (start, end):
+            if f not in frames:
+                frames.append(f)
+                added.append(f)
+    return {"keep": sorted(set(frames)), "out_of_range": out_of_range, "added_ends": added, "not_numbers": bad}
+
+
+def read_motion_amount(path: Path) -> list[tuple[int, float]]:
+    """맥스가 쓴 움직임 양 표(줄마다 「프레임 양」) → [(프레임, 양)]. 못 읽는 줄은 건너뛴다."""
+    rows: list[tuple[int, float]] = []
+    if not path.is_file():
+        return rows
+    raw = path.read_bytes()
+    for enc in ("utf-8-sig", "utf-16", "cp949"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        return rows
+    for line in text.splitlines():
+        parts_ = line.split()
+        if len(parts_) != 2:
+            continue
+        try:
+            rows.append((int(float(parts_[0])), float(parts_[1])))
+        except ValueError:
+            continue
+    rows.sort()
+    return rows
+
+
+def keypose_candidates(rows: Sequence[tuple[int, float]], *, below: float = 1.0) -> dict[str, Any]:
+    """움직임이 멈추는 프레임 후보: 첫 · 끝 + 앞뒤보다 움직임이 작은 프레임(골짜기) 중 중앙값 × below 이하.
+
+    멈춘 구간이 여러 프레임이면(같은 값이 이어지면) 그 구간의 처음과 끝이 후보다 — 애니메이터는 멈춤의 시작 · 끝을 다 키로 둔다.
+    고르기는 사람이 한다(자동으로 지우지 않는다). 값은 바이페드 키(높이)로 나눈 상대 양이다.
+    """
+    rows = sorted((int(f), float(a)) for f, a in rows)
+    if not rows:
+        return {"candidates": [], "threshold": None}
+    amounts = sorted(a for _f, a in rows)
+    mid = len(amounts) // 2
+    median = amounts[mid] if len(amounts) % 2 else (amounts[mid - 1] + amounts[mid]) / 2
+    thr = median * below
+    cands = {rows[0][0], rows[-1][0]}
+    for i in range(1, len(rows) - 1):
+        a = rows[i][1]
+        p, n = rows[i - 1][1], rows[i + 1][1]
+        if a <= p and a <= n and (a < p or a < n) and a <= thr:
+            cands.add(rows[i][0])
+    return {"candidates": sorted(cands), "threshold": round(thr, 5), "median": round(median, 5)}
+
+
+KEY_TRIM = r'''
+-- ★ 11-18 메인 키포즈만 남기기. 바이페드 키 자리는 sjKeyTimes 와 같은 꼴(c.keys[i].time)로 읽고, 지우기는 엇박자 쓰기(maxscript.py)처럼
+--   뒤에서부터 deleteKey. ★ 바이페드 하위 컨트롤러에서 deleteKey 가 먹는지는 실제 맥스로 확인 전 — 그래서 지운 뒤 키 수를 다시 세어 결과에 쓴다.
+fn sjBipCtrls com = (
+  local cs = #(com.controller.horizontal.controller, com.controller.vertical.controller, com.controller.turning.controller)
+  for n in (sjBones com) do append cs n.controller
+  cs
+)
+fn sjCountKeys cs = (
+  local k = 0
+  for c in cs where c != undefined do try (k += c.keys.count) catch ()
+  k
+)
+fn sjTrimKeys com keep S E = (
+  appendIfUnique keep S; appendIfUnique keep E
+  local cs = sjBipCtrls com
+  local before = sjCountKeys cs
+  local failed = 0
+  for c in cs where c != undefined do try (
+    for i = c.keys.count to 1 by -1 do (
+      local f = c.keys[i].time.frame as integer
+      if f >= S and f <= E and (findItem keep f) == 0 do deleteKey c i
+    )
+  ) catch (failed += 1)
+  local after = sjCountKeys cs
+  local empty = #()
+  for f in keep do (
+    local has = false
+    for c in cs where c != undefined and not has do try (for i = 1 to c.keys.count while not has do if (c.keys[i].time.frame as integer) == f do has = true) catch ()
+    if not has do append empty f
+  )
+  sort keep
+  "키포즈만 남김: " + (keep as string) + " · 키 " + (before as string) + " → " + (after as string) + \
+    (if empty.count > 0 then (" · 키가 없던 자리 " + (empty as string)) else "") + \
+    (if failed > 0 then (" · 못 지운 컨트롤러 " + (failed as string) + "개 — 맥스에서 확인") else "") + \
+    (if after >= before and before > keep.count then " · ★ 키 수가 안 줄었다 — 지우기가 안 먹은 것 같다(확인 필요)" else "")
+)
+fn sjMotionAmount com S E outPath = (
+  -- 프레임마다 손 · 발 · 머리 · COM 의 빠르기(앞뒤 프레임 사이 거리 ÷ 프레임 수)의 합 ÷ 바이페드 키(height).
+  -- 사람이 키포즈를 고를 표다(장면은 안 바뀐다 · 위치만 읽는다).
+  local tips = for o in objects where (classof o.controller == BipSlave_Control) and \
+      (matchPattern o.name pattern:"*Hand" or matchPattern o.name pattern:"*Foot" or matchPattern o.name pattern:"*Head") collect o
+  append tips com
+  local bh = try (com.controller.height) catch (0.0)
+  if bh < 0.001 do bh = 100.0
+  local ss = stringStream ""
+  for f = S to E do (
+    local a = amax S (f - 1)
+    local b = amin E (f + 1)
+    local d = 0.0
+    if b > a do for t in tips do d += (distance (at time a t.transform.pos) (at time b t.transform.pos)) / (b - a)
+    format "% %\n" f (d / bh) to:ss
+  )
+  (dotNetClass "System.IO.File").WriteAllText outPath (ss as string)
+  "움직임 양 표: " + ((E - S + 1) as string) + "프레임"
+)
+'''
+
+
 def apply_script(bip: Path, biped: str = "", label: str = "", frames: tuple[int, int] | None = None,
                  *, match_height: bool = True, stride: float = 1.0, arm_spread: float = 0.0,
                  blend_bip: Path | None = None, blend: float = 0.0,
-                 blend_frames: tuple[int, int] | None = None, bookend: bool = True, foot_lock: bool = True) -> str:
+                 blend_frames: tuple[int, int] | None = None, bookend: bool = True, foot_lock: bool = True,
+                 keep_keys: Sequence[int] | None = None, amount_path: Path | None = None, raw: bool = False,
+                 backup: Path | None = None) -> str:
     """지금 장면의 바이페드에 .bip 를 입힌다. 입히기 전에 holdMaxFile — 맘에 안 들면 편집 › 가져오기(Fetch)로 되돌린다.
 
     11-03 시험: loadBipFile 은 시간 구간을 바꾸지 않는다(78프레임 공격을 120프레임 대기 장면에 입히니 0~120 그대로) →
     창고에 적힌 구간으로 맞춘다. 그리고 키가 정말 바뀌었는지 손 · 발 위치를 입히기 전후로 대 본 결과를 같이 돌려준다.
+
+    11-19 raw: 현업 원칙 「원본 .bip 를 그대로 입힌다 — 무게중심 맞춤 · 첫끝 덮기가 발을 틀어지게 했다」(lab 11-12 · 11-19 시험).
+    raw=True 면 무게중심 맞춤 · 첫끝 덮기 · 발 고정 · 체형 보정을 모두 건너뛴다(키 높이 맞춤 #retargetHeight 만 남김).
+
+    11-18: keep_keys(프레임 목록)를 주면 다 입힌 뒤(첫끝 · 발 고정까지) 그 자리 키만 남긴다. amount_path 를 주면 지우기 전에
+    프레임별 움직임 양 표를 쓴다(키포즈 후보 고르기용 — keypose_candidates).
     """
+    if raw:
+        bookend, foot_lock, stride, arm_spread, blend_bip = False, False, 1.0, 0.0, None
     rng = (f'  animationRange = interval {int(frames[0])} {int(frames[1])}\n' if frames and frames[1] > frames[0] else "")
     stride = max(0.1, min(float(stride or 1.0), 2.0))
     arm_spread = max(0.0, min(float(arm_spread or 0.0), 60.0))
@@ -933,8 +1298,17 @@ def apply_script(bip: Path, biped: str = "", label: str = "", frames: tuple[int,
                 '(animationRange.end.frame as integer))\n')
     if foot_lock:
         fit += f'  fitNote = fitNote + " · " + (sjFootLock com footSpans footP0 {stride:.3f})\n'
+    rng_s, rng_e = "(animationRange.start.frame as integer)", "(animationRange.end.frame as integer)"
+    if amount_path is not None:
+        # 표는 키를 지우기 전 — 입힌 그대로의 움직임에서 고르게
+        fit += f'  fitNote = fitNote + " · " + (sjMotionAmount com {rng_s} {rng_e} {_q(amount_path)})\n'
+    trimming = keep_keys is not None and len(keep_keys) > 0
+    if trimming:
+        arr = "#(" + ", ".join(str(int(f)) for f in sorted(set(int(f) for f in keep_keys))) + ")"
+        fit += f'  fitNote = fitNote + " · " + (sjTrimKeys com {arr} {rng_s} {rng_e})\n'
     return (
         "-- 손자리 애니메이터 팩: 창고 동작 입히기(입히기 전 장면을 보관(Hold)한다)\n(\n" + _FIND_BIPED + COM_MATCH + BODY_FIT + (FOOT_LOCK if foot_lock else "") + POSE_FN + (BLEND if blending else "") +
+        (KEY_TRIM if (trimming or amount_path is not None) else "") +
         r'''fn sjProbe = (
   local pts = #()
   for o in objects where (classof o.controller == BipSlave_Control) and (matchPattern o.name pattern:"*Hand" or matchPattern o.name pattern:"*Foot") do (
@@ -952,9 +1326,13 @@ def apply_script(bip: Path, biped: str = "", label: str = "", frames: tuple[int,
         f'  local keepPos = at time S0 com.transform.pos\n'
         f'  local keepFoot = sjFootZ com S0\n'
         f'  local cap = at time S0 (sjCapture com)\n'
+        + (f'  local bkPath = "{str(backup).replace(chr(92), "/").replace(chr(34), "")}"\n'
+         f'  local bkNote = if (try (saveMaxFile bkPath useNewFile:false quiet:true) catch (false)) == false then "복사본 저장 실패" else ("복사본: " + bkPath)\n'
+         if backup is not None else f'  local bkNote = "복사본 없음"\n') +
         f'  holdMaxFile()\n'
         f'  biped.loadBipFile com.controller {_q(bip)}{load_opts}\n' + rng +
-        f'  local comNote = sjComMatch com (animationRange.start.frame as integer) keepPos keepFoot\n' + fit +
+        (f'  local comNote = "원본 그대로(무게중심 맞춤 · 첫끝 덮기 · 발 고정 안 함)"\n' if raw else
+         f'  local comNote = sjComMatch com (animationRange.start.frame as integer) keepPos keepFoot\n') + fit +
         f'  local after = sjProbe()\n'
         f'  local moved = 0.0\n'
         f'  for i = 1 to (amin before.count after.count) do moved = amax moved (distance before[i] after[i])\n'
@@ -963,5 +1341,5 @@ def apply_script(bip: Path, biped: str = "", label: str = "", frames: tuple[int,
         f'  local verdict = if moved > (0.01 * h) then "키 바뀜" else "키가 안 바뀐 것 같다 — 확인 필요"\n'
         f'  "sonjari: applied {label} → " + com.name + " (" + (animationRange.start.frame as integer) as string + "~" + '
         f'(animationRange.end.frame as integer) as string + ") · " + verdict + " · " + comNote + " · " + fitNote + '
-        f'" · 되돌리기: 편집 › 가져오기(Fetch)"\n)\n)\n'
+        f'" · " + bkNote + " · 되돌리기: 편집 › 가져오기(Fetch)"\n)\n)\n'
     )

@@ -33,11 +33,14 @@ ANIMATOR_TOOL_NAMES = frozenset({
     "anim_offset_read", "anim_offset_plan",
     "anim_library_add", "anim_library_find", "anim_library_tag", "anim_library_apply", "anim_habit",
     "anim_parts", "anim_pose_sheet", "anim_video_to_biped", "anim_fit_check", "anim_fit_fix",
-    "anim_blender_check", "anim_blender_fix", "anim_blender_block",
+    "anim_blender_check", "anim_blender_fix", "anim_blender_block", "anim_blender_setup",
+    "anim_balance_check", "anim_key_align",
 })
 
 #: anim_library_tag 의 영문 칸 → 창고의 한글 꼬리표 칸(library.FACETS). 칸 이름 규칙은 specs.LIBRARY_TAG 주석.
 FACET_ARGS: dict[str, str] = {"weapon": "무기", "concept": "컨셉", "weight": "무게감", "speed": "속도감"}
+#: 입힐 때 맥스가 쓰는 프레임별 움직임 양 표(창고 칸 폴더 안) — 키포즈 후보 고르기(11-18)
+KEYPOSE_TABLE = "keypose_amount.txt"
 
 _TRACK_DESC = "다룰 트랙(기본 전부): rx ry rz(회전) px py pz(위치)"
 
@@ -121,7 +124,8 @@ class AnimatorTools:
                  (specs.POSE_SHEET, self.pose_sheet), (specs.VIDEO_TO_BIPED, self.video_to_biped),
                  (specs.FIT_CHECK, self.fit_check), (specs.FIT_FIX, self.fit_fix),
                  (specs.BLENDER_CHECK, self.blender_check), (specs.BLENDER_FIX, self.blender_fix),
-                 (specs.BLENDER_BLOCK, self.blender_block))
+                 (specs.BLENDER_BLOCK, self.blender_block), (specs.BLENDER_SETUP, self.blender_setup),
+                 (specs.BALANCE_CHECK, self.balance_check), (specs.KEY_ALIGN, self.key_align))
         for tool, handler in pairs:
             spec = tool["function"]
             gateway.register(ToolSpec(
@@ -136,7 +140,7 @@ class AnimatorTools:
 
     def _check(self) -> None:
         if not self.enabled():
-            raise PermissionError("pack_disabled: 애니메이터 팩이 꺼져 있다 — 설정 › 팩에서 「애니메이터 팩」을 켜야 쓸 수 있다고 사람에게 말해라.")
+            raise PermissionError("pack_disabled: 애니메이터 팩이 꺼져 있다 — sonjari_pack_request(pack=\"animator\", why=…) 로 사용자에게 켜 달라고 청해라(사람이 손자리 카드에서 권한을 보고 누른다 · 설정 › 팩에서 직접 켤 수도 있다). 대신 켜지 마라.")
 
     @staticmethod
     def _tracks(arguments: dict[str, Any]) -> list[str]:
@@ -306,11 +310,19 @@ class AnimatorTools:
                 done.add(src)
             elif src:
                 pending.setdefault(src, library.lib_dir(self.root) / e["id"])
+        # ★ 11-18: 바이페드 없는 .max 는 지난 일괄 기록(nobiped)을 보고 건너뛴다 — 다시 넣어도 같은 빈 칸이 생기던 것.
+        #   그 파일에 바이페드를 넣었으면 include_nobiped=true 로 다시 넣는다.
+        logged = library.nobiped_logged(self.root)
+        nob = [] if arguments.get("include_nobiped") else [
+            f for f in files if str(f) not in done and (str(f) in logged[0] or f.name in logged[1])]
         already = [f for f in files if str(f) in done]
-        todo = [f for f in files if str(f) not in done]
+        todo = [f for f in files if str(f) not in done and f not in nob]
+        nob_note = ({"no_biped": f"바이페드 없음 {len(nob)}개({', '.join(f.name for f in nob[:10])}{' …' if len(nob) > 10 else ''}) — "
+                                 "지난 일괄 기록에 바이페드가 없다고 나와 건너뛰었다(빈 칸을 만들지 않는다). 사람에게 그대로 말해라."}
+                    if nob else {})
         if not todo:
-            return {"ok": True, "files": 0, "already_in_library": len(already), "skipped_backup": skipped_old,
-                    "next": "이 폴더의 .max 는 이미 전부 창고에 있다. anim_library_find 로 찾아라."}
+            return {"ok": True, "files": 0, "already_in_library": len(already), "skipped_backup": skipped_old, **nob_note,
+                    "next": "이 폴더의 .max 는 이미 전부 창고에 있다(바이페드 없는 파일은 뺐다). anim_library_find 로 찾아라."}
         jobs = [(f, pending.get(str(f)) or library.new_entry(self.root, name=f.stem, source=str(f), **common)["folder"]) for f in todo]
         stamp = time.strftime('%Y%m%d_%H%M%S')
         base = library.lib_dir(self.root)
@@ -328,22 +340,65 @@ class AnimatorTools:
             f'echo [{i}/{len(scripts)}] {ms.name}\r\n"{exe or "3dsmaxbatch.exe"}" "{ms}"\r\n' for i, ms in enumerate(scripts, start=1)),
             encoding="utf-8")
         return {"ok": True, "files": len(todo), "already_in_library": len(already), "skipped_backup": skipped_old,
-                "chunks": len(scripts), "script": str(runner), "max_found": bool(exe), "log": str(log),
+                "chunks": len(scripts), "script": str(runner), "max_found": bool(exe), "log": str(log), **nob_note,
                 "batch_command": f'"{runner}"',
                 "next": (f"이 명령을 사람에게 보여 줘라. 열린 맥스와 따로 도는 맥스가 .max {len(todo)}개를 {size}개씩 {len(scripts)}번에 나눠 "
                          f"(조각마다 새 맥스) 창고에 넣는다(파일 하나에 수십 초). 중간에 멈춰도 같은 폴더로 다시 부르면 남은 것만 한다. "
-                         f"파일마다 결과는 {log} — 「start」 다음 줄이 없는 파일에서 맥스가 죽은 것이다.")}
+                         f"파일마다 결과는 {log} — 「start」 다음 줄이 없는 파일에서 맥스가 죽은 것이다. "
+                         "바이페드가 없는 .max 는 빈 칸을 남기지 않고 지운 뒤 기록에 「nobiped」로 남는다 — 다 돈 뒤 anim_library_find 의 "
+                         "empty_slots · 다음 넣기의 no_biped 로 몇 개인지 사람에게 말해라.")}
+
+    def _empty_slots(self) -> dict[str, Any] | None:
+        """빈 칸(바이페드 없는 .max · 아직 안 돈 것) — 창고 폴더 수와 찾기 셈이 어긋나는 까닭을 같이 말한다(11-18)."""
+        every = library.entries(self.root, include_pending=True)
+        empty = [e for e in every if not e.get("ready")]
+
+        def _name(src: str) -> str:
+            return Path(src.replace("\\", "/")).name
+
+        ready_src = {str(e.get("source") or "") for e in every if e.get("ready")}
+        ready_names = {_name(s) for s in ready_src if s}
+        # 바이페드 없음: 표시 파일이 남은 빈 칸 + 일괄 기록의 nobiped(맥스가 빈 칸을 지운 것 · 그 뒤 창고에 들어가지 않은 것만)
+        nob = {_name(str(e.get("source") or e["name"])) for e in empty if e.get("no_biped")}
+        paths, names = library.nobiped_logged(self.root)
+        nob |= {_name(p) for p in paths if p not in ready_src} | {n for n in names if n not in ready_names}
+        pend = [e for e in empty if not e.get("no_biped")]
+        if not nob and not pend:
+            return None
+        out: dict[str, Any] = {"empty_folders": len(empty)}
+        if nob:
+            s = sorted(nob)
+            out["no_biped"] = f"바이페드 없음 {len(s)}개({', '.join(s[:10])}{' …' if len(s) > 10 else ''}) — 창고에 넣지 않았다"
+        if pend:
+            out["pending"] = f"아직 .bip 가 없는 칸 {len(pend)}개(맥스 일괄이 안 돌았거나 그 파일에서 죽음)"
+        out["note"] = "빈 칸은 찾기 · 셈에 넣지 않는다 — 창고 폴더 수와 library_size 가 다르면 empty_folders 때문이다. 사람에게 그대로 말해라."
+        return out
 
     def library_find(self, arguments: dict[str, Any]) -> dict[str, Any]:
         self._check()
-        k = max(1, min(20, int(arguments.get("k") or 5)))
+        if arguments.get("list"):
+            # 창고 목록 한 장(11-18): 번호(고정) · 이름 · 프레임 수 · 묶음 · 꼬리표 칸 — 사진 · 맞은 낱말 없이 가볍게
+            lst = library.listing(self.root)
+            return {"ok": True, **lst,
+                    "next": "rows 를 표 한 장으로 사람에게 보여라(번호 · 이름 · 프레임 · 묶음 · 꼬리표). 번호는 고정이다(넣은 순서로 안 바뀐다) — "
+                            "「12번 · 15번은 한손검」이라고 하면 anim_library_tag(nos=[12, 15], weapon=[…]) 로 단다. "
+                            "state 가 있는 줄은 빈 칸이다(찾기에 안 나온다)."}
+        # 개수: 클로드는 limit 으로 보낸다(11-18 현업 사용기 — limit 20 을 줘도 k 만 읽어 5개였다). 상한 20 그대로.
+        raw_k = arguments.get("limit") if arguments.get("limit") is not None else arguments.get("k")
+        try:
+            k = max(1, min(20, int(raw_k or 5)))
+        except (TypeError, ValueError):
+            k = 5
         found = library.find(self.root, str(arguments.get("query") or ""), k=k,
                              character=str(arguments.get("character") or ""), origin=str(arguments.get("origin") or ""))
         every = library.entries(self.root)
         total = len(every)
         models = sum(1 for e in every if e.get("kind") == "model")
         result: dict[str, Any] = {"ok": True, "library_size": total, "motions": total - models,
-                                  "model_files": models, "found": [self._brief(e) for e in found]}
+                                  "model_files": models, "limit": k, "found": [self._brief(e) for e in found]}
+        empty = self._empty_slots()
+        if empty:
+            result["empty_slots"] = empty
         if not total:
             result["note"] = "창고가 비어 있다 — anim_library_add 로 먼저 넣어라(회사 .max 폴더 · 퀵매직 .bip · 지금 장면)."
         elif not found:
@@ -353,6 +408,11 @@ class AnimatorTools:
             rep = library.query_report(self.root, query)
             if rep["read"] or not found or rep["missing_facets"]:
                 result["query_report"] = rep
+            weapon_missing = [m for m in rep["missing_facets"] if m.startswith(library._HARD_FACET + ":")]
+            if weapon_missing and not found:
+                # 11-18: 무기가 창고에 없으면 다른 칸만 맞은 동작을 내밀지 않는다 — 「없음」을 먼저
+                result["none_because"] = (f"찾는 무기({', '.join(m.split(':', 1)[1] for m in weapon_missing)})가 붙은 동작이 창고에 없다. "
+                                          "다른 칸(컨셉 · 속도감 …)만 맞는 동작은 일부러 내놓지 않았다.")
             if rep["missing_facets"] or (not found and rep["unknown_words"]):
                 # 11-13: 아무 공격 5개를 채우지 않는다 — 무엇이 창고에 없는지 그대로 말하게
                 result["note"] = (("맞는 것이 없다 — " if not found else "") + "찾는 말에서 읽은 꼬리표 중 창고에 하나도 안 붙은 것: " + (", ".join(rep["missing_facets"]) or "없음")
@@ -375,7 +435,21 @@ class AnimatorTools:
         if not facets:
             raise ValueError("달 꼬리표가 없다 — weapon(무기) · concept(컨셉) · weight(무게감) · speed(속도감) 중 하나 이상을 "
                              "목록으로 줘라(빈 목록이면 그 칸을 지운다)")
-        out = library.tag(self.root, str(arguments.get("id") or ""), facets, who=str(arguments.get("by") or ""))
+        who = str(arguments.get("by") or "")
+        # 번호로 달기(11-18): 목록(anim_library_find list=true)의 고정 번호 하나(no) 또는 여럿(nos) — 묶음 단위로 한 번에
+        nos: list[int] = []
+        for v in ([arguments["no"]] if arguments.get("no") is not None else []) + list(arguments.get("nos") or []):
+            try:
+                nos.append(int(v))
+            except (TypeError, ValueError):
+                raise ValueError(f"번호는 정수로 — 받은 것: {v!r}") from None
+        if nos:
+            if arguments.get("id"):
+                raise ValueError("id 와 번호(no · nos)를 같이 주지 마라 — 하나만")
+            ids = {n: library.id_of_number(self.root, n) for n in dict.fromkeys(nos)}   # 없는 번호가 하나라도 있으면 아무것도 안 단다
+            done = [library.tag(self.root, eid, facets, who=who) | {"no": n} for n, eid in ids.items()]
+            return {"ok": True, "status": "시험 중", "tagged": done, "count": len(done)}
+        out = library.tag(self.root, str(arguments.get("id") or ""), facets, who=who)
         return {"ok": True, "status": "시험 중", **out}
 
     def habit(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -402,6 +476,31 @@ class AnimatorTools:
         if not e.get("ready"):
             raise FileNotFoundError("이 칸은 아직 .bip 가 없다(맥스 스크립트가 안 돌았거나 실패) — 넣기를 다시 해라")
         bip = Path(e["bip"])
+        amount = bip.parent / KEYPOSE_TABLE
+        if arguments.get("keypose_check"):
+            # 키포즈 후보(11-18): 지난 입히기에서 맥스가 쓴 움직임 양 표로 「움직임이 멈추는」 프레임을 고른다 — 지우지 않는다
+            rows = library.read_motion_amount(amount)
+            if not rows:
+                raise FileNotFoundError("움직임 양 표가 없다 — 이 동작을 keep_keys 없이 입힌 run_line 이 맥스에서 돌았는지 확인해라")
+            got = library.keypose_candidates(rows)
+            return {"ok": True, "status": "시험 중", "id": e["id"], **got,
+                    "table": [[f, round(a, 4)] for f, a in rows],
+                    "next": "candidates 를 사람에게 보이고(표의 숫자 = 프레임마다 움직임 양 · 작을수록 멈춤) 남길 키포즈를 사람이 고르게 해라. "
+                            "고른 목록으로 맥스 편집 › 가져오기(Fetch)로 되돌린 뒤 anim_library_apply(id, keep_keys=[…]) 로 다시 입힌다. "
+                            "후보는 짐작이다 — 타격 순간처럼 빠른데도 키포즈인 자리는 사람이 더한다."}
+        keep = None
+        keep_info: dict[str, Any] | None = None
+        if arguments.get("keep_keys"):
+            if not isinstance(arguments["keep_keys"], list):
+                raise ValueError("keep_keys 는 프레임 번호 목록으로(예: [0, 4, 6, 13])")
+            keep_info = library.keep_frames(arguments["keep_keys"], e.get("start"), e.get("end"))
+            if keep_info["not_numbers"]:
+                raise ValueError(f"keep_keys 에 숫자가 아닌 것: {keep_info['not_numbers']}")
+            keep = keep_info["keep"]
+            if not set(keep) - set(keep_info["added_ends"]):
+                # 사람이 고른 자리가 구간 안에 하나도 없다 — 첫끝만 남기고 다 지우지 않는다(프레임 번호를 잘못 읽었을 가능성)
+                raise ValueError(f"남길 프레임이 구간 안에 하나도 없다(구간 밖: {keep_info['out_of_range']})")
+        amount.unlink(missing_ok=True)       # 지난 표를 이번 것으로 잘못 읽지 않게
         other = None
         blend = 0.0
         pf = library.prefs(self.root)
@@ -430,10 +529,25 @@ class AnimatorTools:
                                                    blend_bip=Path(other["bip"]) if other else None, blend=blend,
                                                    blend_frames=(other["start"], other["end"]) if other and "start" in other and "end" in other else None,
                                                    bookend=bookend,
-                                                   foot_lock=arguments.get("foot_lock", True) is not False))
+                                                   foot_lock=arguments.get("foot_lock", True) is not False,
+                                                   keep_keys=keep, amount_path=None if keep else amount,
+                                                   raw=arguments.get("raw") is True,
+                                                   backup=self.root / "backups" / f"before_apply_{time.strftime('%Y%m%d_%H%M%S')}.max"))
         result = {"ok": True, "motion": self._brief(e), "run_line": run_line(script),
+                  "raw": arguments.get("raw") is True,
                   "next": "무엇을 어느 캐릭터에 입히는지 사람에게 말하고 「해」를 받은 뒤에만 run_line 을 보내라. "
                           "되돌리기는 맥스 편집 › 가져오기(Fetch)."}
+        if keep_info is not None:
+            result["keyposes"] = {**keep_info, "status": "시험 중",
+                                  "note": "다 입힌 뒤(첫끝 · 발 고정까지) 이 프레임의 키만 남기고 나머지 키를 지운다 — 첫 · 끝은 늘 남긴다. "
+                                          "돌아온 줄의 「키 a → b」와 「키가 없던 자리」를 사람에게 그대로 전해라. "
+                                          "★ 바이페드 키 지우기는 실제 맥스 확인 전 — 「키 수가 안 줄었다」가 오면 지우기가 안 먹은 것이다."}
+            if keep_info["out_of_range"] or keep_info["added_ends"]:
+                result["keyposes"]["say"] = (f"구간 밖이라 뺀 프레임 {keep_info['out_of_range']} · 첫끝이라 더한 프레임 {keep_info['added_ends']}"
+                                             " — 사람에게 말해라.")
+        else:
+            result["keypose_hint"] = ("이 입히기는 프레임마다 키가 찍힌 채로 온다. 메인 키포즈만 남기려면: 입힌 뒤 anim_library_apply(id, keypose_check=true) "
+                                      "로 「움직임이 멈추는」 후보 프레임을 받아 사람이 고르게 하고, 고른 목록으로 keep_keys=[…] 를 줘 다시 입힌다.")
         if not pf["confirmed"]:
             # 콜드 스타트: 기준점(첫 현업 애니메이터)으로 돌렸다 — 이 사람 습관은 창고 숫자를 들고 짧게 확인받는다
             ls = library.loop_share(self.root)
@@ -463,6 +577,12 @@ class AnimatorTools:
         return result
 
     # ── 관절 부품 · 포즈 시트 · 영상 → 바이페드(v1 · 11-03) ─────────────
+    def blender_setup(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        self._check()
+        from .blender_host import install as blender_install
+
+        return blender_install.tool(arguments)
+
     def parts(self, arguments: dict[str, Any]) -> dict[str, Any]:
         self._check()
         if str(arguments.get("action") or "status") == "install":
@@ -579,6 +699,45 @@ class AnimatorTools:
         script = write_script(folder / "read.ms", text)
         return {"ok": True, "status": "시험 중", "run_line": run_line(script), "read_file": str(dump),
                 "next": "run_line 을 execute_maxscript 로 보내라(장면은 안 바뀐다). 「손자리 점검 읽기: …」 줄이 오면 check=true 로 다시 불러라."}
+
+    def balance_check(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """입힌 뒤 균형 점검(11-19 · lab v6 그대로 · 읽기 전용)."""
+        from .animator import balance
+
+        self._check()
+        start, end = arguments.get("start"), arguments.get("end")
+        th = arguments.get("thresholds") or {}
+        if not isinstance(th, dict):
+            raise ValueError("thresholds 는 {이름: 숫자} 꼴이어야 한다")
+        text = balance.check_script(str(arguments.get("biped") or "Bip001"),
+                                    int(start) if start is not None else None, int(end) if end is not None else None,
+                                    {str(k): float(v) for k, v in th.items()})
+        script = write_script(self.root / "balance" / f"check_{time.strftime('%Y%m%d_%H%M%S')}.ms", text)
+        return {"ok": True, "status": "시험 중", "run_line": run_line(script), "changes_scene": False,
+                "thresholds_used": {k: (th.get(k, v[0])) for k, v in balance.THRESHOLDS.items()},
+                "next": "run_line 을 execute_maxscript 로 보내라(장면은 안 바뀐다). 돌아온 점검표 글을 사람에게 그대로 보이고 "
+                        "「어디를 볼지 짚어 주는 표 · 기준 숫자는 임시값 · 문제인지는 재생해서 사람이 정한다」고 말해라."}
+
+    def key_align(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """보정 A 키 정렬(11-19 · lab v1 + 복사본 저장 · 매 프레임 키 경고)."""
+        from .animator import balance
+
+        self._check()
+        apply = arguments.get("apply") is True
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        folder = self.root / "balance"
+        backup = folder / f"before_key_align_{stamp}.max" if apply else None
+        script = write_script(folder / f"key_align_{'apply' if apply else 'plan'}_{stamp}.ms",
+                              balance.align_script(str(arguments.get("biped") or "Bip001"), apply, backup))
+        out = {"ok": True, "status": "시험 중", "apply": apply, "run_line": run_line(script), "changes_scene": apply}
+        if apply:
+            out["backup"] = str(backup)
+            out["next"] = ("사람이 「해」라고 했을 때만 run_line 을 보내라. 돌아온 키 시간 · 「자세 변화 최대 ○°」 · 복사본 경로를 그대로 전하고, "
+                           "「★ 경고」가 있으면 멈추고 편집 › 가져오기(Fetch)를 권해라. 그다음 anim_balance_check 로 다시 점검해 전후를 보여라.")
+        else:
+            out["next"] = ("run_line 을 보내면 빠진 키 목록(제안)만 온다 — 장면은 안 바뀐다. 「몇 개를 어느 프레임에 그 값 그대로 찍는다 · 기존 키는 안 지움」을 "
+                           "사람에게 말하고 「해」를 받으면 apply=true 로 다시 불러라.")
+        return out
 
     def _fit_dump(self) -> Path:
         base = self.root / "fitcheck"

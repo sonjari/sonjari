@@ -1,0 +1,62 @@
+/* 3D 무대 (2026-11-14) — tokens.css 의 기계 쪽 찬 흑연 · 뜻만 있는 색 · 그림자 깊이. 테두리로 칸을 나누지 않는다. */
+.g3-stage { display: flex; flex-direction: column; gap: 10px; width: 100%; height: 100%; min-height: 360px; }
+.g3-wheel { position: relative; flex: 1; min-height: 320px; background: rgb(var(--machine-2)); border-radius: var(--r-3); box-shadow: var(--lift-2); overflow: hidden; }
+.g3-viewer { position: absolute; inset: 0 0 46px 0; width: 100%; height: auto; background: transparent; --poster-color: transparent; }
+.g3-plate { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); max-width: 46%; max-height: 62%; object-fit: contain; border-radius: var(--r-2); }
+.g3-plate.empty { width: 30%; aspect-ratio: 1; background: rgb(var(--machine-3)); }
+/* 그림을 읽는 동안 — 아주 느리게 숨쉰다(빛 줄기 · 반짝이 같은 꾸밈은 넣지 않는다). */
+.g3-plate.reading { animation: g3-breathe 3.2s var(--ease-out, ease) infinite; }
+@keyframes g3-breathe { 50% { opacity: .55; } }
+.g3-status { position: absolute; left: 16px; top: 14px; z-index: 2; display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: var(--fs-2); color: rgb(var(--m-text-2)); }
+.g3-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.g3-dot.work { background: rgb(var(--brand)); animation: g3-breathe 2.4s ease infinite; }
+.g3-dot.done { background: rgb(var(--ok)); }
+.g3-dot.fail { background: rgb(var(--stop)); }
+.g3-src { position: absolute; left: 16px; top: 44px; z-index: 2; width: 64px; border-radius: var(--r-1); }
+.g3-ring { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); width: 56%; overflow: visible; pointer-events: none; }
+.g3-ring path { pointer-events: stroke; }
+.g3-seg { fill: none; stroke: rgb(var(--machine-line-strong)); stroke-width: 2.5; stroke-linecap: round; }
+.g3-seg.done { stroke: rgb(var(--ok)); }
+.g3-seg.now { stroke: rgb(var(--brand)); }
+.g3-seg.fail { stroke: rgb(var(--stop)); }
+.g3-tools { position: absolute; right: 12px; top: 12px; z-index: 2; display: flex; gap: 2px; background: rgb(var(--machine-3)); border-radius: var(--r-1); padding: 2px; }
+.g3-tb { position: relative; display: grid; place-items: center; width: 30px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: rgb(var(--m-text-3)); cursor: pointer; }
+.g3-tb[aria-pressed="true"] { background: rgb(var(--machine-line-strong)); color: rgb(var(--m-text-1)); }
+.g3-tb:hover { color: rgb(var(--m-text-1)); }
+.g3-tb:focus-visible { outline: 2px solid rgb(var(--brand-bright)); outline-offset: 1px; }
+.g3-tb.big { width: 36px; height: 34px; background: rgb(var(--machine-3)); color: rgb(var(--m-text-2)); }
+.g3-tb[data-tip]:hover::after, .g3-tb[data-tip]:focus-visible::after {
+  content: attr(data-tip); position: absolute; right: 0; bottom: calc(100% + 6px); white-space: nowrap; z-index: 3;
+  font: var(--fs-1) var(--font-ui); color: rgb(var(--m-text-1)); background: rgb(var(--machine-3)); padding: 4px 8px; border-radius: 6px; box-shadow: var(--lift-2);
+}
+.g3-tools .g3-tb[data-tip]:hover::after, .g3-tools .g3-tb[data-tip]:focus-visible::after { bottom: auto; top: calc(100% + 6px); }
+.g3-facts { position: absolute; left: 16px; bottom: 14px; z-index: 2; display: flex; gap: 14px; font-family: var(--font-mono); font-size: var(--fs-2); color: rgb(var(--m-text-2)); }
+.g3-facts span { display: inline-flex; align-items: center; gap: 5px; }
+.g3-facts .ok { color: rgb(var(--ok-bright, var(--ok))); }
+.g3-acts { position: absolute; right: 12px; bottom: 12px; z-index: 2; display: flex; gap: 6px; }
+.g3-takes { display: flex; gap: 8px; }
+.g3-take { position: relative; width: 52px; height: 52px; padding: 0; border: 0; border-radius: var(--r-1); background: rgb(var(--machine-2)); cursor: pointer; overflow: hidden; }
+.g3-take img { width: 100%; height: 100%; object-fit: contain; }
+.g3-take b { position: absolute; right: 3px; bottom: 2px; display: inline-flex; align-items: center; gap: 2px; font: 600 10px var(--font-mono); color: rgb(var(--m-text-1)); text-shadow: 0 1px 2px #000; }
+.g3-take.on { box-shadow: inset 0 0 0 2px rgb(var(--ok)); }
+.g3-take.wait { opacity: .5; }
+.g3-take:focus-visible { outline: 2px solid rgb(var(--brand-bright)); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .g3-dot.work, .g3-plate.reading { animation: none; } }
+/* 모델 갈아타기(11-14 대표 「글로만 하지 말고 스르륵」) — 내리는 칸은 아래로 빠지고, 올리는 칸은 아래에서 올라온다. */
+.g3-swap { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); width: min(380px, 70%); display: flex; flex-direction: column; gap: 10px; }
+.g3-chip { display: grid; grid-template-columns: 16px auto 1fr auto; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-2); background: rgb(var(--machine-3)); box-shadow: var(--lift-2); color: rgb(var(--m-text-2)); font-size: var(--fs-2);
+  transition: transform .7s cubic-bezier(.22,1,.36,1), opacity .7s cubic-bezier(.22,1,.36,1); }
+.g3-chip b { font-weight: var(--fw-mid, 500); color: rgb(var(--m-text-1)); white-space: nowrap; }
+.g3-chip em { font-style: normal; font-family: var(--font-mono); font-size: var(--fs-1); color: rgb(var(--m-text-3)); min-width: 64px; text-align: right; }
+.g3-chip-bar { position: relative; height: 3px; border-radius: 2px; background: rgb(var(--machine-line-strong)); overflow: hidden; }
+.g3-chip-bar i { position: absolute; left: 0; top: 0; bottom: 0; transition: width .8s cubic-bezier(.22,1,.36,1); }
+.g3-chip.from .g3-chip-bar i { background: rgb(var(--m-text-3)); }
+.g3-chip.to .g3-chip-bar i { background: rgb(var(--brand)); }
+.g3-chip-bar.is-waiting i { width: 30% !important; animation: g3-shuttle 1.6s ease-in-out infinite alternate; }
+@keyframes g3-shuttle { from { left: 0; } to { left: 70%; } }
+.g3-chip.from.gone { transform: translateY(18px); opacity: 0; }
+.g3-chip.to.waiting { transform: translateY(14px); opacity: .35; }
+.g3-chip.to.here { transform: none; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .g3-chip, .g3-chip-bar i { transition: none; } .g3-chip-bar.is-waiting i { animation: none; } }
+/* 3D 를 굽는 동안 입력창 잠금(11-14 대표 「살짝 흐려지게 · 다른 짓 못하게」) — 글 줄 없이 흐리게만(대표 「살짝 흐려지게」). 까닭은 마우스를 올리면. */
+.gpu-hold .workspace-composer { opacity: .5; filter: saturate(.5); transition: opacity .4s ease, filter .4s ease; pointer-events: none; }

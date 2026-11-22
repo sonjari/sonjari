@@ -55,7 +55,7 @@ from .outbound import clean_needs
 #: 이 연결 프로그램이 **뜰 때** 읽은 코드의 판. 본체가 업데이트돼도 이 값은 그대로라, 본체 판과 다르면 클로드가 옛 판을 쓰는 중이다.
 MCP_BUILD = build_id()
 from .delegation import (
-    CANCEL_TOOL, CLAUDE_CODE_MAX_WAIT_SEC, DELEGATION_TOOLS, GUIDE_TOOL, MAX_WAIT_SEC, STATUS_TOOL, STORY_TOOL, TASK_TOOL,
+    CANCEL_TOOL, CLAUDE_CODE_MAX_WAIT_SEC, DELEGATION_TOOLS, DOOR_TOOL, GUIDE_TOOL, MAX_WAIT_SEC, STATUS_TOOL, STORY_TOOL, TASK_TOOL,
     is_claude_code,
     localized_tool,
     summarize_job,
@@ -78,6 +78,62 @@ LEGACY_TOOL_NAMES = {
     "ontelic_guide": GUIDE_TOOL["name"],
 }
 ALWAYS_LOAD_META = {"anthropic/alwaysLoad": True}
+#: 이 껍데기가 만든 문 — 본체 도구가 아니다. 고정 문(`sonjari_tool`)으로는 이것들을 부르지 않는다(목록에 늘 있으니 직접 부른다).
+OWN_DOORS = frozenset({TASK_TOOL["name"], STATUS_TOOL["name"], CANCEL_TOOL["name"], GUIDE_TOOL["name"],
+                       STORY_TOOL["name"], DOOR_TOOL["name"]})
+#: 고정 문 자기 칸 — 이 밖의 칸이 맨 위에 오면 인자를 `arguments` 안에 안 넣고 흘린 것이다.
+_DOOR_KEYS = frozenset({"name", "arguments", "help"})
+
+
+def _is_json_type(value: Any, kind: str) -> bool:
+    if kind == "string":
+        return isinstance(value, str)
+    if kind == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if kind == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if kind == "boolean":
+        return isinstance(value, bool)
+    if kind == "array":
+        return isinstance(value, list)
+    if kind == "object":
+        return isinstance(value, dict)
+    if kind == "null":
+        return value is None
+    return True  # 모르는 형은 막지 않는다 — 본체가 다시 판정한다
+
+
+def schema_problems(schema: Any, arguments: dict[str, Any], *, en: bool = False) -> list[str]:
+    """고정 문으로 온 인자를 그 도구의 매개변수 스키마에 대 본다 — 필수 칸 · 맨 위 칸의 형 · enum · 모르는 칸(닫힌 스키마만).
+
+    개별 도구는 클로드가 목록의 inputSchema 로 먼저 맞춰 보낸다. 고정 문은 스키마가 `object` 하나라 그 검사가 없다 —
+    그 빈자리를 여기서 메운다. 깊은 검사(중첩 · 패턴)는 하지 않는다: 본체가 실행할 때 다시 판정한다.
+    """
+    if not isinstance(schema, dict):
+        return []
+    props = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
+    problems: list[str] = []
+    for key in schema.get("required") or []:
+        if key not in arguments:
+            problems.append(f"required field `{key}` is missing" if en else f"필수 칸 `{key}` 가 없습니다")
+    if schema.get("additionalProperties") is False:
+        for key in arguments:
+            if key not in props:
+                problems.append(f"unknown field `{key}`" if en else f"모르는 칸 `{key}`")
+    for key, value in arguments.items():
+        spec = props.get(key)
+        if not isinstance(spec, dict):
+            continue
+        kinds = spec.get("type")
+        kinds = [kinds] if isinstance(kinds, str) else [k for k in (kinds or []) if isinstance(k, str)]
+        if kinds and not any(_is_json_type(value, kind) for kind in kinds):
+            got = type(value).__name__
+            problems.append(f"`{key}` must be {'/'.join(kinds)} (got {got})" if en
+                            else f"`{key}` 는 {'/'.join(kinds)} 여야 합니다(받은 값의 형: {got})")
+        elif isinstance(spec.get("enum"), list) and value not in spec["enum"]:
+            allowed = ", ".join(json.dumps(item, ensure_ascii=False) for item in spec["enum"])
+            problems.append(f"`{key}` must be one of {allowed}" if en else f"`{key}` 는 {allowed} 중 하나여야 합니다")
+    return problems
 
 
 def lean_toolset() -> bool:
@@ -232,6 +288,15 @@ _APPROVAL_HELP = (
 )
 
 
+#: 팩 켜 달라고 청하는 문(본체 도구 · `pack_request.TOOL_NAME`). 이 껍데기는 본체 모듈을 덜 불러오려고 이름만 둔다.
+PACK_REQUEST = "sonjari_pack_request"
+_PACK_APPROVAL_HELP = (
+    "손자리 창에 「팩 켜기」 카드가 떴습니다 — 사용자가 권한(읽기 · 쓰기 · 실행 · 인터넷)과 받을 크기를 보고 직접 누릅니다.\n"
+    "사용자가 누르면 그 자리에서 켜집니다. 켜졌는지 보려면 잠시 뒤 같은 인자로 다시 부르세요(이미 켜졌으면 그렇다고 답합니다).\n"
+    "거절하면 이 일에서 다시 청하지 말고 그대로 전하세요. 사용자를 대신해 누를 수 없습니다."
+)
+
+
 class ToolFilter:
     """어떤 도구를 바깥으로 내보낼 것인가.
 
@@ -296,6 +361,9 @@ def describe(tool: dict[str, Any]) -> str:
     말해 줘야 부르기 전에 사람에게 물어볼지 판단할 수 있다.
     """
     text = str(tool.get("description") or "").strip()
+    # 팩 켜기는 되돌릴 수 있다(설정 › 팩에서 끈다) — L2 일괄 경고는 틀린 말이었다(11-16 맥 실측). 자기 설명이 카드 · 맡김을 이미 말한다.
+    if str(tool.get("name")) == PACK_REQUEST:
+        return text
     if str(tool.get("risk_level")) == "L2":
         text += "\n\n⚠️ 되돌릴 수 없는 동작입니다. 호출하면 사용자 화면에 승인 카드가 뜨고, 승인 전에는 실행되지 않습니다."
     return text
@@ -374,6 +442,9 @@ class JarvisMcpBridge:
         # 승인 게이트가 있어서 실행되지는 않았지만, "안 내보낸다"는 약속이 목록에서만
         # 지켜지고 호출에서는 안 지켜지고 있었다.
         self._allowed: set[str] | None = None
+        #: 본체가 마지막으로 준 도구 이름 전부(거르기 전) — 고정 문이 「없는 이름」과 「있지만 막힌 이름」을 가른다.
+        self._runtime_names: set[str] = set()
+        self._runtime_not_on_mac: dict[str, str] = {}
         #: 도구 목록 자동 갱신(2026-11-13) — 마지막으로 목록을 받아 간 클로드 세션 · 본체 판 지켜보기.
         self.session: Any = None
         self.tool_watch = ToolListWatch()
@@ -443,9 +514,17 @@ class JarvisMcpBridge:
             except Exception:  # noqa: BLE001 — 본체가 아직 안 떴다
                 if attempt < 2:
                     await asyncio.sleep(1.5)
+        # 고정 문(`sonjari_tool` · 2026-11-15)도 가이드처럼 늘 있다 — 본체가 꺼져 있으면 부를 때 그렇게 말한다.
+        door = localized_tool(DOOR_TOOL, self.lang)
         if runtime_payload is None:
             self._allowed = None  # 다음 호출 때 다시 본다 — 못 본 것을 「금지」로 굳히지 않는다
-            return delegation + [guide]
+            self._runtime_names = set()
+            self._runtime_not_on_mac = {}
+            return delegation + [guide, door]
+        self._runtime_names = {str(tool.get("name") or "") for tool in runtime_payload if isinstance(tool, dict)}
+        #: 맥에서 아직 안 되는 도구 → 그 까닭(본체 `/v1/tools` 의 `not_on_mac`, 2026-11-16). 고정 문이 「없다」 대신 이 말을 준다.
+        self._runtime_not_on_mac = {str(tool.get("name") or ""): str(tool["not_on_mac"]) for tool in runtime_payload
+                                    if isinstance(tool, dict) and tool.get("not_on_mac")}
         # 가이드는 위임을 꺼도 준다 — 읽기만 하는 문서다.
         runtime_tools = self.filter.apply(runtime_payload)
         if self.lang == "en":
@@ -457,12 +536,18 @@ class JarvisMcpBridge:
         pack_tools = await self._enabled_pack_tools(client)
         # 서기 문은 **서기를 켠 PC 에서만** 낸다(2026-10-21). 설정이 없으면 문 셋 — 09-23 에 비용을 재서 정한 기본값을 건드리지 않는다.
         story = [localized_tool(STORY_TOOL, self.lang)] if await self._scribe_on(client) else []
-        allowed = delegation + [guide] + story + ([
+        # ★ 팩 켜 달라고 청하는 문(2026-11-16)은 위험 상한(L1) 밖이어도 **늘** 낸다 — 하는 일이 「사람에게 카드를 띄우기」뿐이다
+        #   (켜는 것은 사람이 누를 때 · 권한 무시에서도 카드). 사람이 `JARVIS_MCP_EXCLUDE` 에 적었으면 따른다.
+        requester = [tool for tool in runtime_payload if isinstance(tool, dict) and str(tool.get("name")) == PACK_REQUEST
+                     and PACK_REQUEST not in self.filter.exclude and tool.get("enabled", True)]
+        if self.lang == "en":
+            requester = [{**tool, "description": self.say(str(tool.get("description") or ""))} for tool in requester]
+        runtime_tools = [tool for tool in runtime_tools if str(tool.get("name")) != PACK_REQUEST]
+        allowed = delegation + [guide, door] + story + requester + ([
             tool for tool in runtime_tools if str(tool.get("name")) in pack_tools
         ] if lean_toolset() else [
             tool for tool in runtime_tools
-            if str(tool.get("name")) not in {TASK_TOOL["name"], STATUS_TOOL["name"], CANCEL_TOOL["name"], GUIDE_TOOL["name"],
-                                             STORY_TOOL["name"]}
+            if str(tool.get("name")) not in OWN_DOORS
         ])
         self._allowed = {str(tool["name"]) for tool in allowed}
         return allowed
@@ -511,6 +596,19 @@ class JarvisMcpBridge:
             return {str(pack.get("id")) for pack in response.json().get("packs") or [] if pack.get("enabled")}
         except Exception:  # noqa: BLE001
             return None
+
+    async def _off_packs(self, client: Any) -> list[dict[str, str]]:
+        """꺼진 우리 팩(사람이 넣은 팩 빼고) — 기능 안내가 「맞는 카드 없음」일 때 「이런 팩이 꺼져 있다」를 같이 준다(11-16).
+        못 물어보면 빈 목록 — 모르는 것을 「꺼짐」으로 치지 않는다."""
+        try:
+            response = await client.get(f"{self.base_url}/v1/packs", headers={"X-JARVIS-TOKEN": self.token})
+            if response.status_code != 200:
+                return []
+            return [{"id": str(pack.get("id")), "name": str(pack.get("name") or ""), "summary": str(pack.get("summary") or "")}
+                    for pack in response.json().get("packs") or []
+                    if not pack.get("enabled") and str(pack.get("origin") or "builtin") != "user"]
+        except Exception:  # noqa: BLE001
+            return []
 
     async def _enabled_pack_tools(self, client: Any) -> set[str]:
         """켜진 팩의 도구 이름. 못 물어보면 빈 집합 — 모르는 것을 「켜져 있다」로 치지 않는다."""
@@ -623,6 +721,9 @@ class JarvisMcpBridge:
                     body["delegated_repo"] = str(arguments.get("repo") or "").strip()[:1000]
                     body["delegated_check"] = str(arguments.get("check") or "").strip()[:1000]
                 # 돌려받아야 할 것 — 끝난 판의 요약이 항목마다 채웠는지 확인하고, 밝힌 연락처는 정제에서 뺀다(§55-32).
+                # 「끝까지」(2026-11-15) — 호스트가 일의 크기를 알고 켠다. 참일 때만 싣는다(문자열 "true" 같은 것은 받지 않는다).
+                if arguments.get("finish_all") is True:
+                    body["finish_all"] = True
                 needs = clean_needs(arguments.get("needs"))
                 if needs:
                     body["needs"] = needs
@@ -762,6 +863,121 @@ class JarvisMcpBridge:
                         if en else "멈췄습니다. 멈추기 전까지 한 일(files · sources · resume)은 sonjari_task_status 로 받을 수 있습니다."),
         }), False
 
+    # ── 고정 문 `sonjari_tool` (2026-11-15) ─────────────────────────────────────────
+    #   클로드 데스크톱이 list_changed 를 무시해 새 도구가 목록에 안 뜨는 동안에도 이름으로 부르게 한다.
+    #   ★ 안전: 개별 도구와 **같은 목록**(`list_tools` — 거름망 · 위험 상한 · 맡기기 전용이면 켜진 팩만)에서만 찾는다.
+    #     그 목록은 부를 때마다 본체에 다시 묻는다(캐시만 믿으면 새 도구를 못 찾는 것이 이 문을 만든 까닭이다).
+
+    async def _door_lookup(self, name: str) -> dict[str, Any] | None:
+        """지금 이 연결로 내보내는 본체 도구 가운데 `name`. 본체가 꺼졌거나 없으면 None."""
+        tools = await self.list_tools()
+        if self._allowed is None:
+            return None
+        return next((tool for tool in tools if str(tool.get("name")) == name and name not in OWN_DOORS), None)
+
+    def _door_help(self, tool: dict[str, Any]) -> str:
+        en = self.lang == "en"
+        name = str(tool.get("name"))
+        return json.dumps({
+            "name": name,
+            "description": describe(tool),
+            "parameters": dict(tool.get("parameters") or {"type": "object", "properties": {}}),
+            "how": (f'Call it as sonjari_tool(name="{name}", arguments={{...}}) — put the fields above inside arguments.'
+                    if en else f'sonjari_tool(name="{name}", arguments={{...}}) 로 부르세요 — 위 칸들은 arguments 안에 넣습니다.'),
+        }, ensure_ascii=False, indent=2)
+
+    async def _disabled_pack_of(self, name: str) -> str:
+        """`name` 이 꺼진 팩의 도구면 그 팩 이름. 못 물으면 빈 글 — 모르는 것을 「꺼짐」으로 말하지 않는다."""
+        try:
+            client = await self._http()
+            response = await client.get(f"{self.base_url}/v1/packs", headers={"X-JARVIS-TOKEN": self.token})
+            if response.status_code != 200:
+                return ""
+            for pack in response.json().get("packs") or []:
+                if not pack.get("enabled") and name in {str(tool) for tool in pack.get("tools") or []}:
+                    return f"{pack.get('name') or pack.get('id')} · pack=\"{pack.get('id')}\""
+        except Exception:  # noqa: BLE001
+            return ""
+        return ""
+
+    async def _door_refusal(self, name: str, listed: Iterable[str]) -> str:
+        en = self.lang == "en"
+        not_on_mac = getattr(self, "_runtime_not_on_mac", {}).get(name)
+        if not_on_mac:
+            return ((f"'{name}' does not work on Mac yet. Do not call it again; tell the user it is Windows-only for now.")
+                    if en else f"'{name}': {not_on_mac} 다시 부르지 마세요.")
+        pack = await self._disabled_pack_of(name)
+        if pack:
+            return ((f"'{name}' belongs to the {pack} pack, which is turned off, so it cannot be called now. Ask the user to "
+                     f"turn it on with {PACK_REQUEST} (the user presses it on a card in Sonjari) — do not turn it on yourself.") if en else
+                    (f"'{name}' 은 꺼진 팩({pack})의 도구라 지금 부를 수 없습니다. {PACK_REQUEST} 로 사용자에게 켜 달라고 "
+                     "청하세요(사람이 손자리 카드에서 누릅니다) — 대신 켜지 마세요."))
+        if name in self._runtime_names:
+            # 있지만 이 연결로 내보내지 않는 도구 — 개별 도구로 불렀을 때와 같은 판정이다.
+            return ((f"'{name}' is not available on this connection (irreversible actions, devices on this PC, and tools "
+                     "Sonjari keeps to itself are not exported). Irreversible actions run only in the Sonjari window, where "
+                     "the approval card appears. For research or document work, hand the whole task to sonjari_task. "
+                     "Do not look for another tool to work around this.") if en else
+                    (f"'{name}' 은 이 연결로 쓸 수 없습니다(되돌릴 수 없는 동작 · 이 PC 의 장치 · 손자리 안에서만 쓰는 도구는 "
+                     "내보내지 않습니다). 되돌릴 수 없는 동작은 Sonjari 창에서만 실행되며 승인 카드도 그 화면에 뜹니다. "
+                     "조사 · 문서 일이면 sonjari_task 로 통째로 맡기세요. 다른 도구로 우회하려 하지 마세요."))
+        import difflib
+
+        # 비슷한 이름은 **이 연결로 부를 수 있는 것** 가운데서만 — 막힌 도구 이름을 알려 주지 않는다.
+        close = difflib.get_close_matches(name, sorted(set(listed)), n=3, cutoff=0.6)
+        hint = (f" Similar names: {', '.join(close)}." if en else f" 비슷한 이름: {', '.join(close)}.") if close else ""
+        return ((f"There is no Sonjari tool named '{name}'.{hint} Check the name in the guide or the capability cards "
+                 "(sonjari_guide with query).") if en else
+                (f"'{name}' 이라는 손자리 도구가 없습니다.{hint} 이름은 가이드 · 기능 카드(sonjari_guide 의 query)에서 확인하세요."))
+
+    async def _door(self, raw: dict[str, Any]) -> tuple[str, bool]:
+        """고정 문. 이름 확인 → (help 면 설명) → 인자 검사 → 개별 도구와 같은 `_execute`."""
+        en = self.lang == "en"
+        name = str(raw.get("name") or "").strip()
+        name = LEGACY_TOOL_NAMES.get(name, name)
+        if not name:
+            return ("name is empty — give the Sonjari tool name to call." if en else
+                    "name 이 비어 있습니다 — 부를 손자리 도구 이름을 주세요."), True
+        if name in OWN_DOORS:
+            return ((f"'{name}' is always in the tool list — call it directly, not through sonjari_tool.") if en else
+                    (f"'{name}' 은 목록에 늘 있는 문입니다 — sonjari_tool 을 거치지 말고 직접 부르세요.")), True
+        stray = sorted(key for key in raw if key not in _DOOR_KEYS)
+        if stray:
+            # 흔한 실수: 도구 인자를 arguments 안에 안 넣고 맨 위에 흘린다. 짐작해서 옮기지 않는다 — 고쳐 부르게 한다.
+            return ((f"Unknown top-level fields: {', '.join(stray)}. Put the tool's own arguments inside `arguments`, "
+                     f'e.g. sonjari_tool(name="{name}", arguments={{...}}).') if en else
+                    (f"맨 위에 모르는 칸이 있습니다: {', '.join(stray)}. 그 도구의 인자는 `arguments` 안에 넣으세요 "
+                     f'(예: sonjari_tool(name="{name}", arguments={{...}})).')), True
+        args: Any = raw.get("arguments")
+        if args is None:
+            args = {}
+        if isinstance(args, str):
+            # 인자를 JSON 글로 보내는 호스트가 있다 — 객체로 풀린 때만 받는다.
+            try:
+                args = json.loads(args) if args.strip() else {}
+            except ValueError:
+                return ("arguments is not valid JSON." if en else "arguments 가 올바른 JSON 이 아닙니다."), True
+        if not isinstance(args, dict):
+            return ("arguments must be an object." if en else "arguments 는 객체(키: 값)여야 합니다."), True
+        tools = await self.list_tools()  # 그때그때 다시 묻는다 — 새 도구를 찾는 것이 이 문의 목적이다
+        if self._allowed is None:
+            return ((f"Could not reach Sonjari ({self.base_url}). Check that Sonjari is running.") if en else
+                    (f"손자리에 연결하지 못했습니다({self.base_url}). 손자리가 실행 중인지 확인해 주세요.")), True
+        listed = {str(tool.get("name")): tool for tool in tools if str(tool.get("name")) not in OWN_DOORS}
+        tool = listed.get(name)
+        if tool is None:
+            return await self._door_refusal(name, listed), True
+        wants_help = raw.get("help")
+        if wants_help is True or str(wants_help).strip().lower() in ("true", "1", "yes"):
+            return self._door_help(tool), False
+        problems = schema_problems(tool.get("parameters"), args, en=en)
+        if problems:
+            schema = json.dumps(tool.get("parameters") or {}, ensure_ascii=False)
+            return ((f"Not called — the arguments do not match {name}'s schema: {'; '.join(problems)}. Schema: {schema}")
+                    if en else
+                    (f"부르지 않았습니다 — 인자가 {name} 의 스키마와 맞지 않습니다: {'; '.join(problems)}. 스키마: {schema}")), True
+        return await self._execute(name, args)
+
     async def call(self, name: str, arguments: dict[str, Any], *, caller: str = "") -> tuple[str, bool]:
         """도구를 부르고 (사람이 읽을 글, 오류인가) 를 돌려준다. `caller` 는 이 연결을 연 호스트의 이름(clientInfo).
 
@@ -779,11 +995,22 @@ class JarvisMcpBridge:
             # 기능 카드 찾기(2026-11-12) — 파일을 못 뒤지는 부모용. 꺼진 팩 카드엔 「사람이 켜야 함」을 붙인다.
             from .capability_cards import render_search
 
+            query = str(arguments["query"]).strip()
+            if re.fullmatch(r"[A-Za-z0-9_]+", query) and query not in OWN_DOORS:
+                # 도구 이름 그대로 물으면 그 도구의 설명 · 매개변수 스키마(고정 문의 help 와 같은 것) — 같은 거름망을 지난 것만.
+                found = await self._door_lookup(query)
+                if found is not None:
+                    return self._door_help(found), False
             try:
                 enabled = await self._enabled_pack_ids(await self._http())
             except Exception:  # noqa: BLE001 — 팩 상태를 몰라도 카드는 준다(꺼짐 표시만 빠진다)
                 enabled = None
-            return render_search(str(arguments["query"]).strip()[:200], enabled_packs=enabled, lang=self.lang), False
+            try:
+                off = await self._off_packs(await self._http())
+            except Exception:  # noqa: BLE001
+                off = []
+            return render_search(str(arguments["query"]).strip()[:200], enabled_packs=enabled, lang=self.lang,
+                                 off_packs=off), False
         if name == GUIDE_TOOL["name"]:
             from .guide_skill import render_skill
 
@@ -795,6 +1022,8 @@ class JarvisMcpBridge:
             return render_skill(tools, lang=self.lang) + self.say(await self._model_fit_note()) + await self._receipt_note(), False
         if name == STORY_TOOL["name"]:
             return await self._story(arguments or {})
+        if name == DOOR_TOOL["name"]:
+            return await self._door(arguments or {})
         if name in (TASK_TOOL["name"], STATUS_TOOL["name"], CANCEL_TOOL["name"]) and os.environ.get(
                 "JARVIS_MCP_DELEGATION", "1") != "0":
             return await self._delegate(name, arguments or {}, caller=caller)
@@ -806,6 +1035,10 @@ class JarvisMcpBridge:
                 "다른 도구로 우회하려 하지 말고, 사용자에게 손자리 창에서 직접 해 달라고 알리세요.",
                 True,
             )
+        return await self._execute(name, arguments or {})
+
+    async def _execute(self, name: str, arguments: dict[str, Any]) -> tuple[str, bool]:
+        """본체 `/v1/tools/execute` 를 부른다 — 개별 도구와 고정 문(`sonjari_tool`)이 같이 쓴다. 거르기는 부르는 쪽이 이미 했다."""
         client = await self._http()
         try:
             response = await client.post(
@@ -833,8 +1066,10 @@ class JarvisMcpBridge:
         payload = response.json()
         status = str(payload.get("status") or "")
         if status == "approval_required":
-            return self.say(_APPROVAL_HELP), False
+            return self.say(_PACK_APPROVAL_HELP if name == PACK_REQUEST else _APPROVAL_HELP), False
         if not payload.get("ok"):
+            if name == PACK_REQUEST and str(payload.get("error") or "").startswith("already_enabled"):
+                return str(payload.get("error")), False  # 이미 켜짐은 오류가 아니다 — 그 팩 도구를 부르면 된다
             return f"실패({status or 'error'}): {payload.get('error') or ''}", True
 
         result = payload.get("result")

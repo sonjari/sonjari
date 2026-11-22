@@ -32,7 +32,8 @@ def test_the_table_stays_small_and_has_no_secret_door() -> None:
     # 38 = 서기(2026-10-21) 켜기 · 읽을 폴더. 대화 기록은 사람 것이라 사람이 화면에서 직접 켜야 한다 — MCP 로 켜는 문은 두지 않는다.
     # 41 = 막히면 내 API 키로 묻기(2026-10-26) 켜기 · 모델 · 달 상한. 돈이 나가는 기능이라 모델과 상한을 사람이 화면에서 정한다.
     #   **키는 이 표에 없다**(아래 낱말 검사) — 클립보드 문으로만 받아 DPAPI 에 둔다(`api_escalation.key_from_clipboard`).
-    assert 20 <= len(SETTINGS) <= 41
+    # 42 = 팩 파일 자리(2026-11-16 · 대표 「C: 가 작다 · D 로」). 3D · 영상 팩 모델(10~19GB)을 큰 드라이브로 — 사람이 화면에서 정한다.
+    assert 20 <= len(SETTINGS) <= 42
     for item in SETTINGS:
         assert not any(mark in item.key for mark in ("token", "secret", "password", "api_key"))
     with pytest.raises(SettingsError):

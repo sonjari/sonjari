@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from . import english as _english
+from . import mac_voice
 from .config import JarvisConfig
 
 
@@ -28,9 +29,29 @@ class SupertonicTTS:
     def speed(self) -> float:
         return max(0.7, min(2.0, self.config.tts_speed))
 
+    @property
+    def engine(self) -> str:
+        """`macos`(맥 `say`) 또는 `supertonic`. auto 면 맥은 macos · 그 밖은 supertonic(윈도우 그대로)."""
+        return mac_voice.tts_engine(self.config)
+
+    @property
+    def voice_label(self) -> str:
+        if self.engine == "macos":
+            return f"macOS {mac_voice.pick_voice(self.config, 'ko') or 'default'}"
+        return f"Supertonic {self.config.supertonic_voice}"
+
+    def _where(self) -> str:
+        """Supertonic 이 **어디서** 만드나 — 이 PC(127.0.0.1) 또는 다른 기기 주소(11-16: 맥이 집 PC 에 글을 보내 만들고 있었다)."""
+        from urllib.parse import urlparse
+
+        host = urlparse(str(self.config.supertonic_base_url or "")).hostname or ""
+        return "this_device" if host in {"127.0.0.1", "localhost", "::1", ""} else f"remote:{host}"
+
     def health(self) -> dict[str, Any]:
         if not self.config.tts_enabled:
-            return {"ok": False, "enabled": False, "voice": self.config.supertonic_voice}
+            return {"ok": False, "enabled": False, "voice": self.config.supertonic_voice, "engine": self.engine}
+        if self.engine == "macos":
+            return {"enabled": True, **mac_voice.say_health(self.config)}
         try:
             # ★ 2026-11-11: 상태 물음 시간의 30% 가 이 줄의 Client() 만들기였다(py-spy) — 만들 때마다 인증서 묶음을 새로 읽는다.
             #   음성 서버는 이 PC 의 http:// 라 인증서가 쓰일 일이 없다 → http 면 인증서를 읽지 않는다.
@@ -43,6 +64,8 @@ class SupertonicTTS:
             return {
                 "ok": True,
                 "enabled": True,
+                "engine": "supertonic",
+                "where": self._where(),
                 "voice": self.config.supertonic_voice,
                 "steps": self.steps,
                 "speed": self.speed,
@@ -51,6 +74,8 @@ class SupertonicTTS:
             return {
                 "ok": False,
                 "enabled": True,
+                "engine": "supertonic",
+                "where": self._where(),
                 "voice": self.config.supertonic_voice,
                 "error": str(exc),
             }
@@ -62,6 +87,15 @@ class SupertonicTTS:
         나가는 순간 번역되는데(`ui_i18n`) 음성만 언어를 몰랐다. 음성 서버는 en 을 받는다(이 PC 에서 확인). 그 밖은 설정값 그대로.
         """
         return "en" if _english.english_dominant(" ".join(str(text or "").split())) else self.config.supertonic_language
+
+    def _say_audio(self, text: str, output: Path) -> None:
+        """맥 `say` 로 이 기기 안에서 만든다 — 글이 밖으로 나가지 않는다."""
+        lang = self._lang_for(text)
+        started = time.perf_counter()
+        mac_voice.say_to_wav(text, output, voice=mac_voice.pick_voice(self.config, lang),
+                             rate=int(getattr(self.config, "mac_tts_rate", 0) or 0))
+        self.last_metrics = {"cached": False, "engine": "macos",
+                             "synthesis_ms": round((time.perf_counter() - started) * 1000)}
 
     def _request_audio(self, text: str) -> bytes:
         body = {
@@ -88,6 +122,12 @@ class SupertonicTTS:
     def warmup(self) -> dict[str, Any]:
         if not self.config.tts_enabled or not self.config.tts_warmup_enabled:
             return {"status": "disabled"}
+        if self.engine == "macos":
+            # 맥 `say` 는 데울 서버가 없다 — 실제로 한 번 만들어 되는지만 본다(재생은 안 한다).
+            probe = self.cache_dir / "_warmup_macos.wav"
+            self._say_audio("준비됐어요.", probe)
+            probe.unlink(missing_ok=True)
+            return dict(self.last_metrics)
         # Always execute inference. Reusing the disk cache would not warm a freshly
         # restarted Supertonic process or its ONNX sessions.
         self._request_audio("준비됐어요.")
@@ -100,15 +140,25 @@ class SupertonicTTS:
         if not clean:
             raise ValueError("empty_tts_text")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        key = hashlib.sha256(
-            (
+        if self.engine == "macos":
+            # 엔진 · 목소리가 다르면 다른 소리다 — 같은 캐시 자리를 나눠 쓰지 않는다.
+            lang = self._lang_for(clean)
+            identity = (f"macos|{mac_voice.pick_voice(self.config, lang)}|{lang}|"
+                        f"{int(getattr(self.config, 'mac_tts_rate', 0) or 0)}|{clean}")
+        else:
+            identity = (
                 f"v2|{self.config.supertonic_voice}|{self._lang_for(clean)}|"
                 f"{self.steps}|{self.speed:.3f}|{clean}"
-            ).encode("utf-8")
-        ).hexdigest()[:24]
+            )
+        key = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
         output = self.cache_dir / f"{key}.wav"
         if not output.exists():
-            output.write_bytes(self._request_audio(clean))
+            if self.engine == "macos":
+                self._say_audio(clean, output)
+            else:
+                output.write_bytes(self._request_audio(clean))
+        elif self.engine == "macos":
+            self.last_metrics = {"cached": True, "engine": "macos", "synthesis_ms": 0}
         else:
             self.last_metrics = {
                 "cached": True,

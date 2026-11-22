@@ -223,6 +223,24 @@ class SpeechToText:
         }
 
 
+def make_speech_to_text(config: JarvisConfig) -> Any:
+    """받아쓰기 엔진을 고른다(2026-11-16). 맥(auto)은 애플 기기 안 받아쓰기 · 그 밖은 지금까지의 faster-whisper."""
+    from . import mac_voice
+
+    if mac_voice.stt_engine(config) == "apple":
+        return mac_voice.AppleSpeechToText(config)
+    return SpeechToText(config)
+
+
+def make_recorder(config: JarvisConfig) -> Any:
+    """녹음기. 맥 venv 에는 sounddevice 가 없다 — 맥(애플 받아쓰기)은 도우미가 녹음한다."""
+    from . import mac_voice
+
+    if mac_voice.stt_engine(config) == "apple":
+        return mac_voice.MacRecorder(config)
+    return PushToTalkRecorder(config)
+
+
 class PushToTalkRecorder:
     """Records Pocket 3 microphone audio while an API/UI button is held."""
 

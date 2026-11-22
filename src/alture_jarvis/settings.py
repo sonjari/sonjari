@@ -77,6 +77,10 @@ SETTINGS: tuple[Setting, ...] = (
     # ── 일반 ──────────────────────────────────────────────────────────────
     Setting("user_label", "general", "부르는 이름", "str", "Sonjari가 사용자를 부를 호칭. 비우면 호칭 없이 말한다.",
             live=True, extra={"max_length": 20}),
+    # 2026-11-16 대표 「C: 가 작다 · D 로」 — 팩 모델 · 실행기(3D 약 10GB · 영상 약 19GB)를 받는 자리. 다시 켜면 적용 · 이미 받은 것은 옛 자리에서 그대로 쓴다.
+    Setting("pack_files_dir", "general", "팩 파일 자리", "str",
+            "3D · 영상 팩이 받는 모델 · 실행기를 둘 폴더(예: D:/SonjariPacks). 비우면 손자리 데이터 폴더. 다시 켜면 적용된다.",
+            extra={"max_length": 200, "dir": True}),
     Setting("attention_notices_enabled", "general", "먼저 알려 주기", "bool",
             "작업이 끝나거나 사람이 필요할 때 Sonjari가 먼저 알린다.", live=False),
     Setting("scheduler_enabled", "general", "예약 작업", "bool", "정해 둔 시각에 일을 돌린다."),
@@ -262,6 +266,25 @@ def _set(config: Any, setting: Setting, value: Any) -> None:
     setattr(config, target, value)
 
 
+def _check_dir(key: str, text: str) -> str:
+    """폴더 칸(팩 파일 자리) — 절대 경로 · 있는 드라이브 · 시스템 폴더 아님. 폴더가 없으면 만든다(받기 전에 자리가 있어야 남은 자리를 잰다)."""
+    path = Path(text).expanduser()
+    if not path.is_absolute():
+        raise SettingsError(f"not_absolute:{key}")
+    anchor = Path(path.anchor) if path.anchor else None
+    if anchor is None or not anchor.exists():
+        raise SettingsError(f"no_drive:{key}")
+    lowered = str(path).replace("/", "\\").lower()
+    for bad in (r"\windows", r"\program files", r"\programdata", "/system", "/library", "/usr", "/bin"):
+        if bad in lowered or str(path).lower().startswith(bad):
+            raise SettingsError(f"system_folder:{key}")
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SettingsError(f"cannot_create:{key}") from exc
+    return str(path)
+
+
 def validate(key: str, value: Any) -> Any:
     setting = BY_KEY.get(key)
     if setting is None or any(marker in key.lower() for marker in _SECRET_MARKERS):
@@ -297,6 +320,8 @@ def validate(key: str, value: Any) -> Any:
             raise SettingsError(f"too_long:{key}")
         if kind == "model" and not text:
             raise SettingsError(f"empty_model:{key}")
+        if setting.extra.get("dir") and text:
+            text = _check_dir(key, text)
         return text
     if kind == "list":
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
@@ -399,6 +424,17 @@ def unavailable_reason(key: str, config: Any = None) -> str:
 
     if key in _EXTERNAL_CAPABILITY:
         return _external_block(key, config)[0]
+    # 맥 음성(2026-11-16): 맥은 supertonic · faster_whisper 모듈이 아니라 맥 기본 기능을 쓴다 — 모듈로 판정하면
+    #   「이 판에는 음성 출력이 들어 있지 않습니다」라고 거짓을 말한다. 실제로 쓰는 것이 있는지로 본다.
+    if key in ("tts_enabled", "voice_enabled"):
+        from . import mac_voice
+
+        if key == "tts_enabled" and mac_voice.tts_engine(config) == "macos":
+            import shutil
+
+            return "" if shutil.which("say") else "이 맥에서 말하기(say)를 찾지 못했습니다"
+        if key == "voice_enabled" and mac_voice.stt_engine(config) == "apple":
+            return "" if config is not None and mac_voice.helper_present(config) else "이 판에는 맥 받아쓰기 도우미가 들어 있지 않습니다"
     modules, reason = _CAPABILITY_MODULES.get(key, ((), ""))
     for name in modules:
         try:

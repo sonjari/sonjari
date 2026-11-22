@@ -66,7 +66,8 @@ from .known_secrets import KnownSecrets
 from . import page_look
 from .local_computer import LocalComputerTools
 from .project_discovery import ProjectDiscovery
-from . import fact_extract, intent_shadow, updater
+from . import fact_extract, intent_shadow, mac_update, updater
+from .tool_gateway import mac_not_yet, mark_not_on_mac
 from .media import MediaSessionController
 from . import check_notes, delegated_branch
 from . import model_place
@@ -126,18 +127,22 @@ from .unity_schedule import RecipeSchedule
 from .unity_stage import UnityStage, bridge_stage
 from .unity_tools import UnityTools
 from .video_tools import VideoTools
+from .gen3d_tools import Gen3DTools
+from .genvideo_tools import GenVideoTools
 from .animator_tools import AnimatorTools
 from .mcp_hub import McpHub
 from .mcp_tools import McpTools
 from .image_look import ImageLookTools
+from .pack_models import ModelFetcher
 from .packs import PackError, PackRegistry
 from .tts import SupertonicTTS
 from . import tts_server
 from .ui_vision import UiVision
 from .vision import VisionService
-from .voice import HotkeyBridge, PushToTalkRecorder, SpeechToText
+from .voice import HotkeyBridge, PushToTalkRecorder, SpeechToText, make_recorder, make_speech_to_text  # noqa: F401
 from .watch_service import WatchService
 from .windows_automation import WindowsAutomationTools
+from .mac_automation import MacAutomationTools
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
@@ -1041,6 +1046,12 @@ class JarvisRuntime:
         except OSError:
             pass
         self.packs = PackRegistry(self.config.packs_dir, self.config.data_dir, user_dir=self.config.skillpacks_dir)
+        # 받는 자리 — 「팩 파일 자리」 설정(비면 데이터 폴더 · 2026-11-16 대표 「C: 가 작다 · D 로」).
+        # 설정한 자리(`JARVIS_GEN3D_*_DIR` · `JARVIS_GENVIDEO_*_DIR`)에 이미 있는 모델은 「있음」 — 같은 것을 또 받지 않는다(11-16).
+        from .pack_places import configured_finder
+
+        self.pack_models = ModelFetcher(self.packs, self.config.data_dir, mirror_dir=self.config.model_mirror or None,
+                                        root=self.config.pack_files_dir or None, configured=configured_finder(self.config))
         # 바깥(MCP 호스트)에게 「지금 무엇을 하는 중인가」를 전하려고 진행 이벤트의 최신 값만 들고 있는다.
         self.live = LiveProgress()
         self.events.add_listener(self.live.on_event)
@@ -1159,6 +1170,36 @@ class JarvisRuntime:
             self._model_cannot_read_pictures,
         )
         self.image_look.register(self.gateway)
+        # 3D 생성 팩(2026-11-14) — 그림 한 장 → 3D 초안 · 영수증. 그림 경로 검사는 파일 도구와 같은 함수. 팩이 꺼져 있으면 목록에 안 낀다.
+        self.gen3d_tools = Gen3DTools(
+            self.config, lambda raw: self.local_computer._resolve(raw, must_exist=True), packs=self.packs,
+        )
+        self.gen3d_tools.register(self.gateway)
+        self.gen3d_tools.publish = self.events.publish  # 화면 3D 무대 알림(gen3d_stage)
+        # 영상 생성 팩(2026-11-16) — 콘티 → 컷 시안 · 본판 · 영수증. 경로 검사는 파일 도구와 같은 함수. 굽기 전마다 이 기기 손자리가
+        # 일하는 중(state 가 idle 아님)이면 기다린다.
+        self.genvideo_tools = GenVideoTools(
+            self.config, lambda raw: self.local_computer._resolve(raw, must_exist=True), packs=self.packs,
+        )
+        self.genvideo_tools.register(self.gateway)
+        self.genvideo_tools.publish = self.events.publish
+        self.genvideo_tools.local_state = lambda: "idle" if self.state.snapshot().state.value == "idle" else "working"
+        # 팩 켜기 UX(2026-11-16 · 설계_팩켜기UX). 권하기 판정(이 PC 안에서만 · 켜지 않음) + 켜 달라고 청하는 문(사람이 카드에서 누름).
+        from .pack_hints import PackHints, read_signals as _pack_signals
+        from .pack_request import PackRequestTools, attach_next_line
+
+        self.pack_hints = PackHints(self.packs, reader=lambda: _pack_signals(unity_editors=self.unity_tools.installed_editors))
+        self.pack_request = PackRequestTools(
+            self.packs, self.store, models_status=self.pack_models.status,
+            # 「켜고 받기」 — 사람이 카드에서 누른 것이 받기 동의다(받을 것이 남은 팩만 · 맡김으로는 받지 않는다 · ADR-PACK-1 결정 3).
+            models_fetch=self.pack_models.fetch,
+            # 설명에 「이 PC 에 맞는 까닭」 — 재 둔 것만(목록 주는 길에서 설치 목록 훑기를 기다리지 않는다).
+            hints=self.pack_hints.hints_if_ready,
+            on_delegated=self._pack_enabled_by_delegation,
+        )
+        self.pack_request.register(self.gateway)
+        # 팩 도구의 끝난 결과 끝에 「다음에 이어 쓸 팩」 한 줄(켰거나 무시한 팩은 빠짐).
+        self.gateway.result_note = attach_next_line(self.packs)
         # 유니티 에디터 화면 찍기도 같은 그림 보기 곁 호출로 본다(11-08 밤 · 설계 유니티_화면보기).
         self.unity_tools.editor.viewer = self._look_at_file
         self.unity_tools.editor.cannot_see = self._model_cannot_read_pictures
@@ -1189,6 +1230,11 @@ class JarvisRuntime:
             self.config, visual_planner=self._plan_screen_action, on_waiting_for_hands=self._notify_waiting_for_hands,
         )
         self.windows_automation.register(self.gateway)
+        # 맥 창 조종(Peekaboo). 설정 `mac_control_enabled` 가 꺼져 있으면(기본) 등록만 되고 꺼진 도구다 · 윈도우에선 `_PLATFORM_ONLY` 가 막는다.
+        self.mac_automation = MacAutomationTools(
+            self.config, resolve_path=lambda raw: self.local_computer._resolve(raw, write=True),
+        )
+        self.mac_automation.register(self.gateway)
         self.hwp = HwpTools(self.config, self.local_computer, self.events)
         self.hwp.register(self.gateway)
         self.scheduler = TaskScheduler(
@@ -1372,7 +1418,10 @@ class JarvisRuntime:
             self.local_computer,
             self.unity_tools,
             self.video_tools,
+            self.gen3d_tools,
+            self.genvideo_tools,
             self.windows_automation,
+            self.mac_automation,
             self.hwp,
             self.scheduler,
             self.watches,
@@ -1382,6 +1431,8 @@ class JarvisRuntime:
             self.inhouse,
             self.mcp_tools,
             self.image_look,
+            # 팩 켜 달라고 청하기(11-16) — 켜지 않은 우리 팩이 있을 때만 모델에게 보인다(`active_ollama_tools`).
+            self.pack_request,
             # ★ 게이트웨이에 등록하는 것과 **에이전트 카탈로그에 넣는 것은 다른
             #   일이다.** 2026-08-21: `self_check` 를 게이트웨이에 등록해 두고
             #   여기 안 넣어서, 강제 호출이 `unknown_tool` 로 죽었다. 라우팅을
@@ -1407,6 +1458,7 @@ class JarvisRuntime:
             self._speak_attention,
             enabled=self.config.attention_notices_enabled,
             browser_read_only=lambda: bool(getattr(self.config, "browser_read_only", False)),
+            speaks_for=self._job_was_spoken,
         )
         # 초소가 사람을 부를 길을 이제 꽂는다(위에서 만들 때는 아직 없었다).
         self.watches.attention = self.attention
@@ -1438,8 +1490,9 @@ class JarvisRuntime:
         self.profile = OperatorProfile(
             self.config.profile_path, max_chars=self.config.profile_max_chars
         )
-        self.stt = SpeechToText(self.config)
-        self.recorder = PushToTalkRecorder(self.config)
+        # 맥은 애플 기기 안 받아쓰기 + 도우미 녹음 · 윈도우는 그대로(2026-11-16 `mac_voice`).
+        self.stt = make_speech_to_text(self.config)
+        self.recorder = make_recorder(self.config)
         self._ptt_lock = threading.Lock()
         # 음성이 들어갈 대화. 워크스페이스가 마이크를 누를 때 알려주고, F9는 그것을
         # 물려받는다 — 사용자는 화면 하나를 보고 있지, 세션을 나눠 생각하지 않는다.
@@ -1951,6 +2004,8 @@ class JarvisRuntime:
         # gate_watcher.py 첫머리 참고 — 기다리는 잡이 워커를 쥐면 안 된다.
         self.gate_watcher.start()
         self.daily_backup.start()
+        # 이 PC 에 맞는 팩 판정을 뒤에서 한 번 재 둔다(설치 목록 · 폴더 훑기 — 첫 화면이 기다리지 않게 · 하루 쥠).
+        self.pack_hints.warm()
         # 우리가 깔아 둔 Ollama 가 있으면 켠다. 사용자가 따로 켠 것이 이미 돌면 serve 가 그대로 둔다.
         # 이 뒤로는 /health 가 물을 때마다 같은 관리자가 꺼진 것을 다시 켠다(ollama_keeper.annotate).
         self.ollama_keeper.ensure()
@@ -2040,6 +2095,15 @@ class JarvisRuntime:
         self.watches.stop()
         self.unity_schedule.stop()
         self.runner.stop()
+        # 3D 만들기가 돌고 있으면 실행기를 같이 죽인다 — 본체가 꺼진 뒤 그래픽카드를 쥔 채 남지 않게.
+        try:
+            self.gen3d_tools.shutdown()
+        except Exception:  # noqa: BLE001, S110 — 종료를 막지 않는다
+            pass
+        try:
+            self.genvideo_tools.shutdown()  # 영상 굽기도 같이 — 그래픽카드를 쥔 채 남지 않게
+        except Exception:  # noqa: BLE001, S110 — 종료를 막지 않는다
+            pass
         try:
             self.discord.stop(timeout=5.0)
         except Exception:  # noqa: BLE001, S110 — 종료를 막지 않는다
@@ -2098,7 +2162,8 @@ class JarvisRuntime:
         self._set_warmup_component("tts", "loading")
         # ★ 포장본(스토어판)에는 음성 서버를 켜 줄 작업 스케줄러가 없다 (2026-09-18 아버님 노트북:
         #   `[WinError 10061]`). 코드는 실려 있으니 **우리가 켠다.** 이미 떠 있으면 아무 일도 안 한다.
-        if not tts_server.answering(self.config.supertonic_base_url):
+        # 맥 `say` 엔진이면 켤 서버가 없다(2026-11-16) — Supertonic 일 때만 켠다.
+        if getattr(self.tts, "engine", "supertonic") == "supertonic" and not tts_server.answering(self.config.supertonic_base_url):
             self._set_warmup_component("tts", "loading", detail=str(tts_server.ensure(self.config.supertonic_base_url)))
         deadline = time.monotonic() + max(1, self.config.startup_warmup_retry_sec)
         last_error = ""
@@ -2281,6 +2346,13 @@ class JarvisRuntime:
                     continue
                 if self.state.snapshot().state != JarvisState.IDLE:
                     continue
+                # 3D · 영상을 굽는 동안은 데우지 않는다 — 램이 모자라 내린 언어 모델을 도로 올리면 굽기가 몇 배 느려진다(11-17 · `pack_ram`).
+                from .pack_ram import heavy_busy, take_reprime
+
+                if heavy_busy():
+                    continue
+                if take_reprime():
+                    self.ollama.front_engine_unloaded()
                 if not refreshed:
                     # 켠 뒤 처음 한 번 — 기억한 앞부분을 지금 코드의 목록에 맞춘다(11-06 · `ollama.refresh_front`).
                     refreshed = True
@@ -2288,6 +2360,9 @@ class JarvisRuntime:
 
                     outcome = self.ollama.refresh_front(self._front_now(), AGENT_SYSTEM_PROMPT)
                     self.events.publish("front_prime_refreshed", {"outcome": outcome})
+                # 모델 서버가 다시 떠 보관함이 비었으면 한 번 더 데울 차례(11-16 · `ollama.watch_front_engine`).
+                if self.ollama.watch_front_engine() == "came_back":
+                    self.events.publish("front_prime_engine_back", {})
                 if self.ollama.front_prime_due():
                     self.ollama.prime_front("idle")
             except Exception:  # noqa: BLE001 — 데워 두기는 덤이다
@@ -2870,6 +2945,20 @@ class JarvisRuntime:
         except Exception as exc:
             return {"requested": True, "ok": False, "error": str(exc)}
 
+    def _job_was_spoken(self, job_id: str) -> bool:
+        """이 작업이 받아쓰기(STT)로 들어왔나 — 알림을 소리로 낼지 가른다(`_present` 의 답 규칙과 같은 표시).
+
+        작업을 모르면(빈 id · 못 찾음) 소리 내지 않는다 — 카드 · 알림은 그대로 나간다(2026-11-16 대표).
+        """
+        if not job_id:
+            return False
+        try:
+            job = self.store.get_job(str(job_id)) or {}
+        except Exception:  # noqa: BLE001
+            return False
+        payload = job.get("payload") or {}
+        return isinstance(payload, dict) and payload.get("spoken_input") is True
+
     def _speak_attention(self, text: str) -> None:
         """확인 요청을 소리로도 알린다 — 작업을 멈추지 않고.
 
@@ -2899,10 +2988,17 @@ class JarvisRuntime:
         force_visual: bool = False,
     ) -> dict[str, Any]:
         payload = job["payload"]
+        requested_mode = str(payload.get("delivery") or "auto")
+        # ★ 답을 소리로 읽는 것은 **말로 들어온 일**뿐이다 (2026-11-16 대표).
+        #   전에는 「auto」면 짧은 답을 누가 시켰든 읽었다 — 클로드가 MCP 로 맡긴 판도, 창에 글로 친 판도
+        #   최종 답이 늘 스피커로 나왔다(윈도우 · 맥 둘 다). 이제 받아쓰기(STT)가 만든 일(`spoken_input`)만 auto 로 말하고,
+        #   그 밖의 auto 는 화면으로만. 부르는 쪽이 delivery="voice"/"hybrid" 로 **분명히** 청한 것은 그대로 따른다.
+        if requested_mode == "auto" and payload.get("spoken_input") is not True:
+            requested_mode = "screen"
         presentation = self.presentation.decide(
             content,
             title=title,
-            requested_mode=str(payload.get("delivery") or "auto"),
+            requested_mode=requested_mode,
             legacy_speak=payload.get("speak") if "speak" in payload else None,
             force_visual=force_visual,
         )
@@ -5725,6 +5821,8 @@ class JarvisRuntime:
                 declared_work=pack_work,
                 # 바깥 AI 가 정한 「돌려받을 항목」 — 본문 읽기의 찾을 칸이 된다(`agent._with_find_terms` · 2026-10-24).
                 find_terms=tuple(str(item) for item in (payload.get("needs") or []) if isinstance(item, str)),
+                # 바깥 AI 가 켠 「끝까지」(`sonjari_task` 의 finish_all · 2026-11-15) — 걸음 예산을 바깥 상한(48)까지. 참일 때만.
+                finish_all=payload.get("finish_all") is True,
                 **self._prior_session_reads(session_id, str(job["id"])),
                 # 같은 대화 앞 판들에서 도구가 준 숫자 — 「지금까지 조사한 것 정리」가 막히지 않게(2026-10-24 · `_prior_session_numbers`).
                 prior_numbers=self._prior_session_numbers(session_id, str(job["id"])),
@@ -6118,6 +6216,7 @@ class JarvisRuntime:
                     "prompt": text,
                     "delivery": "auto",
                     "origin": voice_origin,
+                    "spoken_input": True,  # 말로 들어온 일 — 답도 소리로(`_present`)
                     "agent_mode": "auto",
                     "session_id": voice_session,
                     **voice_extra,
@@ -6133,6 +6232,7 @@ class JarvisRuntime:
                     "prompt": text,
                     "delivery": "auto",
                     "origin": voice_origin,
+                    "spoken_input": True,  # 말로 들어온 일 — 답도 소리로(`_present`)
                     "agent_mode": "auto",
                     "session_id": voice_session,
                     **voice_extra,
@@ -6394,11 +6494,49 @@ class JarvisRuntime:
         decision = self.gateway.decide(nonce, approve, answer)
         if decision is None:
             return None
+        self._enable_requested_pack(decision, approve)
         if not approve:
             self._move(JarvisState.IDLE, "approval_denied")
         elif str(decision.get("status") or "") == ApprovalStatus.EXPIRED.value:
             self._move(JarvisState.IDLE, "approval_expired")
         return decision
+
+    def _pack_enabled_by_delegation(self, info: dict[str, Any]) -> None:
+        """맡김(ADR-PACK-1)으로 카드 없이 켰다 — 조용히 넘기지 않는다: 화면 알림(「켜짐 · 되돌리기」) · 기록 · 알림 센터."""
+        payload = {"pack": info.get("pack"), "ok": True, "error": "", "delegated": True,
+                   "result": {"name": info.get("name"), "tool_count": info.get("tool_count"), "by": "delegated"},
+                   "why": info.get("why") or ""}
+        try:
+            self.store.add_audit("pack_enabled_by_delegation", str(info.get("pack") or ""), payload)
+        except Exception:  # noqa: BLE001
+            pass
+        self.events.publish("pack_enabled_by_request", payload)
+        try:
+            self.notifications.notify("Sonjari · 팩 켜짐",
+                                      f"클로드가 {info.get('name')}을 켰습니다(맡김 설정). 끄기는 설정 › 팩.")
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _enable_requested_pack(self, decision: dict[str, Any], approve: bool) -> None:
+        """바깥 클로드(일 번호 없음)가 청한 팩 켜기는 **사람이 누른 그 자리에서** 켠다(2026-11-16 · 설계_팩켜기UX §8-1).
+
+        손자리 안 일은 다시 돌며 같은 부름을 재생해 켠다 — 여기서 또 켜면 두 번이다. 바깥 클로드는 같은 인자로 다시 불러야만
+        켜지는데, 안 부르면 「눌렀는데 안 켜짐」이 된다. 승인 하나를 게이트 길 그대로 소비해 켠다(승인 없는 길을 새로 내지 않는다).
+        """
+        from .pack_request import TOOL_NAME
+
+        if not approve or str(decision.get("tool_name") or "") != TOOL_NAME or str(decision.get("job_id") or ""):
+            return
+        if str(decision.get("status") or "") != ApprovalStatus.APPROVED.value:
+            return
+        try:
+            outcome = self.gateway.execute(TOOL_NAME, dict(decision.get("arguments") or {}), job_id="")
+            self.events.publish("pack_enabled_by_request", {
+                "pack": str((decision.get("arguments") or {}).get("pack") or ""), "ok": bool(outcome.ok),
+                "error": outcome.error or "", "result": outcome.result if outcome.ok else None,
+            })
+        except Exception:  # noqa: BLE001 — 켜기가 실패해도 승인 결정 자체는 돌려준다
+            pass
 
     @staticmethod
     def _probe(name: str, read: "Callable[[], Any]") -> Any:
@@ -6455,6 +6593,9 @@ class JarvisRuntime:
         """
         from . import store_update
 
+        # ★ 맥은 서명된 목록으로 따로 간다(2026-11-16 · 설계_맥업데이트). 아래 스토어 · 위성 길은 윈도우 그대로.
+        if sys.platform == "darwin":
+            return self._mac_update_check()
         store = store_update.check()
         if store.get("kind") == "store":
             out = {"ok": True, "enabled": True, **store}
@@ -6512,6 +6653,8 @@ class JarvisRuntime:
         """
         from . import store_update
 
+        if sys.platform == "darwin":
+            return self._mac_update_apply()
         if store_update.package_full_name():
             started = store_update.apply(str(self.config.store_update_dir))
             if started.get("applied"):
@@ -6537,7 +6680,12 @@ class JarvisRuntime:
             return {"ok": True, "applied": False, "reason": "이미 같은 판입니다"}
 
         archive = work / "incoming.zip"
-        self._brain_download("/v1/update/payload", archive)
+        sent_sha = self._brain_download("/v1/update/payload", archive)
+        # ★ 2026-11-16: 받은 바이트가 본체가 내준 그 바이트인가. 검사 함수(`verify_download`)는 처음부터 있었는데 이 자리에서
+        #   부르지 않아, 깨진 zip 도 그대로 풀렸다. 본체가 해시를 안 주면(옛 본체) 갈아치우지 않는다 — 본체부터 새 판으로.
+        ok, why = updater.verify_download(archive, sent_sha)
+        if not ok:
+            return {"ok": False, "applied": False, "reason": f"받은 묶음을 확인하지 못했습니다: {why}"}
 
         # ★ 순서가 중요하다 — 확인 전에는 아무것도 안 건드린다.
         staging = work / "staged"
@@ -6581,6 +6729,140 @@ class JarvisRuntime:
         self.events.publish("update_applying", {"build": expected, **unpacked})
         return {"ok": True, "applied": True, "build": expected, "log": str(work / "apply.log")}
 
+    # ══════════════════════════════════════════════════════════════════════
+    # 맥 업데이트 (2026-11-16 · docs/설계_맥업데이트_2026-11-16.ko.md)
+    # ══════════════════════════════════════════════════════════════════════
+    #
+    # 판단은 `mac_update.py` 한 곳. 여기는 받기와 떼어 낸 교체 스크립트 부르기만.
+
+    def _mac_update_paths(self) -> tuple[Path, Path]:
+        work = Path(self.config.data_dir) / "update"
+        return work, work / "mac_seen.json"
+
+    def _mac_update_status(self) -> dict[str, Any]:
+        """`/health` 용 — 네트워크 없이, 켜져 있나 · 왜 꺼졌나 · 마지막 결과만."""
+        work, seen_path = self._mac_update_paths()
+        url = str(getattr(self.config, "mac_update_url", "") or "")
+        pubkey = mac_update.pubkey_text()
+        out: dict[str, Any] = {
+            "enabled": bool(url and pubkey),
+            "pubkey_set": bool(pubkey),
+            "url_set": bool(url),
+            "mine_seq": mac_update.baked_seq(),
+            "seen_seq": mac_update.read_seen(seen_path),
+        }
+        if not pubkey:
+            out["reason"] = "서명 열쇠가 아직 정해지지 않았습니다(update_pubkey.txt)"
+        elif not url:
+            out["reason"] = "배포 주소가 아직 정해지지 않았습니다(JARVIS_MAC_UPDATE_URL)"
+        try:
+            out["last_result"] = json.loads((work / "last_result.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+        return out
+
+    def _mac_fetch(self, url: str, limit: int, timeout: float = 20.0) -> bytes:
+        """상한을 넘는 응답은 버린다 — 배포처가 털려도 큰 응답으로 메모리를 못 채운다."""
+        request = urllib.request.Request(url, headers={"User-Agent": "Sonjari-mac-update"})
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - https 확인은 resolve_url 이 한다
+            data = response.read(limit + 1)
+        if len(data) > limit:
+            raise mac_update.UpdateRefused(f"응답이 상한({limit} 바이트)을 넘습니다")
+        return data
+
+    def _mac_manifest(self) -> dict[str, Any]:
+        """목록 받기 → 서명 확인 → 판단. 꺼져 있으면 `enabled=False` 와 까닭. 바꾸는 것은 본 seq 하나."""
+        status = self._mac_update_status()
+        if not status["enabled"]:
+            return {"ok": True, "enabled": False, "kind": "mac", "available": False, "reason": status["reason"]}
+        allow_http = bool(getattr(self.config, "mac_update_allow_http", False))
+        url = mac_update.resolve_url(str(self.config.mac_update_url), "", allow_http=allow_http)
+        raw = self._mac_fetch(url, mac_update.MAX_MANIFEST_BYTES)
+        signature = self._mac_fetch(url + ".sig", 8192).decode("utf-8", errors="replace")
+        manifest, verified = mac_update.verify_manifest(raw, signature, mac_update.pubkey_text())
+        _work, seen_path = self._mac_update_paths()
+        decision = mac_update.evaluate(
+            manifest,
+            mine_build=build_id(),
+            mine_seq=mac_update.baked_seq(),
+            seen_seq=mac_update.read_seen(seen_path),
+            app_version=mac_update.installed_app_version(
+                getattr(self.config, "mac_app_path", "/Applications/Sonjari.app")
+            ),
+            app_enabled=bool(getattr(self.config, "mac_app_update_enabled", False)),
+        )
+        # 서명 · seq 를 지난 목록만 남긴다 — 이 뒤로는 이보다 옛 목록을 안 받는다.
+        mac_update.write_seen(seen_path, int(decision["seq"]))
+        for part, key in (("python", "url"), ("app", "latest_json")):
+            ref = decision[part].get(key)
+            if ref:
+                decision[part][key] = mac_update.resolve_url(url, ref, allow_http=allow_http)
+        return {"ok": True, "enabled": True, "kind": "mac", "key_id": verified.key_id_hex, **decision}
+
+    def _mac_update_check(self) -> dict[str, Any]:
+        try:
+            out = self._mac_manifest()
+        except mac_update.UpdateRefused as exc:
+            return {"ok": False, "enabled": True, "kind": "mac", "available": False, "reason": str(exc)}
+        except Exception as exc:  # noqa: BLE001 - 못 닿은 것은 「받을 것 없음」이 아니다
+            return {"ok": False, "enabled": True, "kind": "mac", "available": False,
+                    "reason": f"업데이트 목록에 못 닿았습니다: {type(exc).__name__}: {exc}"[:300]}
+        out.update(mac_update.screen_labels(out))
+        if out.get("available"):
+            self.events.publish("update_available", out)
+        return out
+
+    def _mac_update_apply(self) -> dict[str, Any]:
+        """(맥) 파이썬 묶음만 갈아치운다. 앱 꾸러미는 화면 앱(타우리)이 이 응답의 `app` 을 보고 스스로 한다."""
+        try:
+            out = self._mac_manifest()
+        except mac_update.UpdateRefused as exc:
+            return {"ok": False, "applied": False, "kind": "mac", "reason": str(exc)}
+        if not out.get("enabled"):
+            return {"ok": False, "applied": False, "kind": "mac", "reason": out.get("reason")}
+        python = out["python"]
+        if not python.get("available"):
+            return {"ok": True, "applied": False, "kind": "mac", "reason": python.get("reason") or "받을 것이 없습니다"}
+        if not python.get("ready"):
+            return {"ok": False, "applied": False, "kind": "mac", "reason": python.get("reason")}
+
+        work, _seen = self._mac_update_paths()
+        work.mkdir(parents=True, exist_ok=True)
+        archive = work / "incoming_mac.zip"
+        size = int(python.get("bytes") or 0)
+        limit = size + (1 << 20) if size else 512 << 20
+        archive.write_bytes(self._mac_fetch(str(python["url"]), limit, timeout=300))
+        # ★ 순서(설계 §7): sha256(서명된 목록의 값) → 풀기 → 푼 것의 판. 확인 전에는 아무것도 안 건드린다.
+        ok, why = updater.verify_download(archive, str(python["sha256"]))
+        if not ok:
+            return {"ok": False, "applied": False, "kind": "mac", "reason": f"받은 묶음이 목록과 다릅니다: {why}"}
+        staging = work / "staged_mac"
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+        unpacked = updater.unpack(archive, staging)
+        got = updater.staged_build(staging)
+        if got != python["build"]:
+            return {"ok": False, "applied": False, "kind": "mac",
+                    "reason": f"받은 것의 판이 다릅니다({got or '없음'} ≠ {python['build']}). 갈아치우지 않습니다."}
+        script = staging / "scripts" / "mac" / "apply_update_mac.sh"
+        if not script.is_file():
+            return {"ok": False, "applied": False, "kind": "mac", "reason": "묶음에 교체 스크립트가 없습니다"}
+        plan_path = updater.write_plan(
+            work / "plan_mac.json",
+            mac_update.plan(updater.runtime_root(), staging, str(python["build"]), int(out["seq"]), work),
+        )
+        # 떼어 낸다 — launchctl kickstart -k 가 이 백엔드를 내릴 때 같은 프로세스 묶음으로 같이 죽지 않게 새 세션으로.
+        subprocess.Popen(  # noqa: S603 - 서명 · sha256 · 판을 지난 묶음 안의 스크립트
+            ["/bin/sh", str(script), str(plan_path)],
+            start_new_session=True, close_fds=True,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            # 맥에선 0(아무 일 없음) — 이 저장소의 「창 숨김 없이 부르는 자리 0」 규칙을 지키려고 붙인다.
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        self.events.publish("update_applying", {"kind": "mac", "build": python["build"], **unpacked})
+        return {"ok": True, "applied": True, "kind": "mac", "build": python["build"],
+                "result": str(work / "last_result.json")}
+
     # ── 본체에 묻는 두 줄 ────────────────────────────────────────────────────
     #
     # 위성은 이미 본체 주소와 토큰을 갖고 있다(설치 때 받는다). 새 인증을 만들지
@@ -6612,7 +6894,8 @@ class JarvisRuntime:
         with urllib.request.urlopen(request, timeout=20) as response:
             return json.loads(response.read().decode("utf-8"))
 
-    def _brain_download(self, path: str, dest: Path) -> Path:
+    def _brain_download(self, path: str, dest: Path) -> str:
+        """받아 `dest` 에 쓰고, 본체가 머리글로 준 sha256(`X-Payload-SHA256`)을 돌려준다. 없으면 빈 글."""
         request = urllib.request.Request(
             self._brain_base() + path,
             headers={"X-JARVIS-TOKEN": str(self.config.control_token or "")},
@@ -6620,7 +6903,7 @@ class JarvisRuntime:
         dest.parent.mkdir(parents=True, exist_ok=True)
         with urllib.request.urlopen(request, timeout=300) as response, dest.open("wb") as handle:
             shutil.copyfileobj(response, handle)
-        return dest
+            return str(response.headers.get("X-Payload-SHA256") or "").strip().lower()
 
     #: 사람이 시킨 것이 아닌 잡. 「마지막 사람 활동」을 셀 때 뺀다 — 밤새 스스로 도는
     #: 기계를 사람으로 세면, 비켜 주기를 기다리는 쪽(문제은행 야간배치)이 영영 못 돈다.
@@ -6653,6 +6936,51 @@ class JarvisRuntime:
             )
         return round(max(0.0, time.time() - newest), 1) if newest else None
 
+    def _mac_control_health(self) -> dict[str, Any]:
+        """맥에서만: `mac_control` = ready · permission_needed · not_ready · unknown · off (2026-11-16 주력 세션 요청).
+
+        `/health` 는 자주 불린다 — 허락 묻기는 도우미 앱을 한 번 띄우는 일이라 30초 동안 앞 답을 쓴다(화면의 2초 묻기는
+        `/v1/mac/permissions` 가 따로 한다). 맥이 아니면 칸 자체를 싣지 않는다 — 윈도우 `/health` 는 그대로다.
+        """
+        if sys.platform != "darwin":
+            return {}
+        if not self.config.mac_control_enabled:
+            return {"mac_control": "off"}
+        now = time.monotonic()
+        cached = getattr(self, "_mac_control_cache", None)
+        if cached is not None and now - cached[0] < 30.0:
+            return {"mac_control": cached[1]}
+        try:
+            state = str(self.mac_automation.permission_status().get("state") or "unknown")
+        except Exception:
+            state = "unknown"
+        self._mac_control_cache = (now, state)
+        return {"mac_control": state}
+
+    #: `/health` 의 상자 칸을 다시 읽는 간격(초). 잘 붙은 답은 5분, 못 붙은 답은 30초 쓴다.
+    SANDBOX_HEALTH_TTL_SEC = 300.0
+    SANDBOX_HEALTH_RETRY_SEC = 30.0
+
+    def _sandbox_health(self) -> dict[str, Any]:
+        """`/health` 의 상자 칸 — 앞 답을 잠깐 쓴다(2026-11-20).
+
+        ★ `sandbox.status()` 는 부를 때마다 `wsl.exe` 로 상자 안 명령을 실제로 돌린다. 클로드 연결 서버가 도구 목록
+        바뀜을 보려고 `/health` 를 30초마다 묻는다(`mcp_server.py` ToolListWatch) — 그래서 30초마다 WSL 이 불렸고,
+        WSLg 가 켜진 PC 에선 그때마다 보이지 않는 `msrdc.exe` 창이 떠 키보드 초점을 뺏었다(대표 PC 11-20 01시 실측:
+        3분에 앞 창이 msrdc 로 7번 · 약 30초 간격 · 클릭하면 돌아옴). 격리 검사는 매번 새로 읽는 게 맞지만,
+        그 「매번」이 30초마다일 까닭은 없다 — 상자를 쓰는 길(run · fetch)은 이 캐시를 거치지 않는다.
+        """
+        now = time.monotonic()
+        cached = getattr(self, "_sandbox_health_cache", None)
+        if cached is not None:
+            at, info = cached
+            ttl = self.SANDBOX_HEALTH_TTL_SEC if info.get("reachable", True) else self.SANDBOX_HEALTH_RETRY_SEC
+            if now - at < ttl:
+                return dict(info)
+        info = self.sandbox.status()
+        self._sandbox_health_cache = (now, dict(info))
+        return info
+
     def health(self) -> dict[str, Any]:
         snapshot = self.state.snapshot()
         memory = self._probe("memory", lambda: self.memory.inspect(self.config.conversation_session_id))
@@ -6671,6 +6999,7 @@ class JarvisRuntime:
             "ok": runner_ok,
             "job_runner": runner,
             "service": "alture-jarvis",
+            **self._mac_control_health(),
             # ★ 지금 도는 코드의 지문. 업데이트가 **먹었는지**를 밖에서 확인하는
             #   유일한 값이다 — 「배포했다」는 말은 증거가 아니고, /health 가
             #   200 을 주는 것도 새 코드라는 뜻이 아니다(안 죽은 옛 프로세스가
@@ -6692,7 +7021,8 @@ class JarvisRuntime:
             #   밖에서 GPU 를 건드리려는 쪽이 이 값을 보고 비켜 준다.
             #   한 번도 안 시켰으면 `None` — 모르는 것과 0초를 섞지 않는다.
             "seconds_since_user_activity": self._seconds_since_user_activity(),
-            "voice_profile": "Supertonic F1",
+            # 실제로 쓰는 엔진 · 목소리(2026-11-16: 맥은 macOS Yuna). 예전엔 「Supertonic F1」 고정 글자였다.
+            "voice_profile": getattr(self.tts, "voice_label", "Supertonic F1"),
             # 생각 번역: 정찰기가 있으면 실시간(live), 없으면 판이 끝난 뒤 사람이 누를 때(after). 인수인계 H3.
             "thinking_translation": "live" if getattr(self.config, "code_scout_enabled", False) else "after",
             # 꺼져 있으면 여기서 켜기를 걸고 `starting` 을 붙인다 — 화면이 「켜는 중」과 「고장」을 가른다.
@@ -6714,9 +7044,10 @@ class JarvisRuntime:
             },
             "tts": self._probe("tts", self.tts.health),
             "stt": self._probe("stt", self.stt.dependency_status),
-            "hotkey": self._probe("hotkey", self.hotkey.status),
+            # 맥이면 「맥에서는 아직」을 얹는다(tool_gateway._NOT_YET_ON_MAC). 윈도우는 받은 그대로.
+            "hotkey": mark_not_on_mac("hotkey", self._probe("hotkey", self.hotkey.status)),
             "warmup": warmup,
-            "media": self._probe("media", self.media.dependency_status),
+            "media": mark_not_on_mac("media", self._probe("media", self.media.dependency_status)),
             "vision": self._probe("vision", lambda: {**self.vision.dependency_status(), **self.vision.status()}),
             "memory": {
                 "session_id": memory["session_id"],
@@ -6738,7 +7069,7 @@ class JarvisRuntime:
             },
             "profile": self._probe("profile", self.profile.status),
             "skills": self._probe("skills", self.skills.status),
-            "sandbox": self._probe("sandbox", self.sandbox.status),
+            "sandbox": self._probe("sandbox", self._sandbox_health),
             "plopfit": self._probe("plopfit", self.plopfit.status),
             "browser": self._probe("browser", self.browser.status),
             "google": self._probe("google", self.google.status),
@@ -6747,6 +7078,11 @@ class JarvisRuntime:
             "hwp": self._probe("hwp", self.hwp.status),
             "naver_blog": self._probe("naver_blog", self.naver_blog.status),
             "scheduler": self._probe("scheduler", lambda: self.scheduler.list({"limit": 10})),
+            # ★ 맥에서만 붙는 두 칸(2026-11-16). 윈도우 /health 모양은 그대로 둔다.
+            **({
+                "mac_not_yet": mac_not_yet(),
+                "mac_update": self._probe("mac_update", self._mac_update_status),
+            } if sys.platform == "darwin" else {}),
         }
 
 

@@ -17,7 +17,7 @@ from alture_jarvis.skills import SkillDoc
 
 
 CHANGES = {
-    'user_label': '새호칭', 'attention_notices_enabled': True, 'scheduler_enabled': True,
+    'user_label': '새호칭', 'pack_files_dir': None, 'attention_notices_enabled': True, 'scheduler_enabled': True,
     'model_chat': 'changed-chat:latest', 'model_code': 'changed-code:latest',
     'model_vision': 'changed-vision:latest', 'ollama_num_ctx': 32768,
     'agent_thinking_policy': 'off', 'ollama_max_tool_steps': 20,
@@ -203,6 +203,9 @@ def consumer(runtime, key, monkeypatch, tmp_path):
                           'body': documents[args['name']].body, 'collection': '시험'})
         monkeypatch.setattr(runtime, '_skill_guess', lambda *_: '')
         return runtime._skill_instruction('과정을 정리해주세요', asked='document-craft')
+    if key == 'pack_files_dir':
+        # 팩 모델 · 실행기를 받는 자리(2026-11-16) — 받기 장치가 실제로 어디에 받나.
+        return str(runtime.pack_models.root)
     if key == 'code_scout_enabled':
         return runtime.code_scout.enabled
     if key in {'scribe_enabled', 'scribe_folders'}:
@@ -257,6 +260,7 @@ def test_saved_setting_reaches_its_consumer(tmp_path, monkeypatch, key):
     before = consumer(runtime, key, monkeypatch, tmp_path)
     value = ([str(tmp_path/'allowed')] if key == 'local_file_allowed_roots'
              else [str(Path(tempfile.gettempdir())/'ontelic-read-roots-probe')] if key == 'local_read_roots'
+             else str(tmp_path/'pack-files') if key == 'pack_files_dir'
              else CHANGES[key])
     result = runtime.settings.patch({key: value})
     assert result['ok']

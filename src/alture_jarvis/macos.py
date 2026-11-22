@@ -415,3 +415,38 @@ def ollama_pids(run: Runner | None = None) -> list[int]:
     rows = process_commands(run)
     return [pid for pid, _ppid, command in rows
             if "/Ollama.app/" in command or command.split(" ", 1)[0].endswith("/ollama")]
+
+
+#: `pbcopy` · `pbpaste` 는 **로캘로 글자를 바꾼다.** launchd 아래 백엔드에는 `LANG` 이 비어 있어 C 로캘이 되고, 그러면 한글이
+#: `?` 로 깨진다. 늘 UTF-8 을 넘기고, 바이트로 주고받아 파이썬 쪽 기본 인코딩에도 기대지 않는다.
+_PB_ENV = {"LANG": "en_US.UTF-8", "LC_CTYPE": "en_US.UTF-8", "LC_ALL": "en_US.UTF-8"}
+
+
+def _pb_env() -> dict[str, str]:
+    import os
+
+    return {**os.environ, **_PB_ENV}
+
+
+def clipboard_read(limit: int = 20000, run: Runner | None = None) -> str | None:
+    """맥 클립보드의 글(`pbpaste`). 못 읽으면 None — 빈 클립보드는 빈 문자열이다."""
+    runner = run or subprocess.run
+    try:
+        done = runner(["pbpaste"], capture_output=True, timeout=5, env=_pb_env())
+    except Exception:  # noqa: BLE001
+        return None
+    if int(getattr(done, "returncode", 1) or 0) != 0:
+        return None
+    raw = getattr(done, "stdout", b"") or b""
+    text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw)
+    return text[: max(0, int(limit))]
+
+
+def clipboard_write(text: str, run: Runner | None = None) -> bool:
+    """맥 클립보드에 글을 올린다(`pbcopy`). 됐으면 True."""
+    runner = run or subprocess.run
+    try:
+        done = runner(["pbcopy"], input=str(text).encode("utf-8"), capture_output=True, timeout=5, env=_pb_env())
+    except Exception:  # noqa: BLE001
+        return False
+    return int(getattr(done, "returncode", 1) or 0) == 0

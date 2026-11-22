@@ -137,12 +137,31 @@ are attached at the end — split the work by that table. If a result comes with
 - Codex: the same in `~/.codex/sonjari-cards/`.
 - If you cannot search files: call `sonjari_guide` with `query` (e.g. query="unity reference").
 - Read the card's needs line (pack to turn on, program) first. Do not assume Sonjari can do something that has no card.
+- **If a tool named in a card or this guide is not in the MCP tool list** (a Sonjari update added it — Claude Desktop does not refresh the list until the app is restarted): call it through the fixed door `sonjari_tool`. If you do not know the arguments, first `sonjari_tool(name="<name>", help=true)`, then `sonjari_tool(name="<name>", arguments={...})`. Tools that are in the list are called directly.
+
+## Requests that need several packs together (2026-11-14)
+
+People do not speak in pack names. One line like "make an animation from my mom's photo" can need several packs. Order:
+
+1. **If it can mean two things, ask once.** The example above: a short video where the photo moves, or a 3D character that moves? Ask in one line, then start.
+2. **Pick the packs from the table and check they are on** (a pack is on when its tools are in your tool list). If one is off, **tell the user which pack to turn on, by name** — turning a pack on is a setting, so do not turn it on yourself.
+3. **Do not promise what does not exist yet.** Do what works now and say "this part is not possible yet".
+4. For a photo of a person, confirm **it is them or they agreed** first.
+
+| Wanted | Packs, in order | Not possible yet |
+|---|---|---|
+| Picture or doodle → 3D model or 3D print | 3D generation pack | Multi-colour print; fixing non-manifold edges for printing |
+| Photo or picture → a 3D character that moves | 3D generation pack (bake as an A-pose character) → bones and weights (your own Blender tools if you have them; no Sonjari pack yet) → animator pack (motion library, Blender blocking, fit check) | Sonjari auto-rigging; photo → picture conversion that keeps the face |
+| A short video where a photo moves | — | **Making video is not available yet** (the video pack only reads videos) |
+| Reference video → animation blocking | Video pack (read the video) → animator pack (video → Biped draft) | — |
+| Put a 3D prop or character into a game | 3D generation pack → game pack (place it in the Unity editor, scripts, checks) | — |
 
 ## Tools available now (taken from the tool list at install time)
 
-### Hand off a whole task (4)
+### Hand off a whole task (5)
 
 - `sonjari_guide` — Returns the Sonjari guide (how to write and hand off a task, how to pass on the result, what to do when stuck…
 - `sonjari_task` — Hand one whole task to Sonjari, a local AI running on this PC. It works in the user's real Chrome (including …
 - `sonjari_task_cancel` — Stop a task handed off with sonjari_task. Call it when the task was a mistake or the user asks to stop. Only …
 - `sonjari_task_status` — Get the progress or result of a task handed off with sonjari_task. If it is not finished, it waits up to wait…
+- `sonjari_tool` — A fixed door that calls a Sonjari tool **by name**. If the individual tool is in this MCP list, use it direct…

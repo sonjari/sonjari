@@ -320,6 +320,11 @@ class SelfCare:
         health = self.tts.health()
         if not health.get("enabled"):
             return self._organ("tts", "ok", "음성이 꺼져 있습니다(설정).", {"enabled": False})
+        if health.get("engine") == "macos":
+            # 맥 `say` 는 다시 켤 서버가 없다 — 고장이면 사람이 할 일(목소리 설치)이라 고칠 버튼을 달지 않는다.
+            if health.get("ok"):
+                return self._organ("tts", "ok", "맥 내장 목소리로 말합니다.", {"voice": health.get("voice")})
+            return self._organ("tts", "down", f"맥 목소리를 쓸 수 없습니다: {health.get('error')}", {"engine": "macos"})
         if health.get("ok"):
             return self._organ("tts", "ok", "음성 서버가 응답합니다.", {"voice": health.get("voice")})
         return self._organ(

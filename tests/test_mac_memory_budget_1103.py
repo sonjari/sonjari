@@ -37,6 +37,8 @@ def test_sixteen_gb_uses_the_measured_gpu_limit() -> None:
     card, rec = _rec(16, limit=10.67)
     assert card["memory"]["limit_source"] == "metal" and card["model_share_gb"] == 10.67
     assert rec["model_key"] == "qwen3.5-9b-q3"
+    # 11-18 대표 결정: 맥은 같은 9B 3비트를 창 64K 로(4B · 32K 는 MCP 판에서 대화 기록이 잘려 헛돎 · 9B 64K 는 끝까지 · 각 n=1).
+    assert rec["num_ctx"] == 65536
 
 
 def test_twenty_four_gb_gets_the_27b_and_big_macs_the_full_window() -> None:
@@ -94,3 +96,12 @@ def test_mac_blurb_only_on_apple_profile():
     win = {row["key"]: row for row in catalog_view({"gpus": [{"vendor": "nvidia", "vram_total_gb": 8, "usable_gb": 7.5}], "ollama": {}})}
     assert mac["qwen3.5-9b-q3"]["blurb"].startswith("16GB 맥")
     assert win["qwen3.5-9b-q3"]["blurb"].startswith("8GB 카드")
+
+
+def test_the_64k_rung_is_for_macs_only() -> None:
+    """윈도우 8GB 카드에선 9B 3비트 64K 가 88%만 올라가 손해였다(10-14) — 맥 칸이 윈도우 사다리에 새면 안 된다."""
+    from alture_jarvis.setup_profile import _LADDER, _ladder_for
+    assert _ladder_for({"unified": False}) is _LADDER
+    assert ("qwen3.5-9b-q3", 65536, 0.5) not in _LADDER
+    mac = _ladder_for({"unified": True})
+    assert mac.index(("qwen3.5-9b-q3", 65536, 0.5)) < next(i for i, r in enumerate(mac) if r[0] == "qwen3.5-9b")

@@ -113,6 +113,13 @@ TASK_TOOL: dict[str, Any] = {
                 "null 은 그 이름의 자리를 못 찾아 확인 못 함(비었다는 뜻이 아님 — 답 본문을 직접 보세요). "
                 "답에서 주민번호 · 카드 번호 · 비밀 키는 늘 가리고, 전화번호 · 메일 주소는 여기에 "
                 "밝혔을 때만(예: \"연락처\") 내보냅니다.")},
+            # ★ 「끝까지」 칸 (2026-11-15 대표 결정). 걸음 예산은 과제 글에서 센 일의 크기(개수 · 산출물 · 각주)로 잡는데, 글로 못 세는
+            #   일이 있다(PC 판 e16a4f31: 주소 네 개를 줬는데 첫 페이지 하나에서 12걸음이 끝났다). 일의 크기를 아는 호스트가 판단해 켠다.
+            #   무제한이 아니다 — 큰 예산은 헛도는 판도 길게 만든다(11.7분 판). 상한은 `agent_autonomous_max_steps`(48).
+            "finish_all": {"type": "boolean", "description": (
+                "선택: 과제가 여러 페이지 · 여러 항목을 빠짐없이 다 해야 하는 일이고 그 크기가 과제 글의 개수로 드러나지 않을 때 "
+                "당신(호스트)이 판단해 켭니다. 켜면 이 판의 걸음 예산을 상한 48 걸음까지 줍니다(무제한 아님 · 기본은 일의 크기에 맞춘 "
+                "예산이고 보통 12 걸음). 짧은 일에 켜지 마세요 — 헛도는 판이 길어집니다.")},
         },
         "required": ["task"],
     },
@@ -130,6 +137,8 @@ STATUS_TOOL: dict[str, Any] = {
         "- resume 이 있으면 덜 끝난 것입니다. resume.evidence 주소는 다시 열지 말고 resume.next 만 이으세요.\n"
         "- failed·cancelled 여도 files·sources·resume 은 한 일이니 쓰세요. unverified_claim 은 사실로 전하지 마세요.\n"
         "- running: progress.doing 과 progress.requested(n/m)를 한 줄로 전하세요. 남은 시간은 예측해 주지 않습니다 — 지어 말하지 마세요.\n"
+        "- progress.news 는 방금 읽어 확인한 항목 한 줄(출처 url)입니다. 기다리는 동안 사용자에게 **한 번만**(절반쯤) 한 줄로 전하고 "
+        "「중간 소식이라 최종 답과 다를 수 있다」를 붙이세요. 끝난 뒤에는 최종 답만 쓰세요.\n"
         "- cost.host_context_kept_out.tokens_at_least 는 하한입니다. 「최소 N토큰」으로 basis 와 함께 말하세요. "
         "시간을 아꼈다는 말은 하지 마세요."
     ),
@@ -204,6 +213,27 @@ STORY_TOOL: dict[str, Any] = {
     "enabled": True,
 }
 
+# ★ 2026-11-15 고정 문. 클로드 데스크톱은 `notifications/tools/list_changed` 를 무시한다(우리 실측 11-13 · 11-15 ·
+#   docs/설계_MCP도구목록_자동갱신_2026-11-13.ko.md §5-1) — 손자리 업데이트로 새 도구가 생기면 앱을 다시 켜기 전까지 목록에 없다.
+#   목록이 안 바뀌어도 부를 수 있게, 이름으로 본체 도구를 부르는 **늘 있는 문** 하나를 둔다. 거르기는 개별 도구와 같은 규칙
+#   (`JarvisMcpBridge._door` 가 그때그때 /v1/tools 를 다시 물어 같은 거름망을 지난 목록에서만 찾는다).
+#   지연 적재 면제(alwaysLoad)는 하지 않는다 — 09-23 에 비용을 재서 정한 「처음부터 보이는 문 셋」을 늘리지 않는다. 이름은 가이드 · 카드가 알려 준다.
+DOOR_TOOL: dict[str, Any] = {
+    "name": "sonjari_tool",
+    "description": ("손자리 본체의 도구를 **이름으로** 부르는 고정 문. 개별 도구가 이 MCP 목록에 보이면 그 도구를 직접 쓰세요. "
+                    "손자리 업데이트로 새로 생겨 목록에 아직 없는 도구(가이드 · 기능 카드에 이름이 있는 것)는 이 문으로 부릅니다 — "
+                    "클로드 데스크톱은 목록이 바뀌었다는 신호를 받지 않아, 앱을 다시 켜기 전까지 새 도구가 목록에 안 뜹니다. "
+                    "인자 모양을 모르면 먼저 help=true 로 그 도구의 설명과 매개변수 스키마를 받으세요. "
+                    "개별 도구와 같은 허용 목록 · 위험 등급 · 팩 켜짐 검사를 지나므로, 이 연결로 막힌 도구는 이 문으로도 부를 수 없습니다."),
+    "parameters": {"type": "object", "properties": {
+        "name": {"type": "string", "description": "부를 손자리 도구 이름(예: gen_3d_split_plan)"},
+        "arguments": {"type": "object", "description": "그 도구에 넘길 인자(그 도구의 매개변수 스키마대로). 없으면 비움"},
+        "help": {"type": "boolean", "description": "true 면 부르지 않고 그 도구의 설명 · 매개변수 스키마만 돌려줌"},
+    }, "required": ["name"]},
+    "risk_level": "L0",
+    "enabled": True,
+}
+
 
 # ★ 영어 연결용 설명 (2026-10-19). 이름 · 칸 · 스키마는 한국어판과 **같은 것**을 쓴다 — 설명 글만 바꿔 끼운다.
 #   한국어판의 말을 더하거나 빼지 않는다(같은 규칙이 두 언어로 갈리면 안 된다 — `test_mcp_language_1019`).
@@ -246,6 +276,12 @@ _EN_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "keys are always masked; phone numbers and email addresses are only returned when you name them here "
             "(e.g. \"contact\")."
         ),
+        "finish_all": (
+            "Optional: turn this on, at your (the host's) judgment, when the task must cover several pages or items "
+            "completely and its size does not show up as a count in the task text. It gives this run a step budget of up "
+            "to 48 steps (not unlimited; the default budget is sized to the task, usually 12 steps). Don't turn it on for "
+            "short tasks — a run that is going in circles just runs longer."
+        ),
     },
     STATUS_TOOL["name"]: {
         "": (
@@ -259,6 +295,9 @@ _EN_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "unverified_claim on as fact.\n"
             "- running: pass progress.doing and progress.requested (n/m) in one line. It does not predict time left "
             "— do not make one up.\n"
+            "- progress.news is a one-line item just read and checked (with its source url). While waiting, pass it on "
+            "to the user **once** (about halfway) in one line, noting it is interim and the final answer may differ. "
+            "After the task ends, use only the final answer.\n"
             "- cost.host_context_kept_out.tokens_at_least is a lower bound. Say \"at least N tokens\" with its basis. "
             "Do not claim time was saved."
         ),
@@ -297,6 +336,20 @@ _EN_DESCRIPTIONS: dict[str, dict[str, str]] = {
         ),
         "session": "Only this session (start of the conversation log's file name). Empty means all.",
         "limit": "How many of the most recent lines (default 30).",
+    },
+    DOOR_TOOL["name"]: {
+        "": (
+            "A fixed door that calls a Sonjari tool **by name**. If the individual tool is in this MCP list, use it "
+            "directly. Tools that a Sonjari update added and that are not in the list yet (their names are in the guide "
+            "or the capability cards) are called through this door — Claude Desktop does not act on the tool-list-changed "
+            "signal, so new tools stay out of the list until the app is restarted. If you do not know the arguments, "
+            "call with help=true first to get the tool's description and parameter schema. The door applies the same "
+            "allow list, risk level and pack-enabled checks as the individual tools, so a tool blocked on this "
+            "connection cannot be called through it either."
+        ),
+        "name": "Name of the Sonjari tool to call (e.g. gen_3d_split_plan)",
+        "arguments": "Arguments for that tool, following its parameter schema. Empty if none",
+        "help": "If true, do not call it; return only the tool's description and parameter schema",
     },
 }
 
@@ -830,6 +883,12 @@ def _resume(trace: dict[str, Any], steps: list[dict[str, Any]], sources: list[st
     return resume
 
 
+#: 중간 소식 — 호스트에 싣는 줄 수와 길이 상한(작업당 들고 있는 것은 `live_progress._NEWS_KEEP`).
+NEWS_SHOWN = 3
+NEWS_TEXT_MAX = 90
+NEWS_URL_MAX = 160
+
+
 def _progress_block(live: "dict[str, Any] | None", *, now: "float | None" = None) -> "dict[str, Any] | None":
     """진행 중인 작업이 **지금 무엇을 하는가** — 화면이 보여 주는 「지금 하는 일 · 시킨 것 n/m」을 호스트 채팅으로 잇는다.
 
@@ -866,6 +925,18 @@ def _progress_block(live: "dict[str, Any] | None", *, now: "float | None" = None
                 for i in (requested.get("items") or [])[:8] if isinstance(i, dict)
             ]
             block["requested"] = {"met": met, "total": total, "items": items}
+    # ★ 중간 소식(2026-11-14 · `interim_news`) — 한 항목을 실제로 읽어 확인할 때마다 쌓인 한 줄. 최근 것만, 짧게(호스트 창을 아낀다).
+    #   줄은 도구 결과에서 결정론으로 만들고 숫자는 그 걸음에서 읽은 본문에 있는 것만 실린다. 끝난 판에는 이 칸이 없다 — 최종 답이 우선.
+    news = [
+        {"text": str(i.get("text") or "")[:NEWS_TEXT_MAX], "url": str(i.get("url") or "")[:NEWS_URL_MAX]}
+        for i in (live.get("news") or []) if isinstance(i, dict) and str(i.get("text") or "").strip()
+    ][-NEWS_SHOWN:]
+    if news:
+        block["news"] = news
+        try:
+            block["news_count"] = max(len(news), int(live.get("news_count") or 0))
+        except (TypeError, ValueError):
+            block["news_count"] = len(news)
     updated = live.get("updated_at")
     if isinstance(updated, (int, float)) and updated > 0:
         block["seconds_since_update"] = max(0, int((time.time() if now is None else now) - float(updated)))
@@ -1046,6 +1117,7 @@ def summarize_job(
     answer = answer_for_receiver(result, job.get("payload"))
     files: list[str] = []
     written: list[str] = []
+    search_pages: list[str] = []  # 검색 결과 화면 — 연 페이지 뒤에 붙인다(2026-11-20)
     sources: list[str] = []
     for step in steps:
         if not step.get("ok"):
@@ -1079,8 +1151,18 @@ def summarize_job(
             #   `code_challenge` · `nonce` · `state` 를 단 채 sources 로 나갔다. 출처는 「그 화면을 봤다」면 충분하다 — 로그인 화면과
             #   한 번 쓰는 값이 붙은 주소는 `scheme://host/path` 로 줄인다(지우지 않는다 · `url_privacy.safe_url`).
             source = safe_url(str(record.get("source_id") or ""))
+            if not source.startswith("http"):
+                # ★ 2026-11-20 맥 0.4.49 날씨 판: 검색 걸음의 source_id 는 「q:서울 날씨」(검색어)라 버려져 sources 가 0 이었다 —
+                #   답은 검색 결과 맨 위 답 상자로 했다. 그 걸음이 실제로 본 화면 주소(evidence.url)를 출처로 쓴다.
+                #   다만 **연 페이지보다 뒤에** 둔다 — 출처는 20개까지라 검색 화면이 연 페이지를 밀어내면 안 된다
+                #   (운영 기록 대조: 6,250판 중 12판에서 연 페이지가 밀려났다).
+                searched = safe_url(str(evidence.get("url") or ""))
+                if searched.startswith("http") and searched not in search_pages:
+                    search_pages.append(searched)
+                continue
             if source.startswith("http") and source not in sources:
                 sources.append(source)
+    sources.extend(page for page in search_pages if page not in sources)
 
     seen = {str(n) for n in trace.get("tool_numbers") or []} | {str(n) for n in trace.get("tool_numbers_body") or []}
     # ★ 2026-09-30: **사용자가 과제에 직접 적은 숫자**는 근거다. 「17 곱하기 23은?」의 답에 17·23 이

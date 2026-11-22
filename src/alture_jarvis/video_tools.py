@@ -10,12 +10,11 @@
 - 영상 탭은 다른 일의 탭 정리(`_prune_tabs`)에 닫히지 않게 정리 대상(`_our_pages`)에서 빼고, 끝나면 **실패해도** 우리가 닫는다.
   작업 탭(`_page`)은 바꾸지 않는다.
 - 전체 240초 마감(MCP 호출 상한 300초) — 못 본 구간은 결과에 적는다.
-- 이 PC 파일은 ffmpeg 가 있을 때만(스토어 판에는 없다). 없으면 지어내지 않고 분명하게 거절한다.
+- 이 PC 파일은 ffmpeg 가 있을 때만 — PATH 또는 파이썬 꾸러미 imageio-ffmpeg(맥 설치가 깐다 · 윈도우 스토어 판에는 없다). 없으면 지어내지 않고 분명하게 거절한다.
 """
 from __future__ import annotations
 
 import re
-import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -90,7 +89,7 @@ class VideoTools:
 
     def video_read(self, arguments: dict[str, Any]) -> dict[str, Any]:
         if not self.enabled():
-            raise PermissionError("pack_disabled: 영상 팩이 꺼져 있다 — 설정 › 팩에서 「영상 팩」을 켜야 쓸 수 있다고 사람에게 말해라.")
+            raise PermissionError("pack_disabled: 영상 팩이 꺼져 있다 — sonjari_pack_request(pack=\"video\", why=…) 로 사용자에게 켜 달라고 청해라(사람이 손자리 카드에서 권한을 보고 누른다 · 설정 › 팩에서 직접 켤 수도 있다). 대신 켜지 마라.")
         url = str(arguments.get("url") or "").strip()
         path = str(arguments.get("path") or "").strip()
         if bool(url) == bool(path):
@@ -132,7 +131,10 @@ class VideoTools:
         file = Path(path)
         if not file.is_file():
             raise FileNotFoundError(f"video_read: 파일이 없다 — {path}")
-        if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
+        from .video_read import scan as _scan
+
+        # PATH 의 ffmpeg 또는 imageio-ffmpeg 가 들고 온 것(맥 · 2026-11-13). ffprobe 는 더 쓰지 않는다(`scan.video_size`).
+        if _scan.ffmpeg_exe() is None:
             raise RuntimeError("ffmpeg_missing: 이 PC 에 ffmpeg 가 없어 영상 파일은 못 잰다(유튜브 주소는 된다). "
                                "ffmpeg 를 깔면 파일도 같은 눈금으로 잰다고 사람에게 말해라.")
         out = self._out_dir(file.stem)

@@ -29,7 +29,9 @@ def test_a_call_leaves_one_line_with_times_and_fingerprints_only(tmp_path: Path)
     assert row["first_token_sec"] == 16.9 and row["prefill_sec"] == 16.2 and row["prompt_tokens"] == 31000
     assert row["tools"] == 2 and len(row["tools_sig"]) == 10 and len(row["system_head_sig"]) == 10
     text = json.dumps(row, ensure_ascii=False)
-    assert "비밀 지시문" not in text and "서울" not in text and "browser_open" not in text
+    assert "비밀 지시문" not in text and "서울" not in text, "사람이 쓴 글 · 지시문은 지문만"
+    # 11-18: 도구가 적은 부르기(8개 이하)는 누가 불렀는지 찾으려고 도구 **이름**만 남긴다(우리 함수 이름 · 사람 내용 아님).
+    assert row.get("tool_names") == ["browser_open", "local_write_document"]
 
 
 def test_the_log_keeps_only_recent_lines_when_it_grows(tmp_path: Path) -> None:

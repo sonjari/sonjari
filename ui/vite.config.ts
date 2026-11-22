@@ -11,6 +11,8 @@ export default defineConfig(({ command, mode }) => {
       throw new Error(`배포 빌드에 ${baked.join(", ")} 가 들어가려 한다 — ui/.env.local 등을 치우고 다시 빌드하라.`);
     }
   }
+  // 3D 무대 리허설(`?gen3dFixture=`)이 실측 GLB 를 읽는 곳 — 개발 모드에서 그 값이 있을 때만 같은 주소(`/__gen3d_fixture`)로 잇는다(11-14).
+  const fixtureServer = command === "serve" ? loadEnv(mode, ".", "VITE_").VITE_GEN3D_FIXTURE_SERVER : "";
   return {
     plugins: [react()],
     clearScreen: false,
@@ -18,6 +20,9 @@ export default defineConfig(({ command, mode }) => {
       host: "127.0.0.1",
       port: 1420,
       strictPort: true,
+      ...(fixtureServer
+        ? { proxy: { "/__gen3d_fixture": { target: fixtureServer, rewrite: (path: string) => path.replace(/^\/__gen3d_fixture/, "") } } }
+        : {}),
     },
     envPrefix: ["VITE_", "TAURI_"],
     css: {

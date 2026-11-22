@@ -104,6 +104,33 @@ flowchart TB
 | 쓰는 곳 | 레시피가 도는 동안만 프로젝트의 `Assets/Editor/SonjariRecipes`, 에디터를 이을 때 `Packages/manifest.json` 한 줄(풀면 원래대로), 씬은 승인한 변경만(에디터 Undo 에 남음) |
 | 인터넷 | 쓰지 않습니다. [MCP for Unity](https://github.com/CoplayDev/unity-mcp)(MIT)를 고정한 사본 위에 만들었고, 바깥 연결과 사용 기록 전송은 뺐습니다 |
 
+### 3D 팩
+
+| | |
+|---|---|
+| 하는 일 | 그림 한 장을 내 그래픽카드로 3D 모델(GLB)로 굽고, 손자리가 직접 잰 영수증을 돌려줍니다. 면 수 · 크기 · 닫힌 메시인지 · 걸린 시간 · 그래픽카드 메모리 · 작은 미리보기가 들어 있습니다. 프린트 파일(STL · 한 색 3MF)을 만들고, 피규어를 핀으로 끼우는 부품으로 나눌 수 있고, 블렌더가 있으면 다듬기 · 렌더 · 내보내기(GLB · 유니티용 FBX)까지 합니다 |
+| 더해지는 도구 | `gen_3d_check`, `gen_3d_blender`, `gen_3d_prep`, `gen_3d`, `gen_3d_status`, `gen_3d_print`, `gen_3d_views`, `gen_3d_finish`, `gen_3d_render`, `gen_3d_export`, `gen_3d_split_plan`, `gen_3d_split`, `gen_3d_fit_test`, `gen_3d_fit_set` |
+| 쓰는 곳 | `내 문서/Sonjari/gen3d` 아래 판마다 새 폴더(덮어쓰지 않음), 켤 때 받는 실행기와 모델(약 0.7GB + 9.9GB), 블렌더는 받기에 동의했을 때만 |
+| 실행 | `trellis-cli` 를 그림마다 한 번, 한 번에 하나, 창 없이 돌립니다. 블렌더도 창 없이 기본 설정으로 돌립니다. 맥에서는 굽기 전에 남은 메모리를 재고 글 모델을 잠시 내립니다 |
+| 인터넷 | 만들 때는 쓰지 않습니다. 켤 때 한 번 실행기(GitHub 릴리스)와 모델(허깅페이스)을 받는데, 크기와 라이선스를 먼저 보여 드리고 받은 뒤 해시를 확인합니다. 블렌더는 안내를 읽고 동의하셨을 때만 blender.org 에서 받습니다 |
+| 바탕 | [trellis.cpp](https://github.com/pwilkin/trellis.cpp) v0.8.1(MIT), [TRELLIS.2 GGUF](https://huggingface.co/ilintar/trellis2-gguf) q8(MIT · 원본을 따름) |
+| 잰 숫자 | RTX 3060 12GB · 512: 11판 85~139초, 그래픽카드 메모리 2,908~4,064MiB(카드 전체). 맥 16GB 는 512 만 됩니다 |
+
+### 영상 팩
+
+| | |
+|---|---|
+| 하는 일 | 클로드가 콘티를 짜면, 손자리가 내 그래픽카드로 컷 시안을 굽고 영상 대신 영수증을 돌려줍니다. 걸린 시간 · 검사(움직임 · 멈춤 · 너무 어두움 · 튐 · 소리) · 장면 사진 판 · 고르기 판이 들어 있습니다. 고른 컷만 본판으로 다시 굽습니다. 글자 · 로고 · 앱 화면은 굽지 않고 코드로 합성합니다 |
+| 더해지는 도구 | `gen_video_check`, `gen_video_prep`, `gen_video_batch`, `gen_video_status`, `gen_video_finish` |
+| 쓰는 곳 | `내 문서/Sonjari/genvideo` 아래 묶음마다 새 폴더(덮어쓰지 않음), 켤 때 받는 실행기와 모델(약 0.98GB + 18.3GB) |
+| 실행 | `sd-cli` 를 컷마다 한 번, 한 번에 하나, 창 없이 돌립니다. 검사에는 `ffmpeg` 를 씁니다. 그래픽카드가 하나뿐인 PC 는 굽기 전에 글 모델을 잠시 내립니다 |
+| 인터넷 | 만들 때는 쓰지 않습니다. 켤 때 한 번 실행기와 모델을 받는데, 크기와 라이선스를 먼저 보여 드리고 받은 뒤 해시를 확인합니다 |
+| 바탕 | [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)(MIT), 시안은 FastWan2.2-TI2V-5B, 본판은 Wan2.2-TI2V-5B(Apache-2.0). 소리까지 내는 LTX-2.x 는 선택이고, 그 라이선스에 직접 동의하고 직접 받아 두신 경우에만 씁니다 |
+| 잰 숫자 | RTX 3060 12GB · 832×480 · 3초 컷: 시안 31~57초(4번), 본판 약 370초(1번). 윈도우만 됩니다 |
+
+이 두 팩의 라이선스(0.4.49 부터): 개인 · 비상업 용도, 그리고 100명 미만이면서 연 매출 100만 달러 미만인 회사는 무료입니다.
+[PolyForm Noncommercial](https://polyformproject.org/licenses/noncommercial/1.0.0) 과 [PolyForm Small Business](https://polyformproject.org/licenses/small-business/1.0.0) 1.0.0 중 맞는 쪽을 고르시면 됩니다.
+
 분야 팩을 켠 상태에서 클로드 코드나 코덱스를 연결하면, 그 팩의 사용법도 손자리 사용법 옆에 같이 설치되고 팩의 도구가 MCP 로
 보입니다([MCP 사용법](mcp.ko.md) 참고).
 

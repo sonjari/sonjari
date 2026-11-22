@@ -804,6 +804,7 @@ class UnityTools:
         except OSError:
             pass
         compile_errors = [line.strip()[:300] for line in log_text.splitlines() if "error CS" in line][:10]
+        license_lines = license_failure(log_text)
         result: dict[str, Any] = {}
         try:
             result = json.loads(out_file.read_text(encoding="utf-8"))
@@ -815,6 +816,7 @@ class UnityTools:
             failure = (
                 "timeout" if timed_out
                 else "compile_error" if compile_errors
+                else "unity_license" if license_lines and not result
                 else "no_result_file" if not result
                 else str(result.get("error") or "recipe_reported_failure")
             )
@@ -828,6 +830,7 @@ class UnityTools:
             "verified": verified,
             **({"failure": failure} if failure else {}),
             **({"compile_errors": compile_errors} if compile_errors else {}),
+            **({"license_log": license_lines, "fix_for_human": LICENSE_FIX} if failure == "unity_license" else {}),
             "result": _trim(result),
             "log_file": str(log_file),
             "result_file": str(out_file),
@@ -941,7 +944,10 @@ class UnityTools:
             "결과가 맞으면 사용자에게 「손자리 설정 › 팩 › 게임 팩에서 이 초안을 레시피로 등록해 달라」고 말하세요. "
             "등록은 사람만 할 수 있고, 등록하면 다음부터 손자리가 혼자 unity_run_recipe 로 돌립니다."
             if outcome["verified"] else
-            "compile_errors·failure 를 보고 csharp 를 고쳐 같은 name 으로 다시 부르세요(초안을 덮어씁니다)."
+            ("코드 문제가 아니다 — 유니티가 이 PC 에서 라이선스를 못 받아 배치 모드를 시작하지 못했다. fix_for_human 을 사람에게 그대로 전하고, "
+             "사람이 끝냈다고 하면 같은 name 으로 다시 부르세요."
+             if outcome.get("failure") == "unity_license" else
+             "compile_errors·failure 를 보고 csharp 를 고쳐 같은 name 으로 다시 부르세요(초안을 덮어씁니다).")
         )
         return outcome
 
@@ -1098,7 +1104,7 @@ class UnityTools:
     def _guard(self, handler: Any) -> Any:
         def run(arguments: dict[str, Any]) -> dict[str, Any]:
             if not self.enabled():
-                raise PermissionError("pack_disabled: 게임 팩이 꺼져 있다 — 설정 › 팩에서 켜야 유니티를 다룰 수 있다고 사람에게 말해라.")
+                raise PermissionError("pack_disabled: 게임 팩이 꺼져 있다 — 유니티를 다루려면 sonjari_pack_request(pack=\"game\", why=…) 로 사용자에게 켜 달라고 청해라(사람이 손자리 카드에서 권한을 보고 누른다 · 설정 › 팩에서 직접 켤 수도 있다). 대신 켜지 마라.")
             return handler(arguments)
         return run
 
@@ -1135,6 +1141,19 @@ def _inside(path: Path, root: Path) -> bool:
         return os.path.commonpath([str(path).lower(), str(root).lower()]) == str(root).lower()
     except ValueError:
         return False
+
+
+#: 배치 모드가 라이선스에서 막힌 표시(11-18 이 PC 실측 · 유니티 6000.6.3 · 허브 로그인이 풀린 상태로 봄 — 「결과 파일 없음」으로만 보여 까닭을 몰랐다).
+LICENSE_MARKERS = ("com.unity.editor.headless' was not found", "Found 0 entitlement groups and 0 free entitlements",
+                   "No valid Unity Editor license found", "License is not active")
+#: 「Access token is unavailable」 은 넣지 않는다 — 맥에서 성공한 6판 모두에 찍혀 있었다(11-18 역검증 · 성공에도 나오는 경고).
+LICENSE_FIX = ("유니티가 이 PC 에서 라이선스를 받지 못해 창 없이(배치 모드) 돌지 못했습니다. 유니티 허브를 열어 로그인하고, "
+               "허브의 라이선스 화면에서 개인(Personal) 라이선스가 활성인지 확인한 뒤 다시 해 주세요.")
+
+
+def license_failure(log_text: str) -> list[str]:
+    """로그에서 라이선스 실패 줄(최대 4) — 없으면 빈 목록."""
+    return [line.strip()[:200] for line in log_text.splitlines() if any(m in line for m in LICENSE_MARKERS)][:4]
 
 
 def _trim(value: Any, depth: int = 0) -> Any:

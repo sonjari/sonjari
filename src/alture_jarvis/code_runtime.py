@@ -554,6 +554,57 @@ def _is_local_page(url: str) -> bool:
     return host in {"localhost", "127.0.0.1", "[::1]"} or host.endswith(".localhost")
 
 
+#: 파일 내용을 **보기만** 하는 명령 — 성공해도 실행 검증이 아니다(`cat primes.py` 가 종료 0 이어도 돌린 게 아니다).
+_LOOK_ONLY_COMMANDS = frozenset({
+    "cat", "less", "more", "head", "tail", "type", "ls", "dir", "wc", "grep", "rg", "find", "echo", "open", "file",
+    "stat", "du", "sha256sum", "shasum", "md5", "diff", "code", "notepad", "explorer", "start",
+})
+
+
+def _mentions_file(command: str, path: str) -> bool:
+    """명령이 그 파일을 가리키나 — 전체 경로(구분자 무시)나, 확장자가 붙은 파일 이름 한 낱말로."""
+    norm_cmd = command.replace("\\", "/").casefold()
+    norm_path = path.replace("\\", "/").casefold().rstrip("/")
+    if norm_path and norm_path in norm_cmd:
+        return True
+    name = norm_path.rsplit("/", 1)[-1]
+    if "." not in name:
+        return False
+    return bool(re.search(r"(?<![\w.\-/])" + re.escape(name) + r"(?![\w.\-])", norm_cmd))
+
+
+def shell_run_verification_indices(steps: list[dict[str, Any]]) -> list[int]:
+    """이 판에서 쓴 파일을 `local_run_shell` 로 **직접 돌려** 종료 0 으로 끝난 걸음의 번호 (2026-11-17).
+
+    맥 새 계정 시험: 4B 가 `primes.py` 를 쓰고 `local_run_project_command` 의 path 칸을 틀려 실패한 뒤,
+    `local_run_shell: python …/primes.py` 로 돌려 종료 0 · 출력이 답과 같았다(대표가 다시 돌려 확인). 그런데 검증은
+    프로젝트 명령만 세서 「⚠ 실행해 확인하지 못한 채」 헛경고가 붙었다. 쓴 것을 돌린 셸 실행은 검증이다.
+    빈 실행(`echo ok`) · 보기만 하는 명령(`cat primes.py`) · 쓴 파일과 상관없는 명령은 여전히 아니다.
+    """
+    written: list[str] = []
+    found: list[int] = []
+    for index, step in enumerate(steps):
+        tool = str(step.get("tool") or "")
+        evidence = step.get("evidence") if isinstance(step.get("evidence"), dict) else {}
+        arguments = step.get("arguments") if isinstance(step.get("arguments"), dict) else {}
+        if not step.get("ok"):
+            continue
+        if tool in {"local_write_file", "local_apply_edit"}:
+            path = str(evidence.get("output_path") or arguments.get("path") or "")
+            if path:
+                written.append(path)
+            continue
+        if tool != "local_run_shell" or not written or not evidence.get("verified"):
+            continue
+        command = str(evidence.get("command") or arguments.get("command") or "").strip()
+        first = command.split(None, 1)[0].rsplit("/", 1)[-1].rsplit("\\", 1)[-1].casefold() if command else ""
+        if not command or first in _LOOK_ONLY_COMMANDS:
+            continue
+        if any(_mentions_file(command, path) for path in written):
+            found.append(index)
+    return found
+
+
 def browser_verification_indices(steps: list[dict[str, Any]]) -> list[int]:
     """이 PC 안 페이지를 **만진 뒤 읽은** 걸음의 번호 — 코드 판의 검증으로 친다 (2026-09-30 대표 결정).
 
@@ -732,6 +783,8 @@ def code_verification_is_current(steps: list[dict[str, Any]]) -> bool:
     )
     # 이 PC 안 페이지를 만지고 읽은 확인도 검증이다(2026-09-30) — 둘 중 늦은 것이 마지막 검증.
     last_verification = max([last_verification, *browser_verification_indices(steps)])
+    # 쓴 파일을 셸로 직접 돌린 것도 검증이다(2026-11-17 맥 소수 판) — 그 뒤에 또 고치면 아래에서 다시 미검증이 된다.
+    last_verification = max([last_verification, *shell_run_verification_indices(steps)])
     if last_verification < 0:
         return False
 

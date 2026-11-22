@@ -33,10 +33,10 @@ PLUGIN_NOTE = (
 
 
 def render() -> str:
-    from alture_jarvis.delegation import DELEGATION_TOOLS, GUIDE_TOOL, localized_tool
+    from alture_jarvis.delegation import DELEGATION_TOOLS, DOOR_TOOL, GUIDE_TOOL, localized_tool
     from alture_jarvis.guide_skill import render_skill
 
-    body = render_skill([localized_tool(tool, "en") for tool in (*DELEGATION_TOOLS, GUIDE_TOOL)], "en")
+    body = render_skill([localized_tool(tool, "en") for tool in (*DELEGATION_TOOLS, GUIDE_TOOL, DOOR_TOOL)], "en")
     head, sep, rest = body.partition("\n---\n")
     if not sep or not head.startswith("---"):
         raise SystemExit("render_skill 머리말 모양이 바뀌었다 — 이 스크립트를 고칠 것")

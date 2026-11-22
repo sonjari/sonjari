@@ -1,0 +1,85 @@
+{
+  "data" : {
+    "inventory_warnings" : [
+      "Window list omitted 4 non-renderable or duplicate inventory rows."
+    ],
+    "inventory_completeness" : "partial",
+    "target_application_info" : {
+      "app_name" : "텍스트 편집기",
+      "pid" : 5259,
+      "bundle_id" : "com.apple.TextEdit"
+    },
+    "windows" : [
+      {
+        "is_on_screen" : true,
+        "layer" : 0,
+        "is_frontmost" : true,
+        "window_id" : 3785,
+        "is_key" : true,
+        "window_title" : "무제 3",
+        "window_index" : 0,
+        "bounds" : {
+          "x" : 271,
+          "y" : 135,
+          "width" : 603,
+          "height" : 505
+        },
+        "observation_capability" : "combined_eligible",
+        "subrole" : "AXStandardWindow"
+      },
+      {
+        "is_on_screen" : true,
+        "layer" : 0,
+        "is_frontmost" : false,
+        "window_id" : 3774,
+        "is_key" : false,
+        "window_title" : "무제 2",
+        "window_index" : 1,
+        "bounds" : {
+          "x" : 242,
+          "y" : 106,
+          "width" : 603,
+          "height" : 505
+        },
+        "observation_capability" : "combined_eligible",
+        "subrole" : "AXStandardWindow"
+      },
+      {
+        "is_on_screen" : true,
+        "layer" : 0,
+        "is_frontmost" : false,
+        "window_id" : 3768,
+        "is_key" : false,
+        "window_title" : "무제",
+        "window_index" : 6,
+        "bounds" : {
+          "x" : 213,
+          "y" : 77,
+          "width" : 603,
+          "height" : 505
+        },
+        "observation_capability" : "combined_eligible",
+        "subrole" : "AXStandardWindow"
+      },
+      {
+        "is_on_screen" : false,
+        "layer" : 0,
+        "window_id" : 3767,
+        "window_title" : "",
+        "observation_capability_reason" : "no_matching_accessibility_window",
+        "window_index" : 7,
+        "bounds" : {
+          "x" : 0,
+          "y" : 580,
+          "width" : 500,
+          "height" : 500
+        },
+        "observation_capability" : "pixels_only"
+      }
+    ]
+  },
+  "debug_logs" : [
+    "[2026-11-16T05:32:39.668Z] DEBUG: Runtime host: local (in-process)"
+  ],
+  "success" : true
+}

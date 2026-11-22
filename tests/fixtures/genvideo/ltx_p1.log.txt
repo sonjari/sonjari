@@ -1,0 +1,304 @@
+[V] version: stable-diffusion.cpp version unknown, commit 5dcfa79 --- main.cpp:775
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 12287 MiB):
+  Device 0: NVIDIA GeForce RTX 3060, compute capability 8.6, VMM: yes, VRAM: 12287 MiB
+load_backend: loaded CUDA backend from D:\tools\sdcpp\bin\ggml-cuda.dll
+load_backend: loaded CPU backend from D:\tools\sdcpp\bin\ggml-cpu-alderlake.dll
+[V] System Info: 
+   SSE3 = 1 |    SSSE3 = 1 |    AVX = 1 |    AVX_VNNI = 1 |    AVX2 = 1 |    F16C = 1 |    FMA = 1 |    BMI2 = 1 |    OPENMP = 1 |    REPACK = 1 |  --- main.cpp:776
+[V] using 12 threads for model loading --- model_loader.cpp:194
+[I] loading diffusion model from 'D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf' --- diffusion_engine.cpp:693
+[I] load D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf using gguf format --- model_loader.cpp:220
+[V] init from 'D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf' --- model_loader.cpp:266
+[V] GGUF v3, tensor_count=4349, metadata_kv_count=7 --- gguf_reader_ext.h:225
+[I] loading llm from 'D:/models/video/ltx25/gemma4-12b-with-proj-ltx-2.5-Q8_0.gguf' --- diffusion_engine.cpp:750
+[I] load D:/models/video/ltx25/gemma4-12b-with-proj-ltx-2.5-Q8_0.gguf using gguf format --- model_loader.cpp:220
+[V] init from 'D:/models/video/ltx25/gemma4-12b-with-proj-ltx-2.5-Q8_0.gguf' --- model_loader.cpp:266
+[V] GGUF v3, tensor_count=681, metadata_kv_count=0 --- gguf_reader_ext.h:225
+[I] loading vae from 'D:/models/video/ltx25/ltx-2.5-video-vae-conv-bf16.safetensors' --- diffusion_engine.cpp:764
+[I] load D:/models/video/ltx25/ltx-2.5-video-vae-conv-bf16.safetensors using safetensors format --- model_loader.cpp:226
+[V] init from 'D:/models/video/ltx25/ltx-2.5-video-vae-conv-bf16.safetensors', prefix = 'vae.' --- model_loader.cpp:294
+[I] loading audio VAE from 'D:/models/video/ltx25/ltx-2.5-audio-vae-bf16.safetensors' --- diffusion_engine.cpp:788
+[I] load D:/models/video/ltx25/ltx-2.5-audio-vae-bf16.safetensors using safetensors format --- model_loader.cpp:226
+[V] init from 'D:/models/video/ltx25/ltx-2.5-audio-vae-bf16.safetensors', prefix = '' --- model_loader.cpp:294
+[I] Version: LTXAV  --- diffusion_engine.cpp:978
+[V] Found 2 backend devices: --- ggml_extend_backend.cpp:719
+[V] #0: CUDA0 --- ggml_extend_backend.cpp:722
+[V] #1: CPU --- ggml_extend_backend.cpp:722
+[V] Initializing backend: CUDA0 --- ggml_extend_backend.cpp:421
+[V] Initializing backend: CPU --- ggml_extend_backend.cpp:421
+[V] using 12 threads for model loading --- model_loader.cpp:194
+[I] Weight type stat:                      f32: 2577 |    q8_0: 2062 |    bf16: 1890  --- diffusion_engine.cpp:1556
+[I] Conditioner weight type stat:         q8_0: 622  |    bf16: 55    --- diffusion_engine.cpp:1557
+[I] Diffusion model weight type stat:      f32: 2577 |    q8_0: 1440 |    bf16: 332   --- diffusion_engine.cpp:1558
+[I] VAE weight type stat:                 bf16: 272   --- diffusion_engine.cpp:1559
+[I] ltxav text encoder: gemma 4 --- conditioner.hpp:3859
+[V] llm: num_layers = 48, vocab_size = 262144, hidden_size = 3840, intermediate_size = 15360 --- llm.hpp:464
+[V] ltxav: num_layers = 48, hidden_size = 4096, num_attention_heads = 32, audio_hidden_size = 2048, audio_num_attention_heads = 32 --- ltxv.hpp:286
+[I] using VAE for encoding / decoding --- model_builders.cpp:225
+[V] ltx_audio_vae: sample_rate = 16000, mel_bins = 64, latent_channels = 8, latent_frequency_bins = 16, has_bwe = true --- ltx_audio_vae.hpp:185
+[I] flash attention auto: CPU -> on (CPU) --- flash_attn.cpp:70
+[I] flash attention auto: CUDA0 -> on (CUDA MMA) --- flash_attn.cpp:74
+[I] conv2d direct auto: CUDA0 -> on (implicit GEMM) --- conv_direct.cpp:87
+[I] conv3d direct auto: CUDA0 -> on (implicit GEMM) --- conv_direct.cpp:87
+[V] validating model metadata --- diffusion_engine.cpp:1310
+[V] model metadata validated; weights will be prepared lazily --- diffusion_engine.cpp:1380
+[I] total params memory size = 38536.54MB (VRAM 0.00MB, RAM 38536.54MB): text_encoders 14272.65MB(RAM), diffusion_model 22539.00MB(RAM), vae 1724.89MB(RAM), controlnet 0.00MB(N/A), extensions 0.00MB(N/A) --- diffusion_engine.cpp:1441
+[I] running in Flux FLOW mode --- diffusion_engine.cpp:1486
+[V] using 12 threads for model loading --- model_loader.cpp:194
+[I] get_sigmas with LTX2 scheduler --- denoiser.hpp:1178
+[V] LTX2 scheduler: tokens=3900, shift=1.9798, stretch=1, terminal=0.1000 --- denoiser.hpp:700
+[I] sampling using Euler method --- request.cpp:478
+[V] split prompt "A tired office worker at night slumps over a laptop, then a soft glow appears on the screen and she smiles with relief, cinematic, warm desk lamp, medium shot" to 34 tokens ["A", "▁tired", "▁office", "▁worker", "▁at", "▁night", "▁sl", "umps", "▁over", "▁a", "▁laptop", ",", "▁then", "▁a", "▁soft", "▁glow", "▁appears", "▁on", "▁the", "▁screen", "▁and", "▁she", "▁smiles", "▁with", "▁relief", ",", "▁cinematic", ",", "▁warm", "▁desk", "▁lamp", ",", "▁medium", "▁shot", ] --- bpe_tokenizer.cpp:245
+[I] gemma4_12b build cached graph cut plan done (taking 5 ms) --- ggml_graph_cut.cpp:1034
+[V] loading 666/681 tensors from D:/models/video/ltx25/gemma4-12b-with-proj-ltx-2.5-Q8_0.gguf --- model_loader.cpp:1170
+  |###                                               |  29/666 - 184.61MB/s[K  |####                                              |  40/666 - 332.94MB/s[K  |####                                              |  43/666 - 333.71MB/s[K  |#####                                             |  54/666 - 444.40MB/s[K  |#####                                             |  59/666 - 416.32MB/s[K  |#####                                             |  66/666 - 471.39MB/s[K  |######                                            |  73/666 - 510.27MB/s[K  |#######                                           |  80/666 - 529.77MB/s[K  |#######                                           |  81/666 - 503.79MB/s[K  |########                                          |  98/666 - 605.91MB/s[K  |#########                                         | 111/666 - 622.39MB/s[K  |#########                                         | 111/666 - 570.53MB/s[K  |##########                                        | 125/666 - 598.99MB/s[K  |###########                                       | 137/666 - 612.23MB/s[K  |###########                                       | 144/666 - 616.95MB/s[K  |############                                      | 150/666 - 598.26MB/s[K  |############                                      | 150/666 - 563.00MB/s[K  |############                                      | 157/666 - 573.29MB/s[K  |#############                                     | 170/666 - 595.75MB/s[K  |##############                                    | 180/666 - 626.85MB/s[K  |###############                                   | 191/666 - 623.83MB/s[K  |###############                                   | 195/666 - 635.70MB/s[K  |################                                  | 209/666 - 642.31MB/s[K  |#################                                 | 214/666 - 632.63MB/s[K  |#################                                 | 219/666 - 618.80MB/s[K  |#################                                 | 223/666 - 619.26MB/s[K  |###################                               | 246/666 - 661.11MB/s[K  |###################                               | 249/666 - 644.50MB/s[K  |###################                               | 253/666 - 635.41MB/s[K  |####################                              | 264/666 - 650.13MB/s[K  |#####################                             | 269/666 - 638.19MB/s[K  |######################                            | 281/666 - 648.15MB/s[K  |######################                            | 288/666 - 648.64MB/s[K  |#######################                           | 296/666 - 651.48MB/s[K  |#######################                           | 305/666 - 639.75MB/s[K  |########################                          | 311/666 - 641.60MB/s[K  |#########################                         | 322/666 - 648.28MB/s[K  |#########################                         | 330/666 - 651.95MB/s[K  |##########################                        | 343/666 - 658.35MB/s[K  |###########################                       | 350/666 - 655.08MB/s[K  |############################                      | 360/666 - 658.39MB/s[K  |############################                      | 365/666 - 657.60MB/s[K  |#############################                     | 375/666 - 659.57MB/s[K  |#############################                     | 385/666 - 649.97MB/s[K  |#############################                     | 385/666 - 635.59MB/s[K  |##############################                    | 399/666 - 652.42MB/s[K  |###############################                   | 406/666 - 658.08MB/s[K  |################################                  | 420/666 - 661.74MB/s[K  |################################                  | 426/666 - 652.21MB/s[K  |#################################                 | 434/666 - 659.16MB/s[K  |#################################                 | 434/666 - 646.47MB/s[K  |##################################                | 441/666 - 646.93MB/s[K  |###################################               | 455/666 - 656.48MB/s[K  |####################################              | 468/666 - 664.35MB/s[K  |####################################              | 471/666 - 655.16MB/s[K  |#####################################             | 485/666 - 658.81MB/s[K  |######################################            | 497/666 - 666.23MB/s[K  |######################################            | 503/666 - 661.13MB/s[K  |######################################            | 505/666 - 656.37MB/s[K  |#######################################           | 517/666 - 660.96MB/s[K  |########################################          | 523/666 - 657.48MB/s[K  |########################################          | 532/666 - 664.37MB/s[K  |#########################################         | 544/666 - 663.49MB/s[K  |##########################################        | 554/666 - 665.44MB/s[K  |###########################################       | 560/666 - 745.78MB/s[K  |###########################################       | 569/666 - 738.13MB/s[K  |############################################      | 582/666 - 742.52MB/s[K  |#############################################     | 588/666 - 741.42MB/s[K  |#############################################     | 599/666 - 744.60MB/s[K  |##############################################    | 609/666 - 743.83MB/s[K  |###############################################   | 619/666 - 744.14MB/s[K  |###############################################   | 626/666 - 747.26MB/s[K  |################################################  | 633/666 - 742.19MB/s[K  |################################################# | 640/666 - 746.21MB/s[K  |##################################################| 655/666 - 745.99MB/s[K  |##################################################| 662/666 - 741.71MB/s[K  |##################################################| 666/666 - 759.60MB/s[K
+[I] loading tensors completed, taking 15.89s (read: 15.75s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (12067.62 MB, 666 tensors, 1 blocks, RAM) on CPU --- model_manager.cpp:508
+[V] gemma4_12b compute buffer size: 2198.01 MB(RAM) on CPU (peak across 1 segment) --- execution_engine.cpp:730
+[I] ltxav_text_projection build cached graph cut plan done (taking 0 ms) --- ggml_graph_cut.cpp:1034
+[V] loading 4/681 tensors from D:/models/video/ltx25/gemma4-12b-with-proj-ltx-2.5-Q8_0.gguf --- model_loader.cpp:1170
+  |##################################################| 4/4 - 493.95MB/s[K
+[I] loading tensors completed, taking 4.46s (read: 1.74s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (2205.02 MB, 4 tensors, 1 blocks, RAM) on CPU --- model_manager.cpp:508
+[V] ltxav_text_projection compute buffer size: 50.79 MB(RAM) on CPU (peak across 1 segment) --- execution_engine.cpp:730
+[V] computing LTXAV condition graph completed, taking 77171 ms --- conditioner.hpp:4076
+[I] get_learned_condition completed, taking 77.17s --- video.cpp:1262
+[I] generate_video 832x480x73 --- video.cpp:1931
+[V] sample 26x15x10 --- video.cpp:1994
+[I] ltxav build cached graph cut plan done (taking 107 ms) --- ggml_graph_cut.cpp:1034
+[V] ltxav using 50 segments --- execution_engine.cpp:577
+[V] loading 5/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##################################################| 5/5 -   7.23MB/s[K
+[I] loading tensors completed, taking 0.21s (read: 0.00s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (  3.04 MB, 5 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] model manager staged compute params (  3.04 MB, 5 tensors, 1 blocks) to CUDA0, taking 0.00s --- model_manager.cpp:637
+[V] loading 390/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##########                                        |  77/390 - 440.83MB/s[K  |################                                  | 121/390 - 546.19MB/s[K  |####################                              | 155/390 - 594.20MB/s[K  |########################                          | 183/390 - 694.98MB/s[K  |###########################                       | 208/390 - 719.95MB/s[K  |###############################                   | 239/390 - 677.54MB/s[K  |###################################               | 266/390 - 669.40MB/s[K  |#####################################             | 282/390 - 618.52MB/s[K  |######################################            | 294/390 - 650.23MB/s[K  |########################################          | 306/390 - 615.18MB/s[K  |########################################          | 310/390 - 574.17MB/s[K  |###########################################       | 334/390 - 711.73MB/s[K  |############################################      | 340/390 - 695.46MB/s[K  |##############################################    | 352/390 - 782.82MB/s[K  |################################################  | 368/390 - 781.28MB/s[K  |################################################# | 380/390 - 769.01MB/s[K  |##################################################| 390/390 - 853.50MB/s[K
+[I] loading tensors completed, taking 3.81s (read: 3.57s, memcpy: 0.00s, convert: 0.03s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (4065.55 MB, 390 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##############################################    | 76/84 - 626.84MB/s[K  |##################################################| 84/84 - 806.82MB/s[K
+[I] loading tensors completed, taking 0.49s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 72/84 - 636.70MB/s[K  |##################################################| 84/84 - 726.29MB/s[K
+[I] loading tensors completed, taking 0.54s (read: 0.35s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###############################################   | 78/84 - 612.86MB/s[K  |##################################################| 84/84 - 797.00MB/s[K
+[I] loading tensors completed, taking 0.49s (read: 0.32s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##############################################    | 77/84 - 570.24MB/s[K  |##################################################| 84/84 - 764.44MB/s[K
+[I] loading tensors completed, taking 0.51s (read: 0.34s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##########################################        | 70/84 - 532.02MB/s[K  |##################################################| 84/84 - 765.93MB/s[K
+[I] loading tensors completed, taking 0.51s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 72/84 - 501.21MB/s[K  |##################################################| 84/84 - 781.16MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.34s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |#########################################         | 68/84 - 565.50MB/s[K  |##################################################| 84/84 - 779.61MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##############################################    | 76/84 - 693.21MB/s[K  |##################################################| 84/84 - 751.29MB/s[K
+[I] loading tensors completed, taking 0.52s (read: 0.34s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 72/84 - 636.70MB/s[K  |##################################################| 84/84 - 773.47MB/s[K
+[I] loading tensors completed, taking 0.51s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 71/84 - 542.27MB/s[K  |##################################################| 84/84 - 787.42MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 72/84 - 692.69MB/s[K  |##################################################| 84/84 - 770.44MB/s[K
+[I] loading tensors completed, taking 0.51s (read: 0.34s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###############################################   | 78/84 - 636.82MB/s[K  |##################################################| 84/84 - 793.78MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.32s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 71/84 - 519.68MB/s[K  |##################################################| 84/84 - 790.59MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.32s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###############################################   | 78/84 - 649.88MB/s[K  |##################################################| 84/84 - 781.16MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.32s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 71/84 - 600.96MB/s[K  |##################################################| 84/84 - 787.42MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.35s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |################################################  | 80/84 - 542.59MB/s[K  |##################################################| 84/84 - 779.61MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |################################################  | 80/84 - 601.72MB/s[K  |##################################################| 84/84 - 785.85MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.32s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 72/84 - 498.80MB/s[K  |##################################################| 84/84 - 778.06MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 71/84 - 517.28MB/s[K  |##################################################| 84/84 - 689.34MB/s[K
+[I] loading tensors completed, taking 0.57s (read: 0.36s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 72/84 - 601.17MB/s[K  |##################################################| 84/84 - 749.85MB/s[K
+[I] loading tensors completed, taking 0.52s (read: 0.35s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |################################################  | 80/84 - 676.94MB/s[K  |##################################################| 84/84 - 815.19MB/s[K
+[I] loading tensors completed, taking 0.48s (read: 0.31s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###############################################   | 78/84 - 637.84MB/s[K  |##################################################| 84/84 - 771.95MB/s[K
+[I] loading tensors completed, taking 0.51s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###############################################   | 78/84 - 559.72MB/s[K  |##################################################| 84/84 - 779.61MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.32s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##############################################    | 76/84 - 586.24MB/s[K  |##################################################| 84/84 - 773.47MB/s[K
+[I] loading tensors completed, taking 0.51s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |################################################# | 82/84 - 625.19MB/s[K  |##################################################| 84/84 - 781.16MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.32s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###############################################   | 78/84 - 589.75MB/s[K  |##################################################| 84/84 - 773.47MB/s[K
+[I] loading tensors completed, taking 0.51s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |#############################################     | 74/84 - 555.73MB/s[K  |##################################################| 84/84 - 793.78MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.32s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 71/84 - 485.37MB/s[K  |##################################################| 84/84 - 787.42MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.32s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |################################################# | 82/84 - 664.32MB/s[K  |##################################################| 84/84 - 811.82MB/s[K
+[I] loading tensors completed, taking 0.48s (read: 0.30s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 71/84 - 600.96MB/s[K  |##################################################| 84/84 - 767.43MB/s[K
+[I] loading tensors completed, taking 0.51s (read: 0.32s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 71/84 - 524.54MB/s[K  |##################################################| 84/84 - 723.61MB/s[K
+[I] loading tensors completed, taking 0.54s (read: 0.36s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##################################################| 83/84 - 707.35MB/s[K  |##################################################| 84/84 - 735.81MB/s[K
+[I] loading tensors completed, taking 0.53s (read: 0.34s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##########################################        | 70/84 - 521.74MB/s[K  |##################################################| 84/84 - 748.42MB/s[K
+[I] loading tensors completed, taking 0.52s (read: 0.35s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 72/84 - 554.76MB/s[K  |##################################################| 84/84 - 781.16MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##########################################        | 70/84 - 469.21MB/s[K  |##################################################| 84/84 - 761.48MB/s[K
+[I] loading tensors completed, taking 0.52s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |#############################################     | 74/84 - 686.66MB/s[K  |##################################################| 84/84 - 787.42MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |################################################  | 80/84 - 598.84MB/s[K  |##################################################| 84/84 - 764.44MB/s[K
+[I] loading tensors completed, taking 0.51s (read: 0.34s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##########################################        | 70/84 - 466.91MB/s[K  |##################################################| 84/84 - 707.97MB/s[K
+[I] loading tensors completed, taking 0.56s (read: 0.40s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 72/84 - 682.70MB/s[K  |##################################################| 84/84 - 781.16MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.34s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 71/84 - 517.28MB/s[K  |##################################################| 84/84 - 771.95MB/s[K
+[I] loading tensors completed, taking 0.51s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 72/84 - 565.54MB/s[K  |##################################################| 84/84 - 768.93MB/s[K
+[I] loading tensors completed, taking 0.51s (read: 0.34s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 71/84 - 485.37MB/s[K  |##################################################| 84/84 - 787.42MB/s[K
+[I] loading tensors completed, taking 0.50s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##########################################        | 70/84 - 575.00MB/s[K  |##################################################| 84/84 - 755.62MB/s[K
+[I] loading tensors completed, taking 0.52s (read: 0.34s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |#############################################     | 74/84 - 586.86MB/s[K  |##################################################| 84/84 - 724.95MB/s[K
+[I] loading tensors completed, taking 0.54s (read: 0.34s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 71/84 - 529.48MB/s[K  |##################################################| 84/84 - 762.96MB/s[K
+[I] loading tensors completed, taking 0.52s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |###########################################       | 72/84 - 601.17MB/s[K  |##################################################| 84/84 - 755.62MB/s[K
+[I] loading tensors completed, taking 0.52s (read: 0.34s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 84/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |################################################  | 80/84 - 589.79MB/s[K  |##################################################| 84/84 - 755.62MB/s[K
+[I] loading tensors completed, taking 0.52s (read: 0.33s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (392.92 MB, 84 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] loading 6/4349 tensors from D:/models/video/ltx25/ltx-2.5-22b-distilled-Q8_0.gguf --- model_loader.cpp:1170
+  |##################################################| 6/6 -   7.23MB/s[K
+[I] loading tensors completed, taking 0.22s (read: 0.00s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (  3.05 MB, 6 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] ltxav compute buffer size: 234.04 MB(RAM) on CPU (peak across 50 segments) --- execution_engine.cpp:730
+[V] ltxav compute buffer size: 722.63 MB(VRAM) on CUDA0 (peak across 50 segments) --- execution_engine.cpp:730
+  |======>                                           | 1/8 -  54.95s/it - ETA 06:24[K  |============>                                     | 2/8 -  19.45s/it - ETA 03:43[K  |==================>                               | 3/8 -  19.53s/it - ETA 02:36[K  |=========================>                        | 4/8 -  19.57s/it - ETA 01:53[K  |===============================>                  | 5/8 -  19.60s/it - ETA 01:19[K  |=====================================>            | 6/8 -  19.67s/it - ETA 00:50[K  |===========================================>      | 7/8 -  19.68s/it - ETA 00:24[K  |==================================================| 8/8 -  19.71s/it[K
+[I] sampling completed, taking 192.23s --- video.cpp:2028
+[I] generating latent video completed, taking 192.25s --- video.cpp:2198
+[V] decode audio latent 16x77x8x1 --- video.cpp:2249
+[I] ltx_audio_vae build cached graph cut plan done (taking 10 ms) --- ggml_graph_cut.cpp:1034
+[V] ggml: ggml_backend_sched_split_inputs_grow: increasing split inputs capacity from 30 to 60
+[V] loading 1284/1329 tensors from D:/models/video/ltx25/ltx-2.5-audio-vae-bf16.safetensors --- model_loader.cpp:1170
+  |##############################                    |  758/1284 - 464.80MB/s[K  |##################################################| 1284/1284 - 652.30MB/s[K
+[I] loading tensors completed, taking 0.47s (read: 0.29s, memcpy: 0.00s, convert: 0.08s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (338.87 MB, 1284 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] model manager staged compute params (338.91 MB, 1284 tensors, 1 blocks) to CUDA0, taking 0.13s --- model_manager.cpp:637
+[V] ggml: ggml_backend_sched_split_inputs_grow: increasing split inputs capacity from 30 to 60
+[V] ltx_audio_vae compute buffer size: 183.19 MB(VRAM) on CUDA0 (peak across 1 segment) --- execution_engine.cpp:730
+[V] ltx_audio_vae compute buffer size: 0.04 MB(RAM) on CPU (peak across 1 segment) --- execution_engine.cpp:730
+[I] ltx audio vae decode completed, taking 5.00s --- ltx_audio_vae.hpp:1031
+[I] decoding audio latent completed, taking 5.00s --- video.cpp:2258
+[V] decode_video_outputs latent 26x15x10x128 --- video.cpp:1288
+[I] ltx_video_vae build cached graph cut plan done (taking 0 ms) --- ggml_graph_cut.cpp:1034
+[V] loading 86/170 tensors from D:/models/video/ltx25/ltx-2.5-video-vae-conv-bf16.safetensors --- model_loader.cpp:1170
+  |#################                                 | 28/86 -  33.64MB/s[K  |##########################                        | 44/86 - 279.38MB/s[K  |#################################                 | 56/86 - 251.79MB/s[K  |##################################################| 86/86 - 428.12MB/s[K
+[I] loading tensors completed, taking 1.81s (read: 0.50s, memcpy: 0.00s, convert: 0.31s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (776.66 MB, 86 tensors, 1 blocks, RAM) on CUDA_Host --- model_manager.cpp:508
+[V] model manager staged compute params (776.66 MB, 86 tensors, 1 blocks) to CUDA0, taking 0.29s --- model_manager.cpp:637
+[V] ltx_video_vae compute buffer size: 4485.00 MB(VRAM) on CUDA0 (peak across 1 segment) --- execution_engine.cpp:730
+[V] ltx_video_vae compute buffer size: 1.90 MB(RAM) on CPU (peak across 1 segment) --- execution_engine.cpp:730
+[V] computing vae decode graph completed, taking 10.60s --- vae.hpp:384
+[I] decode_first_stage completed, taking 10.60s --- video.cpp:1293
+[V] decode_video_outputs decoded 832x480x73x3 --- video.cpp:1302
+[I] generate_video completed in 285.27s --- video.cpp:2286
+[V] model manager released params backend buffers (14272.65 MB, 670 tensors, 2 blocks, RAM) from CPU --- model_manager.cpp:1316
+[V] model manager released params backend buffers (23654.53 MB, 5719 tensors, 52 blocks, RAM) from CUDA_Host --- model_manager.cpp:1316
+[I] save result video to 'D:/models/video/out_1116/ltx/p1_ltx.webm' --- main.cpp:560

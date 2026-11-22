@@ -41,11 +41,14 @@ ALWAYS_ASK: frozenset[str] = frozenset({
     "local_delete_file",
     # 돈이 오간다 (지금 없어도 생기면 여기부터다)
     "payment_confirm",
-    # 이 PC 를 바꾼다
+    # 이 PC 를 바꾼다 — 창 동작 실행은 윈도우 · 맥 둘 다(`desktop_tools.py` 역할 표 · 시험이 늘 같은지 본다)
     "windows_execute_preview",
+    "mac_execute_preview",
     "local_request_path_access",
     # 프로그램을 들인다 — 서명 확인 뒤에도 사람이 본다(2026-11-08 대표 「승인 카드로」).
     "local_install_app",
+    # 분야 팩을 켠다 — 새 도구 · 실행 · 내려받기 권한에 대한 동의라 사람이 누른다(2026-11-16 · 설계_팩켜기UX §4-2).
+    "sonjari_pack_request",
 })
 
 #: **권한 무시** 모드에서도 사람이 보는 것 — 돈이 오가거나 남에게 나가는 것만 (2026-09-23 사장님 결정).
@@ -58,6 +61,8 @@ NEVER_BYPASS: frozenset[str] = frozenset({
     "google_gmail_send",
     "naver_blog_publish",
     "payment_confirm",
+    # ★ 2026-11-16 대표 결정(설계_팩켜기UX §5): 권한 무시여도 팩 켜기는 묻는다 — 10GB 받기 · 새 실행 권한을 동의 없이 열지 않는다.
+    "sonjari_pack_request",
 })
 
 #: 고를 수 있는 모드. 라벨·설명은 화면이 그대로 쓴다 — 두 곳에 적으면 갈린다.
@@ -193,6 +198,8 @@ WRITE_TOOL_NAMES: frozenset[str] = frozenset({
     "windows_execute_preview",
     "windows_open_path",
     "windows_type",
+    "mac_execute_preview",
+    "mac_open_path",
 })
 
 DEFAULT_MODE = "ask"

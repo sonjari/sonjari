@@ -109,6 +109,33 @@ The game pack is the first one:
 | Writes | the project's `Assets/Editor/SonjariRecipes` only while a recipe runs; one line in `Packages/manifest.json` when you connect the editor (undone when you disconnect); scene changes only after approval, kept in the editor's Undo |
 | Network | none. Built on a pinned copy of [MCP for Unity](https://github.com/CoplayDev/unity-mcp) (MIT) with its outside connections and telemetry removed |
 
+### 3D pack
+
+| | |
+|---|---|
+| What it does | turns one drawing into a 3D model (GLB) on your graphics card and returns a receipt it measured itself: faces, size, closed mesh or not, time, graphics memory, plus small previews. Makes print files (STL, one-colour 3MF), can split a figure into parts with pins, and with Blender installed cleans up, renders and exports (GLB, FBX for Unity) |
+| Tools it adds | `gen_3d_check`, `gen_3d_blender`, `gen_3d_prep`, `gen_3d`, `gen_3d_status`, `gen_3d_print`, `gen_3d_views`, `gen_3d_finish`, `gen_3d_render`, `gen_3d_export`, `gen_3d_split_plan`, `gen_3d_split`, `gen_3d_fit_test`, `gen_3d_fit_set` |
+| Writes | a new folder per run under `Documents/Sonjari/gen3d` (never overwritten); the runner and model when you turn it on (about 0.7 GB + 9.9 GB); Blender, only if you agree to download it |
+| Runs | `trellis-cli` once per drawing, one at a time, no window; Blender headless with factory settings; on a Mac it unloads the local text model before baking and checks free memory first |
+| Network | none while making. Downloads the runner (GitHub release) and model (Hugging Face) once, showing size and licence first and checking hashes afterwards. Blender comes from blender.org only after you read and accept the notice |
+| Built on | [trellis.cpp](https://github.com/pwilkin/trellis.cpp) v0.8.1 (MIT), [TRELLIS.2 GGUF](https://huggingface.co/ilintar/trellis2-gguf) q8 (MIT, following the original) |
+| Measured | RTX 3060 12GB at 512: 11 runs of 85–139 s, 2,908–4,064 MiB of graphics memory (whole card). 16 GB Mac: 512 only |
+
+### Video pack
+
+| | |
+|---|---|
+| What it does | Claude writes the storyboard; Sonjari renders draft cuts on your graphics card and returns a receipt instead of the video: time, checks (motion, frozen, too dark, pops, sound), a contact sheet and a pick sheet. Only the cuts you choose are rendered again as finals. Text, logos and app screens are never generated — they are composited by code |
+| Tools it adds | `gen_video_check`, `gen_video_prep`, `gen_video_batch`, `gen_video_status`, `gen_video_finish` |
+| Writes | a new folder per batch under `Documents/Sonjari/genvideo` (never overwritten); the runner and models when you turn it on (about 0.98 GB + 18.3 GB) |
+| Runs | `sd-cli` once per cut, one at a time, no window; `ffmpeg` for the checks. On a PC with one graphics card it unloads the local text model before rendering |
+| Network | none while making. Downloads the runner and models once, showing size and licence first and checking hashes afterwards |
+| Built on | [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) (MIT); FastWan2.2-TI2V-5B for drafts and Wan2.2-TI2V-5B for finals (Apache-2.0). LTX-2.x with sound is optional: you accept its licence and download it yourself |
+| Measured | RTX 3060 12GB, 832×480, 3-second cut: drafts 31–57 s (4 runs), a final about 370 s (1 run). Windows only |
+
+Licence for these two packs (from 0.4.49): free for personal and noncommercial use, and for companies with fewer than 100 people and less
+than US$1M revenue a year — [PolyForm Noncommercial](https://polyformproject.org/licenses/noncommercial/1.0.0) or [PolyForm Small Business](https://polyformproject.org/licenses/small-business/1.0.0) 1.0.0, your pick.
+
 When a domain pack is on and you connect Claude Code or Codex, its usage guide is installed next to Sonjari's own, and its
 tools show up over MCP (see the [MCP guide](mcp.md)).
 

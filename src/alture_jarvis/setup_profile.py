@@ -689,7 +689,22 @@ FAST_PICK_KEY = "qwen3.6-35b-iq2m"
 #: 사다리의 이 칸은 **그림 부속을 뗀 채**(「글만 읽기」) 올리는 칸이다 — (모델, 창). 메모리는 `text_only_need` 로 본다.
 _TEXT_ONLY_RUNGS: frozenset[tuple[str, int]] = frozenset({("qwen3.8-27b-swift-iq3xxs", 65536), ("qwen3.6-35b-iq2m", 65536),
                                                           ("qwen3.5-9b-q3", 49152), ("qwen3.5-9b-q3", 32768),
-                                                          ("qwen3.5-4b-q3", 49152), ("qwen3.5-4b-q3", 32768)})
+                                                          ("qwen3.5-4b-q3", 49152), ("qwen3.5-4b-q3", 32768),
+                                                          ("qwen3.5-9b-q3", 65536)})
+
+#: ★ 2026-11-18 대표 결정(「최소 9B · 64K」): **맥(통합 메모리)에만** 9B 3비트 · 글만 읽기 · 창 64K 칸을 9B 공식판 앞에 둔다.
+#   맥미니 M4 16GB 실측(각 n=1): 4B · 32K 는 MCP 판에서 도구 설명만으로 창이 차 대화 기록이 잘려 워드 · 파일 판 둘 다 「일부만」,
+#   9B 3비트 · 64K 는 워드 1걸음 완료 · 웹 조사(기사 3개 → 엑셀) 418초 완료. 엔진 6.8GB(2.6만 토큰 읽은 뒤) · 짧은 판 스왑 변화 0
+#   (웹 조사 끝 무렵 여유 16% · 스왑 3.27GB — 빠듯함은 기억해 둔다). 윈도우 8GB 카드에선 64K 가 88%만 올라가 손해라(10-14) 넣지 않는다.
+_UNIFIED_RUNGS: tuple[tuple[str, int, float], ...] = (("qwen3.5-9b-q3", 65536, 0.5),)
+
+
+def _ladder_for(card: dict[str, Any]) -> tuple[tuple[str, int, float], ...]:
+    """이 기기의 사다리 — 맥(통합 메모리)이면 `_UNIFIED_RUNGS` 를 9B 공식판 칸 바로 앞에 끼운다. 윈도우는 그대로."""
+    if not card.get("unified"):
+        return _LADDER
+    at = next((i for i, rung in enumerate(_LADDER) if rung[0] == "qwen3.5-9b"), len(_LADDER))
+    return _LADDER[:at] + _UNIFIED_RUNGS + _LADDER[at:]
 
 
 def _ctx_label(ctx: int) -> str:
@@ -853,7 +868,7 @@ def recommend(profile: dict[str, Any], bench: dict[str, Any] | None = None) -> d
                  "vram_total_gb": card["vram_total_gb"]}
 
     fits: list[tuple[CatalogModel, int, float, float]] = []
-    for key, ctx, headroom in _LADDER:
+    for key, ctx, headroom in _ladder_for(card):
         model = by_key(key)
         if model is None or model.status != "verified" or ctx not in model.vram_gb:
             continue

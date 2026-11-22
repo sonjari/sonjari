@@ -812,6 +812,14 @@ def _plan_reads_owed(plan_results: list[tuple[Any, bool, str]] | None) -> list[s
     return owed
 
 
+def count_reads_owed(plan_results: list[tuple[Any, bool, str]] | None) -> bool:
+    """대조표의 **개수 칸**(시킨 수만큼 읽기) 중 아직 못 채운 것이 있나 — 쓸 차례를 미루는 까닭(`tool_roster._artifact_turn_is_due`)."""
+    return any(
+        str(getattr(requirement, "kind", "") or "") == "count" and not met
+        for requirement, met, _saw in plan_results or []
+    )
+
+
 def reading_owed(
     plan_results: list[tuple[Any, bool, str]] | None,
     request: str,

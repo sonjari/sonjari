@@ -1,0 +1,87 @@
+[W] --diffusion-fa is deprecated; use --flash-attn off,diffusion=on instead. --- common.cpp:789
+[V] version: stable-diffusion.cpp version unknown, commit 5dcfa79 --- main.cpp:775
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 12287 MiB):
+  Device 0: NVIDIA GeForce RTX 3060, compute capability 8.6, VMM: yes, VRAM: 12287 MiB
+load_backend: loaded CUDA backend from D:\tools\sdcpp\bin\ggml-cuda.dll
+load_backend: loaded CPU backend from D:\tools\sdcpp\bin\ggml-cpu-alderlake.dll
+[V] System Info: 
+   SSE3 = 1 |    SSSE3 = 1 |    AVX = 1 |    AVX_VNNI = 1 |    AVX2 = 1 |    F16C = 1 |    FMA = 1 |    BMI2 = 1 |    OPENMP = 1 |    REPACK = 1 |  --- main.cpp:776
+[V] using 12 threads for model loading --- model_loader.cpp:194
+[I] loading diffusion model from 'D:/models/video/wan22_5b/FastWan2.2-TI2V-5B-q8_0.gguf' --- diffusion_engine.cpp:693
+[I] load D:/models/video/wan22_5b/FastWan2.2-TI2V-5B-q8_0.gguf using gguf format --- model_loader.cpp:220
+[V] init from 'D:/models/video/wan22_5b/FastWan2.2-TI2V-5B-q8_0.gguf' --- model_loader.cpp:266
+[V] GGUF v3, tensor_count=825, metadata_kv_count=0 --- gguf_reader_ext.h:225
+[I] loading t5xxl from 'D:/models/video/wan22_5b/umt5-xxl-encoder-Q8_0.gguf' --- diffusion_engine.cpp:735
+[I] load D:/models/video/wan22_5b/umt5-xxl-encoder-Q8_0.gguf using gguf format --- model_loader.cpp:220
+[V] init from 'D:/models/video/wan22_5b/umt5-xxl-encoder-Q8_0.gguf' --- model_loader.cpp:266
+[V] GGUF v3, tensor_count=242, metadata_kv_count=30 --- gguf_reader_ext.h:225
+[I] loading tae from 'D:/models/video/wan22_5b/taew2_2.safetensors' --- diffusion_engine.cpp:772
+[I] load D:/models/video/wan22_5b/taew2_2.safetensors using safetensors format --- model_loader.cpp:226
+[V] init from 'D:/models/video/wan22_5b/taew2_2.safetensors', prefix = 'tae.' --- model_loader.cpp:294
+[I] Version: Wan 2.2 TI2V  --- diffusion_engine.cpp:978
+[I] auto-fit plan: --- backend_fit.cpp:334
+[I]   devices: --- backend_fit.cpp:335
+[I]     CUDA0        NVIDIA GeForce RTX 3060          free  11253 MiB, budget  10741 MiB --- backend_fit.cpp:339
+[I]     RAM          free  31401 MiB, params budget  28261 MiB --- backend_fit.cpp:345
+[I]   compute-device weight cache priority: diffusion > te > vae --- backend_fit.cpp:347
+[I]   components (params: compute device -> RAM -> other GPU -> disk): --- backend_fit.cpp:348
+[I]     DiT          params   5162 MiB, compute reserve  2048 MiB -> compute CUDA0, params CUDA0 --- backend_fit.cpp:359
+[I]     Conditioner  params   5757 MiB, compute reserve  2048 MiB -> compute CPU, params cpu --- backend_fit.cpp:359
+[I]     VAE          params     21 MiB, compute reserve  1024 MiB -> compute CUDA0, params CUDA0 --- backend_fit.cpp:359
+[I] auto-fit: --backend "te=cpu,diffusion=CUDA0,vae=CUDA0" --params-backend "te=cpu" --- backend_fit.cpp:488
+[V] Initializing backend: CUDA0 --- ggml_extend_backend.cpp:421
+[V] using 12 threads for model loading --- model_loader.cpp:194
+[I] Weight type stat:                      f32: 415  |     f16: 128  |    q8_0: 652   --- diffusion_engine.cpp:1556
+[I] Conditioner weight type stat:          f32: 73   |    q8_0: 169   --- diffusion_engine.cpp:1557
+[I] Diffusion model weight type stat:      f32: 342  |    q8_0: 483   --- diffusion_engine.cpp:1558
+[I] VAE weight type stat:              --- diffusion_engine.cpp:1559
+[V] Initializing backend: CPU --- ggml_extend_backend.cpp:421
+[V] wan: model_type = t2v, num_layers = 30, vace_layers = 0, dim = 2048, ffn_dim = 8192, num_heads = 16 --- wan.hpp:98
+[I] Wan2.2-TI2V-5B --- wan.hpp:970
+[I] using TAE for encoding / decoding --- model_builders.cpp:222
+[I] conv2d direct auto: CUDA0 -> on (implicit GEMM) --- conv_direct.cpp:87
+[I] conv3d direct auto: CUDA0 -> on (implicit GEMM) --- conv_direct.cpp:87
+[V] validating model metadata --- diffusion_engine.cpp:1310
+[V] model metadata validated; weights will be prepared lazily --- diffusion_engine.cpp:1380
+[I] total params memory size = 10942.61MB (VRAM 5185.56MB, RAM 5757.05MB): text_encoders 5757.05MB(RAM), diffusion_model 5163.77MB(VRAM), vae 21.79MB(VRAM), controlnet 0.00MB(N/A), extensions 0.00MB(N/A) --- diffusion_engine.cpp:1441
+[I] running in FLOW mode --- diffusion_engine.cpp:1481
+[V] using 12 threads for model loading --- model_loader.cpp:194
+[I] get_sigmas with discrete scheduler --- denoiser.hpp:1130
+[I] sampling using Euler method --- request.cpp:478
+[V] parse 'A tired office worker at night slumps over a laptop, then a soft glow appears on the screen and she smiles with relief, cinematic, warm desk lamp, medium shot' to [['A tired office worker at night slumps over a laptop, then a soft glow appears on the screen and she smiles with relief, cinematic, warm desk lamp, medium shot', 1], ] --- conditioner.hpp:1514
+[V] split prompt "A tired office worker at night slumps over a laptop, then a soft glow appears on the screen and she smiles with relief, cinematic, warm desk lamp, medium shot" to tokens ["▁A", "▁tired", "▁office", "▁worker", "▁at", "▁night", "▁s", "lump", "s", "▁over", "▁a", "▁laptop", ",", "▁then", "▁a", "▁soft", "▁", "glow", "▁appears", "▁on", "▁the", "▁screen", "▁and", "▁she", "▁smile", "s", "▁with", "▁relief", ",", "▁cinema", "tic", ",", "▁warm", "▁desk", "▁lamp", ",", "▁medium", "▁shot", ] --- t5_unigram_tokenizer.cpp:346
+[I] t5 build cached graph cut plan done (taking 2 ms) --- ggml_graph_cut.cpp:1034
+[V] loading 242/242 tensors from D:/models/video/wan22_5b/umt5-xxl-encoder-Q8_0.gguf --- model_loader.cpp:1170
+  |#####                                             |  21/242 - 239.80MB/s[K  |#####                                             |  24/242 - 205.05MB/s[K  |######                                            |  26/242 - 165.48MB/s[K  |######                                            |  26/242 - 124.82MB/s[K  |#######                                           |  30/242 - 224.89MB/s[K  |#######                                           |  33/242 - 215.21MB/s[K  |########                                          |  34/242 - 196.38MB/s[K  |########                                          |  37/242 - 208.29MB/s[K  |#########                                         |  40/242 - 218.03MB/s[K  |##########                                        |  44/242 - 233.88MB/s[K  |###########                                       |  50/242 - 254.44MB/s[K  |###########                                       |  53/242 - 268.10MB/s[K  |############                                      |  54/242 - 253.76MB/s[K  |############                                      |  58/242 - 270.34MB/s[K  |##############                                    |  64/242 - 291.37MB/s[K  |##############                                    |  66/242 - 278.47MB/s[K  |###############                                   |  70/242 - 276.88MB/s[K  |###############                                   |  70/242 - 261.51MB/s[K  |################                                  |  74/242 - 274.27MB/s[K  |#################                                 |  80/242 - 295.98MB/s[K  |#################                                 |  82/242 - 295.85MB/s[K  |##################                                |  84/242 - 286.31MB/s[K  |###################                               |  88/242 - 290.30MB/s[K  |####################                              |  94/242 - 292.22MB/s[K  |#####################                             |  97/242 - 292.20MB/s[K  |#####################                             |  98/242 - 284.31MB/s[K  |######################                            | 103/242 - 283.15MB/s[K  |######################                            | 103/242 - 273.16MB/s[K  |#######################                           | 107/242 - 285.42MB/s[K  |#######################                           | 108/242 - 278.80MB/s[K  |#######################                           | 111/242 - 279.31MB/s[K  |########################                          | 113/242 - 273.29MB/s[K  |########################                          | 116/242 - 274.02MB/s[K  |##########################                        | 122/242 - 289.43MB/s[K  |###########################                       | 126/242 - 285.91MB/s[K  |###########################                       | 128/242 - 289.64MB/s[K  |############################                      | 131/242 - 289.74MB/s[K  |#############################                     | 137/242 - 294.24MB/s[K  |##############################                    | 141/242 - 292.77MB/s[K  |##############################                    | 141/242 - 285.04MB/s[K  |##############################                    | 143/242 - 280.11MB/s[K  |##############################                    | 144/242 - 278.46MB/s[K  |###############################                   | 148/242 - 280.78MB/s[K  |###############################                   | 150/242 - 279.22MB/s[K  |################################                  | 154/242 - 284.20MB/s[K  |################################                  | 154/242 - 278.07MB/s[K  |##################################                | 161/242 - 289.12MB/s[K  |###################################               | 166/242 - 293.59MB/s[K  |####################################              | 170/242 - 295.29MB/s[K  |#####################################             | 176/242 - 298.24MB/s[K  |######################################            | 180/242 - 299.75MB/s[K  |#######################################           | 187/242 - 306.91MB/s[K  |#######################################           | 188/242 - 302.68MB/s[K  |########################################          | 193/242 - 303.70MB/s[K  |#########################################         | 196/242 - 305.81MB/s[K  |###########################################       | 204/242 - 316.04MB/s[K  |#############################################     | 213/242 - 323.70MB/s[K  |#############################################     | 216/242 - 321.04MB/s[K  |##############################################    | 220/242 - 322.04MB/s[K  |##############################################    | 221/242 - 318.13MB/s[K  |###############################################   | 226/242 - 321.17MB/s[K  |################################################  | 230/242 - 324.12MB/s[K  |################################################# | 233/242 - 321.64MB/s[K  |##################################################| 239/242 - 327.12MB/s[K  |##################################################| 242/242 - 219.58MB/s[K
+[I] loading tensors completed, taking 26.22s (read: 14.70s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (5757.05 MB, 242 tensors, 1 blocks, RAM) on CPU --- model_manager.cpp:508
+[V] t5 compute buffer size: 297.00 MB(RAM) on CPU (peak across 1 segment) --- execution_engine.cpp:730
+[V] computing condition graph completed, taking 40685 ms --- conditioner.hpp:1610
+[I] get_learned_condition completed, taking 40.69s --- video.cpp:1262
+[I] generate_video 832x480x73 --- video.cpp:1931
+[V] sample 52x30x19 --- video.cpp:1994
+[I] Wan2.2-TI2V-5B build cached graph cut plan done (taking 6 ms) --- ggml_graph_cut.cpp:1034
+[V] loading 825/825 tensors from D:/models/video/wan22_5b/FastWan2.2-TI2V-5B-q8_0.gguf --- model_loader.cpp:1170
+  |#                                                 |  12/825 -   0.00MB/s[K  |####                                              |  53/825 - 267.21MB/s[K  |#######                                           | 110/825 - 494.02MB/s[K  |#########                                         | 135/825 - 656.24MB/s[K  |#############                                     | 199/825 - 910.40MB/s[K  |###############                                   | 239/825 - 926.88MB/s[K  |##################                                | 281/825 - 1007.93MB/s[K  |####################                              | 317/825 -   1.04GB/s[K  |#######################                           | 377/825 -   1.09GB/s[K  |##########################                        | 419/825 -   1.05GB/s[K  |############################                      | 456/825 -   1.07GB/s[K  |###############################                   | 505/825 -   1.13GB/s[K  |##################################                | 550/825 -   1.10GB/s[K  |#####################################             | 602/825 -   1.14GB/s[K  |########################################          | 654/825 -   1.16GB/s[K  |###########################################       | 700/825 -   1.17GB/s[K  |#############################################     | 728/825 -   1.19GB/s[K  |################################################# | 794/825 -   1.21GB/s[K  |##################################################| 825/825 -   1.23GB/s[K
+[I] loading tensors completed, taking 4.09s (read: 3.02s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.86s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers (5163.77 MB, 825 tensors, 6 blocks, VRAM) on CUDA0 --- model_manager.cpp:508
+[V] Wan2.2-TI2V-5B compute buffer size: 816.66 MB(VRAM) on CUDA0 (peak across 1 segment) --- execution_engine.cpp:730
+[V] Wan2.2-TI2V-5B compute buffer size: 20.66 MB(RAM) on CPU (peak across 1 segment) --- execution_engine.cpp:730
+  |================>                                 | 1/3 -   8.08s/it - ETA 00:16[K  |=================================>                | 2/3 -   3.49s/it - ETA 00:05[K  |==================================================| 3/3 -   3.48s/it[K
+[I] sampling completed, taking 15.08s --- video.cpp:2028
+[I] generating latent video completed, taking 15.16s --- video.cpp:2198
+[V] decode_video_outputs latent 52x30x19x48 --- video.cpp:1288
+[I] taehv build cached graph cut plan done (taking 0 ms) --- ggml_graph_cut.cpp:1034
+[V] loading 64/128 tensors from D:/models/video/wan22_5b/taew2_2.safetensors --- model_loader.cpp:1170
+  |##################################################| 64/64 -  93.70MB/s[K
+[I] loading tensors completed, taking 0.20s (read: 0.01s, memcpy: 0.00s, convert: 0.00s, copy_to_backend: 0.00s) --- model_loader.cpp:1442
+[V] model manager prepared params backend buffers ( 18.94 MB, 64 tensors, 1 blocks, VRAM) on CUDA0 --- model_manager.cpp:508
+[V] taehv compute buffer size: 5094.38 MB(VRAM) on CUDA0 (peak across 1 segment) --- execution_engine.cpp:730
+[V] taehv compute buffer size: 5.43 MB(RAM) on CPU (peak across 1 segment) --- execution_engine.cpp:730
+[V] computing vae decode graph completed, taking 1.12s --- vae.hpp:384
+[I] decode_first_stage completed, taking 1.13s --- video.cpp:1293
+[V] decode_video_outputs decoded 832x480x73x3 --- video.cpp:1302
+[I] generate_video completed in 57.14s --- video.cpp:2286
+[V] model manager released params backend buffers (5757.05 MB, 242 tensors, 1 blocks, RAM) from CPU --- model_manager.cpp:1316
+[V] model manager released params backend buffers (4160.67 MB, 740 tensors, 6 blocks, VRAM) from CUDA0 --- model_manager.cpp:1316
+[I] save result video to 'D:/models/video/out_1116/night/p1_fast.webm' --- main.cpp:560

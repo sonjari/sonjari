@@ -212,7 +212,7 @@ def test_a_reversible_file_write_emits_continued_alone_before_verification(
       검사가 헛돌았다. 계산 규칙에 매달아 두면 규칙이 옳게 바뀔 때마다 깨진다.
     """
     # `code=` 는 2026-09-20 에 생겼다(Code 모드만 예산이 따로다). 가짜도 같이 받아야 한다.
-    monkeypatch.setattr(BrowserAgent, "_step_budget", lambda self, plan, *, code=False: 2)
+    monkeypatch.setattr(BrowserAgent, "_step_budget", lambda self, plan, *, code=False, finish_all=False: 2)
     output = tmp_path / "outputs" / "workspace" / "job" / "result.py"
 
     class Tools:

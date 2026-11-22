@@ -2447,3 +2447,46 @@ button.code-think-raw:disabled { cursor: default; opacity: .6; }
 .gpu-mode-text b { display: inline-flex; align-items: center; gap: 6px; color: rgb(var(--text-1)); font-weight: var(--fw-mid); }
 .gpu-mode-text > span { font-size: var(--fs-1); color: rgb(var(--text-3)); line-height: 1.45; }
 .gpu-mode-default { color: rgb(var(--text-3)); font-weight: var(--fw-body); }
+
+/* ── 팩 켜기 카드 · 결과 한 줄 · 맡김 칸 (2026-11-16 · ADR-PACK-1) ─────────────────────
+   사람 쪽(따뜻한 흑연) 카드. 색은 뜻만: 켜기 단추 = signal(사람이 눌러야), 켜짐 = ok. */
+.pack-ask-summary { margin: 0; color: rgb(var(--text-3)); font-size: var(--fs-2); line-height: 1.55; }
+.pack-ask-why { margin: 0; padding: 8px 10px; border-radius: var(--r-1); background: rgb(var(--surface-2)); font-size: var(--fs-2); color: rgb(var(--text-2)); }
+.pack-ask-why b { color: rgb(var(--origin-claude)); font-weight: var(--fw-mid); margin-right: 4px; }
+.pack-ask-perms { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.pack-ask-perms > div { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 8px; align-items: start; }
+.pack-ask-perms dt { color: rgb(var(--text-5)); padding-top: 2px; }
+.pack-ask-perms dd { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-2); color: rgb(var(--text-2)); overflow-wrap: anywhere; }
+.pack-ask-size { margin: 0; font: var(--fs-1) var(--font-mono); color: rgb(var(--text-4)); overflow-wrap: anywhere; }
+/* 「켜고 받기」(11-16 저녁) — 받을 것이 있으면 signal(사람이 누르면 받는다) · 자리가 모자라면 stop(막힘) · 이미 있으면 그냥 글. */
+.pack-ask-fetch { display: flex; flex-direction: column; gap: 2px; }
+.pack-ask-fetch-main { margin: 0; display: flex; align-items: center; gap: 6px; font-size: var(--fs-2); color: rgb(var(--text-3)); }
+.pack-ask-fetch.is-fetch { padding: 8px 10px; border-radius: var(--r-1); background: rgb(var(--signal) / .08); }
+.pack-ask-fetch.is-fetch .pack-ask-fetch-main { color: rgb(var(--signal-bright)); font-weight: var(--fw-mid); }
+.pack-ask-fetch.is-blocked { padding: 8px 10px; border-radius: var(--r-1); background: rgb(var(--stop) / .10); }
+.pack-ask-fetch.is-blocked .pack-ask-fetch-main { color: rgb(var(--stop-bright)); font-weight: var(--fw-mid); }
+.pack-ask-fetch.is-blocked .pack-ask-size { font-family: var(--font-ui); color: rgb(var(--text-3)); }
+.pack-ask .pack-ask-delegate { width: auto; margin: -6px 18px 18px; padding: 10px 14px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  border: 1px solid rgb(var(--signal) / .45); border-radius: var(--r-2); background: rgb(var(--signal) / .08);
+  color: rgb(var(--signal-bright)); font: var(--fw-mid) var(--fs-2) var(--font-ui); }
+.pack-ask .pack-ask-delegate small { color: rgb(var(--text-4)); font-size: var(--fs-1); font-weight: var(--fw-body); }
+.pack-ask .pack-ask-delegate:hover:not(:disabled) { border-color: rgb(var(--signal)); color: rgb(var(--signal-bright)); background: rgb(var(--signal) / .14); }
+.pack-result { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--r-2); background: rgb(var(--surface-3)); }
+.pack-result > div { flex: 1; min-width: 0; }
+.pack-result strong { display: block; color: rgb(var(--text-1)); font-size: var(--fs-3); font-weight: var(--fw-mid); }
+.pack-result p { margin: 2px 0 0; color: rgb(var(--text-3)); font-size: var(--fs-2); }
+.pack-result-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 7px; flex: none; background: rgb(var(--text-5)); }
+.pack-result-on .pack-result-dot { background: rgb(var(--ok)); }
+.pack-result-failed .pack-result-dot { background: rgb(var(--stop)); }
+.pack-result-fetching .pack-result-dot { background: rgb(var(--brand)); }
+.pack-result .pack-result-bar { display: block; position: relative; height: 6px; margin: 6px 0 2px; overflow: hidden; border-radius: var(--r-pill); background: rgb(var(--surface-4)); }
+.pack-result .pack-result-bar > i { display: block; height: 100%; border-radius: var(--r-pill); background: rgb(var(--brand)); transition: width var(--t-move) var(--ease); }
+.pack-result-undo { border: 1px solid rgb(var(--line-strong)); background: transparent; color: rgb(var(--text-2)); border-radius: var(--r-pill); padding: 3px 10px; font: var(--fw-mid) var(--fs-1) var(--font-ui); cursor: pointer; }
+.pack-result-close { border: 0; background: transparent; color: rgb(var(--text-4)); cursor: pointer; padding: 2px; }
+.pack-result button:focus-visible, .pack-ask-delegate input:focus-visible { outline: 2px solid rgb(var(--brand-bright)); outline-offset: 2px; }
+.pack-delegate { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-2); background: rgb(var(--surface-3)); cursor: pointer; }
+.pack-delegate input { margin-top: 3px; accent-color: rgb(var(--signal)); }
+.pack-delegate span { display: flex; flex-direction: column; gap: 2px; }
+.pack-delegate b { color: rgb(var(--text-1)); font-weight: var(--fw-mid); }
+.pack-delegate small { color: rgb(var(--text-4)); font-size: var(--fs-2); }
+.pack-ask-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 18px 0; }

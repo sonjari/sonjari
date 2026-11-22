@@ -1,0 +1,64 @@
+{
+  "id": "genvideo",
+  "name": "영상 생성 팩",
+  "version": "0.1.0",
+  "kind": "code",
+  "summary": "클로드가 짠 콘티로 컷마다 후보 시안 영상을 이 PC 그래픽카드에서 굽고, 영상 대신 걸린 시간 · 검사 숫자(움직임 · 멈춤 · 어두움 · 튐 · 소리) · 장면 사진 판 · 고르기 판을 영수증으로 돌려준다. 고른 컷만 본판으로 다시 굽는다. 글자 · 로고 · 앱 화면은 굽지 않는다(코드로 합성).",
+  "description": "실행기는 stable-diffusion.cpp sd-cli(MIT · 윈도우 CUDA 12 판 master-1104). 시안 = FastWan2.2-TI2V-5B 3단계 + 빠른 풀기(taew2_2), 본판 = Wan2.2-TI2V-5B + 정식 풀기(둘 다 Apache-2.0). 실측(11-16 · RTX 3060 12GB · 832×480 · 3초 73프레임): 시안 컷 하나 30.6~57.1초(n=4) · 본판 약 370초(n=1). LTX-2.5(소리 포함 본판)는 이 팩이 받아 주지 않는다 — 사용자가 Lightricks 공식 저장소에서 LTX-2.x 커뮤니티 라이선스에 직접 동의하고 받아 두면 쓴다(285~384초 · n=4 · 본체 · 글 읽기 파일을 램에 올리므로 남은 램 약 39GB 가 있어야 시작(실측 판이 램에 올린 무게 38.5GB + 여유 2GB)). 굽기 전마다 사람이 손자리를 쓰는 중이면 기다린다. 카드가 하나뿐인 PC 는 굽기 전에 이 기기 글 모델을 내린다(카드가 둘 이상이면 안 내린다). 한 번에 한 묶음만 돈다.",
+  "tools": ["gen_video_check", "gen_video_prep", "gen_video_batch", "gen_video_status", "gen_video_finish"],
+  "guide": "guide/SKILL.md",
+  "skills": [],
+  "domains": ["video"],
+  "next": [{"pack": "video", "when": "레퍼런스 영상의 컷 박자 · 장면을 읽어 콘티를 잡으려면"}],
+  "permissions": {
+    "reads": [
+      "알려 준 참조 사진 · 첫 그림 · 바탕 그림 — 파일 도구와 같은 허락 범위 안에서만",
+      "사용자가 직접 받아 둔 LTX 파일(있을 때만 · 손자리 자료 폴더 models\\genvideo\\ltx25 또는 설정한 자리)"
+    ],
+    "writes": [
+      "{docs}/Sonjari/genvideo 아래 묶음마다 새 폴더(후보 영상 webm · 장면 사진 판 · 고르기 판 · 로그 · 영수증) — 덮어쓰지 않는다",
+      "켤 때 받는 실행기 · 모델: 손자리 자료 폴더의 tools\\genvideo · models\\genvideo (약 0.98GB + 18.3GB)"
+    ],
+    "runs": [
+      "sd-cli.exe — 컷 후보마다 한 번, 창 없이, 고른 그래픽카드 하나로(한 번에 하나 · 한 컷 30분 넘으면 멈춤)",
+      "nvidia-smi — 1초마다 그래픽카드 메모리를 읽으려고",
+      "ffmpeg — 이 PC 에 있을 때, 구운 컷의 검사 숫자 · 장면 사진을 만들려고",
+      "카드가 하나뿐인 PC: 굽기 전에 이 기기 Ollama 에 올라간 글 모델을 내린다(keep_alive 0 · 다음 질문 때 저절로 다시 올라옴)"
+    ],
+    "network": "만들 때는 쓰지 않는다 — 프롬프트 · 사진 · 영상이 이 PC 밖으로 나가지 않는다. 팩을 켤 때 한 번 실행기(GitHub 릴리스) · 모델(허깅페이스) · 빠른 풀기 가중치(GitHub 저장소 고정 커밋)를 받는다 — 크기 · 라이선스를 먼저 보이고, 받은 뒤 해시를 확인한다."
+  },
+  "models": [
+    {"id": "sdcpp-cuda-win", "kind": "binary", "platform": "win-x64-cuda", "dir": "sdcpp",
+     "source": {"github_release": "leejet/stable-diffusion.cpp", "tag": "master-1104-5dcfa79", "asset": "sd-master-5dcfa79-bin-win-cuda12-x64.zip"},
+     "sha256": "c7132d6f7e36dee6c39d3d51e8970470c615e5c9c8db498d6f73d5c14b4b1f5d", "size": 412309812,
+     "license": "MIT", "license_url": "https://github.com/leejet/stable-diffusion.cpp/blob/master/LICENSE", "unpack": true, "required": true},
+    {"id": "sdcpp-cudart-win", "kind": "binary", "platform": "win-x64-cuda", "dir": "sdcpp-cudart",
+     "source": {"github_release": "leejet/stable-diffusion.cpp", "tag": "master-1104-5dcfa79", "asset": "cudart-sd-bin-win-cu12-x64.zip"},
+     "sha256": "fe20366827d357c00797eebb58244dddab7fd9a348d70090c3871004c320f38d", "size": 563452046,
+     "license": "NVIDIA CUDA 런타임 재배포 파일(CUDA EULA 부록 A)", "license_url": "https://docs.nvidia.com/cuda/eula/index.html", "unpack": true, "required": true},
+    {"id": "fastwan-5b-q8", "kind": "weights", "dir": "fastwan",
+     "source": {"hf": "Green-Sky/FastWan2.2-TI2V-5B-FullAttn-GGUF", "include": ["FastWan2.2-TI2V-5B-q8_0.gguf"]},
+     "size": 5412844128, "license": "Apache-2.0(원본 FastVideo/FastWan2.2-TI2V-5B-FullAttn · Wan2.2)", "license_url": "https://huggingface.co/FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers", "required": true},
+    {"id": "wan22-5b-q8", "kind": "weights", "dir": "wan5b",
+     "source": {"hf": "QuantStack/Wan2.2-TI2V-5B-GGUF", "include": ["Wan2.2-TI2V-5B-Q8_0.gguf"]},
+     "size": 5400179040, "license": "Apache-2.0(원본 Wan-AI/Wan2.2-TI2V-5B)", "license_url": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B", "required": true},
+    {"id": "umt5-xxl-q8", "kind": "weights", "dir": "umt5",
+     "source": {"hf": "city96/umt5-xxl-encoder-gguf", "include": ["umt5-xxl-encoder-Q8_0.gguf"]},
+     "size": 6043068256, "license": "Apache-2.0", "license_url": "https://huggingface.co/city96/umt5-xxl-encoder-gguf", "required": true},
+    {"id": "wan22-vae", "kind": "weights", "dir": "wanvae",
+     "source": {"hf": "Comfy-Org/Wan-2.2", "include": ["split_files/vae/wan2.2_vae.safetensors"]},
+     "size": 1409400960, "license": "Apache-2.0(원본 Wan2.2)", "license_url": "https://huggingface.co/Comfy-Org/Wan-2.2", "required": true},
+    {"id": "taew2-2", "kind": "weights", "dir": "taew2_2",
+     "source": {"github_file": "madebyollin/taehv", "commit": "fa579a9a726b0a55951998d73e309bfdf0abd342", "path": "safetensors/taew2_2.safetensors"},
+     "sha256": "b84609b2a133d48434bd9636bfcb44bf05168dc436e2d3cecf26256faa1f5325", "size": 22848048,
+     "license": "MIT", "license_url": "https://github.com/madebyollin/taehv/blob/main/LICENSE", "required": true}
+  ],
+  "sources": [
+    {"name": "stable-diffusion.cpp", "url": "https://github.com/leejet/stable-diffusion.cpp", "version": "master-1104-5dcfa79", "license": "MIT"},
+    {"name": "FastWan2.2-TI2V-5B GGUF", "url": "https://huggingface.co/Green-Sky/FastWan2.2-TI2V-5B-FullAttn-GGUF", "version": "q8_0", "license": "Apache-2.0"},
+    {"name": "Wan2.2-TI2V-5B GGUF", "url": "https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF", "version": "Q8_0", "license": "Apache-2.0"},
+    {"name": "umt5-xxl-encoder GGUF", "url": "https://huggingface.co/city96/umt5-xxl-encoder-gguf", "version": "Q8_0", "license": "Apache-2.0"},
+    {"name": "Wan2.2 VAE", "url": "https://huggingface.co/Comfy-Org/Wan-2.2", "version": "split_files/vae/wan2.2_vae", "license": "Apache-2.0"},
+    {"name": "TAEHV (taew2_2)", "url": "https://github.com/madebyollin/taehv", "version": "fa579a9", "license": "MIT"}
+  ]
+}

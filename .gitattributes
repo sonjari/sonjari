@@ -1,0 +1,10 @@
+# 공개판에도 따라가는 줄 끝 규칙(2026-11-19) — 모노레포 뿌리 .gitattributes 는 공개판에 안 들어가서
+#   깃허브 윈도우 시험기가 서명 시험 자료를 CRLF 로 바꿔 받아 서명 시험 2개가 떨어졌다.
+* text=auto
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sh text eol=lf
+*.plist text eol=lf
+*.swift text eol=lf
+# 맥 업데이트 서명 시험 자료 — 바이트가 하나라도 바뀌면 서명이 깨진다
+tests/fixtures/mac_update/** -text

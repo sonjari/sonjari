@@ -1,6 +1,6 @@
 [package]
 name = "alture-jarvis-hud"
-version = "0.4.0"
+version = "0.4.52"
 description = "ALTURE JARVIS local desktop HUD"
 authors = ["ALTURE"]
 edition = "2021"
@@ -29,6 +29,11 @@ ureq = { version = "2.12", features = ["json"] }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Dwm", "Win32_UI_Input_KeyboardAndMouse"] }
 # MSIX: 패키지 신원 확인 + StartupTask(자동 시작) + 윈도우 알림(토스트 · notify.rs). tauri 가 이미 끌어오는 0.61 과 같은 판.
 windows = { version = "0.61", features = ["ApplicationModel", "Foundation", "Data_Xml_Dom", "UI_Notifications", "Win32_Foundation", "Win32_Storage_Packaging_Appx"] }
+
+# 맥 앱 꾸러미 통째 교체(2026-11-16 · 설계_맥업데이트_2026-11-16.ko.md). 윈도우는 스토어가 갱신하므로 맥에만 싣는다 —
+# 윈도우 exe 에는 이 부품이 안 들어간다(시험: tests/test_mac_update_1116.py 가 이 줄의 자리를 본다).
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-plugin-updater = "2"
 
 [profile.release]
 panic = "abort"

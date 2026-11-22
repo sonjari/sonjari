@@ -218,15 +218,18 @@ def test_the_switch_turns_it_off(rig) -> None:
     assert not rig.started().front_prime_due()
 
 
-def test_a_changed_front_replaces_the_remembered_one(rig) -> None:
+def test_a_different_front_is_kept_next_to_the_old_one_and_warmed_last(rig) -> None:
+    """11-17: 판 종류마다 도구 목록이 다르다 — 옛 것을 지우지 않고 곁에 둔다. 가장 최근 모양을 마지막에 데워 서버의 지금 칸에 남긴다."""
     _used_once(rig)
     other = [*TOOLS, {"type": "function", "function": {"name": "new_tool", "description": "d", "parameters": {}}}]
     _send(rig, rig.started(), _big(tools=other))
 
-    rig.started().prime_front()
-
-    assert len(rig.server.posts[-1]["tools"]) == 31
-    assert json.loads((rig.config.data_dir / "front_prime.json").read_text(encoding="utf-8"))["tools"] == other
+    client = rig.started()
+    assert client.prime_front()["ok"] and len(rig.server.posts[-1]["tools"]) == 30
+    assert client.prime_front()["ok"] and len(rig.server.posts[-1]["tools"]) == 31
+    assert not client.front_prime_due()
+    saved = json.loads((rig.config.data_dir / "front_prime.json").read_text(encoding="utf-8"))["fronts"]
+    assert [len(front["tools"]) for front in saved] == [31, 30], "가장 최근 것이 맨 앞"
 
 
 def test_health_says_how_long_ago_the_model_last_answered(rig) -> None:

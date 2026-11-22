@@ -13,6 +13,8 @@ brotli>=1.1.0             # 장표 글꼴 — woff2 를 풀어 PPTX 에 심음(2
 charset-normalizer>=3.4.0
 pywinauto>=0.6.9; platform_system == 'Windows'
 tzdata>=2024.1; platform_system == 'Windows'
+imageio-ffmpeg>=0.5.1; platform_system == 'Darwin'   # 맥 영상 파일 읽기의 ffmpeg(2026-11-13) · pyproject.toml 과 같이
+pyfqmr>=0.5.0            # 3D 프린트 파일 면 줄이기(2026-11-14 대표 허락 · MIT) · pyproject.toml 과 같이
 python-hwpx
 # HTTPS 검사를 윈도우에 맡긴다 — 초기화한 PC 에서 Ollama 받기가 인증서로 죽었다(os_trust.py, 2026-09-24)
 truststore>=0.9.1

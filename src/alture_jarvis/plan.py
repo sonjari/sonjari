@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import re
 
+from . import desktop_tools as _desktop
 from .hostname import on_domain
 from . import english as _en
 from .quantities import ROLE_CONSTRAINT, ROLE_INPUT, ROLE_OUTPUT, counted_object, lives_inside_a_page, quantity_role
@@ -54,6 +55,15 @@ SITE_ALIASES: dict[str, tuple[str, ...]] = {
     name: (host,) for name, host in _SEED.items()
 }
 
+#: 범위로 말한 개수의 수 토큰 — 「5~10」 · 「3-5」 · 「두세」 · 「서너」. 값은 아래 끝(`_as_number`).
+#: 숫자 범위의 이음표는 물결 · 붙임표만 — 아래 끝이 위 끝보다 크면(「10-3」) `_as_number` 가 버린다.
+_KOREAN_RANGES = {
+    "한두": 1, "두세": 2, "두셋": 2, "서너": 3, "세네": 3, "서넛": 3,
+    "너덧": 4, "네댓": 4, "너댓": 4, "대여섯": 5, "예닐곱": 6,
+}
+_DIGIT_RANGE = re.compile(r"(\d{1,2})\s*[~〜∼～\-–]\s*(\d{1,2})")
+_RANGE_NUMERAL = r"\d{1,2}\s*[~〜∼～\-–]\s*\d{1,2}|" + "|".join(sorted(_KOREAN_RANGES, key=len, reverse=True))
+
 # "N개/곳/건/군데". 단위 뒤 부정 후방탐색으로 "4개월"·"3개국"을 걸러낸다.
 # ⚠ `agent._COUNT_REQUEST` 와 쌍둥이다 — 세는 말(권·명)을 한쪽만 넣으면 갈린다.
 # 가지·종은 일부러 뺐다: 종류를 세는 말이라 "3가지 원칙"이 읽기 요구로 걸린다.
@@ -76,7 +86,13 @@ _COUNT = re.compile(
     #   막을 방법이 없고("서" 앞이 진짜 띄어쓰기다), 그 수사들은 개·곳·건·군데
     #   앞에 거의 안 온다. 못 잡아서 잃는 것보다 잘못 잡아서 잃는 것이 크다.
     r"(?:^|(?<=[\s,·.｢\)\]]))"
-    r"(\d{1,2}|하나|둘|셋|넷|[한두세네]|다섯|여섯|일곱|여덟|아홉|열)"
+    # ★ 2026-11-16 맥 판 3655b7e4 · e44e4720: **범위로 말한 개수**를 못 봤다 — 「모델을 5~10개 찾아」(물결 뒤 「10」은 앞이 경계가
+    #   아니라 안 걸림) · 「두세 개 더 찾아」(「두」 뒤가 단위가 아니고 「세」 앞이 경계가 아님). 계획에 개수 요구가 없어 몇 개를
+    #   읽든 「읽기 끝」 → 파일 차례가 다른 후보 열기를 `not_this_stage` 로 두 번 막았고, 도구 목록이 107 → 14 로 좁혀져 Strata 가
+    #   앞부분 3.1만 토큰을 다시 읽었다(20초씩 두 번). 범위는 **이 묶음(수 토큰) 하나**로 잡는다 — 단위 · 세는 낱말 자리를 재는
+    #   다른 자리(`end(2)` · `start(2)`)가 그대로 맞는다. 값은 `_as_number` 가 **아래 끝**으로 읽는다(「5~10개」 = 적어도 5).
+    #   「몇 개 더」는 일부러 안 잡는다: 수가 없어 무엇을 목표로 세워도 지어낸 수다(1 이면 이미 범위 밖이기도 하다).
+    rf"({_RANGE_NUMERAL}|\d{{1,2}}|하나|둘|셋|넷|[한두세네]|다섯|여섯|일곱|여덟|아홉|열)"
     # ★ 「순위」를 넣었다 (2026-09-02). 「1순위부터 5순위까지 찾아줘」가 개수 0 이라
     #   첫 판이 **상세 하나만 열고 멈춰도 아무도 안 잡았다** — 사용자가 본
     #   「끈기가 없다」의 정체가 이것이다. 끈기가 아니라 목표가 없었다.
@@ -210,7 +226,23 @@ def _counts_something_to_produce(compact: str, match: "re.Match[str]") -> bool:
     unit_end = match.start(3) if match.group(3) else match.end()
     unit = compact[match.end(2) : unit_end].strip()
     obj, _, _ = counted_object(compact, match.start(2), unit_end)
-    return quantity_role(unit, obj, compact[unit_end : unit_end + 6]) == ROLE_OUTPUT
+    role = quantity_role(unit, obj, compact[unit_end : unit_end + 6])
+    if role == ROLE_OUTPUT:
+        return True
+    # ★ **범위로 말한 수는 시키는 말에 붙었을 때만 모아 올 수다** (2026-11-16 · 범위 인식을 넣고 운영 요청 3,436개에 대 봄).
+    #   「핵심 주장 5~8개를 시간대와 함께 정리」(영상 한 편 안의 항목) · 「(별 많은 것 2~3개)」 · 「분야마다 2~4개.」가 읽을 페이지 수로
+    #   잡혀, 맞던 「댓글 10개」 · 「① ~ ⑥ 각 곳마다」(6) 요구를 밀어냈다(PC 2806 · 2912 · 2913 · 2891, 맥 219 · 224). 범위는 내놓을
+    #   항목 수에 흔히 쓰인다 — 찾아 · 골라 · 열어 같은 시키는 말에 바로 붙었거나 읽을 자료 낱말(글 · 공고 …)을 셀 때만 받는다.
+    #   못 걸림(「글 5~8개를 엑셀로」는 글이 자료 낱말이라 산다)이 헛걸림보다 낫다.
+    if _is_range_token(match.group(2)) and role != ROLE_INPUT:
+        tail = compact[match.end() : match.end() + 16]
+        return not (_ASKED_DIRECTLY.search(tail) or _GATHERED_HERE.match(compact, match.end()))
+    return False
+
+
+def _is_range_token(token: str) -> bool:
+    token = (token or "").strip()
+    return bool(_DIGIT_RANGE.fullmatch(token)) or token in _KOREAN_RANGES
 
 
 def _has_explicit_input_count(compact: str) -> bool:
@@ -220,14 +252,46 @@ def _has_explicit_input_count(compact: str) -> bool:
     if _per_item_count(compact) and len(inline_list_items(compact)) >= 2:
         return True
     if _en.english_dominant(compact):
-        return any(role == _en.ROLE_INPUT for _v, _q, role, _s, _e in _en.counts(compact))
+        return any(
+            role == _en.ROLE_INPUT
+            # 「find 3 headline titles」 — 찾는 동사 바로 뒤의 개수는 가져올 수다(한국어 `_GATHERED_HERE` 의 짝 · 2026-11-16).
+            or (role != _en.ROLE_OUTPUT and _en.GATHERED_BEFORE.search(compact[max(0, start - 40) : start]))
+            for _v, _q, role, start, _e in _en.counts(compact)
+        )
     for match in _COUNT.finditer(compact):
         unit_end = match.start(3) if match.group(3) else match.end()
         unit = compact[match.end(2) : unit_end].strip()
         obj, _, _ = counted_object(compact, match.start(2), unit_end)
         if quantity_role(unit, obj, compact[unit_end : unit_end + 6]) == ROLE_INPUT:
             return True
+        # ★ **찾는 말에 바로 붙은 개수는 모아 올 개수다** (2026-11-16 맥 판 3655b7e4). 「…영상 생성 모델을 5~10개 찾아 … 엑셀 표로」 —
+        #   「모델」이 입력 낱말 표에 없어 산출물 요청 규칙(위 AURORA 「목적지 카드 3개」)에 개수가 버려졌다. 그 규칙이 막는 것은
+        #   **만들 모양**의 수(「카드 3개를 만들어」)다. 「N개 찾아 · 조사해 · 모아 · 읽어 · 열어」는 밖에서 가져올 수라 읽을 몫이다.
+        #   「뽑아 · 골라 · 정리 · 요약」은 넣지 않는다 — 읽은 것에서 추리는 말이라 만들 모양일 수 있다(「핵심 3개를 뽑아」).
+        if _GATHERED_HERE.match(compact, match.end()) and not _counts_something_to_produce(compact, match):
+            return True
     return False
+
+
+#: 개수 바로 뒤의 「더」 — 「두세 개 더 찾아」 · 「3개를 더」. 덧붙일 몫이다(`extract` 의 주소 몫과 합치기).
+_MORE_AFTER_COUNT = re.compile(r"\s*(?:를|을|씩|만|정도|쯤)?\s*더(?![가-힣])")
+
+
+def _extra_count(compact: str) -> int:
+    """「N개 **더**」로 덧붙이라고 한 개수(범위면 아래 끝). 없으면 0."""
+    for match in _COUNT.finditer(compact):
+        value = _as_number(match.group(2))
+        if not 1 < value <= 30 or _counts_something_to_produce(compact, match) or _is_filter_condition(compact, match):
+            continue
+        if _MORE_AFTER_COUNT.match(compact, match.end()):
+            return value
+    return 0
+
+
+#: 개수 바로 뒤의 「찾는 · 모으는 · 여는」 말 — `_has_explicit_input_count` 의 셋째 길.
+_GATHERED_HERE = re.compile(
+    r"\s*(?:를|을|씩|만|정도|쯤|이상|가량|내외)?\s*(?:만\s*)?(?:더\s*)?(?:직접\s*)?(?:찾|조사|모아|수집|읽어|읽고|열어|열고)"
+)
 
 
 #: 개수가 **걸러 내는 조건**인가 — 「댓글이 7개 이상**인** 글」·「후기 10개 이상 **달린** 상품」. 요구가 아니라 대상을 꾸미는 말이다.
@@ -258,7 +322,8 @@ def _is_filter_condition(compact: str, match: "re.Match[str]") -> bool:
 #: 개수 바로 뒤에 **요청 동사**가 붙었는가 — 「5개를 찾아줘」·「3개만 골라」·「6개 이상 읽고」. 조건절의 개수
 #: (「두 개 이상 작업을 걸면」)는 뒤에 다른 말이 끼어 안 걸린다.
 _ASKED_DIRECTLY = re.compile(
-    r"^\s*(?:를|을|씩|만|정도|쯤|까지)?\s*(?:만\s*)?(?:직접\s*|골라서?\s*|먼저\s*)?"
+    # 「두세 개 **더** 찾아」(2026-11-16 맥 판 e44e4720) — 덧붙이라는 「더」도 시키는 말 앞자리다. 없을 때 긴 글의 진술 숫자로 버려졌다.
+    r"^\s*(?:를|을|씩|만|정도|쯤|까지)?\s*(?:만\s*)?(?:더\s*)?(?:직접\s*|골라서?\s*|먼저\s*)?"
     r"(?:찾|뽑|골라|고르|알려|정리|비교|조사|읽|추려|보여|추천|열어|모아|가져|수집|확인|요약|분석)"
 )
 
@@ -369,6 +434,23 @@ def says_list_only(prompt: str) -> bool:
     )
 
 
+def _listing_is_the_answer(compact: str) -> bool:
+    """「…에서 하기」 칸이 **검색 결과 · 목록 화면 한 장만으로** 채워져도 되는 요청인가(`check` 의 site · 2026-11-14).
+
+    거짓(목록만으로는 못 채움)은 사람이 **항목을 열어 보라고 한** 요청뿐이다 — 상세 · 본문 · 원문 · 「열어서」(`_wants_detail`).
+    여기에 「찾은 항목마다 그 페이지」(`_page_sourced_value_hosts`)가 `_extract_all` 에서 더해진다.
+    ★ 처음엔 거꾸로 「세기 · 목록 칸만이면 참, 나머지는 거짓」으로 갈랐다 — 운영 판 4,901개에 옛 · 새 대조를 대니 끝 판정이 17칸
+      바뀌었고 그중 13칸이 「다나와 · 11번가 … 판매 가격과 배송비를 가게마다 한 줄씩」 · 「사람인 공고 3건의 회사명과 직무」처럼
+      **목록이 곧 답인 비교**였다(헛걸림). 열라는 말이 있을 때만 막는 쪽으로 뒤집었다. 그다음 남은 헛걸림 3칸은 「답 본문에 표로」의
+      「본문」(답 글의 본문이지 페이지 본문이 아니다)이었다 — 그 말은 빼고 본다.
+    """
+    return says_list_only(compact) or not _wants_detail(_ANSWER_BODY.sub(" ", compact))
+
+
+#: 「답 본문에 · 답변 본문으로」 — 내가 쓸 답 글의 본문이다. 읽을 페이지의 본문이 아니다.
+_ANSWER_BODY = re.compile(r"(?:답|답변|대답|응답)\s*본문")
+
+
 # ★ **「목록 × ~씩」은 곱한 만큼이 할 일이다** (2026-10-30 · 판 391ca5ca · 6e539bf2).
 #   「…제품마다 조회수 높은 순으로 2개씩 찾아 … 제품: Claude in Chrome, Claude Cowork, ChatGPT agent(OpenAI), … Dia 브라우저」— 일곱 제품 × 2 =
 #   영상 14개인데 계획은 「2개 이상 읽기」로 서서 걸음 예산이 24였다. 조사가 상한 몇 걸음 전 「파일 쓸 차례」로 막혀 일곱 중 몇 개만 담고 끝났다.
@@ -448,6 +530,145 @@ def _each_target_read_count(compact: str) -> int:
         return 0
     circled = len(set(_CIRCLED.findall(compact[: match.start()])))
     return min(circled, 30) if circled >= 2 else 0
+
+
+#: 「찾은 항목마다 그 페이지 읽기」의 상한 — 목록이 30개여도 이만큼에서 자른다(페이지마다 열기 · 읽기 두 걸음).
+_PER_ITEM_READ_CAP = 10
+
+# ★ **적어 준 주소가 여럿이면 그 수가 읽을 몫이다** (2026-11-15 PC 판 e16a4f31 · be3cd1b5).
+#   바깥 클로드가 「아래 네 모델 페이지를 차례로 열고, 모델마다 … 표로」 + 「1) https://… 2) https://… 3) … 4) …」를 맡겼다.
+#   「4개」라는 숫자 낱말이 없어 개수 요구가 안 섰고(계획 `{}`) 예산은 기본 12 — 두 판 다 11걸음을 **첫 페이지 하나**에서 쓰고
+#   「일부」로 끝났다. 11-13 「번호 목록 6곳을 읽을 몫 0」(`_each_target_read_count`)과 같은 뿌리다: 대조표의 읽기 바닥이
+#   요청의 읽기 의무보다 얕다. 사람이 **주소를 따로 늘어놓고**(번호 · 글머리 · 주소끼리 붙여 줄줄이) 열어 · 읽으라 했으면
+#   서로 다른 주소 수만큼이 읽을 몫이다. 헛걸림보다 못 걸림이 낫다 — 셋 중 하나라도 어긋나면 예전처럼 돈다:
+#     1. 늘어놓은 주소가 서로 달라 둘 이상(같은 주소 되풀이 · `#` 뒤만 다른 것은 하나).
+#     2. 주소 밖의 말에 열기 · 읽기 · 확인 같은 읽는 말이 있다(「이 링크들을 북마크에 저장해」는 읽으라는 말이 아니다).
+#     3. 그 주소들을 열지 말라는 말이 없다(「다른 페이지는 열지 마」처럼 **밖**을 막는 말은 이 주소만 읽으라는 뜻이라 센다).
+#        한 줄 꼬리의 「(제외)」 · 「열지 마」는 그 주소만 뺀다.
+_URL_IN_TEXT = re.compile(r"https?://[^\s<>\"'`「」『』\[\]{}|，、]+", re.I)
+#: 주소 바로 앞의 목록 표시 — 「1)」 · 「(2)」 · 「3.」 · 「①」 · 「-」 · 「•」.
+_URL_LIST_MARK = re.compile(r"(?:^|[\s:：])(?:\(?\d{1,2}[).:．]|[①-⑳]|[-*•·])\s*$")
+#: 두 주소 사이가 이것뿐이면 주소끼리 붙어 늘어선 것이다(줄바꿈이 빈칸이 된 목록).
+_URL_GAP = re.compile(r"[\s,;·/|]*(?:(?:\(?\d{1,2}[).:．]|[①-⑳]|[-*•])\s*)?")
+_URL_READ_VERB_KO = re.compile(r"열[어고면기자람]|읽|확인|방문|들어가|살펴|조사|요약|비교|뽑아|추출")
+_URL_READ_VERB_EN = re.compile(
+    r"\b(?:open|read|visit|check|go\s+to|look\s+(?:at|through)|summari[sz]e|compare|review|extract|scrape)\b", re.I,
+)
+_URL_OPEN_NEGATED_KO = re.compile(
+    r"(?:열|읽|방문하|들어가|접속하|클릭하)(?:어\s*보|아\s*보)?지\s*(?:도\s*)?(?:마|말|않)|열\s*필요\s*(?:가\s*|는\s*)?없|안\s*(?:열어|읽어|들어가)"
+)
+#: 부정된 읽는 말 — 「요약하거나 고치지 말고」 · 「확인하지 마」 · 「비교는 하지 말고」(운영 판 721180 · 76516710: 「받아서 … 요약하거나
+#:   고치지 말고 저장만」의 「요약」을 읽는 말로 셌다). 읽는 말을 찾기 전에 지운다.
+_URL_READ_VERB_NEGATED_KO = re.compile(
+    r"(?:요약|비교|추출|조사|확인|살펴|읽|열)[가-힣]{0,3}(?:거나|지도?|지는|은|는)?\s*(?:[가-힣]+\s*){0,2}?(?:지\s*)?(?:마|말|않)(?=[가-힣\s.,)]|$)"
+)
+_URL_OPEN_NEGATED_EN = re.compile(
+    r"\b(?:do\s*n[o'’]?t|never|without|avoid|no\s+need\s+to)\s+(?:open|visit|read|go\s+to|click)", re.I,
+)
+#: 열지 말라는 말이 **밖**을 막는가 — 「다른 페이지는 열지 마」 · 「이 밖의 주소는」 · 「don't open other pages」.
+_URL_OTHERS_KO = re.compile(r"다른|그\s*밖|밖[의은에]|이\s*외|외[의에]|나머지|추가로|더는|새로운?")
+_URL_OTHERS_EN = re.compile(r"\b(?:other|else|outside|beyond|additional|any\s+more|new)\b", re.I)
+#: 한 줄 꼬리에서 그 주소만 빼는 말(「(제외)」 · 「참고용」). 「말고」는 안 넣었다 — 「누르지 말고」처럼 딴 일을 막는 말에 흔하다.
+_URL_ITEM_EXCLUDED = re.compile(r"제외|빼고|참고\s*용|참고만|\bskip\b|\bexclude", re.I)
+
+
+def _url_key(url: str) -> str:
+    """같은 주소를 하나로 — 호스트 대소문자 · `www.` · 끝 `/` · `#` 뒤는 가르지 않는다(물음표 뒤는 다른 페이지일 수 있어 둔다)."""
+    parts = urlparse(url)
+    host = (parts.hostname or "").lower().removeprefix("www.")
+    path = parts.path.rstrip("/")
+    return f"{host}{path}" + (f"?{parts.query}" if parts.query else "")
+
+
+def _clean_url(raw: str) -> str:
+    url = raw.rstrip(".,;:!?。")
+    while url.endswith(")") and url.count(")") > url.count("("):
+        url = url[:-1].rstrip(".,;:!?。")
+    return url
+
+
+def listed_urls_to_read(compact: str, *, english: bool = False) -> tuple[str, ...]:
+    """사람이 **따로 늘어놓고 열어 읽으라고 한** 서로 다른 웹 주소들(둘 이상일 때). 아니면 빈 것. 위 주석의 세 조건."""
+    matches = list(_URL_IN_TEXT.finditer(compact or ""))
+    if len(matches) < 2:
+        return ()
+    # 주소 자리를 같은 길이의 빈칸으로 — 자리(위치)가 원문과 맞아야 한 줄 꼬리의 말을 가른다.
+    words = _URL_IN_TEXT.sub(lambda found: " " * len(found.group(0)), compact)
+    asked = words if english else _URL_READ_VERB_NEGATED_KO.sub(lambda found: " " * len(found.group(0)), words)
+    if not (_URL_READ_VERB_EN if english else _URL_READ_VERB_KO).search(asked):
+        return ()
+    negated, others = (_URL_OPEN_NEGATED_EN, _URL_OTHERS_EN) if english else (_URL_OPEN_NEGATED_KO, _URL_OTHERS_KO)
+    tails = [
+        (match.end(), min(matches[index + 1].start() if index + 1 < len(matches) else len(compact), match.end() + 40))
+        for index, match in enumerate(matches)
+    ]
+    for found in negated.finditer(words):
+        # 다음 주소 앞까지의 꼬리 안 부정(「2) … (이건 열지 마) 3) …」)은 그 주소만 뺀다 — 아래에서. 마지막 주소 뒤는 꼬리인지
+        # 글 전체에 하는 말(「… 4) … 이 주소들은 열지 마세요」)인지 못 가르니 글 전체 말로 본다(못 걸림 쪽).
+        if any(start <= found.start() < end for start, end in tails[:-1]):
+            continue
+        if not others.search(words[max(0, found.start() - 20): found.end() + 12]):
+            return ()
+    ends = [match.start() + len(_clean_url(match.group(0))) for match in matches]
+    kept: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        before = compact[max(0, match.start() - 8): match.start()]
+        previous_end = ends[index - 1] if index else None
+        next_start = matches[index + 1].start() if index + 1 < len(matches) else None
+        listed = bool(_URL_LIST_MARK.search(before)) or any(
+            gap is not None and _URL_GAP.fullmatch(gap)
+            for gap in (
+                compact[previous_end: match.start()] if previous_end is not None else None,
+                compact[ends[index]: next_start] if next_start is not None else None,
+            )
+        )
+        if not listed:
+            continue
+        tail = compact[tails[index][0]: tails[index][1]]
+        # 빼는 말은 주소 **바로 뒤**(16자)만 본다 — 마지막 주소 뒤는 다음 문장(「… 광고는 빼고 본문만 읽어」)일 수 있다.
+        if _URL_ITEM_EXCLUDED.search(tail[:16]) or (negated.search(tail) and not others.search(tail)):
+            continue
+        url = _clean_url(match.group(0))
+        kept.setdefault(_url_key(url), url)
+    return tuple(kept.values()) if len(kept) >= 2 else ()
+#: 값의 **출처를 사이트의 페이지로 묶은 말** — 「별 수와 라이선스는 깃허브 페이지에서 직접 읽은 값만 쓰고」.
+#:   ★ 2026-11-14 맥 판 cc505ece: 이 말이 있는데 대조표에 「찾은 저장소마다 그 페이지 읽기」 칸이 없었다. 「깃허브에서 하기」는
+#:   저장소 하나로 채워졌고, 읽기 칸이 다 차 「목표 달성」→ 파일 차례 → 둘째 저장소 열기가 `not_this_stage` 로 막혔다.
+#:   `fields` = 묶인 값(조사 「은 · 는」 앞) · `place` = 그 페이지의 사이트 이름(「상세 · 각 · 공식」은 건너뛴다).
+_PAGE_SOURCED_VALUES = re.compile(
+    r"(?P<fields>[^.!?。\n,，]{1,40}?)\s*(?:은|는)\s+"
+    r"(?P<place>[^.!?。\n,，]{1,24}?)\s*(?:(?:상세|각|공식|저장소|제품|상품)\s*)?(?:페이지|저장소|홈페이지)\s*에서\s*"
+    r"직접\s*(?:열어\s*)?(?:읽은|읽어\s*온|확인한|본)\s*(?:값|것|숫자|수치|정보|내용)\s*만\s*(?:을|를)?\s*"
+    # 그 값만 **쓰라는** 말까지 — 묶는 말 자체가 시키는 말이다(「…값만 쓰고, 못 읽었으면 빈칸으로 둬」의 「둬」는 시키는 끝맺음 표에 없다).
+    r"(?:쓰|써|적|넣|채우|채워|기입|표시)"
+)
+#: 묶인 값 늘어놓기를 가르는 자리 — 「별 수와 라이선스」 · 「가격 · 배송비」 · 「가격이나 배송비」.
+_SOURCED_FIELD_SPLIT = re.compile(r"\s*(?:[·,、/]|(?<=[가-힣])(?:와|과|이나|나|및)\s)\s*")
+
+
+def _page_sourced_value_hosts(compact: str, sites: "list[Requirement]") -> tuple[str, ...]:
+    """값의 출처를 **지목한 사이트의 페이지**로 묶었고, 그 값이 돌려받을 항목이면 그 사이트 주소들. 아니면 빈 것.
+
+    셋이 다 맞아야 한다(헛걸림보다 못 걸림이 낫다 — 못 걸리면 예전처럼 돌 뿐이다):
+      1. 「(값)은 (사이트) 페이지에서 직접 읽은 값만」 꼴(`_PAGE_SOURCED_VALUES`).
+      2. 그 「사이트」 자리에 대조표의 사이트 이름(「깃허브」)이 있다 — 「숫자는 페이지에서 직접 읽은 것만」처럼 곳을 안 댄 말은
+         출처 규칙이지 「찾은 것마다 그 사이트에서 열어라」가 아니다(맥 판 e4a69e06 · 운영 요청 3,397개 중 이 꼴 9개).
+      3. 묶인 값이 그 말 **밖에서도** 돌려받을 항목으로 나온다(「(돌려받을 항목 — … 별 수 · 라이선스 …)」 · 「이름·별 수·라이선스를 표로」).
+    """
+    for match in _PAGE_SOURCED_VALUES.finditer(compact):
+        place = match.group("place").casefold()
+        hosts: list[str] = []
+        for site in sites:
+            name = _site_name(site).casefold()
+            if name and name in place:
+                hosts.extend(str(host) for host in (site.target if isinstance(site.target, (list, tuple)) else (site.target,)))
+        if not hosts:
+            continue
+        outside = compact[: match.start()] + " " + compact[match.end():]
+        fields = [field.strip() for field in _SOURCED_FIELD_SPLIT.split(match.group("fields")) if len(field.strip()) >= 2]
+        if any(field in outside for field in fields):
+            return tuple(dict.fromkeys(hosts))
+    return ()
 
 
 def _count_choice(compact: str) -> tuple[int, str]:
@@ -668,7 +889,10 @@ def _last_word_head(text: str, term: str) -> int:
 #:   「로컬」 오독만 세 번째다(09-29·09-30·10-04). 종류는 끝이 없고 출처는 몇 개뿐이라 **허용 목록으로 뒤집는다.**
 #:   못 알아본 출처는 범위 없는 개수 요구가 된다 — 어디서 읽든 세니 손해가 없다(틀려도 싼 쪽으로 넘어진다).
 _LOCAL_NOT_SOURCE = re.compile(
-    r"로컬(?!\s*(?:파일|문서|폴더|자료|출처|PC|컴퓨터|드라이브|디스크|저장소|경로|에\s*(?:있|저장|둔)))[^\s,.·]*",
+    # ★ 「로컬 PC에서 돌릴 수 있는 … 모델」의 PC 는 **돌릴 자리**지 읽을 자료가 아니다 (2026-11-16 맥 판 3655b7e4 — 「모델을 5~10개 찾아」가
+    #   「로컬 자료 5개 이상」으로 갈렸다). PC · 컴퓨터 뒤에 돌리다 · 실행 · 구동 · 쓰다가 붙으면 출처 낱말이 아니다.
+    r"로컬(?!\s*(?:파일|문서|폴더|자료|출처|(?:PC|컴퓨터)(?!\s*(?:에서|로|용|에)?\s*(?:돌|실행|구동|쓸\s*수|쓰는|사용\s*가능|사용할|굴리|띄우))"
+    r"|드라이브|디스크|저장소|경로|에\s*(?:있|저장|둔)))[^\s,.·]*",
     re.IGNORECASE,
 )
 
@@ -868,6 +1092,13 @@ def _as_number(token: str) -> int:
     token = token.strip()
     if token.isdigit():
         return int(token)
+    # 범위(「5~10」 · 「두세」)는 아래 끝 — 「적어도 그만큼」이 시킨 몫이다(2026-11-16 · `_RANGE_NUMERAL`).
+    span = _DIGIT_RANGE.fullmatch(token)
+    if span:
+        low, high = int(span.group(1)), int(span.group(2))
+        return low if low < high else 0
+    if token in _KOREAN_RANGES:
+        return _KOREAN_RANGES[token]
     return _KOREAN_NUMERALS.get(token, 0)
 
 
@@ -1286,6 +1517,12 @@ class Requirement:
     grade: str = "firm"
     # 그 요구가 어디서 섰나 — router · address · ask · english · kept · learned · mention(§55-41 표).
     origin: str = ""
+    # ★ 2026-11-14 「찾은 항목마다 그 사이트 페이지 읽기」 개수 요구의 사이트 주소들(`_page_sourced_value_hosts`). 비면 보통 개수 요구다.
+    #   이 칸이 있으면 `target` 은 상한(`_PER_ITEM_READ_CAP`)이고, 실제 목표는 판 도중 목록에서 찾은 항목 수로 `check` 가 정한다.
+    per_item_hosts: tuple[str, ...] = ()
+    # ★ 2026-11-15 「적어 준 주소마다 열어 읽기」 개수 요구의 그 주소들(`listed_urls_to_read`). 비면 보통 개수 요구다.
+    #   `target` 은 주소 수(상한 `_PER_ITEM_READ_CAP`)이고, 채움은 보통 개수 요구와 같다(서로 다른 웹 페이지 N개를 직접 읽었나).
+    listed_urls: tuple[str, ...] = ()
 
 
 #: 앞 판 근거를 **이어받지 않을** 말 — 새것·더·다른 것을 달라는 요청 (2026-09-24).
@@ -1635,6 +1872,16 @@ def _grade_one(
     if kind in {"count", "count_action"}:
         if kind == "count_action" and req.items:
             return GRADE_FIRM, "kept"
+        # 「적어 준 주소마다 읽기」(2026-11-15) — 사람이 주소를 직접 늘어놓았다. 사이트 요구의 「address」와 같은 원칙이다:
+        #   그 주소가 사람의 말(붙여넣은 글을 뺀 것) 안에 있으면 확실이다.
+        listed = getattr(req, "listed_urls", ())
+        if listed:
+            return (GRADE_FIRM, "address") if sum(url.casefold() in folded for url in listed) >= 2 else (GRADE_SOFT, "mention")
+        # 「찾은 항목마다 그 페이지 읽기」(2026-11-14)는 숫자 낱말이 없다 — 그 출처를 묶은 말이 시키는 문장 안이면 확실이다(11-13 「각 곳마다」와 같은 원칙).
+        if getattr(req, "per_item_hosts", ()):
+            sourced = _PAGE_SOURCED_VALUES.search(compact)
+            # 묶는 말이 「…값만 써」로 끝나 그 자체가 시키는 말이다 — 시키는 문장 표(`_REQUEST_ENDING`)에 없는 끝맺음(「둬」)이어도 확실이다.
+            return (GRADE_FIRM, "ask") if sourced else (GRADE_SOFT, "mention")
         try:
             target = int(req.target)
         except (TypeError, ValueError):
@@ -1944,7 +2191,55 @@ def _extract_all(
         same_place = [other for other in matched if _hosts(other) & _hosts(name)]
         shown = min(same_place, key=lambda each: folded.find(each.casefold()))
         emitted.append(set().union(*(_hosts(other) for other in same_place)))
-        found.append(Requirement("site", f"{shown}에서 하기", aliases[shown]))
+        found.append(Requirement("site", f"{shown}에서 하기", aliases[shown], list_only=_listing_is_the_answer(compact)))
+
+    # ★ **값의 출처를 그 사이트 페이지로 묶었으면 찾은 항목마다 그 페이지를 읽는 것이 할 일이다** (2026-11-14 맥 판 cc505ece).
+    #   「별 수와 라이선스는 깃허브 페이지에서 직접 읽은 값만」 + 돌려받을 항목에 별 수 · 라이선스. 개수를 안 댔으니 개수 요구가 없었고,
+    #   대조표의 읽기 칸이 저장소 하나로 다 차 「목표 달성」→ 파일 차례에서 둘째 저장소 열기가 막혔다(11-13 번호 목록 고침과 같은 뿌리:
+    #   대조표의 읽기 바닥이 요청의 읽기 의무보다 얕다). 목표 수는 판 도중 그 사이트 목록에서 찾은 항목 수다(`check` · 상한 10).
+    #   이미 개수 요구가 있으면 그쪽이 읽을 수를 쥔다 — 두 줄로 세우지 않는다.
+    per_item_hosts = (
+        () if english or any(item.kind in {"count", "count_action"} for item in found)
+        else _page_sourced_value_hosts(outside_quotes, [item for item in found if item.kind == "site"])
+    )
+    if per_item_hosts:
+        # 그 사이트 칸은 목록 한 장으로 차지 않는다 — 찾은 항목의 페이지를 읽으라는 요청이다.
+        found = [dataclass_replace(item, list_only=False) if item.kind == "site" and set(item.target) & set(per_item_hosts)
+                 else item for item in found]
+        place = next(_site_name(item) for item in found if item.kind == "site" and set(item.target) & set(per_item_hosts))
+        found.append(Requirement(
+            "count", f"{place} 페이지에서 찾은 항목마다 직접 열어 읽기(최대 {_PER_ITEM_READ_CAP}개)", _PER_ITEM_READ_CAP,
+            grounding_required=True, source_scope="web", per_item_hosts=per_item_hosts,
+        ))
+
+    # ★ **적어 준 주소마다 열어 읽기** (2026-11-15 · `listed_urls_to_read`). 개수 낱말이 없어도 늘어놓은 주소 수가 읽을 몫이다.
+    #   이미 개수 요구가 있으면 그쪽이 읽을 수를 쥔다 — 두 줄로 세우지 않는다. Code 탭 판은 건드리지 않는다(사양서 속 참고 주소).
+    # ★ 「적어 준 주소 + N개 **더**」는 두 몫의 합이다 (2026-11-16 맥 판 e44e4720 — 「네 주소를 다시 열어 … 그다음 두세 개 더 찾아」).
+    #   개수 요구(2)만 세우면 주소 4곳 읽을 몫이 사라져 오히려 줄고, 주소 몫(4)만 세우면 넷을 읽자 「읽기 끝」 → 파일 차례가 다섯째
+    #   후보 열기를 막는다. 개수 요구가 그 「더」 하나뿐일 때만 합친다 — 다른 개수 요구가 있으면 예전처럼 그쪽이 쥔다.
+    counted = [item for item in found if item.kind in {"count", "count_action"}]
+    extra = 0 if english else _extra_count(outside_quotes)
+    merges_extra = bool(
+        extra and counted
+        and all(item.kind == "count" and item.target == extra and not item.per_item_hosts for item in counted)
+    )
+    listed_urls = (
+        () if code_workspace or (counted and not merges_extra)
+        else listed_urls_to_read(outside_quotes, english=english)
+    )
+    if listed_urls:
+        if merges_extra:
+            found = [item for item in found if item not in counted]
+        more = extra if merges_extra else 0
+        wanted = min(len(listed_urls) + more, _PER_ITEM_READ_CAP)
+        label = (
+            f"적어 준 주소 {min(len(listed_urls), wanted)}곳 + 더 찾은 {wanted - min(len(listed_urls), wanted)}개를 하나씩 직접 열어 읽기"
+            if more else f"적어 준 주소 {wanted}곳을 하나씩 직접 열어 읽기"
+        )
+        found.append(Requirement(
+            # 이름표는 늘 한국어 — 영어 화면은 `display_label` 이 개수 요구 꼴로 옮긴다.
+            "count", label, wanted, grounding_required=True, source_scope="web", listed_urls=listed_urls[:_PER_ITEM_READ_CAP],
+        ))
 
     # ★ 2026-10-03 Online-Mind2Web TED 판: 「가장 많이 본 · 12~18분」을 검색어 결과에서 골라 틀렸다(정답은 제목에 robot 이 없는
     #   쿼드콥터 강연 — 사이트 필터 목록의 1위). 지름길(검색)이 「되는 것처럼」 보이면 모델은 필터 방에 안 들어간다.
@@ -2525,7 +2820,7 @@ def _footnotes_in(path: Path) -> int:
 
 
 #: 프로그램 창에서 실행한 동작 — 그 **뒤에** 생긴 파일만 창으로 만든 산출물 후보다.
-_GUI_ACTION_TOOLS = frozenset({"windows_execute_preview"})
+_GUI_ACTION_TOOLS = _desktop.names(_desktop.EXECUTE)
 #: 그 파일을 실제로 **열어 본** 걸음 — 이름만 짐작한 파일은 세지 않는다.
 _GUI_MADE_READERS = frozenset({"local_read_document", "local_read_text_file"})
 
@@ -2666,7 +2961,7 @@ _ACTION_TOOLS = frozenset({
     "hwp_apply_edit",
     "hwp_apply_format",
     "hwp_export_pdf",
-    "windows_execute_preview",
+    *_desktop.names(_desktop.EXECUTE),
     "artifact_from_observations",
 })
 
@@ -2768,7 +3063,7 @@ def _rows_in_file(path: Path) -> int:
 
 #: 화면의 칸에 **값을 넣는** 도구 — 성공했으면 그 화면을 보고 한 일이다.
 #: 열린 프로그램 창을 **읽는** 도구 — 내 PC 를 보는 판의 「읽기」로 센다(`answer_claims._DESKTOP_READ_TOOLS` 와 같은 둘).
-_WINDOW_READ_TOOLS = frozenset({"windows_uia_snapshot", "windows_copy_from_window"})
+_WINDOW_READ_TOOLS = _desktop.names(_desktop.SNAPSHOT, _desktop.COPY)
 #: 이 PC 의 그림 파일 · 열린 에디터 화면을 **실제로 본** 도구(하네스 탓 16 · 11-08).
 _LOCAL_LOOK_TOOLS = frozenset({"local_view_image", "unity_editor_look"})
 #: 이 PC 의 상태를 **읽기 전용 명령**으로 읽는 도구 — 허용목록 실행 파일 · 읽기 하위명령만 돈다(`shell_probe.py` 서두).
@@ -2990,6 +3285,70 @@ def pages_links_were_followed_from(steps: list[dict[str, Any]]) -> set[str]:
     return lists
 
 
+#: 사이트 안 검색으로 도착한 화면이라고 도구가 붙인 표시(`browser_open` 이 검색 주소를 알아보면 `action: site_searched` · `result_count`).
+_SEARCHED_ACTIONS = frozenset({"site_searched", "searched"})
+
+
+def listing_pages(steps: list[dict[str, Any]]) -> set[str]:
+    """목록 화면의 주소들 — `pages_results_were_opened_from` 에 **도구가 검색 결과라고 표시한 화면**을 더한다(2026-11-14).
+
+    맥 판 cc505ece 의 깃허브 검색(`github.com/search?…`)은 `browser_open` 으로 열려 검색 도구를 안 거쳤지만, 도구가
+    `action: site_searched` · `result_count: 11` 을 붙였다. 낱말 · 주소 모양이 아니라 도구가 붙인 칸으로 가른다.
+    ★ 검색 결과를 **열어 도착한** 화면은 항목이다 — 그 글에서 댓글을 「더 불러오기」 했다고 목록이 되지 않는다(운영 판 10bd9bac:
+      구글 결과로 연 레딧 글이 `browser_load_more` 때문에 목록으로 찍혀 「레딧에서 하기」가 헛걸렸다).
+    """
+    marked: set[str] = set()
+    items: set[str] = set()
+    for step in steps or []:
+        evidence = step.get("evidence")
+        if not step.get("ok") or not isinstance(evidence, dict):
+            continue
+        url = str(evidence.get("url") or "")
+        if url and (str(evidence.get("action") or "") in _SEARCHED_ACTIONS or "result_count" in evidence):
+            marked.add(url)
+        if url and (str(step.get("tool") or "") == "browser_open_result" or evidence.get("action") == "opened_result"):
+            items.add(url)
+    return (pages_results_were_opened_from(steps) | marked) - items
+
+
+def _on_hosts(url: str, hosts: "tuple[str, ...] | list[str]") -> bool:
+    host = (urlparse(str(url or "")).hostname or "").lower()
+    return bool(host) and any(host == str(want).lower() or host.endswith("." + str(want).lower()) for want in hosts)
+
+
+def _items_found_in_listing(steps: list[dict[str, Any]], hosts: "tuple[str, ...]") -> int:
+    """그 사이트의 목록 화면에서 **도구가 센 항목 수**(검색 결과 수 · 남은 순위 + 읽은 수) 중 가장 큰 것. 모르면 0."""
+    best = 0
+    for step in steps or []:
+        evidence = step.get("evidence")
+        if not step.get("ok") or not isinstance(evidence, dict):
+            continue
+        if not _on_hosts(str(evidence.get("url") or ""), hosts):
+            continue
+        try:
+            best = max(best, int(evidence.get("result_count") or 0))
+        except (TypeError, ValueError):
+            pass
+        remaining = evidence.get("remaining")
+        if isinstance(remaining, list) and str(evidence.get("action") or "") != "opened_result":
+            try:
+                best = max(best, len(remaining) + int(evidence.get("read_so_far") or 0))
+            except (TypeError, ValueError):
+                pass
+    return best
+
+
+def _item_pages_read(sources: list[str], hosts: "tuple[str, ...]", listings: set[str]) -> list[str]:
+    """그 사이트에서 읽은 **항목 페이지**의 열쇠 — 목록 화면은 빼고, 한 항목의 아래 페이지(`/저장소/blob/main/LICENSE`)는 그 항목으로 친다."""
+    listed = {_page_key(url) for url in listings}
+    keys = sorted({_page_key(url) for url in sources if _on_hosts(url, hosts) and _page_key(url) not in listed}, key=len)
+    items: list[str] = []
+    for key in keys:
+        if not any(key.startswith(item + "/") for item in items):
+            items.append(key)
+    return items
+
+
 #: 검색 엔진의 바탕 주소. 이것을 「○○에서 하기」로 지목한 요청은 「거기서 찾아라」이지 「그 주소의 글만」이 아니다(`check`).
 _SEARCH_PORTAL_DOMAINS = frozenset({"naver.com", "google.com", "daum.net", "bing.com", "duckduckgo.com"})
 
@@ -3063,17 +3422,37 @@ def check(
                 acted >= target,
                 f"{acted}개 처리함" + (f" (시킨 것 {target}개)" if acted < target else ""),
             ))
+        elif req.kind == "count" and getattr(req, "per_item_hosts", ()):
+            # ★ 「찾은 항목마다 그 사이트 페이지 읽기」(2026-11-14 · `_page_sourced_value_hosts`). 목표는 상한(`req.target`)과
+            #   판 도중 그 사이트 목록에서 찾은 항목 수 중 작은 것, 답이 나왔으면 답 · 파일 표에 담은 줄 수까지 본다(담은 항목마다
+            #   그 페이지를 읽었나). 목록을 아직 못 봤으면 1 — 찾기부터 하라는 뜻이다. 결과에는 **정한 목표를 target 으로 바꾼 요구**를
+            #   실어, 대조표 · 끝 경고 · 「일부」 판정이 같은 수를 본다.
+            hosts = tuple(req.per_item_hosts)
+            cap = max(1, int(req.target))
+            listings = listing_pages(steps)
+            found = _items_found_in_listing(steps, hosts)
+            read_items = _item_pages_read(list(sources), hosts, listings)
+            rows = 0
+            if answer.strip():
+                rows = max(count_listed_items(answer), _rows_written(steps))
+            goal = min(cap, rows or cap, found or rows or 1)
+            ok = len(read_items) >= goal
+            saw = f"{len(read_items)}개 읽음 · 목표 {goal}개(" + (
+                f"목록에서 찾은 {found}개" if found else "아직 목록을 못 봄") + (f" · 답에 {rows}개" if rows else "") + f" · 상한 {cap})"
+            out.append((dataclass_replace(req, target=goal), ok, saw))
         elif req.kind == "count":
             target = int(req.target)
-            scoped_sources = counted_sources
+            # 「적어 준 주소마다 읽기」는 사람이 주소를 직접 댔다 — 사이트 이름으로 셈을 좁히지 않는다(주소가 여러 사이트에 걸칠 수 있다).
+            base_sources = list(sources) if getattr(req, "listed_urls", ()) else counted_sources
+            scoped_sources = base_sources
             if req.source_scope == "local":
                 scoped_sources = [
-                    source for source in counted_sources
+                    source for source in base_sources
                     if urlparse(source).scheme.lower() not in {"http", "https"}
                 ]
             elif req.source_scope == "web":
                 scoped_sources = [
-                    source for source in counted_sources
+                    source for source in base_sources
                     if urlparse(source).scheme.lower() in {"http", "https"}
                 ]
             # ★ **출처 이름표가 틀려도 판이 미달로 끝나지 않게** (2026-10-04 허깅페이스 판 5749ff16). 「로컬 자료 5개」로 잘못 읽힌 요구는
@@ -3209,6 +3588,16 @@ def check(
             if read < 1 and system_reads and str(req.target or "") == "local":
                 out.append((req, True, f"이 PC 상태를 읽기 전용 명령으로 {system_reads}번 읽음"))
                 continue
+            # ★ **이 판에서 쓴 코드를 직접 돌려 결과를 읽은 것도 본 것이다** (2026-11-17 맥 4B 코드 판 · 설계 P7a). 「primes.py 를 만들고
+            #   실행해 줘」를 쓰고 셸로 돌려 출력이 답과 같았는데 「못 한 것: 근거가 되는 대상 실제로 읽기」가 남았다. 아무 셸 명령이 아니라
+            #   쓴 파일을 돌려 종료 0 인 걸음만 센다(`code_runtime.shell_run_verification_indices` — 코드 검증과 같은 판정). 웹을 보라는 판(browser)은 그대로.
+            if read < 1 and str(req.target or "") in {"local", "any"}:
+                from .code_runtime import shell_run_verification_indices
+
+                own_runs = len(shell_run_verification_indices(steps))
+                if own_runs:
+                    out.append((req, True, f"이 판에서 쓴 코드를 {own_runs}번 돌려 결과를 읽음"))
+                    continue
             # ★ **원본을 열어 바꾼 것도 본 것이다** (2026-10-17 한글→PDF). 「한글 파일을 PDF 로 저장해 줘」에 읽기 요구가 붙고,
             #   변환 도구는 원본을 열어 굽는데도 「0개 실제로 읽음」이 남아 모델이 원본을 따로 뜯어 읽으러 갔다. 웹 대상은 그대로다.
             converted = sum(
@@ -3283,6 +3672,21 @@ def check(
                 out.append((req, True, " · ".join(f"{names.get(n, n)} 걸림" for n in sorted(needs))))
         elif req.kind == "site":
             hit = [h for h in hosts if any(h == part or h.endswith("." + part) for part in req.target)]
+            # ★ **검색 결과 · 목록 화면 한 장만으로는 「거기서 했다」가 아니다** (2026-11-14 맥 판 cc505ece). 깃허브 검색 목록 한 장으로
+            #   「깃허브에서 하기 — 1건」이 찼다. 목록은 찾은 것이지 읽은 것이 아니다. 목록 자체가 답인 요청(세기 · 목록 칸만 · 「열 필요
+            #   없다」 — 사이트 요구를 세울 때 `list_only` 에 적었다)과 검색 엔진을 지목한 것(「네이버에서 찾아」 — 결과는 다른 곳으로
+            #   나간다)은 예전 그대로 목록으로 찬다. 그 사이트에서 읽거나 서 본 화면이 **전부** 목록 화면일 때만 막는다
+            #   (검색 화면을 열기만 한 걸음도 아래 「거기서 움직인 것」으로 차지 않게 — 읽기와 같은 자로).
+            if not req.list_only and not any(str(part).lower() in _SEARCH_PORTAL_DOMAINS for part in req.target):
+                on_site = {url for url in sources if _on_hosts(url, tuple(req.target))} | {
+                    str(step["evidence"].get("url") or "") for step in steps
+                    if step.get("ok") and str(step.get("tool") or "").startswith("browser_")
+                    and isinstance(step.get("evidence"), dict) and _on_hosts(str(step["evidence"].get("url") or ""), tuple(req.target))
+                }
+                listings = listing_pages(steps) if on_site else set()
+                if on_site and on_site <= listings:
+                    out.append((req, False, f"목록 화면 {len(on_site)}곳만 봄 — 찾은 항목의 페이지를 열어 읽어야 센다"))
+                    continue
             if hit:
                 out.append((req, True, f"{len(hit)}건"))
                 continue

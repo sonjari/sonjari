@@ -4,6 +4,7 @@ import asyncio
 import os
 import subprocess
 import sys
+import hashlib
 import json
 import threading
 import time
@@ -19,12 +20,38 @@ from pydantic import BaseModel, Field
 
 from .config import JarvisConfig
 from .outbound import outbound_job_view
-from . import peer_guard
+from . import host_guard, peer_guard
 from . import ui_i18n
 from .models import RiskLevel
 from .runtime import JarvisRuntime
+from .pack_models import ModelError
 from .packs import PackError
 from .unity_tools import is_unity_project
+
+
+#: 말하기 버튼 실패 코드 → 사람 문장(2026-11-22). 화면은 「code: 문장」에서 문장만 보인다(`readableError`).
+_PTT_ERRORS = {
+    "mac_voice_helper_missing": "음성 도우미가 설치되지 않았습니다. 손자리를 최신 판으로 다시 설치해 주세요",
+    "jarvis_busy": "지금 다른 일을 하는 중이라 말을 들을 수 없습니다. 끝난 뒤 다시 눌러 주세요",
+    # 맥 음성 도우미가 돌려주는 까닭(mac_record_failed:<까닭>) — 11-22 맥미니(마이크 0개)에서 「Load failed」만 보였다.
+    "no_input_device": "이 맥에 연결된 마이크가 없습니다. 에어팟이나 마이크 달린 이어폰을 연결한 뒤 다시 눌러 주세요",
+    "mic_permission_denied": "마이크 사용이 허락되지 않았습니다. 시스템 설정 › 개인정보 보호 및 보안 › 마이크에서 「손자리 음성」을 켜 주세요",
+    "helper_no_result": "음성 도우미가 녹음을 시작하지 못하고 멈췄습니다. 마이크가 연결돼 있는지 확인한 뒤 다시 눌러 주세요",
+    "no_audio": "소리가 녹음되지 않았습니다. 마이크가 켜져 있는지 확인한 뒤 다시 눌러 주세요",
+    "mac_record_stop_timeout": "녹음을 멈추지 못했습니다. 다시 눌러 주세요",
+}
+
+
+def ptt_error_text(raw: str) -> str:
+    raw = (raw or "").strip()
+    if raw.startswith("mac_record_failed:"):
+        # 겉 이름(mac_record_failed)보다 도우미가 말한 속 까닭이 사람에게 쓸모 있다.
+        raw = raw.split(":", 1)[1].strip()
+    code = raw.split(":", 1)[0].strip() or "ptt_failed"
+    human = _PTT_ERRORS.get(code)
+    if human is None:
+        human = f"녹음을 시작하지 못했습니다({raw})" if raw else "녹음을 시작하지 못했습니다"
+    return f"{code}: {human}"
 
 
 class ChatAttachment(BaseModel):
@@ -101,6 +128,9 @@ class ChatRequest(BaseModel):
     # ★ 바깥 AI 가 밝힌 「돌려받아야 할 것」(2026-10-15 · 전략안 §55-32) — 끝난 판의 요약이 항목마다 채웠는지 확인하고,
     #   밝힌 연락처는 정제에서 뺀다(`outbound`). 잡에 그대로 남는다(payload).
     needs: list[str] = Field(default_factory=list, max_length=12)
+    # ★ 바깥 AI 가 켠 「끝까지」(2026-11-15 대표 결정). 참이면 그 판의 걸음 예산을 바깥 상한(`agent_autonomous_max_steps` · 48)까지 준다
+    #   (`agent._step_budget`). 무제한이 아니다. 모르는 칸은 조용히 버려지므로 칸을 둬야 잡 기록(payload)에 남는다.
+    finish_all: bool = False
     attachments: list[ChatAttachment] = Field(default_factory=list, max_length=6)
     # ★ 판이 끝나면 만든 파일을 **띄울지** (2026-09-13 사용자 요청).
     #
@@ -336,6 +366,8 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             "X-Stage-Problem", "X-Stage-Seq", "X-Stage-Width", "X-Stage-Height", "X-Stage-Title",
         ],
     )
+    # 주소 이름(Host) 거름 — DNS 리바인딩 막기(2026-11-13 · host_guard.py). 맨 마지막에 더해 **가장 바깥**에서 HTTP · 소켓 둘 다 본다.
+    app.add_middleware(host_guard.HostGuard)
     app.state.jarvis = runtime
 
     def require_token(x_jarvis_token: str = Header(default="")) -> None:
@@ -615,10 +647,16 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             if str(exc) == "private_update_disabled":
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
             raise
+        content = path.read_bytes()
         return Response(
-            content=path.read_bytes(),
+            content=content,
             media_type="application/zip",
-            headers={"Content-Disposition": 'attachment; filename="jarvis-update.zip"'},
+            headers={
+                "Content-Disposition": 'attachment; filename="jarvis-update.zip"',
+                # ★ 2026-11-16: 위성이 받은 바이트를 맞춰 볼 값. **내준 바로 그 바이트**의 해시라 매번 다시 만들어도 어긋나지 않는다.
+                #   이 값 없이는 위성이 갈아치우지 않는다(runtime.update_apply) — 「모르면 안 받는다」.
+                "X-Payload-SHA256": hashlib.sha256(content).hexdigest(),
+            },
         )
 
     @app.post("/v1/update/check", dependencies=[Depends(require_token)])
@@ -802,14 +840,142 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def packs_rescan() -> dict[str, Any]:
         return _packs_view(runtime.packs.rescan())
 
-    @app.post("/v1/packs/{pack_id}/{action}", dependencies=[Depends(require_token)])
-    def packs_toggle(pack_id: str, action: str) -> dict[str, Any]:
-        if action not in {"enable", "disable"}:
-            raise HTTPException(status_code=404, detail="unknown_action")
+    # ── 이 PC 에 맞는 팩 권하기(2026-11-16 · 설계_팩켜기UX §4-1) — 판정만 한다. 켜는 것은 아래 enable(사람이 누름). ──
+    @app.get("/v1/packs/hints", dependencies=[Depends(require_token)])
+    def packs_hints(fresh: bool = False) -> dict[str, Any]:
+        return runtime.pack_hints.hints(fresh=fresh)
+
+    # 「나중에 · 무시」 — 그 팩은 다시 권하지 않는다. 켜고 끄는 것과 상관없다. `{pack_id}/{action}` 보다 먼저 둔다.
+    # 「팩 켜기는 클로드에게 맡기기」(ADR-PACK-1) — **사람 쪽 문**. 도구로는 이 일을 못 한다. 켜고 끌 때 기록 · 알림.
+    #   ★ `/v1/packs/{pack_id}/{action}` 보다 먼저 둔다(「delegate」를 팩 이름으로 읽지 않게).
+    @app.post("/v1/packs/delegate", dependencies=[Depends(require_token)])
+    def packs_delegate(body: dict[str, Any]) -> dict[str, Any]:
+        on = body.get("on")
+        if not isinstance(on, bool):
+            raise HTTPException(status_code=400, detail="on 은 true · false")
+        out = runtime.packs.set_claude_may_enable(on)
+        runtime.store.add_audit("pack_delegation_changed", "packs", out)
+        runtime.events.publish("pack_delegation_changed", out)
         try:
-            return runtime.packs.set_enabled(pack_id, action == "enable")
+            runtime.notifications.notify("Sonjari · 팩 켜기 맡김",
+                                         "이제 클로드가 대화에서 물은 뒤 팩을 바로 켭니다." if on else "팩 켜기는 다시 카드로 묻습니다.")
+        except Exception:  # noqa: BLE001
+            pass
+        return out
+
+    @app.post("/v1/packs/{pack_id}/dismiss_hint", dependencies=[Depends(require_token)])
+    def packs_dismiss_hint(pack_id: str) -> dict[str, Any]:
+        try:
+            return runtime.packs.dismiss_hint(pack_id)
         except PackError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/v1/packs/{pack_id}/{action}", dependencies=[Depends(require_token)])
+    def packs_toggle(pack_id: str, action: str, fetch: bool = False) -> dict[str, Any]:
+        if action not in {"enable", "disable"}:
+            raise HTTPException(status_code=404, detail="unknown_action")
+        # 「켜고 받기」(2026-11-16 저녁 · 설정 › 팩의 켜기 단추): 사람이 크기 · 자리를 보고 누른 것이 받기 동의다.
+        # 받을 것이 남았는데 자리가 모자라면 **켜지 않는다**(켜 놓고 못 받는 팩이 되지 않게) — 507 과 상태를 그대로.
+        plan: dict[str, Any] | None = None
+        if action == "enable" and fetch and pack_id in runtime.packs.packs and runtime.packs.packs[pack_id].models:
+            try:
+                plan = runtime.pack_models.status(pack_id)
+            except ModelError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            if plan.get("needs_fetch") and not plan.get("disk_ok", True):
+                raise HTTPException(status_code=507, detail={**plan, "error": "not_enough_disk"})
+        try:
+            described = runtime.packs.set_enabled(pack_id, action == "enable")
+        except PackError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if plan is not None and plan.get("needs_fetch"):
+            described = {**described, "models_status": runtime.pack_models.fetch(pack_id)}
+        elif action == "enable" and described.get("models"):
+            # 누른 것이 동의다 — 그 자리에서 무엇을 얼마나 받는지 · 라이선스 · 디스크를 같이 돌려준다(받기는 따로 누른다).
+            described = {**described, "models_status": runtime.pack_models.status(pack_id)}
+        if action == "enable":
+            # 다음에 이어 쓸 팩(켰거나 무시한 팩은 빠짐 · 11-16) — 화면이 한 줄로 권할지 정한다.
+            described = {**described, "next_packs": runtime.packs.next_for(pack_id)}
+        return described
+
+    # ── 팩이 쓰는 모델 · 실행기 받기(2026-11-14 · 설계 §3-10) ─────────────────────
+    @app.get("/v1/packs/{pack_id}/models", dependencies=[Depends(require_token)])
+    def pack_models_status(pack_id: str) -> dict[str, Any]:
+        try:
+            return runtime.pack_models.status(pack_id)
+        except ModelError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/v1/packs/{pack_id}/models/fetch", dependencies=[Depends(require_token)])
+    def pack_models_fetch(pack_id: str) -> dict[str, Any]:
+        if not runtime.packs.is_enabled(pack_id) and pack_id in runtime.packs.packs:
+            raise HTTPException(status_code=409, detail="pack_not_enabled")
+        try:
+            outcome = runtime.pack_models.fetch(pack_id)
+        except ModelError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if outcome.get("error") == "not_enough_disk":
+            raise HTTPException(status_code=507, detail=outcome)
+        return outcome
+
+    @app.post("/v1/packs/{pack_id}/models/cancel", dependencies=[Depends(require_token)])
+    def pack_models_cancel(pack_id: str) -> dict[str, Any]:
+        try:
+            return runtime.pack_models.cancel(pack_id)
+        except ModelError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/v1/packs/{pack_id}/models/leftovers/remove", dependencies=[Depends(require_token)])
+    def pack_models_remove_leftovers(pack_id: str) -> dict[str, Any]:
+        """이 기계용이 아닌 받아진 것(예: 맥의 윈도우 실행기)을 지운다 — 사람이 화면에서 누를 때만(11-14)."""
+        try:
+            outcome = runtime.pack_models.remove_leftovers(pack_id)
+        except ModelError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if not outcome.get("ok"):
+            raise HTTPException(status_code=409, detail=outcome.get("error") or "busy")
+        return outcome
+
+    # ── 3D 생성 팩(2026-11-14 · 설계 docs/설계_생성팩_3D영상_2026-11-14.ko.md §3-1) — 무대(화면)와 도구가 같은 길을 쓴다. ──
+    #   그림 경로는 파일 도구와 같은 허락 범위 검사(`gen3d_tools.submit` → `local_computer._resolve`).
+    #   파일 내주기는 경로를 받지 않는다: **그 판 영수증 files 에 있는 이름만**, 그 판 폴더 안에서만(`Gen3DRunner.file_for`).
+    _GEN3D_MEDIA = {".glb": "model/gltf-binary", ".png": "image/png", ".webp": "image/webp",
+                    ".stl": "model/stl", ".3mf": "model/3mf"}
+
+    @app.post("/v1/gen3d/jobs", dependencies=[Depends(require_token)])
+    async def gen3d_submit(request: Request) -> dict[str, Any]:
+        from .gen3d.runner import Gen3DError
+
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="body_must_be_object")
+        try:
+            return {"job_id": runtime.gen3d_tools.submit(body)}
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except Gen3DError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except (ValueError, TypeError, FileNotFoundError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/v1/gen3d/jobs/{job_id}", dependencies=[Depends(require_token)])
+    def gen3d_job(job_id: str) -> dict[str, Any]:
+        found = runtime.gen3d_tools.runner.get(job_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail="job_not_found")
+        return found
+
+    @app.post("/v1/gen3d/jobs/{job_id}/cancel", dependencies=[Depends(require_token)])
+    def gen3d_cancel(job_id: str) -> dict[str, Any]:
+        return {"cancelled": runtime.gen3d_tools.runner.cancel(job_id)}
+
+    @app.get("/v1/gen3d/jobs/{job_id}/file/{name}", dependencies=[Depends(require_token)])
+    def gen3d_file(job_id: str, name: str) -> Response:
+        target = runtime.gen3d_tools.runner.file_for(job_id, name)
+        if target is None or target.suffix.lower() not in _GEN3D_MEDIA:
+            raise HTTPException(status_code=404, detail="file_not_in_receipt")
+        return Response(content=target.read_bytes(), media_type=_GEN3D_MEDIA[target.suffix.lower()],
+                        headers={"Cache-Control": "private, max-age=3600"})
 
     # ── MCP 서버 꽂기(2026-11-04 · 설계 docs/설계_MCP서버꽂기) — 사람만 꽂고 뺀다. 모델 도구에는 이 문이 없다. ──
     def _mcp_fail(exc: Exception) -> HTTPException:
@@ -1338,6 +1504,15 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
             request.session_id, request.workspace_mode, request.code_workspace
         )
 
+    def _ptt_call(call: Any) -> dict[str, Any]:
+        """말하기 버튼이 실패하면 까닭 문장을 돌려준다(2026-11-22 맥 「Load failed」).
+        잡지 않은 예외는 500 이 되는데, 그 응답에는 CORS 머리가 붙지 않아 웹뷰가 본문을 못 읽고
+        「Load failed」만 보였다 — 도우미가 없다는 진짜 까닭(mac_voice_helper_missing)이 사람에게 닿지 않았다."""
+        try:
+            return call()
+        except RuntimeError as error:
+            raise HTTPException(status_code=409, detail=ptt_error_text(str(error))) from error
+
     @app.post("/v1/voice/ptt/toggle", dependencies=[Depends(require_token)])
     def ptt_toggle(request: PttRequest | None = None) -> dict[str, Any]:
         # Preferred over start/stop: the runtime decides which one this press
@@ -1345,7 +1520,7 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         #
         # `session_id` is optional so the F9 hotkey (which sends no body) keeps
         # working; it inherits whichever conversation the workspace last named.
-        return runtime.ptt_toggle(request.session_id if request else "")
+        return _ptt_call(lambda: runtime.ptt_toggle(request.session_id if request else ""))
 
     @app.get("/v1/voice/level", dependencies=[Depends(require_token)])
     def voice_level() -> dict[str, Any]:
@@ -1354,11 +1529,11 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
 
     @app.post("/v1/voice/ptt/start", dependencies=[Depends(require_token)])
     def ptt_start(request: PttRequest | None = None) -> dict[str, Any]:
-        return runtime.ptt_start(request.session_id if request else "")
+        return _ptt_call(lambda: runtime.ptt_start(request.session_id if request else ""))
 
     @app.post("/v1/voice/ptt/stop", dependencies=[Depends(require_token)])
     def ptt_stop() -> dict[str, Any]:
-        return runtime.ptt_stop()
+        return _ptt_call(runtime.ptt_stop)
 
     @app.post("/v1/tts", dependencies=[Depends(require_token)])
     def tts(request: TTSRequest) -> dict[str, Any]:
@@ -1527,6 +1702,10 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     from . import pairing as _pairing
     from .config import build_id as _build_id
     from .messaging.credentials import default_store as _secret_store
+    from .ollama import shared_verify as _shared_verify
+
+    # 넘기는 길(`_relay`)이 쓸 인증서 설정을 처리 고리 밖에서 미리 한 번 만든다 — 첫 요청이 고리 위에서 그 값을 치르지 않게(11-16).
+    threading.Thread(target=_shared_verify, name="relay-verify-warm", daemon=True).start()
 
     # ★ 찾기 답(hello)은 0.35초 안에 와야 한다 — 맥은 같은 네트워크 254곳을 그 시간으로 훑는다. 그래픽카드 재기(`profile`)는 30초마다
     #   다시 재고 nvidia-smi 를 불러 그보다 길다(11-03 맥미니: 앱 안 찾기가 빈 목록). 이름은 한 번 재서 쥐고, 재는 동안은 빈 칸으로 답한다.
@@ -1596,10 +1775,18 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
 
     async def _relay(method: str, url: str, headers: dict[str, str], body: bytes,
                      on_done: Any = None, *, connect_timeout: float = 10.0, give_up: bool = True) -> Response | None:
-        """give_up=False 면 붙지 못했을 때 None(다음 길을 두드리라는 뜻) — 붙은 뒤의 실패는 그대로 돌려준다."""
+        """give_up=False 면 붙지 못했을 때 None(다음 길을 두드리라는 뜻) — 붙은 뒤의 실패는 그대로 돌려준다.
+
+        ★ 2026-11-16 「위성이 미치게 느리다」의 뿌리: 여기서 `httpx.AsyncClient()` 를 맨몸으로 만들면 **요청마다 인증서 묶음을
+          다시 읽는다**(truststore 가 걸린 운영 PC 에서 따로 재면 0.18초, 본체 안에서는 py-spy 로 4~5초 걸려 있는 것을 세 번 잡음).
+          그 일은 처리 고리 위에서 동기로 돌아서, 그동안 짝짓기 문 전체가 멈춘다 — 맥의 대화 글자 흐름 · 연결 확인까지.
+          실측: PC 안 `127.0.0.1:8092/v1/pair/hello` 가 30초마다 4~8초(같은 순간 8091 은 0.03초) · 맥 연결 확인 3초 제한 실패.
+          10-04 에 `ollama.py` 는 `shared_verify()` 로 고쳤는데 이 길만 빠져 있었다(사고 Q 와 같은 모양). 주소는 전부 http 다.
+        """
         import httpx
 
-        client = httpx.AsyncClient(timeout=httpx.Timeout(connect=connect_timeout, read=None, write=60.0, pool=10.0))
+        client = httpx.AsyncClient(verify=_shared_verify(),
+                                   timeout=httpx.Timeout(connect=connect_timeout, read=None, write=60.0, pool=10.0))
         try:
             upstream = await client.send(client.build_request(method, url, headers=headers, content=body), stream=True)
         except Exception as exc:  # noqa: BLE001
@@ -2377,6 +2564,19 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def permission_mode() -> dict[str, Any]:
         return public_modes(runtime.config)
 
+    # 맥 허락 켜기 돕기(2026-11-16 · 주력 세션 요청 · 설계 §9 예정): 손님이 터미널 없이 「화면 및 시스템 오디오 녹음」 ·
+    #   「기기 제어 및 데이터 접근」을 켜게. GET 은 상태만(화면이 2초마다), POST 는 한 걸음(request · open_settings · reveal · status).
+    @app.get("/v1/mac/permissions", dependencies=[Depends(require_token)])
+    def mac_permissions_status() -> dict[str, Any]:
+        return runtime.mac_automation.permission_status()
+
+    @app.post("/v1/mac/permissions", dependencies=[Depends(require_token)])
+    def mac_permission_setup(body: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return runtime.mac_automation.permission_setup(str(body.get("step") or ""))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.post("/v1/permissions/mode", dependencies=[Depends(require_token)])
     def set_permission_mode(body: dict[str, Any]) -> dict[str, Any]:
         # 저장과 적용은 다른 일이다 — 적용됐는지 읽어 보고 안 됐으면 `ok: False` 로 돌려준다.
@@ -2538,7 +2738,7 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
 
     # ── 가이드 스킬 (인수인계 H1-b) ─────────────────────────────────────────
     # 도구 표는 MCP 로 **실제 내보내는** 목록에서 뽑는다 — 같은 거름망·같은 위임 문.
-    from .delegation import DELEGATION_TOOLS, GUIDE_TOOL
+    from .delegation import DELEGATION_TOOLS, DOOR_TOOL, GUIDE_TOOL
     from .guide_skill import GuideSkillService
     from .mcp_server import ToolFilter, lean_toolset
 
@@ -2564,8 +2764,8 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
     def _exported_tools() -> list[dict[str, Any]]:
         # 가이드 스킬에 적는 도구 = MCP 가 실제로 내보내는 도구. 기본(맡기기 전용)이면 맡기기 문과 가이드만.
         if lean_toolset():
-            return [dict(tool) for tool in DELEGATION_TOOLS] + [dict(GUIDE_TOOL)]
-        return [dict(tool) for tool in DELEGATION_TOOLS] + ToolFilter.from_env().apply(runtime.gateway.list_tools())
+            return [dict(tool) for tool in DELEGATION_TOOLS] + [dict(GUIDE_TOOL), dict(DOOR_TOOL)]
+        return [dict(tool) for tool in DELEGATION_TOOLS] + [dict(DOOR_TOOL)] + ToolFilter.from_env().apply(runtime.gateway.list_tools())
 
     # 업데이트로 가이드 문구가 바뀌었으면 이미 이어 둔 클로드·코덱스의 가이드도 맞춘다(guide_skill.refresh_installed).
     try:
@@ -3023,12 +3223,14 @@ def create_app(config: JarvisConfig | None = None, *, start_services: bool = Tru
         # 화면에 중복 카드를 만들지 않는다(잡 러너가 직렬이라 live pending은 하나다).
         pending = runtime.store.list_approvals(limit=1, status="pending")
         if pending:
+            # ★ 11-16 맥 실측: 다시 붙을 때 날것 승인을 보내 `target`(팩 카드 · 질문 선택지 · 경로 이름표)이 빠졌다 —
+            #   창을 다시 연 사람은 팩 켜기 카드 대신 「미리보기 없음 + 날것 값」 일반 카드를 봤다. 처음 보낼 때와 같이 설명을 붙인다.
             await websocket.send_json(
                 {
                     "event": "approval_requested",
                     "sequence": cursor,
                     "timestamp": time.time(),
-                    "payload": ui_i18n.translate_payload(pending[0]),
+                    "payload": ui_i18n.translate_payload(runtime.gateway.describe_approval(pending[0])),
                     "replayed": True,
                 }
             )
