@@ -75,3 +75,11 @@ it("on the first step nothing changed: the Ollama line and the old-memory questi
   expect(view.querySelector('[data-testid="ollama-row"]')).not.toBeNull();
   expect(view.querySelector('[data-testid="restore-row"]')).not.toBeNull();
 });
+
+it("an empty backup made at install time does not ask about old memory (11-17 Mac new account)", async () => {
+  const EMPTY: BackupStatus = { ...OLD_MEMORY, latest: { ...OLD_MEMORY.latest!, tables: { conversation_messages: 0, facts: 0 } } };
+  const api = { ...fakeApi(RUNNING), backupStatus: vi.fn(async () => EMPTY) } as unknown as SetupApi;
+  const view = await render(api, false);
+  expect(view.querySelector('[data-testid="ollama-row"]')).not.toBeNull();
+  expect(view.querySelector('[data-testid="restore-row"]')).toBeNull();
+});

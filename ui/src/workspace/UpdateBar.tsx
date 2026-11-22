@@ -1,6 +1,7 @@
 import { t } from "../i18n";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, ArrowUpCircle, Check, Loader2 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { JarvisClient } from "../backend";
 import type { UpdateStatus } from "../types";
@@ -49,6 +50,34 @@ export function updateFailureText(error: string | undefined): string {
   return first ? (first.length > 160 ? `${first.slice(0, 160)}…` : first) : t("원인을 알 수 없습니다");
 }
 
+/**
+ * 맥 「지금 업데이트」 (2026-11-22 대표 「윈도우처럼 새 판이 있습니다 · 설치 · 뿌옇게 되는 화면」 · 설계_맥앱안업데이트).
+ *
+ * 누르기 전 판을 여기 적어 두고, 앱이 새로 켜진 뒤 판이 바뀌었는지로 「업데이트했습니다 / 못 했습니다」를 **한 번** 말한다 —
+ * 앱 꾸러미를 바꾸면 이 화면은 통째로 죽었다 다시 켜지므로 기억할 곳이 화면 밖에 있어야 한다.
+ */
+export const MAC_UPDATE_KEY = "sonjari.macUpdate.pending";
+type MacPending = { from: string; to: string; road: "app" | "python" };
+type MacPhase = "idle" | "updating" | "failed" | "stuck";
+
+function readPending(): MacPending | null {
+  try {
+    const raw = window.localStorage.getItem(MAC_UPDATE_KEY);
+    return raw ? (JSON.parse(raw) as MacPending) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePending(value: MacPending | null): void {
+  try {
+    if (value) window.localStorage.setItem(MAC_UPDATE_KEY, JSON.stringify(value));
+    else window.localStorage.removeItem(MAC_UPDATE_KEY);
+  } catch {
+    // 저장이 막힌 창이면 「업데이트했습니다」 한 줄만 빠진다 — 업데이트 자체는 그대로 된다.
+  }
+}
+
 type Phase = "idle" | "applying" | "done" | "failed";
 /** 스토어판: 덮개를 띄운 채 앱이 꺼지기를 기다린다 · 너무 오래 안 꺼지면 멈춘 것이다. */
 type StorePhase = "idle" | "updating" | "stuck";
@@ -58,7 +87,11 @@ export function UpdateBar({ client, storePollMs = STORE_RESULT_POLL_MS }: { clie
   const [phase, setPhase] = useState<Phase>("idle");
   const [note, setNote] = useState("");
   const [storePhase, setStorePhase] = useState<StorePhase>("idle");
+  const [macPhase, setMacPhase] = useState<MacPhase>("idle");
+  const [macDone, setMacDone] = useState<{ ok: boolean; from: string; to: string; now: string } | null>(null);
   const alive = useRef(true);
+  const macBusy = useRef(false);
+  useEffect(() => { macBusy.current = macPhase === "updating"; }, [macPhase]);
 
   // 켤 때 true 로 되돌린다 — 떼었다 다시 붙으면(StrictMode 등) false 로 남아 결과를 버린다(HealthBar 와 같은 고장).
   useEffect(() => {
@@ -70,7 +103,16 @@ export function UpdateBar({ client, storePollMs = STORE_RESULT_POLL_MS }: { clie
     if (!client || phase !== "idle") return;
     try {
       const next = await client.checkUpdate();
-      if (alive.current) setStatus(next);
+      if (!alive.current) return;
+      setStatus(next);
+      // (맥) 업데이트를 누르고 다시 켜진 뒤 첫 응답 — 판이 바뀌었는지로 한 번 말한다(실패도 말한다: 조용히 옛 판이면 된 줄 안다).
+      // ★ 덮개가 떠 있는 동안(누른 뒤 · 아직 안 꺼짐) 창 포커스로 이 확인이 돌면 옛 판을 보고 「못 했습니다」로 잘못 말한다 — 건너뛴다.
+      const pending = next.kind === "mac" && !macBusy.current ? readPending() : null;
+      if (pending) {
+        writePending(null);
+        const now = String(next.mine || "");
+        setMacDone({ ok: Boolean(now) && now === pending.to, from: pending.from, to: pending.to, now });
+      }
     } catch {
       // 본체가 꺼져 있는 것은 흔한 일이다. 그때마다 빨간 것을 띄우면
       // 사람이 무시하는 법을 배운다.
@@ -175,6 +217,117 @@ export function UpdateBar({ client, storePollMs = STORE_RESULT_POLL_MS }: { clie
     }
     if (alive.current) setStorePhase("stuck");
   };
+
+  // ★ 맥 「지금 업데이트」 (2026-11-22). 앱 꾸러미가 있으면 타우리가 통째로 바꾸고 스스로 다시 켠다 — 성공하면 이 화면은
+  //   죽으므로 응답이 오지 않는다. **오류가 돌아왔다면 실패**다(스토어 갈래와 같은 원리 · 덮개에 갇히지 않는다).
+  //   파이썬 묶음만 있으면 위성 갈래의 받기(applyUpdate)를 그대로 쓰고 /health 의 build 가 바뀌기를 기다린다.
+  const applyMac = async () => {
+    if (!client || !status?.theirs || (status.road !== "app" && status.road !== "python")) return;
+    const road = status.road;
+    writePending({ from: status.mine, to: status.theirs, road });
+    setNote("");
+    macBusy.current = true;
+    setMacPhase("updating");
+    const fail = (why: string) => {
+      writePending(null);
+      if (!alive.current) return;
+      setMacPhase("failed");
+      setNote(why);
+    };
+    if (road === "app") {
+      try {
+        await invoke("app_update_install");
+      } catch (reason) {
+        fail(reason instanceof Error ? reason.message : String(reason || t("업데이트를 시작하지 못했습니다")));
+        return;
+      }
+      // 돌아왔다는 것 자체가 이상하다(성공하면 앱이 다시 켜진다). 잠깐 더 기다리고, 그래도 살아 있으면 멈춘 것으로 말한다.
+      await new Promise((wake) => window.setTimeout(wake, 15_000));
+      if (alive.current) setMacPhase("stuck");
+      return;
+    }
+    try {
+      const started = await client.applyUpdate();
+      if (!started.ok || !started.applied) {
+        fail(started.reason || t("업데이트를 시작하지 못했습니다"));
+        return;
+      }
+    } catch (reason) {
+      fail(reason instanceof Error ? reason.message : t("업데이트를 시작하지 못했습니다"));
+      return;
+    }
+    const until = Date.now() + WAIT_LIMIT_MS;
+    const want = status.theirs;
+    while (Date.now() < until && alive.current) {
+      await new Promise((wake) => window.setTimeout(wake, 5000));
+      try {
+        const health = await client.getHealth();
+        const now = String((health as { build?: string }).build || "");
+        if (now && now.startsWith(want)) {
+          writePending(null);
+          if (!alive.current) return;
+          setMacPhase("idle");
+          setMacDone({ ok: true, from: status.mine, to: want, now: want });
+          setStatus(null);
+          return;
+        }
+      } catch {
+        // 본체가 내려가 있는 동안은 당연히 안 된다. 계속 지켜본다.
+      }
+    }
+    if (alive.current) setMacPhase("stuck");
+  };
+
+  if (macDone) {
+    return (
+      <AnimatePresence>
+        <motion.div className={`update-bar ${macDone.ok ? "good" : "bad"}`} role="status"
+                    initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+          {macDone.ok ? <Check size={14} /> : <AlertTriangle size={14} />}
+          <b>{macDone.ok ? t("업데이트했습니다") : t("업데이트하지 못했습니다")}</b>
+          <span>
+            {macDone.ok ? `${macDone.from} → ${macDone.to}`
+              : t("지금은 {0} 입니다. 설치 페이지에서 새 버전을 직접 받아 주세요", macDone.now || macDone.from)}
+          </span>
+          <button onClick={() => setMacDone(null)}>{t("알겠습니다")}</button>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
+  if (status?.kind === "mac" || macPhase !== "idle") {
+    if (macPhase === "updating") {
+      return <UpdatingOverlay from={status?.mine} to={status?.theirs} />;
+    }
+    const road = status?.road;
+    const ready = road === "app" ? Boolean(status?.app?.ready) : road === "python" ? Boolean(status?.python?.ready) : false;
+    const waitWhy = road === "app" ? status?.app?.reason : road === "python" ? status?.python?.reason : "";
+    if (macPhase === "idle" && !status?.available) return null;
+    const bad = macPhase === "failed" || macPhase === "stuck";
+    return (
+      <AnimatePresence>
+        <motion.div className={`update-bar${bad ? " bad" : ""}`} role="status"
+                    initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+          {bad ? <AlertTriangle size={14} /> : <ArrowUpCircle size={14} />}
+          <b>
+            {macPhase === "stuck" ? t("업데이트가 끝나지 않았습니다")
+              : macPhase === "failed" ? t("업데이트하지 못했습니다") : t("새 버전이 있습니다")}
+          </b>
+          <span>
+            {macPhase === "stuck"
+              ? t("결과를 확인하지 못했습니다. Sonjari를 껐다 켜 보고, 그대로면 설치 페이지에서 새 버전을 받아 주세요")
+              : macPhase === "failed" ? note
+              : ready ? `${status?.mine} → ${status?.theirs}`
+              : `${status?.mine} → ${status?.theirs} · ${waitWhy || t("아직 받을 수 없습니다")}`}
+          </span>
+          {ready && macPhase !== "stuck" && (
+            <button onClick={() => void applyMac()}>{macPhase === "failed" ? t("다시 시도") : t("지금 업데이트")}</button>
+          )}
+          <button onClick={() => { setStatus(null); setNote(""); setMacPhase("idle"); }}>{t("나중에")}</button>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
 
   const justUpdated = status?.kind === "store" ? status.just_updated : undefined;
   const show = phase !== "idle" || Boolean(status?.available) || Boolean(justUpdated)

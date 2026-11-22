@@ -19,7 +19,7 @@
 
 ## 말하지 않는 것
 
-- **남은 시간.** 재 본 적이 없다(손자리는 남은 시간을 예측해 주지 않는다). 지난 초만 센다.
+- **짐작한 남은 시간.** 시간으로 지어 채우지 않는다. 11-18 부터 서버 기록의 **실제 진행률**이 있을 때만 그것과 지난 시간으로 셈한다(`remaining_label`).
 - **「압축 중」.** 손자리의 접기는 즉시 끝난다. 실제 기다림은 첫 글자 전이다.
 - 토큰 수는 같은 판 · 같은 역할 · 같은 도구 목록의 **지난 부르기에서 서버가 준 값**(글자당 토큰)으로만 어림한다.
   잰 값이 없으면 수를 말하지 않는다.
@@ -79,18 +79,55 @@ _REASONS = {
 }
 
 
-def wait_message(tokens: int, elapsed: float, english: bool = False, reason: str = "") -> str:
+#: ★ 2026-11-18 대표 결정 — 도구 설명 · 지침을 처음부터 다시 읽는 까닭이면 사람 말로 한 줄: 「쓸 도구와 지침을 읽는 중」 + 까닭 한 마디.
+#:   토큰 수는 사람에게 뜻이 없어 화면 글에서 뺀다(기록 · 클로드에게 주는 진행 줄에는 남는다). 디자인 검토: 장신구 하나씩 빼기.
+_FRONT_TAILS = {
+    "first": ("처음 한 번만 걸려요", "only the first time"),
+    "model": ("모델을 다시 켠 뒤라 한 번 더 걸려요", "once more after the model restarted"),
+    "tools": ("도구가 바뀌어 한 번 더 걸려요", "once more because the tools changed"),
+    "both": ("도구가 바뀌어 한 번 더 걸려요", "once more because the tools changed"),
+    "system": ("지침이 바뀌어 한 번 더 걸려요", "once more because the instructions changed"),
+}
+
+
+def remaining_label(elapsed: float, fraction: float | None, english: bool = False) -> str:
+    """지금까지 걸린 시간과 **서버가 적은 진행률**로 남은 시간을 셈한다(시간으로 짐작해 채우지 않는다). 셈할 수 없으면 빈 글."""
+    if fraction is None or fraction < 0.05 or fraction >= 0.99 or elapsed < 3:
+        return ""
+    left = elapsed * (1 - fraction) / fraction
+    if left < 45:
+        secs = max(10, int(round(left / 10.0)) * 10)
+        return f"~{secs}s left" if english else f"{secs}초쯤 남음"
+    minutes = max(1, int(round(left / 60.0)))
+    return f"~{minutes} min left" if english else f"{minutes}분쯤 남음"
+
+
+def wait_message(tokens: int, elapsed: float, english: bool = False, reason: str = "",
+                 fraction: float | None = None) -> str:
     seconds = int(elapsed)
+    tail = _FRONT_TAILS.get(reason)
+    if tail:
+        parts = ["Reading the tools and instructions it will use" if english else "쓸 도구와 지침을 읽는 중"]
+        if fraction is not None and 0 < fraction < 0.99:
+            parts.append(f"{round(fraction * 100)}%")
+            left = remaining_label(elapsed, fraction, english)
+            if left:
+                parts.append(left)
+        else:
+            parts.append(f"{seconds}s" if english else f"{seconds}초째")
+        parts.append(tail[1] if english else tail[0])
+        return " · ".join(parts)
+    progress = f" · {round(fraction * 100)}%" if fraction is not None and 0 < fraction < 0.99 else ""
     why = _REASONS.get(reason)
     if why:
         size = f"({tokens_label(tokens, english)})" if tokens else ""
         if english:
-            return f"{why[1]} the model is reading the prompt{(' ' + size) if size else ''} from the start · {seconds}s before the first word"
-        return f"{why[0]} 모델이 앞부분{size}을 처음부터 읽는 중 · 첫 글자 전 {seconds}초째"
+            return f"{why[1]} the model is reading the prompt{(' ' + size) if size else ''} from the start · {seconds}s before the first word{progress}"
+        return f"{why[0]} 모델이 앞부분{size}을 처음부터 읽는 중 · 첫 글자 전 {seconds}초째{progress}"
     if tokens >= LONG_TOKENS:
         if english:
-            return f"The model is reading the earlier record ({tokens_label(tokens, True)}) · {seconds}s before the first word"
-        return f"모델이 앞의 기록({tokens_label(tokens)})을 읽는 중 · 첫 글자 전 {seconds}초째"
+            return f"The model is reading the earlier record ({tokens_label(tokens, True)}) · {seconds}s before the first word{progress}"
+        return f"모델이 앞의 기록({tokens_label(tokens)})을 읽는 중 · 첫 글자 전 {seconds}초째{progress}"
     if english:
         return f"Waiting for the model's first word · {seconds}s"
     return f"모델의 첫 글자를 기다리는 중 · {seconds}초째"
@@ -107,8 +144,11 @@ class FirstTokenWatch:
                  publish: Callable[[dict[str, Any]], None],
                  delay: float | None = None, every: float | None = None, reason: str = "",
                  late_after: "float | Callable[[], float] | None" = None,
-                 late_hint: "Callable[[], str] | None" = None) -> None:
+                 late_hint: "Callable[[], str] | None" = None,
+                 progress: "Callable[[], float | None] | None" = None) -> None:
         self._last = dict(last) if last else None
+        # 서버가 적은 읽기 진행률(`prefill_progress.PrefillProgress.fraction`) — 없으면 초만 센다(11-18).
+        self._progress = progress
         # 평소보다 **크게** 늦으면(`late_after` 초 — 숫자 또는 감시 줄기 안에서 한 번 셈하는 함수) `late_hint()` 를 한 번 부르고, 돌려준 글을
         # 기다림 줄 끝에 붙인다(2026-10-27 · 그래픽카드 메모리가 모자라 느려진 것 같을 때). 부르는 일은 감시 줄기에서 하므로 판을 안 붙잡는다.
         self._late_after = late_after
@@ -162,11 +202,19 @@ class FirstTokenWatch:
                 if self._stop.is_set() or self._last is None:
                     return
                 elapsed = time.monotonic() - self._started
-                message = wait_message(self._tokens, elapsed, self._english, self._reason)
+                fraction = None
+                if self._progress is not None:
+                    try:
+                        fraction = self._progress()
+                    except Exception:  # noqa: BLE001 — 진행률은 덤이다
+                        fraction = None
+                message = wait_message(self._tokens, elapsed, self._english, self._reason, fraction=fraction)
                 if self._hint:
                     message += " · " + self._hint
-                self._send({**self._last, "message": message,
-                            "waiting_first_token": True, "reread_reason": self._reason})
+                self._send({**self._last, "message": message, "waiting_first_token": True, "reread_reason": self._reason,
+                            # 사람 글에서 뺀 숫자는 여기 남긴다 — 클로드 진행 줄 · 기록용(11-18).
+                            "prefill_tokens": self._tokens, "prefill_fraction": fraction,
+                            "waited_sec": round(elapsed, 1)})
                 self._shown = True
             wait = self._every
 

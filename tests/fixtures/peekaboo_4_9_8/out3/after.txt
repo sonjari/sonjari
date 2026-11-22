@@ -1,0 +1,69 @@
+📱 Application: 텍스트 편집기
+[win] Window: 무제 3
+🧊 Detection method: AXorcist
+📊 UI elements detected: 57
+⚙️  Interactable elements: 20
+⏱️  Execution time: 0.31s
+
+Accessibility Tree
+  elem_27 [button] 텍스트 색상 value="투명"
+  elem_28 [button] 텍스트 배경 색상 value="투명"
+  elem_29 [button] 글자체 value="Helvetica" value_settable=false
+  elem_30 [button] 스타일 value="일반체" value_settable=false
+  elem_32 [button] 서체 크기
+  elem_39 [button] 줄 간격 value="1.0" value_settable=false
+  elem_40 [button] 닫기 버튼
+  elem_41 [button] 전체 화면 버튼
+  elem_44 [button] 최소화 버튼
+  elem_2 [textField] 손자리 시험입니다 hello 123 value="손자리 시험입니다 hello 123" value_settable=true
+  elem_21 [group] 포맷 설정
+  elem_22 [group] 그룹
+  elem_33 [group] 그룹
+  elem_42 [group] 그룹
+  elem_43 [group] 그룹
+  elem_23 [checkbox] 볼드체 value="0" value_settable=false
+  elem_24 [checkbox] 이탤릭체 value="0" value_settable=false
+  elem_25 [checkbox] 밑줄체 value="0" value_settable=false
+  elem_26 [checkbox] 취소선 value="0" value_settable=false
+  elem_34 [checkbox] 왼쪽 정렬 value="1" value_settable=false
+  elem_35 [checkbox] 중앙 정렬 value="0" value_settable=false
+  elem_36 [checkbox] 오른쪽 정렬 value="0" value_settable=false
+  elem_37 [checkbox] 좌우 정렬 value="0" value_settable=false
+  menuitem_48 [menu] 메뉴 막대
+  elem_0 [other] 무제 3
+  elem_1 [other] 스크롤 영역
+  elem_3 [other] 0.1851851791143417 value="0.1851851791143417" value_settable=true disabled
+  elem_4 [other] 0 value="0" value_settable=true disabled
+  elem_5 [other] 자
+  elem_6 [other] 0 value="0"
+  elem_7 [other] 20.31746031746032 value="20.31746031746032"
+  elem_8 [other] 0 value="0"
+  elem_9 [other] 1.26984126984127 value="1.26984126984127"
+  elem_10 [other] 2.53968253968254 value="2.53968253968254"
+  elem_11 [other] 3.809523809523809 value="3.809523809523809"
+  elem_12 [other] 5.079365079365079 value="5.079365079365079"
+  elem_13 [other] 6.349206349206349 value="6.349206349206349"
+  elem_14 [other] 7.619047619047619 value="7.619047619047619"
+  elem_15 [other] 8.888888888888889 value="8.888888888888889"
+  elem_16 [other] 10.15873015873016 value="10.15873015873016"
+  elem_17 [other] 11.42857142857143 value="11.42857142857143"
+  elem_18 [other] 12.6984126984127 value="12.6984126984127"
+  elem_19 [other] 13.96825396825397 value="13.96825396825397"
+  elem_20 [other] 15.23809523809524 value="15.23809523809524"
+  elem_31 [other] 서체 크기 value="12" value_settable=true
+  elem_38 [other] 목록 스타일
+  elem_45 [other] 편집됨 disabled
+  elem_46 [other] — value="—" disabled
+  elem_47 [other] 무제 3 value="무제 3"
+  menuitem_49 [other] Apple
+  menuitem_50 [other] 텍스트 편집기
+  menuitem_51 [other] 파일
+  menuitem_52 [other] 편집
+  menuitem_53 [other] 포맷
+  menuitem_54 [other] 보기
+  menuitem_55 [other] 윈도우
+  menuitem_56 [other] 도움말
+
+Snapshot ID: ps1_845abcaca5dee9d27ba871951fc3624e
+Target receipt: pid=5259 process_start_identity=1794807013296467 window_id=3785
+Agent: Use a tool like view_image to inspect it.

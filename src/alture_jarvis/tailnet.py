@@ -48,6 +48,18 @@ def cli_path() -> str:
     return next((path for path in candidates if path and Path(path).is_file()), "")
 
 
+def cli_env() -> dict[str, str] | None:
+    """맥: 앱 안의 `Tailscale` 파일은 **CLI 로 불렸다는 표시**가 없으면 화면 앱처럼 떠서 멈춘다 (2026-11-13 실측).
+
+    손자리 백엔드는 launchd 아래에서 돈다 — 거기서 파이썬이 `status --json` · `version` 을 부르면 12~15초 멈춰 시간 초과,
+    그래서 로그인돼 있는데도 「NoState → 로그인 단추 → 로그인 페이지를 열지 못했습니다」가 떴다(SSH · 셸에서는 멀쩡해 안 보였다).
+    테일스케일이 깔아 주는 `tailscale` CLI 껍데기가 하는 것처럼 `TAILSCALE_BE_CLI=1` 을 붙이면 0.07초.
+    """
+    if sys.platform != "darwin":
+        return None
+    return {**os.environ, "TAILSCALE_BE_CLI": "1"}
+
+
 def _run(args: list[str], timeout: float) -> tuple[int, str]:
     exe = cli_path()
     if not exe:
@@ -55,7 +67,7 @@ def _run(args: list[str], timeout: float) -> tuple[int, str]:
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
         done = subprocess.run([exe, *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              timeout=timeout, creationflags=flags)
+                              timeout=timeout, creationflags=flags, env=cli_env())
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 124, type(exc).__name__
     return done.returncode, (done.stdout or "") + (done.stderr or "")
@@ -133,7 +145,7 @@ def login(run: Runner | None = None, *, wait: float = 12.0, sleep: Callable[[flo
         try:
             proc = (popen or subprocess.Popen)([exe, "login", "--timeout=10m"], stdout=subprocess.PIPE,
                                                stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
-                                               creationflags=flags)
+                                               creationflags=flags, env=cli_env())
         except OSError as exc:
             return {"ok": False, "error": f"login_failed: {type(exc).__name__}"}
         seen: list[str] = []

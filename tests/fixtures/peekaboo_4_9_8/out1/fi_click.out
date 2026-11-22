@@ -1,0 +1,8 @@
+Error: Element not found: No actionable element found matching '다운로드' after 5000ms
+
+💡 Hints:
+  • Menu bar items often require clicking on their icon coordinates
+  • Try 'peekaboo see' first to get element IDs
+  • Use partial text matching (case-insensitive)
+  • Element might be disabled or not visible
+  • Try increasing --wait-for timeout

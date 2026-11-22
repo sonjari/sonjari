@@ -35,6 +35,9 @@ import starlette.testclient
 _SWITCHES_A_PERSON_SETS = frozenset({"JARVIS_UNITY_LIVE_PROJECT", "JARVIS_UI_VERIFY"})
 for _name in [key for key in os.environ if key.upper().startswith("JARVIS_") and key.upper() not in _SWITCHES_A_PERSON_SETS]:
     del os.environ[_name]
+# 3D 굽기 영수증의 색 렌더(블렌더 · 11-16)는 시험 중 기본으로 끈다 — 굽기 시험마다 이 PC 의 블렌더가 10초씩 돈다.
+# 색 렌더를 보는 시험은 `monkeypatch.setenv("JARVIS_GEN3D_BEAUTY", "1")` 로 켜거나 `beauty.render_beauty` 를 바로 부른다.
+os.environ["JARVIS_GEN3D_BEAUTY"] = "0"
 
 # ── 검사는 **사용자의 진짜 앱 폴더**에 쓰지 않는다 (2026-10-10) ───────────────────────
 #
@@ -321,6 +324,22 @@ def _tests_never_rewrite_the_real_guides(monkeypatch, request):
     from alture_jarvis.guide_skill import GuideSkillService
 
     monkeypatch.setattr(GuideSkillService, "refresh_installed", lambda self, tools: {})
+
+
+@pytest.fixture(autouse=True)
+def _pack_ram_is_plenty_unless_a_test_says_so(monkeypatch, request):
+    """3D · 영상 실행기의 램 판정(11-17 · `pack_ram`)이 **이 PC 의 지금 램**에 따라 흔들리지 않게 — 넉넉함으로 고정한다.
+
+    회귀가 Strata · 27B 와 겹치면 실제 램이 모자라 시험마다 글 모델 내리기가 끼어들 수 있다. 램 판정 시험은 스스로 값을 넣는다.
+    """
+    if request.module.__name__.endswith("test_pack_ram_1117"):
+        return
+    from alture_jarvis import pack_ram
+
+    monkeypatch.setattr(pack_ram, "memory_status",
+                        lambda: {"free_mib": 60_000, "commit_mib": 20_000, "commit_limit_mib": 128_000, "commit_share": 0.16})
+    pack_ram._busy = 0
+    pack_ram._reprime = False
 
 
 @pytest.fixture(autouse=True)

@@ -26,6 +26,10 @@ SRC = Path(__file__).resolve().parents[1] / "src" / "alture_jarvis"
 def _imported_tops() -> set[str]:
     tops: set[str] = set()
     for file in SRC.rglob("*.py"):
+        # 블렌더 안에서만 도는 스크립트(GPL 폴더 · bpy · bmesh · mathutils 는 블렌더가 가진다 — 우리 포장본 부품이 아니다).
+        # 2026-11-18: 그 폴더는 공통 층 `blender_host/scripts/` 로 옮겼다(3D · 애니 스크립트를 한곳에).
+        if "blender_scripts" in file.parts or file.parent.parts[-2:] == ("blender_host", "scripts"):
+            continue
         tree = ast.parse(file.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):

@@ -10,6 +10,7 @@ import json
 import re
 from typing import Any
 
+from . import desktop_tools as _desktop
 from .stuck_hands import _STAGE_REFUSALS_BEFORE_NARROWING
 
 #: 코드 판에서 **저장소를 바꾸는** 손. 이게 한 번도 안 나오면 아직 아무 일도
@@ -31,7 +32,7 @@ _READ_ONLY_FORBIDDEN_TOOLS = _CODE_WRITE_TOOLS | frozenset(
         "hwp_apply_format",
         "hwp_export_pdf",
         "clipboard_write",
-        "windows_execute_preview",
+        *_desktop.names(_desktop.EXECUTE),
         "browser_click_confirmed",
         "site_draft_recipe",
         "site_promote_draft",

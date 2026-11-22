@@ -1,0 +1,2 @@
+⛔ Action refused before dispatch; refresh the target before retrying
+Error: Application target 'TextEdit' is only an executable-name or fuzzy match, which is not allowed for mutation. Candidate PIDs: 758.

@@ -1,0 +1,6 @@
+# 맥 업데이트 공개 열쇠(minisign · 타우리 `tauri signer generate` 의 .pub 내용 그대로). 설계 docs/설계_맥업데이트_2026-11-16.ko.md §9-1.
+# ★ 비어 있으면 맥 업데이트는 꺼져 있다. 비밀 열쇠는 대표가 만들었다(11-16 16:2x · 저장소 밖 · 암호 걸림) — 여기엔 .key.pub 원문만.
+# 키 id 601B24A83ED65B82 (tests/test_mac_update_1116.py 가 이 값을 붙잡는다 — 바꾸면 시험도 같이).
+# ★ 자리는 이 파일 **하나**: 파이썬 묶음 확인(mac_update.pubkey_text)과 맥 화면 앱(ui/src-tauri/src/mac_update.rs 의 include_str!)이 같이 읽는다.
+# 「#」 줄은 읽지 않는다.
+dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYwMUIyNEE4M0VENjVCODIKUldTQ1c5WStxQ1FiWUYyQTZ6TXk2RUpNOXFmNC95OHRkNEdDR28vVUN2b3poZVV0WFBjQkdIVzMK

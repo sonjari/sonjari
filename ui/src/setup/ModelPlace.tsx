@@ -353,7 +353,8 @@ function LinkBand({ view, flow, onCode, onPick, onUseHere, onRetry, onOutside }:
       : state === "code" ? t("Enter the code on your PC")
         : state === "down" ? t("PC not found")
           : view.home?.via === "tailnet" ? `${t("Connected")} · Tailscale`
-            : view.home?.via === "lan" ? `${t("Connected")} · home Wi-Fi`
+            // 집 길(lan)은 같은 공유기면 유선 · 와이파이 둘 다다(11-13 맥 미니는 유선 en0 으로 붙어 있었는데 「home Wi-Fi」라고 떴다).
+            : view.home?.via === "lan" ? `${t("Connected")} · ${t("집 네트워크(유선·와이파이)")}`
               : t("Connected");
   // 밖에서 「PC not found」 의 까닭(§2-3) — 테일넷 길을 기억한 기기만 백엔드가 준다.
   const why = flow.phase === "off" && state === "down" ? view.home?.why || "" : "";

@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Observation, StepRow } from "./workspace/observation";
 import type { HealthOllama } from "./workspace/readiness";
 import type { ModelLoading } from "./workspace/ModelLoadLine";
-import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, GithubStatus, GithubLoginPoll, StrataStatus, StrataSwitchResult, McpFreshness, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, UsageShowStatus, WhatsNewStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, ScribeStatus, BackupSummary, PackInfo, PacksView, McpServerRow, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem, SavingsReceipt, WeeklyReceipt, ReceiptImageSaved } from "./types";
+import type { BackendBootstrap, BrowserFrame, BrowserStatus, LiveFrame, LiveInputEvent, LiveSelect, LiveState, Capabilities, ChatAttachment, ChatOrigin, CoworkTakeoverPrepared, JobOutput, UndoOffer, ConversationHistory, ConversationSummary, DiscoverPersonResult, ExternalActionPreview, GoogleStatus, GithubStatus, GithubLoginPoll, StrataStatus, StrataSwitchResult, McpFreshness, JarvisEvent, JarvisPublicConfig, JobDetail, JobSummary, PeopleStatus, PermissionModes, ScheduleList, ScheduleRow, SelfCheckStatus, SelfHealResult, UpdateStatus, UsageShowStatus, WhatsNewStatus, LearnedFacts, WorkspaceMode, HandoffDirection, SettingsView, SettingsPatchResult, SettingValue, SkillDomainsView, ScribeStatus, BackupSummary, PackInfo, PackModelsStatus, PacksView, McpServerRow, UnitySetupView, UnityDraft, UnityEditorView, UnityRecipeCard, UnityRoom, UnitySchedule, UnityStageFrame, DiscordStatus, DiscordStepResult, DiscordRequestsView, ModelAliasesView, DiscordAliasItem, SavingsReceipt, WeeklyReceipt, ReceiptImageSaved } from "./types";
 
 declare global {
   interface Window {
@@ -34,6 +34,17 @@ export function tokenNotYetWritten(error: unknown): boolean {
   return /os error (2|3)\b/.test(String(error ?? ""));
 }
 
+/** 맥 첫 실행: 앱이 본체를 까는 중(mac_setup.rs PREPARING_MARK) — 몇 분 걸리니 90초 제한 없이 기다린다(11-17). */
+export function backendPreparing(error: unknown): boolean {
+  return String(error ?? "").includes("손자리를 처음 준비하는 중입니다");
+}
+
+/** 맥 첫 준비를 기다리는 최대 시간(부품 받기 · 느린 인터넷). 넘으면 사람이 할 일을 말한다. */
+export const PREPARE_WAIT_MS = 30 * 60_000;
+
+/** 기다리는 동안 화면에 보일 말을 받는 곳(WorkspaceApp 이 단다). */
+export const bootstrapWaitListeners = new Set<(message: string) => void>();
+
 /** 첫 실행에서 본체를 기다리는 최대 시간. 889MB 묶음을 백신이 처음 훑는 동안 1분 넘게 걸린다. */
 export const BOOTSTRAP_WAIT_MS = 90_000;
 
@@ -44,7 +55,9 @@ export const BOOTSTRAP_WAIT_MS = 90_000;
  */
 export async function loadBootstrap(waitMs = BOOTSTRAP_WAIT_MS, sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))): Promise<BackendBootstrap> {
   if (isTauri()) {
-    const started = Date.now();
+    const prepareStarted = Date.now();
+    let started = Date.now();
+    let wasPreparing = false;
     for (;;) {
       try {
         const value = await invoke<{ base_url: string; control_token: string; mode?: "server" | "pilot" }>("backend_bootstrap");
@@ -52,7 +65,20 @@ export async function loadBootstrap(waitMs = BOOTSTRAP_WAIT_MS, sleep = (ms: num
         syncUiLanguage(bootstrap);
         return bootstrap;
       } catch (error) {
+        if (backendPreparing(error) && waitMs > 0) {
+          if (Date.now() - prepareStarted >= PREPARE_WAIT_MS) throw new Error(String(error));
+          wasPreparing = true;
+
+          bootstrapWaitListeners.forEach((listener) => listener(String(error)));
+          await sleep(2000);
+          continue;
+        }
         if (!tokenNotYetWritten(error)) throw error;
+        if (wasPreparing) {
+          // 준비가 막 끝났다 — 본체가 토큰을 쓰는 90초는 지금부터 센다(준비에 몇 분 쓴 것을 빼고).
+          wasPreparing = false;
+          started = Date.now();
+        }
         if (Date.now() - started >= waitMs) {
           throw new Error(
             t("Sonjari 본체가 아직 준비되지 않았습니다({0}초 기다림). 첫 실행이면 백신 검사로 더 걸릴 수 있습니다 — ", Math.round(waitMs / 1000))
@@ -582,8 +608,75 @@ export class JarvisClient {
     return this.request("/v1/packs/rescan", { method: "POST", body: "{}" });
   }
 
-  setPack(packId: string, on: boolean): Promise<PackInfo> {
-    return this.request(`/v1/packs/${encodeURIComponent(packId)}/${on ? "enable" : "disable"}`, { method: "POST", body: "{}" });
+  /** 「팩 켜기는 클로드에게 맡기기」(ADR-PACK-1) — 사람 쪽 문. 클로드 도구로는 이 일을 못 한다. */
+  setPackDelegate(on: boolean): Promise<{ claude_may_enable: boolean }> {
+    return this.request("/v1/packs/delegate", { method: "POST", body: JSON.stringify({ on }) });
+  }
+
+  /** 팩 켜기 · 끄기. `fetch` 를 주면 「켜고 받기」 — 받을 파일이 남았으면 켜면서 받는다(자리가 모자라면 507 · 켜지 않는다). */
+  async setPack(packId: string, on: boolean, options: { fetch?: boolean } = {}): Promise<PackInfo> {
+    if (!(on && options.fetch)) {
+      return this.request(`/v1/packs/${encodeURIComponent(packId)}/${on ? "enable" : "disable"}`, { method: "POST", body: "{}" });
+    }
+    // 「켜고 받기」는 507(자리 모자람)의 상태 번호 · 숫자를 잃지 않는다 — 화면이 「필요 · 남은 자리」를 말해야 한다.
+    const response = await fetch(`${this.bootstrap.baseUrl}/v1/packs/${encodeURIComponent(packId)}/enable?fetch=true`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-JARVIS-TOKEN": this.bootstrap.controlToken },
+      body: "{}",
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      let detail: unknown = body;
+      try {
+        detail = (JSON.parse(body) as { detail?: unknown }).detail ?? body;
+      } catch {
+        // JSON 이 아니면 글 그대로.
+      }
+      throw new PackModelsError(response.status, detail);
+    }
+    return response.json() as Promise<PackInfo>;
+  }
+
+  /** 팩이 쓰는 모델 · 실행기의 받은 상태. `received` 는 디스크에 있는 바이트다. */
+  packModels(packId: string): Promise<PackModelsStatus> {
+    return this.packModelsCall(packId, "", "GET");
+  }
+
+  /** 받기를 시작한다. 팩이 꺼져 있으면 409 · 디스크가 모자라면 507 — 둘 다 {@link PackModelsError} 로 던진다. */
+  fetchPackModels(packId: string): Promise<PackModelsStatus> {
+    return this.packModelsCall(packId, "/fetch", "POST");
+  }
+
+  /** 받기를 멈춘다. 받은 부분은 남는다(다음에 이어 받는다). */
+  cancelPackModels(packId: string): Promise<PackModelsStatus> {
+    return this.packModelsCall(packId, "/cancel", "POST");
+  }
+
+  /** 이 기계용이 아닌데 받아져 있는 것(예: 맥의 윈도우 실행기)을 지운다 — 사람이 확인 단추를 누를 때만. */
+  removePackLeftovers(packId: string): Promise<PackModelsStatus> {
+    return this.packModelsCall(packId, "/leftovers/remove", "POST");
+  }
+
+  /** 상태 번호를 잃지 않는다 — 409 · 507 은 사람에게 다른 말을 해야 해서 `request` 의 글자만 남기는 길을 못 쓴다. */
+  private async packModelsCall(packId: string, tail: string, method: "GET" | "POST"): Promise<PackModelsStatus> {
+    const response = await fetch(`${this.bootstrap.baseUrl}/v1/packs/${encodeURIComponent(packId)}/models${tail}`, {
+      method,
+      headers: { "Content-Type": "application/json", "X-JARVIS-TOKEN": this.bootstrap.controlToken },
+      ...(method === "POST" ? { body: "{}" } : {}),
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      let detail: unknown = body;
+      try {
+        detail = (JSON.parse(body) as { detail?: unknown }).detail ?? body;
+      } catch {
+        // JSON 이 아니면 글 그대로.
+      }
+      throw new PackModelsError(response.status, detail);
+    }
+    return response.json() as Promise<PackModelsStatus>;
   }
 
   unitySetup(): Promise<UnitySetupView> {
@@ -641,6 +734,16 @@ export class JarvisClient {
     } catch {
       return { ...empty, problem: "backend_unreachable" };
     }
+  }
+
+  /** 3D 판의 파일 하나(glb · png · webp · stl · 3mf) — 열쇠가 필요해 주소를 그대로 못 띄우므로 받아서 넘긴다(11-14 · 3D 무대). */
+  async gen3dFile(genId: string, name: string): Promise<Blob> {
+    const response = await fetch(
+      `${this.bootstrap.baseUrl}/v1/gen3d/jobs/${encodeURIComponent(genId)}/file/${encodeURIComponent(name)}`,
+      { headers: { "X-JARVIS-TOKEN": this.bootstrap.controlToken }, cache: "no-store" },
+    );
+    if (!response.ok) throw new Error(`gen3d_file_${response.status}`);
+    return response.blob();
   }
 
   unityTakeOver(project = ""): Promise<{ ok: boolean; title?: string; error?: string }> {
@@ -1129,6 +1232,14 @@ export async function createBackendClient(
  * 읽어야 할 것은 `detail` 안의 문장이다. 앞의 코드 이름(`path_outside_allowed_roots:`)은 떼고,
  * 문장이 없으면 상태 코드만이라도 알린다. 원문은 개발자 도구에서 볼 수 있게 남긴다.
  */
+/** 팩 모델 받기가 거절된 까닭 — `status` 와 백엔드가 준 `detail`(글 또는 상태 덩어리)을 그대로 든다. */
+export class PackModelsError extends Error {
+  constructor(readonly status: number, readonly detail: unknown) {
+    super(typeof detail === "string" ? detail : `pack_models_${status}`);
+    this.name = "PackModelsError";
+  }
+}
+
 export function readableError(status: number, body: string): string {
   let detail: unknown = body;
   try {

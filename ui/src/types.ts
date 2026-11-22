@@ -53,7 +53,32 @@ export interface Approval {
     question?: string;
     options?: { label: string; description?: string }[];
     recommended?: number;
+    /** 팩 켜기 카드(`sonjari_pack_request` · 2026-11-16) — pack.json 그대로(이 기계 꼴 경로) + 받을 크기 + 까닭. */
+    kind?: string;
+    pack?: string;
+    name?: string;
+    summary?: string;
+    permissions?: Partial<PackPermissions>;
+    tools?: number;
+    download?: string;
+    download_bytes?: number;
+    why?: string;
+    /** 「켜고 받기」(11-16 저녁) — 받을 파일이 남았나 · 이 기계용 파일이 있는 팩인가 · 자리. */
+    fetch_on_enable?: boolean;
+    has_models?: boolean;
+    disk_needed_bytes?: number;
+    disk_free_bytes?: number | null;
+    disk_ok?: boolean | null;
   };
+}
+
+/** 팩이 켜졌다(사람이 카드에서 눌렀거나 · 맡김으로 클로드가 켰다) — 대화 칸 결과 한 줄 · 무대 알림(2026-11-16 · ADR-PACK-1). */
+export interface PackEnabledNotice {
+  pack: string;
+  ok: boolean;
+  error?: string;
+  delegated?: boolean;
+  result?: { name?: string; tool_count?: number; by?: string; models?: { fetching?: boolean } } | null;
 }
 
 /** 모델이 사람에게 선택지로 묻는 도구 — 승인 틀을 빌려 멈춘다(2026-09-30). */
@@ -740,7 +765,12 @@ export interface UsageShowVisual {
 export interface UpdateStatus {
   ok: boolean;
   /** "store" = 스토어 설치(윈도우가 갱신·우리는 알리기만) · 없으면 위성(우리가 받아 갈아치움). */
-  kind?: "store" | "none";
+  kind?: "store" | "none" | "mac";
+  /** (맥) 받을 갈래 — "app" = 앱 꾸러미 통째(본체 · 음성 도우미 포함) · "python" = 파이썬 묶음만 · "" = 없음(2026-11-22). */
+  road?: "app" | "python" | "";
+  /** (맥) 갈래별 판단 — 받을 수 있나(ready)와 못 받는 까닭. */
+  app?: { available?: boolean; ready?: boolean; version?: string; reason?: string };
+  python?: { available?: boolean; ready?: boolean; build?: string; reason?: string };
   /** 스토어 설치에서 사람이 할 일. "restart" = 껐다 켜면 적용된다. */
   how?: string;
   mine: string;
@@ -910,6 +940,66 @@ export interface PackInfo {
   asks?: Record<string, string>;
   /** 스킬 이름 → 그 일의 갈래(지금은 `web` 하나 — 「웹을 보고 와서 정리하는 일」). 팩이 적어 온 것. */
   work?: Record<string, string>;
+  /** 켤 때 받을 모델 · 실행기(백엔드 `public_model`). 없으면 받을 것이 없는 팩이다(11-14). */
+  models?: PackModelInfo[];
+}
+
+/** 팩 `models` 칸의 한 줄 — 팩이 적어 온 것. 주소 · 해시는 오지 않는다. */
+export interface PackModelInfo {
+  id: string;
+  kind: "binary" | "weights";
+  platform?: string;
+  size: number;
+  license: string;
+  license_url: string;
+  required: boolean;
+}
+
+/** `GET /v1/packs/{id}/models` 의 한 줄. `received` 는 디스크에 실제로 있는 바이트다(시간으로 짐작한 값이 아니다). */
+export interface PackModelRow extends PackModelInfo {
+  /** `not_for_this_machine` — 다른 운영체제 · 칩용(11-14 맥에 윈도우 실행기가 받아졌던 것). 받지 않고 흐리게만 보인다. */
+  state: "ready" | "downloading" | "failed" | "partial" | "missing" | "not_for_this_machine";
+  received: number;
+  error: string;
+  via_mirror?: boolean;
+  /** 배포처가 없어 직접 빌드해 넣는 실행기(맥 Metal 판) — 거울이나 손으로 넣은 자리에서만 들인다. */
+  hand_built?: boolean;
+  /** 빌드 법이 적힌 곳(문서 절 · 명령). */
+  how?: string;
+  /** 사람이 설정한 자리(`JARVIS_GEN3D_*_DIR` 등)에 이미 있다 — 받지 않는다(11-16). `path` 가 그 자리. */
+  configured?: boolean;
+  path?: string;
+}
+
+/** 이 기계용이 아닌데 이미 받아져 있는 것 — 사람이 누를 때만 지운다. */
+export interface PackModelLeftover {
+  id: string;
+  platform: string;
+  path: string;
+  bytes: number;
+}
+
+export interface PackModelsStatus {
+  pack: string;
+  models: PackModelRow[];
+  state: "idle" | "running" | "done" | "failed" | "cancelled";
+  error: string;
+  all_ready: boolean;
+  /** 「켜고 받기」의 기준 — 이 기계용 · 꼭 있어야 하는 것 가운데 아직 없는 것이 있나(설정한 자리에 있으면 있는 것). */
+  needs_fetch?: boolean;
+  /** 받는 자리(「팩 파일 자리」 설정 · 비면 데이터 폴더). */
+  root?: string;
+  to_download_bytes: number;
+  disk_needed_bytes: number;
+  disk_free_bytes: number;
+  disk_ok: boolean;
+  /** 취소를 눌렀을 때만 — 돌던 중이었는가. */
+  cancelling?: boolean;
+  /** 이 기계(「운영체제-칩」 · 예 macos-arm64). */
+  platform?: string;
+  leftovers?: PackModelLeftover[];
+  /** 지우기를 눌렀을 때만 — 지운 것. */
+  removed?: PackModelLeftover[];
 }
 
 /** 설정 › 연결(MCP) 한 줄 — 비밀 값은 오지 않는다(백엔드 `McpHub.public_list`). */
@@ -928,6 +1018,8 @@ export interface PacksView {
   problems: string[];
   /** 사람이 스킬팩 폴더를 넣는 자리(문서 폴더 안). */
   user_dir?: string;
+  /** 「팩 켜기는 클로드에게 맡기기」(ADR-PACK-1) — 켜져 있으면 바깥 클로드가 대화에서 물은 뒤 카드 없이 켠다. */
+  claude_may_enable?: boolean;
 }
 
 export type UnityNextKind = "install_hub" | "open_hub" | "pick_project" | "allow_project" | "close_editor" | "ready";

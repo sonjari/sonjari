@@ -76,3 +76,51 @@ def test_neither_speaks_korean_without_env_names(tmp_path: Path, clean_pc: Path)
     assert "JARVIS_" not in message and "playwright" not in message.lower()
     assert worker._browser_exe() == ""
     assert worker._exe_name == "chrome.exe"  # 못 찾았을 땐 예전 이름 그대로 — 달라지는 것이 없다
+
+
+class _FakeChromium:
+    """찾은 브라우저(channel=…)로 띄우기는 실패하고, 전용 크로미움 경로는 주어진 대로 답한다."""
+
+    def __init__(self, bundled: Path) -> None:
+        self.executable_path = str(bundled)
+        self.calls: list[dict] = []
+
+    def launch_persistent_context(self, **kwargs):
+        self.calls.append(kwargs)
+        if "channel" in kwargs:
+            raise RuntimeError("Chromium distribution 'msedge' is not found at /Applications/Microsoft Edge.app\nRun \"npx playwright install msedge\"")
+        return "bundled-context"
+
+
+class _FakePlaywright:
+    def __init__(self, bundled: Path) -> None:
+        self.chromium = _FakeChromium(bundled)
+
+
+def _launcher(tmp_path: Path, bundled: Path) -> BrowserWorker:
+    worker = _worker(tmp_path)
+    worker.config.browser_headless = True  # 창 감시(quiet) 길을 빼고 띄우기 판정만 본다
+    worker._found_browser_exe = "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
+    worker._playwright = _FakePlaywright(bundled)
+    worker._turn_off_translate_in_our_profile = lambda: None
+    return worker
+
+
+def test_found_browser_fails_and_no_bundled_chromium_tells_the_real_reason(tmp_path: Path) -> None:
+    """2026-11-17 맥 새 계정: 찾은 브라우저가 못 뜨자 포장에 없는 전용 크로미움으로 넘어가 「playwright install」만 남았다."""
+    worker = _launcher(tmp_path, tmp_path / "no-such" / "chromium")
+    with pytest.raises(RuntimeError) as caught:
+        worker._launch_chrome()
+    message = str(caught.value)
+    assert message.startswith("browser_start_failed")
+    assert "Microsoft Edge" in message and "띄우지 못했습니다" in message
+    assert "https://www.google.com/chrome" in message
+    assert "playwright install" not in message.lower()  # 첫 실패의 첫 줄만 — 영어 설치 안내는 안 옮긴다
+    assert len(worker._playwright.chromium.calls) == 1  # 없는 크로미움으로 다시 띄우지 않았다
+
+
+def test_found_browser_fails_but_bundled_chromium_is_there_still_falls_back(tmp_path: Path) -> None:
+    bundled = _install(tmp_path, "ms-playwright", "chromium", "chrome")
+    worker = _launcher(tmp_path, bundled)
+    assert worker._launch_chrome() == "bundled-context"
+    assert len(worker._playwright.chromium.calls) == 2

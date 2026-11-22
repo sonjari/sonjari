@@ -611,6 +611,13 @@ ASKED_DIRECTLY = re.compile(
     r"\s+(?:me\s+)?(?:the\s+)?(?:top\s+|best\s+|first\s+|latest\s+|newest\s+)?(?:at\s+least\s+|exactly\s+|up\s+to\s+)?$",
     re.I,
 )
+#: 개수 바로 **앞**의 찾는 · 모으는 · 여는 동사 — 한국어 `plan._GATHERED_HERE`(「N개 찾아」)의 짝. 만들 모양이 아니라 가져올 수다(2026-11-16).
+#: `ASKED_DIRECTLY` 보다 좁다 — list · pick · summarize · show 는 읽은 것에서 추리는 말이라 만들 모양일 수 있다.
+GATHERED_BEFORE = re.compile(
+    r"\b(?:find|research|look\s+up|search\s+for|gather|collect|read|open)"
+    r"\s+(?:me\s+)?(?:the\s+)?(?:top\s+|best\s+|first\s+|latest\s+|newest\s+)?(?:at\s+least\s+|exactly\s+|up\s+to\s+)?(?:another\s+)?$",
+    re.I,
+)
 FOOTNOTE_REQUEST = re.compile(r"\bfoot\s*notes?\b|\bannotat(?:e|ions?)\b", re.I)
 EVERYWHERE = re.compile(r"\b(?:everywhere|wherever|each|every|all|throughout|multiple|several)\b", re.I)
 

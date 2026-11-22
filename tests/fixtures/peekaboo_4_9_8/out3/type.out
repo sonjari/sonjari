@@ -1,0 +1,2 @@
+⚠️ Action dispatched but not verified; observe the target before retrying
+Error: Typing did not return an accepted outcome. Hint: Follow the canonical escalation metadata before deciding whether to retry.

@@ -247,8 +247,13 @@ class AttentionService:
         repeat_threshold: int = 3,
         enabled: bool = True,
         browser_read_only: Callable[[], bool] | None = None,
+        speaks_for: Callable[[str], bool] | None = None,
     ) -> None:
         self.events = events
+        #: 이 작업의 알림을 **소리로도** 낼까 (2026-11-16 대표: 「눌렀는데 반영이 안 된다」 알림이 MCP 판에서도
+        #: 소리로 나왔다). 답과 같은 규칙 — 말로 들어온 일(`spoken_input`)만 소리, 나머지는 카드 · 알림만.
+        #: 비우면(시험 · 옛 부르는 쪽) 예전처럼 늘 소리.
+        self.speaks_for = speaks_for
         #: 읽기 전용 브라우저면 누르기·Enter 는 저장·결제·게시를 못 한다(`browser._read_only_blocks`).
         #: 그러면 「다시 누르면 두 번 처리될 수 있다」는 경고의 근거가 없다.
         self.browser_read_only = browser_read_only or (lambda: False)
@@ -262,6 +267,17 @@ class AttentionService:
 
     def reset(self, job_id: str) -> None:
         self._jobs.pop(str(job_id), None)
+
+    def _say(self, speech: str, job_id: str) -> None:
+        """소리 한 길 — 말로 들어온 일일 때만(`speaks_for`). 실패해도 카드 · 알림은 이미 나갔다."""
+        if self.speak is None or not speech:
+            return
+        try:
+            if self.speaks_for is not None and not self.speaks_for(str(job_id or "")):
+                return
+            self.speak(speech)
+        except Exception:  # noqa: BLE001
+            pass
 
     def _state(self, job_id: str) -> dict[str, Any]:
         state = self._jobs.get(job_id)
@@ -309,11 +325,7 @@ class AttentionService:
                 self.notifications.notify(f"Sonjari · {title}", message)
             except Exception:  # noqa: BLE001 — 알림이 안 떠도 카드와 음성은 살아야 한다
                 pass
-        if self.speak is not None:
-            try:
-                self.speak(speech)
-            except Exception:  # noqa: BLE001
-                pass
+        self._say(speech, job_id)
         return notice
 
     def check(
@@ -379,9 +391,5 @@ class AttentionService:
             except Exception:
                 # 알림이 안 떠도 화면 카드와 음성은 살아 있어야 한다.
                 pass
-        if self.speak is not None:
-            try:
-                self.speak(rule.speech)
-            except Exception:
-                pass
+        self._say(rule.speech, job_id)
         return notice

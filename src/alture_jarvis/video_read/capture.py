@@ -18,7 +18,7 @@ from typing import Any, Callable
 import numpy as np
 
 from .report import THUMB_H, THUMB_W, choose_windows, finish, heatmap_from_html
-from .scan import FPS, frame_size, frames_from_file
+from .scan import FPS, ffmpeg_exe, frame_size, frames_from_file
 
 #: 페이지 안 수집기 — 출발만 시키고 바로 돌아온다. 진행은 `window.__vs` 에 쌓인다.
 START_JS = r"""
@@ -269,7 +269,7 @@ def capture_file(path: str, workdir: Path) -> dict[str, Any]:
     dur = len(frames) / FPS
 
     def thumb(t: float, out: Path) -> None:
-        subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{t:.3f}", "-i", path, "-frames:v", "1",
+        subprocess.run([ffmpeg_exe() or "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{t:.3f}", "-i", path, "-frames:v", "1",
                         "-vf", f"scale={THUMB_W}:{THUMB_H}:force_original_aspect_ratio=decrease", str(out)], check=True,
                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 

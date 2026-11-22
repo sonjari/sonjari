@@ -13,6 +13,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@google/model-viewer": "4.1.0",
     "@tauri-apps/api": "^2.8.0",
     "framer-motion": "^12.38.0",
     "katex": "0.18.10",

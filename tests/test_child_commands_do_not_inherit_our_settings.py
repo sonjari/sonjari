@@ -113,7 +113,8 @@ def test_every_place_that_hands_a_whole_environment_to_a_user_command_cleans_it(
 def test_this_test_process_itself_points_at_no_running_app() -> None:
     """conftest 가 시험 시작 때 지운다 — 사람이 일부러 올리는 스위치만 남는다."""
     left = sorted(key for key in os.environ if key.upper().startswith("JARVIS_"))
-    assert all(key.upper() in {"JARVIS_UNITY_LIVE_PROJECT", "JARVIS_UI_VERIFY"} for key in left), left
+    # JARVIS_GEN3D_BEAUTY=0 은 conftest 가 시험 중 블렌더 색 렌더를 끄려고 직접 둔 값이다(11-16) — 사용자 앱을 가리키지 않는다.
+    assert all(key.upper() in {"JARVIS_UNITY_LIVE_PROJECT", "JARVIS_UI_VERIFY", "JARVIS_GEN3D_BEAUTY"} for key in left), left
 
 
 # ── 작업 폴더의 코드가 우리 환경에 깔린 같은 이름보다 먼저 불려 온다 (2026-10-09 새벽 · 판 hw5 재실행) ──────

@@ -104,6 +104,24 @@ def pick_moments(res: dict, heat: list[tuple[float, float]], dur: float, limit: 
     return merged[:limit]
 
 
+#: 사진 칸 이름(「3.2초 · 컷」)을 쓸 한글 글꼴 — 윈도우 맑은 고딕, 맥 애플 SD 산돌고딕 Neo(2026-11-13 맥 조사: 윈도우 자리만 봐서
+#: 맥은 기본 글꼴로 떨어져 한글이 네모로 찍힐 자리였다).
+SHEET_FONTS = (
+    r"C:\Windows\Fonts\malgun.ttf",
+    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+    "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
+)
+
+
+def sheet_font(size: int) -> Any:
+    for candidate in SHEET_FONTS:
+        try:
+            return ImageFont.truetype(candidate, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
 def contact_sheet(items: list[tuple[Path, str]], out: Path, cols: int = 4) -> None:
     """대표 장면을 한 장으로. 세로 영상이면 칸을 세로로 · 한 줄에 6칸."""
     first = Image.open(items[0][0]) if items else None
@@ -113,10 +131,7 @@ def contact_sheet(items: list[tuple[Path, str]], out: Path, cols: int = 4) -> No
     rows = max(1, (len(items) + cols - 1) // cols)
     pad = 6
     sheet = Image.new("RGB", (cols * cell_w + (cols + 1) * pad, rows * cell_h + (rows + 1) * pad), (18, 18, 18))
-    try:
-        font = ImageFont.truetype(r"C:\Windows\Fonts\malgun.ttf", 18 if vertical else 22)
-    except OSError:
-        font = ImageFont.load_default()
+    font = sheet_font(18 if vertical else 22)
     draw = ImageDraw.Draw(sheet)
     for i, (path, label) in enumerate(items):
         x, y = pad + (i % cols) * (cell_w + pad), pad + (i // cols) * (cell_h + pad)

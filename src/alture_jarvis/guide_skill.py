@@ -324,6 +324,24 @@ PC 마다 손자리 모델이 다르다(4B·9B·27B·35B). `sonjari_guide` 를 �
 - 코덱스: `~/.codex/sonjari-cards/` 에서 같은 방법.
 - 파일을 못 뒤지면: `sonjari_guide` 에 `query` 를 준다(예: query="유니티 참조").
 - 카드 머리의 `필요:`(팩 켜기 · 프로그램)를 먼저 본다. 카드에 없는 일은 된다고 가정하지 않는다.
+- **카드 · 가이드에 있는 도구가 MCP 목록에 없으면**(손자리 업데이트로 새로 생긴 도구 — 클로드 데스크톱은 앱을 다시 켜기 전까지 목록을 안 바꾼다): 고정 문 `sonjari_tool` 로 부른다. 인자를 모르면 먼저 `sonjari_tool(name="<이름>", help=true)`, 그다음 `sonjari_tool(name="<이름>", arguments={{...}})`. 목록에 보이는 도구는 그 도구를 직접 쓴다.
+
+## 여러 팩을 같이 써야 하는 부탁 (2026-11-14)
+
+사람은 팩 이름으로 말하지 않는다. 「엄마 사진으로 애니메이션 만들어 줘」 한 줄에 팩 여럿이 걸릴 수 있다. 순서:
+
+1. **뜻이 둘이면 한 번만 묻는다.** 위 예는 「사진이 움직이는 짧은 영상」인가, 「움직이는 3D 캐릭터」인가. 어느 쪽인지 한 줄로 묻고 시작한다.
+2. **필요한 팩을 표로 고르고, 켜져 있는지 본다**(도구 목록에 그 팩 도구가 있으면 켜진 것). 꺼져 있으면 **어느 팩을 켜면 되는지 이름으로** 사람에게 말한다 — 팩 켜기는 설정이라 네가 대신 켜지 않는다.
+3. **아직 없는 것은 약속하지 않는다.** 지금 되는 데까지 하고 「이 부분은 아직 안 된다」를 말한다.
+4. 사람 사진은 **본인 · 동의**를 먼저 확인한다.
+
+| 하고 싶은 것 | 필요한 팩 · 순서 | 지금 안 되는 것 |
+|---|---|---|
+| 그림 · 낙서 → 3D 모델 · 3D 프린트 | 3D 생성 팩 | 여러 색 프린트 · 프린트용 꼬인 모서리 고치기 |
+| 사진 · 그림 → 움직이는 3D 캐릭터 | 3D 생성 팩(A자 캐릭터로 굽기) → 뼈 · 무게(네 블렌더 도구가 있으면 그것으로 · 손자리 팩엔 아직 없음) → 애니메이터 팩(모션 창고 · 블렌더 블로킹 · 맞춤 점검) | 손자리 자동 리깅 · 얼굴을 지키는 사진 → 그림 변환 |
+| 사진이 움직이는 짧은 영상 | — | **영상 만들기는 아직 없다**(영상 팩은 영상 읽기만) |
+| 레퍼런스 영상 → 애니메이션 블로킹 | 영상 팩(영상 읽기) → 애니메이터 팩(영상 → 바이페드 초안) | — |
+| 3D 소품 · 캐릭터를 게임에 넣기 | 3D 생성 팩 → 게임 팩(유니티 에디터에 넣고 스크립트 · 점검) | — |
 
 ## 지금 쓸 수 있는 도구 (설치할 때 도구 목록에서 뽑음)
 {chr(10).join(table)}
@@ -477,6 +495,24 @@ are attached at the end — split the work by that table. If a result comes with
 - Codex: the same in `~/.codex/sonjari-cards/`.
 - If you cannot search files: call `sonjari_guide` with `query` (e.g. query="unity reference").
 - Read the card's needs line (pack to turn on, program) first. Do not assume {NAME} can do something that has no card.
+- **If a tool named in a card or this guide is not in the MCP tool list** (a Sonjari update added it — Claude Desktop does not refresh the list until the app is restarted): call it through the fixed door `sonjari_tool`. If you do not know the arguments, first `sonjari_tool(name="<name>", help=true)`, then `sonjari_tool(name="<name>", arguments={{...}})`. Tools that are in the list are called directly.
+
+## Requests that need several packs together (2026-11-14)
+
+People do not speak in pack names. One line like "make an animation from my mom's photo" can need several packs. Order:
+
+1. **If it can mean two things, ask once.** The example above: a short video where the photo moves, or a 3D character that moves? Ask in one line, then start.
+2. **Pick the packs from the table and check they are on** (a pack is on when its tools are in your tool list). If one is off, **tell the user which pack to turn on, by name** — turning a pack on is a setting, so do not turn it on yourself.
+3. **Do not promise what does not exist yet.** Do what works now and say "this part is not possible yet".
+4. For a photo of a person, confirm **it is them or they agreed** first.
+
+| Wanted | Packs, in order | Not possible yet |
+|---|---|---|
+| Picture or doodle → 3D model or 3D print | 3D generation pack | Multi-colour print; fixing non-manifold edges for printing |
+| Photo or picture → a 3D character that moves | 3D generation pack (bake as an A-pose character) → bones and weights (your own Blender tools if you have them; no Sonjari pack yet) → animator pack (motion library, Blender blocking, fit check) | Sonjari auto-rigging; photo → picture conversion that keeps the face |
+| A short video where a photo moves | — | **Making video is not available yet** (the video pack only reads videos) |
+| Reference video → animation blocking | Video pack (read the video) → animator pack (video → Biped draft) | — |
+| Put a 3D prop or character into a game | 3D generation pack → game pack (place it in the Unity editor, scripts, checks) | — |
 
 ## Tools available now (taken from the tool list at install time)
 {chr(10).join(table)}

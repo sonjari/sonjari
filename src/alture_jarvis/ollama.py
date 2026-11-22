@@ -770,7 +770,7 @@ class OllamaClient:
                 ),
                 None,
             )
-            return {
+            result = {
                 "ok": True,
                 "model": selected,
                 "roles": dict(self.config.model_roles),
@@ -794,7 +794,9 @@ class OllamaClient:
                 "last_ok_age_sec": (round(time.time() - self.__dict__["_last_ok_at"], 1)
                                     if self.__dict__.get("_last_ok_at") else None),
                 "front_prime": {"enabled": bool(getattr(self.config, "front_prime_enabled", False)),
-                                "last": self.__dict__.get("_front_last")},
+                                "last": self.__dict__.get("_front_last"),
+                                "remembered": len(self.__dict__.get("_fronts") or []),
+                                "warm": len(self.__dict__.get("_front_warm_keys") or ())},
                 "context_length": int((resident or {}).get("context_length") or 0),
                 "size_vram": int((resident or {}).get("size_vram") or 0),
                 # 올라간 모델의 전체 크기(`size_vram` 과 견주면 그래픽카드에 얼마나 들어갔는지 — 2026-10-27 · agent 의 넘침 경고).
@@ -806,7 +808,12 @@ class OllamaClient:
                 #   화면이 권한을 열 때 「이 모델은 아직 안 쟀습니다」를 같은 근거로 말하게 한다.
                 "agent_grade": self._agent_grade(selected),
             }
+            self.__dict__["_last_health_ok"] = (time.time(), result)
+            return result
         except Exception as exc:
+            held = self._remote_grace(exc)
+            if held is not None:
+                return held
             return {
                 "ok": False,
                 "model": selected,
@@ -814,6 +821,38 @@ class OllamaClient:
                 "error": str(exc),
                 "agent_grade": self._agent_grade(selected),
             }
+
+    #: 집 PC 모델을 빌려 쓸 때, 마지막으로 살아 있음을 본 뒤 이만큼은 확인 한 번 늦은 것을 「연결 안 됨」으로 보이지 않는다.
+    REMOTE_HEALTH_GRACE_SEC = 120.0
+
+    def brain_is_remote(self) -> bool:
+        """모델이 이 기기 밖(짝지은 집 PC · 옛 위성 주소)에 있나 — 맥은 자기 `/v1/home-llm` 을 거쳐 부른다."""
+        url = str(self.config.ollama_base_url or "")
+        if "/v1/home-llm" in url:
+            return True
+        host = url.split("//", 1)[-1].split("/", 1)[0].rsplit(":", 1)[0].strip("[]").lower()
+        return bool(host) and host not in {"127.0.0.1", "localhost", "::1"}
+
+    def _remote_grace(self, exc: Exception) -> dict[str, Any] | None:
+        """위성의 연결 확인이 실패했을 때, 방금까지 살아 있던 집 PC 를 「연결 안 됨」으로 뒤집지 않는다(2026-11-16).
+
+        11-16 02:30 맥: 일하는 중 연결 확인(3초 제한)이 6번 중 5번 시간 초과 → 화면이 「연결 안 됨(timed out)」을 띄웠는데,
+        같은 때 대화는 집 PC 에서 답을 받고 있었다. 확인 길(목록 · 상태)이 막혀도 모델이 2분 안에 답했거나 확인이 2분 안에
+        통과했으면 「연결됨 · 확인이 늦음」으로 둔다. 이 PC 의 모델(밖이 아님)은 그대로 실패를 알린다 — 워치독이 그걸 보고 살린다.
+        """
+        if not self.brain_is_remote():
+            return None
+        now = time.time()
+        seen = [float(self.__dict__.get("_last_ok_at") or 0)]
+        cached = self.__dict__.get("_last_health_ok")
+        if cached:
+            seen.append(float(cached[0]))
+        last_alive = max(seen)
+        if not last_alive or now - last_alive > self.REMOTE_HEALTH_GRACE_SEC:
+            return None
+        base = dict(cached[1]) if cached else {"ok": True, "model": self._selected_model(), "roles": dict(self.config.model_roles)}
+        return {**base, "ok": True, "probe_late": True, "probe_error": str(exc)[:200],
+                "last_alive_age_sec": round(now - last_alive, 1)}
 
     @staticmethod
     def _agent_grade(tag: str) -> dict[str, Any]:
@@ -1220,6 +1259,9 @@ class OllamaClient:
                 #   (`sim = 0.002 (65/41238)`). 이름만 세는 지문으로는 도구 **설명**이나 지시문 **뒷부분**이 바뀐 것을 못 본다 — 전체 지문도 남긴다.
                 "tools_full_sig": hashlib.sha1(json.dumps(tools, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:10],
                 "system_full_sig": hashlib.sha1(system.encode("utf-8")).hexdigest()[:10],
+                # ★ 11-18 맥 9B: 판 시작마다 도구 4개짜리 부르기가 24.5초 처음부터 읽었는데(지침 지문이 매번 다름) 누가 부르는지 기록으로 못 찾았다.
+                #   도구가 적은 부르기는 이름을 남긴다(이름만 · 내용은 안 남김). 큰 판(도구 수십 개)은 지문으로 충분하다.
+                **({"tool_names": names} if 0 < len(names) <= 8 else {}),
                 "first_byte_sec": round(float(first_byte or 0.0), 2),
                 "first_token_sec": round(float(first_token or 0.0), 2),
                 "prompt_tokens": int(payload.get("prompt_eval_count") or 0),
@@ -1362,29 +1404,80 @@ class OllamaClient:
     #   - 우리 모델이 그 창 그대로 올라가 있을 때만. 모델을 올리지도, 창을 갈아 끼우지도, 남의 모델을 밀어내지도 않는다.
     #   - 기억하는 것은 실제로 나간 요청의 앞부분 그대로다 — 따로 조립하지 않는다(조립한 것은 한 글자만 달라도 소용없다).
     #   - `front_prime_enabled` 로 끈다. 한 일은 `data/front_primes.jsonl` 에 남는다(읽은 토큰 · 걸린 시간 · 끊겼는가).
+    #
+    # ★ 2026-11-17 판 **종류마다** 앞부분을 기억한다(최근 `FRONT_KEEP` 개). 맥 새 계정 시험(4B · M4 16GB · 읽기 초당 약 340)에서
+    #   워드(도구 28) · 파일(81) · 코드(20) 판은 도구 목록이 저마다 달라, 하나만 기억하던 데우기로는 판 종류가 바뀔 때마다 첫 부르기가
+    #   처음부터 읽었다: 9,088토큰 26.6초 · 19,949토큰 70.5초 · 12,024토큰 36.8초(같은 판 안의 다음 걸음은 0.6~8초).
+    #   PC 기록(11-02~17 · 도구 목록으로 모양을 가름): 판 첫 부르기 391번 중 앞 판과 모양이 바뀐 것 45번 — 그중 기억에 있던 것 옛 0 → 새 22.
+    #   「켠 뒤 · 서버가 다시 뜬 뒤에만」은 그대로다 — 모양마다 그 엔진 생애에 한 번이고, 큰 일이 이미 제 앞부분을 읽은 모양은 데우지 않는다.
+    #   데우는 순서는 오래 안 쓴 것부터 — 가장 최근 모양이 마지막에 데워져 서버의 지금 칸에 남는다.
+    #   서버가 여러 앞부분을 한꺼번에 들고 있는지(B 를 데우면 A 가 지워지는지)는 맥에서 쟀다: `docs/설계_맥새계정시험_고칠것_2026-11-17.ko.md` 7절.
 
     #: 도구가 이보다 적은 요청은 앞부분이 짧다(가벼운 대화·곁가지) — 데워 둘 값이 없다.
     FRONT_MIN_TOOLS = 20
     FRONT_FILE = "front_prime.json"
+    #: 기억하는 앞부분 모양의 수(가장 최근 것부터). 서버 보관함(cache-ram)에 그만큼 대화 상태가 더 남는다.
+    FRONT_KEEP = 3
     #: 마지막 요청 뒤 이만큼 조용해야 데운다 — 일 사이의 곁가지 호출이 끝나기를 기다린다.
     FRONT_QUIET_SEC = 4.0
+    #: 이 켬에 큰 일을 한 번이라도 한 뒤 남은 모양을 데우려면 이만큼 조용해야 한다(11-17). 맥 4B 에선 모양 하나가 37~92초라
+    #  사람이 몇십 초마다 말을 걸면 데우다 끊기기만 되풀이한다(끊겨도 서버가 배치 하나는 마저 읽어 사람 요청이 그만큼 늦는다).
+    FRONT_QUIET_AFTER_JOB_SEC = 45.0
     #: 못 데웠을 때(모델이 안 올라가 있음 등) 다시 볼 때까지.
     FRONT_RETRY_SEC = 45.0
+    #: 쉬는 동안 「우리 모델이 올라가 있나」를 이만큼마다 본다(`watch_front_engine`).
+    FRONT_ENGINE_POLL_SEC = 30.0
 
     def _front_path(self) -> Path:
         return Path(self.config.data_dir) / self.FRONT_FILE
 
-    def _front_or_load(self) -> dict[str, Any] | None:
-        front = self.__dict__.get("_front")
-        if front is None and not self.__dict__.get("_front_loaded"):
-            self.__dict__["_front_loaded"] = True
+    def _fronts_or_load(self) -> list[dict[str, Any]]:
+        """기억한 앞부분들 — 가장 최근에 쓴 것이 맨 앞. 옛 파일(앞부분 하나 그대로)도 읽는다."""
+        fronts = self.__dict__.get("_fronts")
+        if fronts is None:
+            fronts = []
             try:
                 loaded = json.loads(self._front_path().read_text(encoding="utf-8"))
-                if isinstance(loaded, dict) and loaded.get("model") and loaded.get("tools") and loaded.get("system"):
-                    front = self.__dict__["_front"] = loaded
-            except (OSError, ValueError):
-                front = None
-        return front
+                items = loaded.get("fronts") if isinstance(loaded, dict) and "fronts" in loaded else [loaded]
+                fronts = [item for item in (items or []) if isinstance(item, dict)
+                          and item.get("model") and item.get("tools") and item.get("system")][: self.FRONT_KEEP]
+            except (OSError, ValueError, AttributeError):
+                fronts = []
+            self.__dict__["_fronts"] = fronts
+        return fronts
+
+    def _front_or_load(self) -> dict[str, Any] | None:
+        fronts = self._fronts_or_load()
+        return fronts[0] if fronts else None
+
+    def _save_fronts(self) -> None:
+        path = self._front_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp = path.with_name(path.name + ".tmp")
+        temp.write_text(json.dumps({"fronts": self._fronts_or_load()}, ensure_ascii=False), encoding="utf-8")
+        temp.replace(path)
+
+    @staticmethod
+    def _front_key(front: dict[str, Any]) -> str:
+        import hashlib
+
+        options = dict(front.get("options") or {})
+        return hashlib.sha1(json.dumps(
+            [front.get("model"), front.get("tools"), front.get("system"), front.get("think"), options.get("num_ctx")],
+            ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
+
+    @staticmethod
+    def _front_shape(front: dict[str, Any]) -> tuple[str, tuple[str, ...]]:
+        """같은 판 종류인가 — 모델과 도구 **이름** 순서. 설명만 바뀐 것은 같은 모양의 새 판이다(옛 것을 갈아 끼운다)."""
+        names = tuple(str((tool.get("function") or {}).get("name") or "") for tool in front.get("tools") or [])
+        return str(front.get("model") or ""), names
+
+    def _front_warm(self) -> set[str]:
+        """이 엔진 생애에 이미 데웠거나 큰 일이 직접 읽은 앞부분(열쇠). 앱을 켜거나 서버가 다시 뜨면 빈다."""
+        return self.__dict__.setdefault("_front_warm_keys", set())
+
+    def _front_reset_warm(self) -> None:
+        self.__dict__["_front_warm_keys"] = set()
 
     def refresh_front(self, tools: list[dict[str, Any]] | None, system_must_contain: str = "") -> str:
         """재시작 뒤 첫 데우기 전에 한 번 — 기억한 앞부분이 **지금 코드가 보낼 앞부분**과 맞는지 본다(2026-11-06).
@@ -1394,40 +1487,60 @@ class OllamaClient:
         - 도구 목록이 다르면 지금 목록으로 갈아 끼운다(시스템 글은 판마다 같은 부분이라 그대로 — 실제로 나간 것).
         - 고정 지침이 시스템 글에 없으면(지침이 바뀌었다) 데우지 않는다 — 맞지 않는 것을 데워 봐야 헛일이다.
         돌려주는 값: "same" · "tools_updated" · "stale_system" · "none".
+
+        ★ 11-17 앞부분이 여럿이다(판 종류마다). 판별 목록은 같은 등록부의 부분집합이라 같은 이름이면 정의도 같다 — 그래서
+          - 지금 넓은 목록의 8할 이상을 든 앞부분(보통 판)은 예전처럼 지금 목록으로 통째로 갈아 끼우고,
+          - 좁은 판(워드 · 코드 …)은 제 고른 도구와 순서를 두고 **정의만 이름으로** 지금 것으로 바꾼다.
+            지금 등록부에 없는 이름이 들었으면(손이 빠졌다) 그 판의 실제 목록을 알 수 없으니 버린다.
         """
-        front = self._front_or_load()
-        if front is None:
+        fronts = self._fronts_or_load()
+        if not fronts:
             return "none"
-        content = str((front.get("system") or {}).get("content") or "")
-        if system_must_contain and system_must_contain not in content:
-            self.__dict__["_front"] = None
-            self.__dict__["_front_dirty"] = False          # 이번 켬에는 데우지 않는다 — 첫 큰 일이 새 앞부분을 기억한다
-            return "stale_system"
-        if not tools:
+
+        # ★ 2026-11-16 맥 03:45 반영 직후: 이름은 같고 **설명만** 바뀐 도구(gen_3d_split 에 attach 인자)를 「같다」로 보고
+        #   옛 앞부분을 데웠다 — 그 뒤 첫 걸음이 32초 동안 처음부터 읽었다. 모델은 설명 글자까지 읽으니 정의 전체를 견준다.
+        def shape(items: list[dict[str, Any]]) -> str:
+            return json.dumps(items, ensure_ascii=False, sort_keys=True, default=str)
+
+        current = {str((tool.get("function") or {}).get("name") or ""): tool for tool in tools or []}
+        kept: list[dict[str, Any]] = []
+        stale = updated = 0
+        for front in fronts:
+            content = str((front.get("system") or {}).get("content") or "")
+            if system_must_contain and system_must_contain not in content:
+                stale += 1          # 지침이 바뀌었다 — 맞지 않는 것을 데워 봐야 헛일, 그 모양의 첫 큰 일이 새 앞부분을 기억한다
+                continue
+            if not tools:
+                kept.append(front)
+                continue
+            names = self._front_shape(front)[1]
+            if all(name in current for name in names) and len(names) >= 0.8 * len(current):
+                fresh = list(tools)
+            elif all(name in current for name in names):
+                fresh = [current[name] for name in names]
+            else:
+                stale += 1
+                continue
+            if shape(front.get("tools") or []) == shape(fresh):
+                kept.append(front)
+                continue
+            front = {**front, "tools": fresh}
+            front["key"] = self._front_key(front)
+            kept.append(front)
+            updated += 1
+        if not stale and not updated:
             return "same"
-
-        def names(items: list[dict[str, Any]]) -> list[str]:
-            return [str((t.get("function") or {}).get("name") or "") for t in items]
-
-        if names(front.get("tools") or []) == names(tools):
-            return "same"
-        import hashlib
-
-        front = dict(front)
-        front["tools"] = tools
-        options = dict(front.get("options") or {})
-        front["key"] = hashlib.sha1(json.dumps(
-            [front.get("model"), tools, front.get("system"), front.get("think"), options.get("num_ctx")],
-            ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
-        self.__dict__["_front"] = front
+        # 갈아 끼우고 나니 같은 앞부분이 둘이 될 수 있다(도구 하나가 늘어 따로 기억된 옛 판) — 최근 것 하나만 둔다.
+        seen_keys: set[str] = set()
+        kept = [front for front in kept if not (front.get("key") in seen_keys or seen_keys.add(str(front.get("key"))))]
+        self.__dict__["_fronts"] = kept
         try:
-            path = self._front_path()
-            temp = path.with_name(path.name + ".tmp")
-            temp.write_text(json.dumps(front, ensure_ascii=False), encoding="utf-8")
-            temp.replace(path)
+            self._save_fronts()
         except OSError:
             pass
-        return "tools_updated"
+        if updated:
+            return "tools_updated"
+        return "stale_system" if not kept else "same"
 
     # ── 노는 시간 일(서기 · 2026-10-21) ──────────────────────────────────────────
     def background_chat(self, system: str, user: str, *, model: str, options: dict[str, Any],
@@ -1436,7 +1549,7 @@ class OllamaClient:
 
         ★ 2026-10-21 새벽 실측: 서기 실험이 같은 모델에 1만 7천 토큰을 밀어 넣는 동안 대표 판의 부르기가 첫 글자까지 15.8초를
           기다렸다(모델 서버는 한 번에 하나). 그래서 노는 시간 일은 **사람 요청이 오는 순간 끊기는** 문으로만 보낸다 — 앞부분 데우기와 같은 문.
-        끝나면 본 지시문을 다시 데우게 표시한다(`_front_dirty`) — 서기가 캐시를 밀었어도 다음 사람 질문의 첫 글자가 늦지 않게.
+        끝나면 가장 최근 앞부분을 다시 데우게 표시한다 — 서기가 캐시를 밀었어도 다음 사람 질문의 첫 글자가 늦지 않게.
         """
         if self.background_held():
             return None
@@ -1458,8 +1571,11 @@ class OllamaClient:
         finally:
             self.__dict__["_background_client"] = None
             # 사실 뽑기처럼 짧은 부르기는 다시 데우지 않는다(`rewarm=False`) — 데우기는 「켠 뒤 한 번만」이 잰 결론이다(위 ★).
+            # 11-17: 앞부분이 여럿이어도 다시 데우는 것은 가장 최근 모양 하나뿐이다 — 예전과 같은 양(셋 다 다시 데우면 살아 있는 대화를 더 자른다).
             if rewarm:
-                self.__dict__["_front_dirty"] = True
+                fronts = self._fronts_or_load()
+                if fronts:
+                    self._front_warm().discard(str(fronts[0].get("key") or self._front_key(fronts[0])))
             try:
                 client.close()
             except Exception:  # noqa: BLE001
@@ -1492,6 +1608,8 @@ class OllamaClient:
         self.cancel_background()
         self.cancel_front_prime()
         self.__dict__["_last_send_at"] = time.monotonic()
+        # 다른 기기의 요청이 모델을 올린 것도 살아 있는 대화다 — 「다시 올라옴」으로 데워 그 대화를 자르지 않는다(`watch_front_engine`).
+        self.__dict__["_front_engine_seen"] = True
         # 다음 우리 부르기가 느리면 그때는 정말 「다른 기기의 일이 끼어든」 것이다(`reread_reason_recent` · 11-13).
         self.__dict__["_outside_since_last"] = True
 
@@ -1516,30 +1634,28 @@ class OllamaClient:
             self.cancel_front_prime()
             self.cancel_background()
             self.__dict__["_last_send_at"] = time.monotonic()
+            # 우리 요청이 모델을 올린다 — 그 대화가 살아 있으니 「다시 올라옴」으로 치지 않는다(`watch_front_engine`).
+            self.__dict__["_front_engine_seen"] = True
             tools = body.get("tools") or []
             messages = body.get("messages") or []
             first = messages[0] if messages and isinstance(messages[0], dict) else {}
             if len(tools) < self.FRONT_MIN_TOOLS or str(first.get("role") or "") != "system":
                 return
-            # 큰 일이 이제 제 앞부분을 직접 읽는다 — 그 대화가 서버에 생기니 따로 데울 일이 없다(데우면 그 대화를 지운다).
-            self.__dict__["_front_dirty"] = False
-            import hashlib
-
             options = {k: v for k, v in dict(body.get("options") or {}).items() if k != "num_predict"}
             front = {"model": str(body.get("model") or ""), "tools": tools, "system": dict(first),
                      "think": body.get("think"), "options": options}
-            front["key"] = hashlib.sha1(json.dumps(
-                [front["model"], tools, front["system"], front["think"], options.get("num_ctx")],
-                ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
-            current = self._front_or_load()
-            if current and current.get("key") == front["key"]:
+            front["key"] = self._front_key(front)
+            # 큰 일이 이제 제 앞부분을 직접 읽는다 — 그 대화가 서버에 생기니 이 모양은 따로 데울 일이 없다(데우면 그 대화를 지운다).
+            self._front_warm().add(front["key"])
+            self.__dict__["_front_job_seen"] = True
+            fronts = self._fronts_or_load()
+            if fronts and fronts[0].get("key") == front["key"]:
                 return
-            self.__dict__["_front"] = front
-            path = self._front_path()
-            path.parent.mkdir(parents=True, exist_ok=True)
-            temp = path.with_name(path.name + ".tmp")
-            temp.write_text(json.dumps(front, ensure_ascii=False), encoding="utf-8")
-            temp.replace(path)
+            shape = self._front_shape(front)
+            # 같은 모양(모델 · 도구 이름)의 옛 판은 갈아 끼우고, 가장 최근 것을 맨 앞에 둔다.
+            rest = [item for item in fronts if item.get("key") != front["key"] and self._front_shape(item) != shape]
+            self.__dict__["_fronts"] = [front, *rest][: self.FRONT_KEEP]
+            self._save_fronts()
         except Exception:  # noqa: BLE001 — 데워 두기는 덤이다. 이것 때문에 요청이 죽으면 안 된다
             pass
 
@@ -1564,17 +1680,25 @@ class OllamaClient:
         if self.__dict__.get("_prime_client") is not None:
             return False
         now = time.monotonic()
-        # 켠 뒤 한 번만(머리말의 ★). 작은 호출이 지나갔다고 다시 하지 않는다 — 살아 있는 대화를 지운다.
-        if not self.__dict__.get("_front_dirty", True):
-            return False
         if now < self.__dict__.get("_front_retry_at", 0.0):
             return False
-        if now - self.__dict__.get("_last_send_at", 0.0) < self.FRONT_QUIET_SEC:
+        quiet = self.FRONT_QUIET_AFTER_JOB_SEC if self.__dict__.get("_front_job_seen") else self.FRONT_QUIET_SEC
+        if now - self.__dict__.get("_last_send_at", 0.0) < quiet:
             return False
-        return self._front_or_load() is not None
+        # 모양마다 이 엔진 생애에 한 번만(머리말의 ★). 작은 호출이 지나갔다고 다시 하지 않는다 — 살아 있는 대화를 지운다.
+        return bool(self._front_pending())
+
+    def _front_pending(self) -> list[dict[str, Any]]:
+        """아직 안 데운 앞부분 — 오래 안 쓴 것부터(가장 최근 모양이 마지막에 데워져 서버의 지금 칸에 남는다)."""
+        warm = self._front_warm()
+        return [front for front in reversed(self._fronts_or_load()) if str(front.get("key") or self._front_key(front)) not in warm]
 
     def _front_resident_ctx(self, model: str) -> int:
         """이 모델이 **지금** 올라가 있으면 그 창, 아니면 0. 여기서는 「모른다」를 「없다」로 읽는다 — 데우려고 모델을 올리지 않는다."""
+        return self._front_resident_or_none(model) or 0
+
+    def _front_resident_or_none(self, model: str) -> int | None:
+        """올라가 있으면 그 창, 안 올라가 있으면 0, **물어보지 못했으면 None**(모른다)."""
         try:
             with httpx.Client(verify=shared_verify(), timeout=3.0) as client:
                 response = client.get(f"{self.config.ollama_base_url}/api/ps")
@@ -1583,21 +1707,79 @@ class OllamaClient:
                     if self._same_model(item.get("name") or item.get("model"), model):
                         return int(item.get("context_length") or 0)
         except Exception:  # noqa: BLE001
-            return 0
+            return None
         return 0
 
-    def prime_front(self, reason: str = "idle") -> dict[str, Any]:
-        """기억해 둔 앞부분만 든 짧은 요청을 한 번 읽힌다. 한 일을 돌려주고 `data/front_primes.jsonl` 에 남긴다."""
+    def front_engine_unloaded(self) -> None:
+        """우리가 일부러 모델을 내렸다(11-17 · 무거운 팩 일 · `pack_ram`) — 다음 쉬는 틈에 한 번 데워 모델과 앞부분을 다시 올린다."""
+        self._front_reset_warm()
+        self.__dict__["_front_retry_at"] = 0.0
+        self.__dict__["_front_engine_seen"] = None
+
+    def watch_front_engine(self) -> str:
+        """쉬는 동안 부른다 — 모델 서버가 **기억을 비웠으면** 다시 데울 차례로 표시한다 (2026-11-16).
+
+        ★ 11-16 맥 03:43 첫 걸음 29.8초: 맥은 02:34 에 앞부분을 데웠는데, 02:41 에 PC Ollama 가 다시 떴다(Strata → 27B 바꾸기).
+          모델을 다시 올리면 서버 보관함이 빈다. 데우기는 「앱을 켠 뒤 한 번만」이라 맥은 그걸 몰랐고, 다음 일이 3만 토큰을 처음부터 읽었다.
+        그래서 우리 모델이 「안 올라가 있음」을 본 뒤 「다시 올라와 있음」을 보면 — 우리가 부르지 않았는데 다시 올라왔다 = 보관함이 비었다 —
+        그때만 한 번 데운다. 머리말의 ★(일마다 데우면 살아 있는 대화를 잘라 손해)는 그대로 지킨다:
+          - 우리 요청이 모델을 올린 것은 바뀜으로 치지 않는다(`_front_seen` 이 「올라가 있음」으로 적는다 — 그 대화가 살아 있다).
+          - 물어보지 못한 것(연결 끊김)은 「없음」이 아니다 — 아무것도 바꾸지 않는다.
+        돌려주는 값: "wait" · "off" · "no_front" · "unknown" · "present" · "absent" · "came_back".
+        """
+        if not getattr(self.config, "front_prime_enabled", False):
+            return "off"
+        now = time.monotonic()
+        if now < self.__dict__.get("_front_engine_poll_at", 0.0):
+            return "wait"
+        self.__dict__["_front_engine_poll_at"] = now + self.FRONT_ENGINE_POLL_SEC
         front = self._front_or_load()
         if not front:
+            return "no_front"
+        resident = self._front_resident_or_none(str(front.get("model") or ""))
+        if resident is None:
+            return "unknown"
+        present = resident > 0
+        before = self.__dict__.get("_front_engine_seen")
+        self.__dict__["_front_engine_seen"] = present
+        if present and before is False:
+            self._front_reset_warm()
+            self.__dict__["_front_retry_at"] = 0.0
+            return "came_back"
+        return "present" if present else "absent"
+
+    def prime_front(self, reason: str = "idle") -> dict[str, Any]:
+        """아직 안 데운 앞부분 하나만 든 짧은 요청을 한 번 읽힌다(오래 안 쓴 모양부터). 한 일을 돌려주고 `data/front_primes.jsonl` 에 남긴다.
+
+        한 번에 하나다 — 데우는 반복(`runtime._front_prime_loop`)이 쉬는 동안 차례대로 부른다. 사이에 진짜 요청이 오면 거기서 멈춘다.
+        모델이 안 올라가 있거나 창이 다른 모양은 건너뛴다(남의 모델을 밀어내거나 러너를 갈아 끼우지 않는다).
+        """
+        if not self._fronts_or_load():
             return {"ok": False, "skipped": "no_front"}
+        pending = self._front_pending()
+        if not pending:
+            return {"ok": False, "skipped": "all_warm"}
+        front = None
+        resident = wanted = 0
+        first_skip: dict[str, Any] | None = None
+        asked: dict[str, int] = {}
+        for candidate in pending:
+            model = str(candidate.get("model") or "")
+            if model not in asked:
+                asked[model] = self._front_resident_ctx(model)
+            ctx = int(dict(candidate.get("options") or {}).get("num_ctx") or 0)
+            if asked[model] and (not ctx or asked[model] == ctx):
+                front, resident, wanted = candidate, asked[model], ctx
+                break
+            if first_skip is None:
+                first_skip = {"ok": False, "skipped": "not_resident" if not asked[model] else "window_differs",
+                              "resident_ctx": asked[model]}
+        if front is None:
+            self.__dict__["_front_retry_at"] = time.monotonic() + self.FRONT_RETRY_SEC
+            return first_skip or {"ok": False, "skipped": "not_resident", "resident_ctx": 0}
         model = str(front.get("model") or "")
         options = dict(front.get("options") or {})
-        resident = self._front_resident_ctx(model)
-        wanted = int(options.get("num_ctx") or 0)
-        if not resident or (wanted and resident != wanted):
-            self.__dict__["_front_retry_at"] = time.monotonic() + self.FRONT_RETRY_SEC
-            return {"ok": False, "skipped": "not_resident" if not resident else "window_differs", "resident_ctx": resident}
+        key = str(front.get("key") or self._front_key(front))
         body = {
             "model": model,
             "messages": [dict(front["system"]), {"role": "user", "content": "."}],
@@ -1611,14 +1793,15 @@ class OllamaClient:
         self.__dict__["_prime_cancelled"] = False
         self.__dict__["_prime_client"] = client
         started = time.monotonic()
-        row: dict[str, Any] = {"reason": reason, "tools": len(front["tools"]), "num_ctx": wanted or resident}
+        row: dict[str, Any] = {"reason": reason, "tools": len(front["tools"]), "num_ctx": wanted or resident, "key": key,
+                               "remembered": len(self._fronts_or_load())}
         try:
             response = client.post(f"{self.config.ollama_base_url}/api/chat", json=body)
             response.raise_for_status()
             payload = response.json()
             if self.__dict__.get("_prime_cancelled"):
                 raise RuntimeError("cancelled")
-            self.__dict__["_front_dirty"] = False
+            self._front_warm().add(key)
             self.__dict__["_last_ok_at"] = time.time()
             row.update({
                 "ok": True,

@@ -20,6 +20,8 @@ use tauri::{
 use std::os::windows::process::CommandExt;
 
 mod claude_agent;
+mod mac_setup;
+mod mac_update;
 mod notify;
 mod package;
 mod tray_status;
@@ -222,6 +224,10 @@ fn open_setup_window(app: &AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 fn backend_bootstrap() -> Result<BackendBootstrap, String> {
+    // 맥 첫 실행: 앱이 본체를 까는 중이면(또는 실패했으면) 그 말을 먼저 — 화면은 「준비 중」이면 제한 없이 기다린다(11-17).
+    if let Some(hint) = mac_setup::bootstrap_hint() {
+        return Err(hint);
+    }
     if cfg!(feature = "pilot") {
         return Ok(BackendBootstrap {
             base_url: "pilot://local".into(),
@@ -2138,7 +2144,11 @@ pub fn run() {
     if webview_check::guide_if_missing("손자리") {
         return;
     }
-    tauri::Builder::default()
+    // 맥: dmg 에서 켜진 새 판이면 떠 있는 옛 손자리를 먼저 끝낸다 — single-instance 가 설치 전에 옛 앱으로 넘기던 것(2026-11-22).
+    //   윈도우 · 같은 판 · 응용 프로그램에서 켠 앱은 아무것도 안 한다.
+    mac_setup::replace_running_old();
+    // 맥이면 꾸러미 통째 교체 플러그인을 단다(mac_update.rs · 2026-11-16). 윈도우는 받은 그대로 — 스토어가 갱신한다.
+    mac_update::with_updater(tauri::Builder::default())
         .manage(PilotState::default())
         .manage(BundledBackend::default())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -2152,6 +2162,8 @@ pub fn run() {
             let _ = focus_workspace_window(app.clone());
         }))
         .setup(|app| {
+            // 맥: 본체가 안 깔려 있으면 앱 안에 실린 묶음으로 뒤에서 깐다(11-17 · dmg 에는 앱 하나만). 다른 OS 는 아무것도 안 함.
+            mac_setup::start_if_needed();
             // 설치 파일에 실린 백엔드가 있으면 켠다(W1-7). 사설·개발 설치는 작업 스케줄러가 켜 두므로 건너뛴다.
             if !cfg!(feature = "pilot") {
                 let base_url = env::var("JARVIS_URL").unwrap_or_else(|_| DEFAULT_BACKEND_URL.to_string());
@@ -2268,7 +2280,9 @@ pub fn run() {
             pilot_read_output,
             pilot_preview_output,
             claude_agent::claude_agent_status,
-            claude_agent::claude_agent_chat
+            claude_agent::claude_agent_chat,
+            mac_update::app_update_check,
+            mac_update::app_update_install
         ])
         .build(tauri::generate_context!())
         .expect("Sonjari HUD failed to start")

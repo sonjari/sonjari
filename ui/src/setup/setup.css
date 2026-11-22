@@ -38,6 +38,7 @@
 
 .setup-head {
   display: flex;
+  flex-wrap: wrap; /* 11-17: 자리가 모자라면 언어 단추가 아랫줄로 */
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
@@ -68,7 +69,8 @@
 
 .setup-steps {
   display: flex;
-  gap: 18px;
+  flex-wrap: wrap;
+  gap: 6px 14px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -77,6 +79,7 @@
 }
 
 .setup-steps li {
+  white-space: nowrap; /* 11-17 맥: 좁은 왼쪽 칸에서 「모 / 델」처럼 글자 단위로 꺾였다 */
   padding-bottom: 6px;
   border-bottom: 2px solid transparent;
 }
@@ -1400,6 +1403,7 @@
 
 .firstrun-row {
   display: flex;
+  flex-wrap: wrap; /* 11-17 맥: 좁은 왼쪽 칸에서 단추가 글자 자리를 먹어 한 단어씩 꺾였다 — 좁으면 단추가 아랫줄로 */
   align-items: center;
   gap: 12px;
   padding: 10px 0;
@@ -1409,7 +1413,7 @@
 .firstrun-text {
   display: grid;
   gap: 2px;
-  flex: 1;
+  flex: 1 1 200px;
   min-width: 0;
 }
 
@@ -1585,6 +1589,32 @@
 .pack-words { margin: 0; font-size: var(--fs-1); color: rgb(var(--text-1)); overflow-wrap: anywhere; }
 .pack-words > span { margin-right: 6px; color: rgb(var(--text-3)); }
 .pack-asks > q { quotes: "「" "」"; color: rgb(var(--text-2)); }
+/* 팩 모델 받기(11-14) — 칸은 테두리가 아니라 바탕 온도로, 색은 뜻만: 보라=받는 중 · 초록=받음 · 빨강=실패. */
+.pack-models { display: grid; gap: 10px; }
+.pm-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.pm-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 9px 12px; border-radius: var(--r-1); background: rgb(var(--surface-2)); box-shadow: var(--lift-1); font-size: var(--fs-2); color: rgb(var(--text-2)); }
+.pm-name { font-family: var(--font-mono); color: rgb(var(--text-1)); }
+.pm-size { color: rgb(var(--text-3)); font-size: var(--fs-1); }
+.pm-license { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: var(--fs-1); color: rgb(var(--text-3)); text-decoration: none; }
+.pm-license:hover { color: rgb(var(--text-1)); }
+.pm-ok { color: rgb(var(--ok)); flex: none; }
+.pm-work { color: rgb(var(--brand)); flex: none; }
+.pm-bad { color: rgb(var(--stop)); flex: none; }
+.pm-todo { color: rgb(var(--text-4)); flex: none; }
+.pm-bar { position: relative; flex: 1 1 100%; height: 6px; overflow: hidden; border-radius: var(--r-pill); background: rgb(var(--surface-4)); }
+.pm-bar > i { display: block; height: 100%; border-radius: var(--r-pill); background: rgb(var(--brand)); transition: width var(--t-move) var(--ease); }
+.pm-bar.is-unknown > i { position: absolute; width: 35%; animation: pm-slide 1.2s var(--ease) infinite alternate; }
+@keyframes pm-slide { from { left: 0; } to { left: 65%; } }
+@media (prefers-reduced-motion: reduce) { .pm-bar.is-unknown > i { animation: none; left: 0; width: 100%; opacity: 0.4; } }
+.pm-bytes { font-family: var(--font-mono); font-size: var(--fs-1); color: rgb(var(--text-3)); }
+.pm-error { flex: 1 1 100%; margin: 0; font-size: var(--fs-1); color: rgb(var(--stop-bright)); }
+.pm-row.is-not_for_this_machine { opacity: 0.5; box-shadow: none; }
+.pm-foreign { color: rgb(var(--text-3)); font-size: var(--fs-1); }
+.pm-leftovers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: var(--fs-1); color: rgb(var(--text-2)); }
+.pm-leftovers > button { display: inline-flex; align-items: center; gap: 6px; }
+.pm-actions { display: flex; }
+.pm-actions > button { display: inline-flex; align-items: center; gap: 6px; }
+.pm-total { color: inherit; opacity: 0.7; }
 .pack-ok { color: rgb(var(--ok)); flex: none; }
 .pack-todo { color: rgb(var(--text-4)); flex: none; }
 .pack-okay { font-style: normal; color: rgb(var(--ok)); }

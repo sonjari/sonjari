@@ -43,6 +43,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .pack_models import ModelError, parse_models, public_model
+
 _PACK_ID = re.compile(r"^[a-z][a-z0-9-]{1,31}$")
 _SKILL_NAME = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 _KINDS = frozenset({"content", "code"})
@@ -85,6 +87,10 @@ class Pack:
     asks: dict[str, str] = field(default_factory=dict)
     #: 스킬 이름 → 그 일의 갈래(`WORK_KINDS`). 적혀 있으면 그 스킬이 붙은 판을 그 갈래의 일로 다룬다.
     work: dict[str, str] = field(default_factory=dict)
+    #: 켤 때 그 자리에서 받을 모델 · 실행기(`pack_models.parse_models` 가 검증한 칸). 없으면 받을 것이 없는 팩.
+    models: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    #: 이 팩 다음에 이어 쓸 팩(2026-11-16 · 설계_팩켜기UX §4-3) — `[{"pack": id, "when": 한 줄}]`. 권하기만 한다(켜는 것은 사람).
+    next: tuple[dict[str, str], ...] = field(default_factory=tuple)
 
     @property
     def guide_path(self) -> Path | None:
@@ -106,13 +112,16 @@ class Pack:
             "id": self.id, "name": self.name, "version": self.version, "kind": self.kind,
             "summary": self.summary, "description": self.description,
             "tools": list(self.tools), "skills": list(self.skills), "domains": list(self.domains),
-            "permissions": self.permissions, "bench": self.bench,
+            "permissions": localize_permissions(self.permissions), "bench": self.bench,
             "sources": [dict(item) for item in self.sources],
             "guide": bool(self.guide_path),
             "origin": self.origin,
             "triggers": {name: list(words) for name, words in self.triggers.items()},
             "asks": dict(self.asks),
             "work": dict(self.work),
+            # 켜기 전에 「무엇을 얼마나 받나 · 어느 라이선스인가」를 보여 주려고 — 주소 · 해시는 싣지 않는다.
+            "models": [public_model(model) for model in self.models],
+            "next": [dict(item) for item in self.next],
         }
 
 
@@ -186,6 +195,32 @@ def _read_work(pack_id: str, raw: Any, skills: tuple[str, ...]) -> dict[str, str
     return out
 
 
+#: 「다음 팩」 한 줄의 한도 — 권하는 까닭 한 줄이지 글이 아니다.
+NEXT_WHEN_MAX_CHARS = 80
+NEXT_MAX = 4
+
+
+def _read_next(pack_id: str, raw: Any) -> tuple[dict[str, str], ...]:
+    """`next` 칸을 읽는다(2026-11-16). 팩 id 꼴 · 한 줄 까닭만 받는다 — 없는 팩 이름은 쓸 때 거른다(팩은 따로 깔린다)."""
+    if raw in (None, []):
+        return ()
+    if not isinstance(raw, list) or len(raw) > NEXT_MAX:
+        raise PackError(f"{pack_id}: next 는 [{{pack, when}}, …] 꼴(최대 {NEXT_MAX}개)이어야 한다")
+    out: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict) or set(item) - {"pack", "when"}:
+            raise PackError(f"{pack_id}: next 의 한 칸은 pack · when 만 가진다")
+        target = str(item.get("pack") or "")
+        when = " ".join(str(item.get("when") or "").split())
+        if not _PACK_ID.fullmatch(target) or target == pack_id:
+            raise PackError(f"{pack_id}: next.pack 「{target}」 — 다른 팩의 id 여야 한다")
+        if not when or len(when) > NEXT_WHEN_MAX_CHARS:
+            raise PackError(f"{pack_id}: next.when 은 1~{NEXT_WHEN_MAX_CHARS}자 한 줄이어야 한다")
+        if all(row["pack"] != target for row in out):
+            out.append({"pack": target, "when": when})
+    return tuple(out)
+
+
 def _load_manifest(folder: Path, origin: str = "builtin") -> Pack:
     path = folder / "pack.json"
     try:
@@ -213,6 +248,12 @@ def _load_manifest(folder: Path, origin: str = "builtin") -> Pack:
         if not str(data.get(name) or "").strip():
             raise PackError(f"{pack_id}: {name} 가 비었다")
     skills = tuple(str(name) for name in data.get("skills") or ())
+    try:
+        models = parse_models(pack_id, data.get("models"))
+    except ModelError as exc:
+        raise PackError(str(exc)) from exc
+    if models and kind != "code":
+        raise PackError(f"{pack_id}: 내려받을 모델(models)은 코드 팩(code)만 가질 수 있다")
     return Pack(
         id=pack_id, root=folder, name=str(data["name"]), version=str(data["version"]), kind=kind,
         summary=str(data["summary"]), description=str(data.get("description") or ""),
@@ -225,6 +266,8 @@ def _load_manifest(folder: Path, origin: str = "builtin") -> Pack:
         triggers=_read_triggers(pack_id, data.get("triggers"), skills),
         asks=_read_asks(pack_id, data.get("asks"), skills),
         work=_read_work(pack_id, data.get("work"), skills),
+        models=models,
+        next=_read_next(pack_id, data.get("next")),
     )
 
 
@@ -244,6 +287,43 @@ def load_packs(directory: Path, origin: str = "builtin") -> tuple[dict[str, Pack
     return packs, problems
 
 
+#: pack.json 의 경로 자리 표시(2026-11-16 · ADR-PACK-1). 예전엔 `내 문서\Sonjari\animator` 를 그대로 적어
+#: JSON 의 `\a` 가 벨 문자로 읽혀 깨졌고(「Sonjari□nimator」), 맥에도 윈도우 경로가 보였다. 이제 `{docs}/Sonjari/animator` 로 적고 기계마다 푼다.
+_DOCS_PATH = re.compile(r"\{docs\}((?:/[^\s/()·,]+)*)")
+
+
+def localize(text: str, platform: str | None = None) -> str:
+    """`{docs}/Sonjari/x` → 윈도우 `내 문서` 아래(역슬래시) · 맥 `~/Documents/Sonjari/x`."""
+    import sys
+
+    mac = (platform or sys.platform) == "darwin"
+
+    def put(match: "re.Match[str]") -> str:
+        rest = match.group(1)
+        return "~/Documents" + rest if mac else "내 문서" + rest.replace("/", "\\")
+
+    return _DOCS_PATH.sub(put, str(text))
+
+
+def localize_permissions(permissions: dict[str, Any], platform: str | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in (permissions or {}).items():
+        if isinstance(value, list):
+            out[key] = [localize(item, platform) for item in value]
+        elif isinstance(value, str):
+            out[key] = localize(value, platform)
+        else:
+            out[key] = value
+    return out
+
+
+def tools_here(pack: "Pack", platform: str | None = None) -> list[str]:
+    """이 기계에서 쓰는 도구 — 맥이면 「맥에서는 아직」 표의 도구를 뺀다(애니메이터 15 → 맥 13)."""
+    from .tool_gateway import not_yet_on_mac
+
+    return [name for name in pack.tools if not_yet_on_mac(name, platform) is None]
+
+
 class PackRegistry:
     """어떤 팩이 있고, 무엇이 켜져 있나. 켜고 끄는 것은 사람이 화면에서 한다."""
 
@@ -255,6 +335,10 @@ class PackRegistry:
         self._lock = threading.Lock()
         self.packs, self.problems = self._load()
         self._enabled = self._read_state()
+        #: 「이 PC 에 맞는 팩」 권하기를 사람이 무시한 팩(2026-11-16 · `pack_hints`). 다시 묻지 않는다.
+        self._dismissed = self._read_dismissed()
+        #: 「팩 켜기는 클로드에게 맡기기」(2026-11-16 · ADR-PACK-1). 사람이 손자리 쪽 문(화면 · 설정 API)에서만 켠다 — 도구로 켜는 길은 없다.
+        self._claude_may_enable = self._read_raw_state().get("claude_may_enable") is True
         self._listeners: list[Any] = []
 
     def _load(self) -> tuple[dict[str, Pack], list[str]]:
@@ -285,17 +369,27 @@ class PackRegistry:
             except Exception:  # noqa: BLE001 — 뒤따르는 정리가 실패해도 켜고 끈 사실은 남는다
                 pass
 
-    def _read_state(self) -> set[str]:
+    def _read_raw_state(self) -> dict[str, Any]:
         try:
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return set()
-        return {str(item) for item in data.get("enabled") or () if str(item) in self.packs}
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _read_state(self) -> set[str]:
+        return {str(item) for item in self._read_raw_state().get("enabled") or () if str(item) in self.packs}
+
+    def _read_dismissed(self) -> set[str]:
+        # 지금 없는 팩 이름도 지우지 않고 둔다 — 팩이 다음 판에 돌아와도 「무시」가 살아 있게.
+        return {str(item) for item in self._read_raw_state().get("hint_dismissed") or () if _PACK_ID.fullmatch(str(item))}
 
     def _write_state(self) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.state_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"enabled": sorted(self._enabled)}, ensure_ascii=False, indent=1), encoding="utf-8")
+        # ★ 켜고 끌 때 「무시」를 덮어 지우지 않는다 — 한 파일에 둘이 같이 산다.
+        state = {"enabled": sorted(self._enabled), "hint_dismissed": sorted(getattr(self, "_dismissed", set())),
+                 "claude_may_enable": bool(getattr(self, "_claude_may_enable", False))}
+        tmp.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
         tmp.replace(self.state_path)
 
     def on_change(self, callback: Any) -> None:
@@ -317,6 +411,38 @@ class PackRegistry:
         self._notify()
         return self.describe(pack_id)
 
+    def dismiss_hint(self, pack_id: str) -> dict[str, Any]:
+        """사람이 「나중에 · 무시」를 눌렀다 — 그 팩은 다시 권하지 않는다. 켜고 끄는 것과는 상관없다."""
+        if pack_id not in self.packs:
+            raise PackError(f"unknown_pack: {pack_id}")
+        with self._lock:
+            self._dismissed.add(pack_id)
+            self._write_state()
+        return {"pack": pack_id, "dismissed": True}
+
+    def hint_dismissed(self) -> set[str]:
+        return set(self._dismissed)
+
+    def claude_may_enable(self) -> bool:
+        """사람이 「팩 켜기는 클로드에게 맡기기」를 켜 두었나(ADR-PACK-1). 바깥 클로드의 켜기 청만 카드 없이 지나간다."""
+        return bool(self._claude_may_enable)
+
+    def set_claude_may_enable(self, on: bool) -> dict[str, Any]:
+        """사람 쪽 문(화면 · `POST /v1/packs/delegate`)에서만 부른다. 도구 목록 어디에도 이 일을 하는 도구를 두지 않는다."""
+        with self._lock:
+            self._claude_may_enable = bool(on)
+            self._write_state()
+        return {"claude_may_enable": self._claude_may_enable}
+
+    def next_for(self, pack_id: str) -> list[dict[str, str]]:
+        """`pack_id` 다음에 이어 쓸 팩 — 이미 켰거나 · 권하기를 무시했거나 · 이 판에 없는 팩은 뺀다."""
+        pack = self.packs.get(pack_id)
+        if pack is None:
+            return []
+        return [{"pack": item["pack"], "name": self.packs[item["pack"]].name, "when": item["when"]}
+                for item in pack.next
+                if item["pack"] in self.packs and not self.is_enabled(item["pack"]) and item["pack"] not in self._dismissed]
+
     def describe(self, pack_id: str) -> dict[str, Any]:
         pack = self.packs[pack_id]
         return {**pack.public(), "enabled": self.is_enabled(pack_id)}
@@ -326,6 +452,7 @@ class PackRegistry:
             "packs": [self.describe(pack_id) for pack_id in sorted(self.packs)],
             "problems": list(self.problems),
             "user_dir": str(self.user_dir) if self.user_dir is not None else "",
+            "claude_may_enable": self.claude_may_enable(),
         }
 
     # ── 본체의 다른 층이 묻는 것 ─────────────────────────────────────────

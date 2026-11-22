@@ -10,8 +10,9 @@ import { t } from "../i18n";
 import { Box, CheckCircle2, Circle, Copy, FolderOpen, Gamepad2, KeyRound, ListChecks, Loader2, RefreshCw, Sparkles, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { pickNativeCodeWorkspace, type JarvisClient } from "../backend";
-import type { PackInfo, PacksView, UnityDraft, UnityRecipeCard, UnitySetupView } from "../types";
+import type { PackInfo, PackModelsStatus, PacksView, UnityDraft, UnityRecipeCard, UnitySetupView } from "../types";
 import { EditorBlock, ScheduleBlock } from "./UnityEditorSection";
+import { PackModels, packFetchPlan, modelsProblem } from "./PackModels";
 
 const PACK_ICON: Record<string, ReactNode> = {
   game: <Gamepad2 size={18} strokeWidth={1.6} />,
@@ -53,6 +54,8 @@ export function PacksSection({ client }: { client: JarvisClient }) {
   const [packs, setPacks] = useState<PackInfo[] | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
   const [userDir, setUserDir] = useState("");
+  // 「팩 켜기는 클로드에게 맡기기」(ADR-PACK-1). 사람 쪽 문 — 여기와 팩 켜기 카드의 칸에서만 바꾼다.
+  const [delegate, setDelegate] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
@@ -60,6 +63,20 @@ export function PacksSection({ client }: { client: JarvisClient }) {
     setPacks(view.packs);
     setProblems(view.problems);
     setUserDir(view.user_dir ?? "");
+    setDelegate(Boolean(view.claude_may_enable));
+  };
+
+  const toggleDelegate = async () => {
+    setBusy("delegate");
+    setError("");
+    try {
+      const out = await client.setPackDelegate(!delegate);
+      setDelegate(Boolean(out.claude_may_enable));
+    } catch (reason) {
+      setError(t("맡김 설정을 바꾸지 못했습니다: {0}", message(reason)));
+    } finally {
+      setBusy("");
+    }
   };
 
   const load = useCallback(async () => {
@@ -99,14 +116,18 @@ export function PacksSection({ client }: { client: JarvisClient }) {
     }
   };
 
-  const toggle = async (pack: PackInfo) => {
+  // 켜기 단추 = 「켜고 받기」(11-16 저녁): 받을 파일이 남은 팩은 누른 것이 받기 동의 — 켜면서 받는다(자리가 모자라면 백엔드가 켜지 않는다).
+  const toggle = async (pack: PackInfo, fetch = false) => {
     setBusy(pack.id);
     setError("");
     try {
-      const next = await client.setPack(pack.id, !pack.enabled);
+      const next = !pack.enabled && fetch
+        ? await client.setPack(pack.id, true, { fetch: true })
+        : await client.setPack(pack.id, !pack.enabled);
       setPacks((rows) => (rows ?? []).map((row) => (row.id === next.id ? next : row)));
     } catch (reason) {
-      setError(t("{0}을 {1} 못했습니다: {2}", pack.name, pack.enabled ? t("끄지") : t("켜지"), message(reason)));
+      const status = (reason as { status?: number } | null)?.status;
+      setError(status === 507 ? modelsProblem(reason) : t("{0}을 {1} 못했습니다: {2}", pack.name, pack.enabled ? t("끄지") : t("켜지"), message(reason)));
     } finally {
       setBusy("");
     }
@@ -117,6 +138,13 @@ export function PacksSection({ client }: { client: JarvisClient }) {
       <p className="settings-note">
         {t("팩은 Sonjari 위에 얹는 분야별 능력입니다. 켜기 전에는 아무것도 하지 않고, 끄면 도구와 스킬이 바로 빠집니다.")}
       </p>
+      <label className="pack-delegate" data-testid="pack-delegate">
+        <input type="checkbox" checked={delegate} disabled={busy === "delegate"} onChange={() => void toggleDelegate()} />
+        <span>
+          <b>{t("팩 켜기는 클로드에게 맡기기")}</b>
+          <small>{t("켜 두면 클로드가 대화에서 먼저 묻고, 「응」을 받으면 카드 없이 바로 켭니다. 모델 받기는 늘 따로 누릅니다.")}</small>
+        </span>
+      </label>
       <section className="pack-mine" aria-labelledby="pack-mine-title" data-testid="pack-mine">
         <div className="pack-mine-text">
           <b id="pack-mine-title">{t("내 스킬팩")}</b>
@@ -135,7 +163,7 @@ export function PacksSection({ client }: { client: JarvisClient }) {
       {error && <p className="settings-error" role="alert">{error}</p>}
       {!packs && !error && <p className="settings-note"><Loader2 size={14} className="spin" /> {t("팩을 읽는 중입니다")}</p>}
       {packs?.map((pack) => (
-        <PackCard key={pack.id} pack={pack} busy={busy === pack.id} onToggle={() => void toggle(pack)} client={client} />
+        <PackCard key={pack.id} pack={pack} busy={busy === pack.id} onToggle={(fetch) => void toggle(pack, fetch)} client={client} />
       ))}
       {problems.length > 0 && (
         <p className="firstrun-fine" role="note">{t("읽지 못한 팩:")} {problems.join(" / ")}</p>
@@ -147,10 +175,13 @@ export function PacksSection({ client }: { client: JarvisClient }) {
 function PackCard({ pack, busy, onToggle, client }: {
   pack: PackInfo;
   busy: boolean;
-  onToggle: () => void;
+  onToggle: (fetch: boolean) => void;
   client: JarvisClient;
 }) {
   const mine = pack.origin === "user";
+  const [models, setModels] = useState<PackModelsStatus | null>(null);
+  const plan = pack.enabled ? null : packFetchPlan(models);
+  const fetchOnEnable = !pack.enabled && Boolean(models?.needs_fetch);
   const words = packWords(pack);
   const asks = packAsks(pack);
   return (
@@ -164,8 +195,9 @@ function PackCard({ pack, busy, onToggle, client }: {
           </b>
           <span>{pack.summary}</span>
         </span>
-        <button type="button" className={pack.enabled ? "setup-btn-quiet" : "setup-btn-go"} onClick={onToggle} disabled={busy}>
-          {busy ? <Loader2 size={14} className="spin" /> : pack.enabled ? t("끄기") : t("켜기")}
+        <button type="button" className={pack.enabled ? "setup-btn-quiet" : "setup-btn-go"} onClick={() => onToggle(fetchOnEnable)}
+          disabled={busy || Boolean(plan?.blocked)} data-testid={`pack-toggle-${pack.id}`}>
+          {busy ? <Loader2 size={14} className="spin" /> : pack.enabled ? t("끄기") : fetchOnEnable ? t("켜고 받기") : t("켜기")}
         </button>
       </header>
 
@@ -185,6 +217,13 @@ function PackCard({ pack, busy, onToggle, client }: {
         <p className="pack-words pack-work">
           <span>{t("이런 일로 다룹니다")}</span>{" "}
           {t("웹을 보고 와서 정리하는 일 — 그 일에 쓰는 도구만 쓰고, 파일을 쓰기 전에 숫자를 읽은 자료와 대조합니다")}
+        </p>
+      )}
+
+      <PackModels pack={pack} client={client} onStatus={setModels} />
+      {plan && (
+        <p className={plan.blocked ? "pm-error" : "pack-words pack-fetch-plan"} role={plan.blocked ? "alert" : undefined} data-testid={`pack-fetch-plan-${pack.id}`}>
+          {plan.line}
         </p>
       )}
 

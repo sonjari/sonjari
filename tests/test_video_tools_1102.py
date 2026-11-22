@@ -63,7 +63,7 @@ def test_bad_input_is_refused(tmp_path: Path, arguments: dict[str, Any]) -> None
 def test_a_file_without_ffmpeg_is_refused_plainly(tmp_path: Path, monkeypatch) -> None:
     clip = tmp_path / "a.mp4"
     clip.write_bytes(b"x")
-    monkeypatch.setattr("alture_jarvis.video_tools.shutil.which", lambda name: None)
+    monkeypatch.setattr("alture_jarvis.video_read.scan.ffmpeg_exe", lambda: None)
     with pytest.raises(RuntimeError, match="ffmpeg_missing"):
         VideoTools(_Config(tmp_path), None, _Packs(True)).video_read({"path": str(clip)})
     with pytest.raises(FileNotFoundError):

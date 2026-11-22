@@ -267,6 +267,19 @@ def _under_heading(want: str, answer: str, label: str = "") -> bool | None:
         loose = not strict and bool(label) and not re.search(r"[:：]\s*\S", title) and _covers(label, title)
         if not strict and not loose:
             continue
+        if strict and label:
+            # ★ 2026-11-20 맥 0.4.49 날씨 판: 「**오늘 서울 날씨: 최저 기온 -3°, 최고 기온 3° (맑음)**」 한 줄이 제목으로 잡혔는데
+            #   아래 줄이 없어 「비었다(met=False)」였다 — 값은 **제목 줄 안, 이름 바로 뒤**에 있었다. 그 자리를 먼저 본다.
+            words = r"\s*".join(re.escape(part) for part in label.split())
+            inline = re.search(rf"{words}\s*([:：])?\s*([^,，;；·|]+)", title)
+            # 값으로 치는 것은 쌍점 뒤이거나 숫자가 든 것만 — 「**가격 비교**」의 「비교」는 값이 아니다(제목 아래를 본다).
+            if inline:
+                value = inline.group(2).strip().strip("*`").strip()
+                if value and _unobtained(value):
+                    return _unobtained(value)
+                if (inline.group(1) or re.search(r"\d", value)) and value and _filled(value) \
+                        and not _NOT_FOUND_VALUE.match(value):
+                    return True
         # ★ 2026-10-19: 아래 제목(「## 네 커뮤니티」 밑의 「### r/LocalLLM」)은 그 절의 내용이다 — 같거나 높은 제목에서만 끊는다.
         #   전에는 아무 「#」 제목에서나 끊어서, 하위 절로 나눠 쓴 답을 「제목 아래가 비었다」로 봤다(728ecaa5 「커뮤니티」).
         level = len(line.lstrip()) - len(line.lstrip().lstrip("#")) if line.lstrip().startswith("#") else 0

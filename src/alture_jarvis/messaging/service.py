@@ -29,6 +29,7 @@ import importlib.util
 import logging
 import logging.handlers
 import os
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -272,9 +273,16 @@ def pick_home_channel(rest: DiscordRest, allowed: list[str],
 # ── 클립보드 ────────────────────────────────────────────────────────────────────
 
 class SystemClipboard:
-    """윈도우 클립보드의 글. 화면 · 모델을 거치지 않고 본체가 직접 읽는다."""
+    """클립보드의 글(윈도우 · 맥). 화면 · 모델을 거치지 않고 본체가 직접 읽는다."""
 
     def read(self) -> str:
+        if sys.platform == "darwin":  # 맥은 `pbpaste`(2026-11-13 · `macos.clipboard_read`)
+            from ..macos import clipboard_read
+
+            text = clipboard_read(4000)
+            if text is None:
+                raise RuntimeError("clipboard_unavailable")
+            return text
         if os.name != "nt":
             raise RuntimeError("windows_only")
         import win32clipboard
@@ -290,6 +298,11 @@ class SystemClipboard:
         return str(value or "")[:4000]
 
     def clear(self) -> None:
+        if sys.platform == "darwin":
+            from ..macos import clipboard_write
+
+            clipboard_write("")
+            return
         if os.name != "nt":
             return
         import win32clipboard

@@ -34,6 +34,8 @@ _MAX_JOBS = 64
 _ITEMS_MAX = 8
 _LABEL_MAX = 60
 _SAW_MAX = 80
+#: 중간 소식(`interim_news`) — 작업당 들고 있는 줄 수. 호스트에는 이 중 최근 몇 개만 나간다(`delegation._progress_block`).
+_NEWS_KEEP = 12
 
 
 def without_eta(message: str) -> str:
@@ -42,7 +44,7 @@ def without_eta(message: str) -> str:
 
 
 class LiveProgress:
-    """`agent_progress`·`agent_plan` 이벤트의 작업별 최신 값."""
+    """`agent_progress`·`agent_plan` 이벤트의 작업별 최신 값 + 중간 소식(`agent_interim_news`) 최근 몇 줄."""
 
     def __init__(self, max_jobs: int = _MAX_JOBS) -> None:
         self._max_jobs = max(1, int(max_jobs))
@@ -54,7 +56,7 @@ class LiveProgress:
         try:
             payload = record.payload or {}
             job_id = str(payload.get("job_id") or "")
-            if not job_id or record.event not in ("agent_progress", "agent_plan"):
+            if not job_id or record.event not in ("agent_progress", "agent_plan", "agent_interim_news"):
                 return
             with self._lock:
                 entry = self._jobs.get(job_id)
@@ -63,7 +65,17 @@ class LiveProgress:
                     self._jobs[job_id] = entry
                 self._jobs.move_to_end(job_id)
                 entry["updated_at"] = float(record.timestamp or time.time())
-                if record.event == "agent_progress":
+                if record.event == "agent_interim_news":
+                    # 한 항목을 실제로 읽어 확인한 한 줄(2026-11-14). 같은 주소는 한 번만 — 다시 읽어도 소식은 아니다.
+                    news = entry.setdefault("news", [])
+                    url = str(payload.get("url") or "")
+                    text = str(payload.get("text") or "").strip()
+                    # 같은 이름도 한 번만 — 재생(11-14)에서 같은 상품 · 같은 문서가 주소만 달리 두 번 나왔다.
+                    if text and not any(item["url"] == url or item["text"] == text for item in news):
+                        news.append({"text": text[:120], "url": url[:200], "step": int(payload.get("step") or 0)})
+                        entry["news_count"] = int(entry.get("news_count") or 0) + 1
+                        del news[:-_NEWS_KEEP]
+                elif record.event == "agent_progress":
                     entry["phase"] = str(payload.get("phase") or "")
                     entry["doing"] = without_eta(str(payload.get("message") or ""))
                     entry["tool"] = str(payload.get("tool") or "")
@@ -99,4 +111,6 @@ class LiveProgress:
             out = dict(entry)
             if isinstance(out.get("requested"), dict):
                 out["requested"] = {**out["requested"], "items": [dict(i) for i in out["requested"].get("items", [])]}
+            if isinstance(out.get("news"), list):
+                out["news"] = [dict(i) for i in out["news"]]
             return out

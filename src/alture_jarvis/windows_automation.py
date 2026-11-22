@@ -5,6 +5,7 @@ from . import winapi  # 11-03: 윈도우 API 크기는 winapi.py 한 곳에서(�
 import json
 import os
 import secrets
+import sys
 import threading
 import time
 from datetime import datetime
@@ -378,7 +379,14 @@ def translate_key_combo(combo: str) -> tuple[str, str]:
 
 
 def _clipboard_get(limit: int = 20000) -> str:
-    """클립보드의 글. 없으면 빈 문자열."""
+    """클립보드의 글. 없으면 빈 문자열. 맥은 `pbpaste`(2026-11-13)."""
+    if sys.platform == "darwin":
+        from .macos import clipboard_read
+
+        text = clipboard_read(limit)
+        if text is None:
+            raise RuntimeError("clipboard_unavailable")
+        return text
     if os.name != "nt":
         raise RuntimeError("windows_only")
     import win32clipboard
@@ -397,6 +405,12 @@ def _clipboard_get(limit: int = 20000) -> str:
 
 
 def _clipboard_set(text: str) -> None:
+    if sys.platform == "darwin":
+        from .macos import clipboard_write
+
+        if not clipboard_write(str(text)):
+            raise RuntimeError("clipboard_unavailable")
+        return
     if os.name != "nt":
         raise RuntimeError("windows_only")
     import win32clipboard
@@ -601,6 +615,24 @@ class WindowsAutomationTools:
                     enabled=self.config.windows_control_enabled,
                 )
             )
+        # 권한 무시여도 닫기 · 끝내기 · 지우기 단축키는 사람이 본다(2026-11-16 대표).
+        still_asks = getattr(gateway, "bypass_still_asks", None)
+        if isinstance(still_asks, dict):  # 시험의 가짜 게이트웨이에는 없다
+            still_asks["windows_execute_preview"] = self.preview_is_destructive
+
+    def preview_is_destructive(self, arguments: dict[str, Any]) -> bool:
+        """실행하려는 미리보기가 되돌릴 수 없는 단축키인가. 미리보기를 못 찾으면 True(묻는 쪽)."""
+        with self._lock:
+            preview = self._previews.get(str(arguments.get("preview_id") or ""))
+        if preview is None:
+            return True
+        if preview.action != "key":
+            return False
+        try:
+            _, combo = translate_key_combo(preview.value)
+        except ValueError:
+            return True
+        return combo in _DESTRUCTIVE_KEYS
 
     def status(self) -> dict[str, Any]:
         dependency, error = self._dependency_ready()

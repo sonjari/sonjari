@@ -23,6 +23,7 @@ import json
 import re
 from typing import Any
 from urllib.parse import urlparse
+from . import desktop_tools as _desktop
 from .stray_han import mend as _mend_stray_han
 
 #: 답을 파일로 옮겨 줄 때 쓰는 도구. 하나뿐이라 사슬이 필요 없다.
@@ -53,8 +54,9 @@ _ARTIFACT_STAGE_SUPPORT = frozenset({
     "hwp_list_open", "hwp_read", "hwp_preview_edit", "hwp_preview_format",
     # ★ 프로그램 창을 조작해 파일을 만드는 일(한글 → PDF 저장 · 메모장 저장)은 창 손이 곧 파일 쓰는 손이다 (2026-10-17 화면 자동화 측정).
     #   파일 만들 차례가 걸리면 이 손들이 「이 차례가 아니다」로 막혀 저장 창 앞에서 멈출 자리였다.
-    "windows_list_open_windows", "windows_focus_window", "windows_open_path", "windows_uia_snapshot",
-    "windows_uia_preview", "windows_execute_preview", "windows_copy_from_window",
+    #   이름은 역할 표에서 — 윈도우 `windows_*` · 맥 `mac_*` 같은 역할(`desktop_tools.py`). 비전 좌표 미리보기는 원래 없던 그대로 뺀다.
+    *_desktop.names(_desktop.LIST, _desktop.FOCUS, _desktop.OPEN, _desktop.SNAPSHOT,
+                    _desktop.PREVIEW, _desktop.EXECUTE, _desktop.COPY),
 })
 
 _ARTIFACT_WRITE_TOOLS = frozenset({

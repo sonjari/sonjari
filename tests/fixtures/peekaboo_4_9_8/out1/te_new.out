@@ -1,0 +1,1 @@
+Error: Invalid chord 'cmd,n'. Use case-insensitive macOS key names joined with '+' (cmd+shift+t). delete (also Delete, backspace or del) erases backward; forwarddelete/forward_delete erase forward. Use cmd/command for Command, not super. See 'peekaboo press --help'.

@@ -1680,6 +1680,8 @@ class LocalComputerTools:
                     "path": {"type": "string"},
                     "pattern": {"type": "string", "description": "선택적인 파일명 패턴(예: *.md)"},
                     "max_items": {"type": "integer", "minimum": 1, "maximum": 200},
+                    "sort": {"type": "string", "enum": ["name", "newest"],
+                             "description": "newest: 최근 바뀐 것부터, 바뀐 시각을 붙인다"},
                 },
                 ["path"],
             ),
@@ -2753,10 +2755,38 @@ class LocalComputerTools:
         """
         return self._code_workspaces.get(job_id) or self._project_folders.get(job_id)
 
+    @staticmethod
+    def _path_arg(arguments: dict[str, Any], key: str = "path") -> str:
+        """`path` 칸 글자. 원소 하나짜리 목록 글자(`["a/b.py"]`)는 풀어 준다 (2026-11-17 맥 4B 코드 판 · 실행 도구 `path` 칸).
+
+        작은 모델이 목록을 받는 칸(`paths`)과 헷갈려 한 경로를 목록 글자로 넣었다 — 그대로 쓰면 `["a` 라는 폴더를 찾는다.
+        원소가 둘 이상이면 뜻이 하나가 아니니 건드리지 않는다(그대로 실패해 모델이 고친다).
+        """
+        raw = arguments.get(key)
+        if isinstance(raw, list) and len(raw) == 1 and isinstance(raw[0], str):
+            return raw[0].strip()
+        text = str(raw or "").strip()
+        if text.startswith("[") and text.endswith("]"):
+            try:
+                items = json.loads(text)
+            except ValueError:
+                return text
+            if isinstance(items, list) and len(items) == 1 and isinstance(items[0], str):
+                return items[0].strip()
+        return text
+
+    @staticmethod
+    def _drop_own_name(root: Path, relative: Path) -> Path:
+        """상대 경로가 기준 폴더 자기 이름으로 시작하면 그 이름을 뗀다 — 그런 하위 폴더가 실제로 없을 때만(9-22 쓰기 규칙과 같다)."""
+        parts = relative.parts
+        if len(parts) > 1 and parts[0] == root.name and not (root / parts[0]).exists():
+            return Path(*parts[1:])
+        return relative
+
     def _resolve_mutation_path(
         self, arguments: dict[str, Any], *, must_exist: bool, allow_folder: bool = False
     ) -> Path:
-        raw = str(arguments.get("path") or "").strip()
+        raw = self._path_arg(arguments)
         if not raw:
             raise ValueError("path_required")
         expanded = Path(os.path.expandvars(raw)).expanduser()
@@ -2773,8 +2803,11 @@ class LocalComputerTools:
             #   `L1_hello_page-r2/index.html` 처럼 쓰면 작업 폴더 안에 같은 이름의 하위 폴더가 생겨 파일이 엉뚱한 곳에 간다
             #   (그 판은 `index.html 없음`으로 졌다). 같은 이름의 폴더가 **이미 있으면** 진짜 하위 폴더이니 건드리지 않는다.
             parts = expanded.parts
-            if len(parts) > 1 and parts[0] == workspace.name and not (workspace / parts[0]).exists():
-                expanded = Path(*parts[1:])
+            stripped = self._drop_own_name(workspace, expanded)
+            if stripped != expanded:
+                # 11-17: 뗀 뒤에는 아래 「사용자 폴더 별칭」을 보지 않는다 — 작업 폴더 이름이 `Documents` 면 그 별칭이 진짜 홈의
+                #   문서 폴더로 풀어 작업 폴더 밖으로 나갔다(작업 폴더가 마침 `~/Documents` 일 때만 같은 자리라 티가 안 났다).
+                expanded, parts = stripped, ()
             # ★ 「바탕화면/회의 메모.txt」의 바탕화면은 **사람의 바탕화면**이다 (2026-09-23 스토어 촬영).
             #   예전엔 작업 폴더 안에 「바탕화면」이라는 새 폴더를 만들고 거기 썼다 — 승인도 안 거쳤고, 사람은
             #   「바탕화면에 만들었습니다」를 듣고도 바탕화면에서 파일을 못 찾는다. 첫 칸이 사용자 폴더 이름이고
@@ -2807,7 +2840,7 @@ class LocalComputerTools:
         결과가 ``path_outside_allowed_roots`` 로 막혔다. 쓰기만 알고 있던 job별
         저장소 루트를 모든 로컬 코드 작업이 공유해야 읽기→패치 폐루프가 닫힌다.
         """
-        raw = str(arguments.get(key) or "").strip()
+        raw = self._path_arg(arguments, key)
         if not raw:
             raise ValueError("path_required")
         expanded = Path(os.path.expandvars(raw)).expanduser()
@@ -2815,7 +2848,8 @@ class LocalComputerTools:
             job_id = self._job_id(arguments)
             code_root = self._read_root(job_id)
             if code_root is not None:
-                expanded = code_root / expanded
+                # 11-17: 쓰기(`_resolve_mutation_path`)만 떼고 읽기 · 실행은 안 떼어, 같은 `Documents/x` 가 쓰기와 실행에서 다른 자리가 됐다.
+                expanded = code_root / self._drop_own_name(code_root, expanded)
             elif job_id:
                 # ★ 2026-09-30 QR 판: 고른 저장소가 없는 판에서 `create_qr.py` 를 읽자 **백엔드 폴더**
                 #   (백엔드 설치 폴더\create_qr.py)로 풀려 「없다」가 났다. 쓰기는 이미 잡 책상 기준인데
@@ -2823,7 +2857,20 @@ class LocalComputerTools:
                 #   아니면 잡 책상 기준으로 푼다(쓰기 `_resolve_mutation_path` 와 같은 규칙).
                 made = next((Path(p) for p in self._made_by_job.get(job_id, ())
                              if len(expanded.parts) == 1 and Path(p).name.lower() == expanded.name.lower()), None)
-                expanded = made if made is not None else self.job_workspace(job_id) / expanded
+                if made is not None:
+                    expanded = made
+                else:
+                    desk = self.job_workspace(job_id)
+                    # ★ 11-18 맥 4B MCP 판: 「내 문서 폴더의 Sonjari 폴더 목록」에 `documents/Sonjari` 를 넘겼는데 잡 책상 안으로 풀려
+                    #   `path_not_found` · 「같은 이름이 여기 있다: ~/Documents/Sonjari」를 받고도 10번 헛돌았다. 쓰기는 9-23부터
+                    #   첫 칸이 사용자 폴더 이름이면 사람의 진짜 폴더로 푼다(책상에 그런 하위 폴더가 없을 때만) — 읽기 · 목록도 같게.
+                    #   쓰기로 쓰일 때(write=True)는 아래 `_resolve` 가 책상 밖이라 승인 자리로 보낸다(몰래 넓히지 않는다).
+                    parts = expanded.parts
+                    user_folder = _USER_FOLDER_ALIASES.get(parts[0].casefold()) if parts else None
+                    if user_folder and not (desk / parts[0]).exists():
+                        expanded = Path.home() / user_folder / Path(*parts[1:])
+                    else:
+                        expanded = desk / expanded
         return self._resolve(str(expanded), must_exist=must_exist, write=write)
 
     #: 판이 끝나면 띄울 것. 잡 하나에 하나만 — 창 폭탄을 만들지 않는다.
@@ -3922,7 +3969,19 @@ class LocalComputerTools:
         pattern = str(arguments.get("pattern") or "").strip()
         maximum = max(1, min(int(arguments.get("max_items") or LISTING_DEFAULT_ITEMS), 200))
         rows = []
-        for item in sorted(path.iterdir(), key=lambda value: (not value.is_dir(), value.name.lower())):
+        # ★ 11-18 맥 9B MCP 판: 「가장 최근에 바뀐 파일 세 개」에 목록이 이름 · 크기만 줘서 「수정 시각을 볼 도구가 없다」고 답했다(정직했다).
+        #   평소 목록은 짧게 그대로(아래 줄 수 주석) — 최근 순을 달라고 할 때만 새것부터, 바뀐 시각을 붙인다.
+        newest = str(arguments.get("sort") or "").strip().lower() in {"newest", "recent", "modified", "mtime"}
+
+        def _mtime(value: Path) -> float:
+            try:
+                return value.stat().st_mtime
+            except OSError:
+                return 0.0
+
+        ordered = (sorted(path.iterdir(), key=_mtime, reverse=True) if newest
+                   else sorted(path.iterdir(), key=lambda value: (not value.is_dir(), value.name.lower())))
+        for item in ordered:
             if item.name.startswith(".") or self._is_sensitive(item):
                 continue
             if pattern and not fnmatch.fnmatch(_nfc(item.name).lower(), _nfc(pattern).lower()):
@@ -3936,6 +3995,7 @@ class LocalComputerTools:
                     "path": str(item),
                     "type": "directory" if item.is_dir() else "file",
                     "size": None if item.is_dir() else stat.st_size,
+                    **({"modified": time.strftime("%Y-%m-%d %H:%M", time.localtime(stat.st_mtime))} if newest else {}),
                 }
             )
             if len(rows) >= maximum:

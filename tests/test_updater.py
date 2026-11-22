@@ -136,13 +136,10 @@ def test_the_staged_build_is_read_the_same_way_as_the_running_one(fake_install: 
     staging = tmp_path / "staged"
     updater.unpack(Path(made["path"]), staging)
 
-    import hashlib
-    expect = hashlib.sha256()
-    package = fake_install / "src" / "alture_jarvis"
-    for path in sorted(package.glob("*.py")):
-        expect.update(path.name.encode())
-        expect.update(path.read_bytes())
-    assert updater.staged_build(staging) == expect.hexdigest()[:12]
+    # 11-23: 규칙을 시험 안에 베끼지 않고, 지금 도는 코드가 쓰는 함수(config.code_digest)와 견준다.
+    from alture_jarvis.config import code_digest
+
+    assert updater.staged_build(staging) == code_digest(fake_install / "src" / "alture_jarvis")
 
 
 def test_the_plan_tells_the_script_everything_it_needs(fake_install: Path, tmp_path: Path) -> None:

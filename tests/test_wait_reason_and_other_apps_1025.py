@@ -31,10 +31,11 @@ def test_the_reason_comes_from_comparing_with_the_last_call() -> None:
 
 
 def test_the_message_says_why_in_korean_and_english() -> None:
+    # 11-18 대표 결정: 도구 · 지침을 다시 읽는 까닭은 사람 말 한 줄 + 까닭 한 마디(토큰 수는 화면 글에서 뺌).
     ko = wait_message(42_000, 12.4, reason="both")
-    assert ko.startswith("도구 목록과 지침이 지난번과 달라") and "약 4.2만 토큰" in ko and "12초째" in ko
+    assert ko == "쓸 도구와 지침을 읽는 중 · 12초째 · 도구가 바뀌어 한 번 더 걸려요"
     en = wait_message(42_000, 12.4, english=True, reason="tools")
-    assert en.startswith("the tool list changed") and not any("가" <= ch <= "힣" for ch in en)
+    assert en.startswith("Reading the tools") and not any("가" <= ch <= "힣" for ch in en)
     # 까닭을 모르면 예전 문장 그대로.
     assert wait_message(42_000, 7, reason="") == "모델이 앞의 기록(약 4.2만 토큰)을 읽는 중 · 첫 글자 전 7초째"
 

@@ -12,6 +12,8 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -26,13 +28,64 @@ def frame_size(vertical: bool) -> tuple[int, int]:
     return (H, W) if vertical else (W, H)
 
 
+def ffmpeg_exe() -> str | None:
+    """ffmpeg 실행 파일 — PATH 먼저(윈도우 winget · 맥 brew), 없으면 파이썬 꾸러미 `imageio-ffmpeg` 가 들고 온 것.
+
+    ★ 2026-11-13 맥 조사: 맥에 ffmpeg 가 없어 영상 파일 읽기가 안 됐다. 사람에게 brew 를 깔라고 하지 않는다 —
+      맥 설치(`install_mac.sh` → `pip install -e`)가 pyproject 의 `imageio-ffmpeg`(맥 전용 표시)를 같이 깔고, 그 안의 ffmpeg 를 쓴다.
+      그 꾸러미에는 ffprobe 가 없어서 크기 재기도 ffmpeg 하나로 한다(`video_size`).
+    """
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    try:
+        import imageio_ffmpeg
+
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:  # noqa: BLE001 — 꾸러미가 없거나 안에 실행 파일이 없다
+        return None
+    return str(exe) if exe and Path(str(exe)).is_file() else None
+
+
+def _need_ffmpeg() -> str:
+    exe = ffmpeg_exe()
+    if not exe:
+        raise RuntimeError("ffmpeg_missing")
+    return exe
+
+
+_VIDEO_SIZE = re.compile(r"Video:.*?\b(\d{2,5})x(\d{2,5})\b")
+_ROTATED = re.compile(r"rotat\w* of (-?\d+(?:\.\d+)?) degrees|rotate\s*:\s*(-?\d+)")
+
+
+def video_size(path: str) -> tuple[int, int]:
+    """(가로, 세로) — 첫 영상 줄기를 **화면에 보이는 대로.** ffprobe 없이 `ffmpeg -i` 의 설명 줄을 읽는다.
+
+    휴대폰 세로 영상은 1920x1080 으로 저장하고 「90도 돌려 보여라」 표시를 단다. ffmpeg 는 풀 때 돌려 주므로(기본 autorotate)
+    90 · 270도면 가로 · 세로를 바꿔 센다 — 안 바꾸면 세로 영상을 가로 크기로 눌러 담는다(`frame_size` 주석의 쇼츠 6번과 같은 꼴).
+    """
+    probe = subprocess.run([_need_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    info = probe.stderr or ""
+    m = _VIDEO_SIZE.search(info)
+    if not m:
+        raise RuntimeError(f"video_size_unknown: 영상 줄기를 못 찾았다 — {info.strip().splitlines()[-1:] or ['?']}")
+    width, height = int(m.group(1)), int(m.group(2))
+    stream = info[m.end():]
+    nxt = stream.find("Stream #")
+    turn = _ROTATED.search(stream if nxt < 0 else stream[:nxt])  # 이 줄기의 「돌려 보여라」 표시만
+    if turn:
+        degrees = abs(round(float(turn.group(1) or turn.group(2)))) % 180
+        if degrees == 90:
+            width, height = height, width
+    return width, height
+
+
 def frames_from_file(path: str) -> np.ndarray:
-    probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
-                            "-of", "csv=p=0", path], capture_output=True, text=True, check=True,
-                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.strip().split(",")
-    fw, fh = frame_size(int(probe[1]) > int(probe[0]))
+    width, height = video_size(path)
+    fw, fh = frame_size(height > width)
     out = subprocess.run(
-        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", path, "-vf", f"fps={FPS},scale={fw}:{fh}",
+        [_need_ffmpeg(), "-hide_banner", "-loglevel", "error", "-i", path, "-vf", f"fps={FPS},scale={fw}:{fh}",
          "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True, check=True,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
     return np.frombuffer(out, np.uint8).reshape(-1, fh, fw)

@@ -20,7 +20,10 @@
     "anim_fit_fix",
     "anim_blender_check",
     "anim_blender_fix",
-    "anim_blender_block"
+    "anim_blender_block",
+    "anim_blender_setup",
+    "anim_balance_check",
+    "anim_key_align"
   ],
   "skills": [],
   "guide": "guide/SKILL.md",
@@ -30,19 +33,23 @@
   ],
   "permissions": {
     "reads": [
-      "맥스가 쓴 키 · 동작 파일(내 문서\\Sonjari\u0007nimator 아래)",
+      "맥스 · 블렌더에서 읽은 키 · 동작 파일({docs}/Sonjari/animator 아래)",
       "사람이 넣으라고 준 .max 폴더 · .bip 파일 · 레퍼런스 영상 파일(읽기만 한다)"
     ],
     "writes": [
-      "내 문서\\Sonjari\u0007nimator 아래 작업 폴더(모션 창고 · 포즈 시트 · 스크립트 · 계산 결과 · 관절 부품)",
+      "{docs}/Sonjari/animator 아래 작업 폴더(모션 창고 · 포즈 시트 · 스크립트 · 계산 결과 · 관절 부품)",
       "3ds Max 장면의 키 — 사람이 「해」라고 한 뒤, 클로드가 3dsmax-mcp 로 보낸 한 줄로만. 엇박자는 Ctrl+Z, 입히기 · 블로킹은 입히기 전 장면 보관(편집 › 가져오기)으로 되돌린다"
     ],
     "runs": [
       "손자리는 맥스를 띄우지 않는다. 열린 맥스에는 3dsmax-mcp 가 한 줄을 돌리고, 폴더 일괄은 사람이 3dsmaxbatch 명령을 돌린다",
-      "관절 읽기는 이 PC CPU 에서(onnxruntime)"
+      "관절 읽기는 이 PC CPU 에서(onnxruntime)",
+      "blender — 깔려 있을 때만 · 블렌더 점검 · 고치기 · 블로킹마다 한 번, 창 없이 · 사용자 설정 없이(--factory-startup)"
     ],
-    "network": "관절 부품(모델 파일 약 525MB)을 사람이 안내문을 읽고 동의했을 때 한 번만 받는다(download.openmmlab.com · huggingface.co/Soykaf/RTMW3D-x, sha256 지문 확인). 맥스 장면 · 동작 · 영상은 이 PC 밖으로 나가지 않는다."
+    "network": "관절 부품(모델 파일 약 525MB)을 사람이 안내문을 읽고 동의했을 때 한 번만 받는다(download.openmmlab.com · huggingface.co/Soykaf/RTMW3D-x, sha256 지문 확인). 블렌더는 사람이 동의했을 때만 blender.org 공식 자리에서 받는다(sha256 지문 확인). 맥스 장면 · 동작 · 영상은 이 PC 밖으로 나가지 않는다."
   },
+  "next": [
+    {"pack": "game", "when": "만든 움직임을 유니티 프로젝트에 넣어 보려면"}
+  ],
   "sources": [
     {
       "name": "rtmlib 0.0.16 (전처리 · 후처리를 줄여 옮김)",

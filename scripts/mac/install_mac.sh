@@ -60,6 +60,29 @@ for DATA in recipes skills packs; do
   rsync -a --delete --exclude 'drafts' --exclude '__pycache__' "$SRC/$DATA/" "$APP/$DATA/"
 done
 cp "$SRC/pyproject.toml" "$SRC/README.ko.md" "$APP/"
+# 맥 음성 도우미(2026-11-16 · 받아쓰기 · 녹음). dmg 에는 구워 둔 것이 실려 온다(voice/). 저장소에서 바로 깔 때는 swiftc 가 있으면 굽는다.
+#   없으면 말로 시키기만 「도우미 없음」으로 안 되고 나머지는 그대로 돈다(/health stt 가 그 까닭을 말한다).
+#   11-17: dmg 에는 앱 하나 — 음성 도우미는 앱의 실행 칸(Sonjari.app/Contents/Helpers)에 실려 오고, 앱이 그 자리를 SONJARI_VOICE_APP 로 알려 준다.
+VOICE_SRC="${SONJARI_VOICE_APP:-$SRC/voice/SonjariVoice.app}"
+if [ -d "$VOICE_SRC" ]; then
+  mkdir -p "$APP/voice" && rsync -a --delete "$VOICE_SRC/" "$APP/voice/SonjariVoice.app/"
+elif [ -f "$SRC/native/mac/SonjariVoice/build.sh" ] && command -v swiftc >/dev/null; then
+  bash "$SRC/native/mac/SonjariVoice/build.sh" "$APP/voice" >> "$INSTALL_LOG" 2>&1 || echo "맥 음성 도우미를 굽지 못했습니다(말로 시키기만 안 됩니다 · 기록: $INSTALL_LOG)" >&2
+fi
+# 실행 도우미(2026-11-18) — 본체 파이썬을 이 서명된 앱의 자식으로 띄워 허락 창이 「python3.12」 대신 「손자리」로 뜨게 한다.
+#   dmg 에는 앱의 실행 칸에 실려 오고 앱이 SONJARI_ENGINE_APP 로 알려 준다. 없으면(저장소에서 바로 깔기 · swiftc 없음) 예전처럼 파이썬을 바로 띄운다.
+ENGINE_SRC="${SONJARI_ENGINE_APP:-$SRC/engine/SonjariEngine.app}"
+ENGINE_EXE=""
+if [ -d "$ENGINE_SRC" ]; then
+  mkdir -p "$APP/engine" && rsync -a --delete "$ENGINE_SRC/" "$APP/engine/SonjariEngine.app/"
+elif [ -f "$SRC/native/mac/SonjariEngine/build.sh" ] && command -v swiftc >/dev/null; then
+  bash "$SRC/native/mac/SonjariEngine/build.sh" "$APP/engine" >> "$INSTALL_LOG" 2>&1 || echo "맥 실행 도우미를 굽지 못했습니다(허락 창이 python3.12 이름으로 뜹니다 · 기록: $INSTALL_LOG)" >&2
+fi
+if [ -x "$APP/engine/SonjariEngine.app/Contents/MacOS/SonjariEngine" ]; then ENGINE_EXE="$APP/engine/SonjariEngine.app/Contents/MacOS/SonjariEngine"; fi
+ENGINE_LINE=""
+if [ -n "$ENGINE_EXE" ]; then ENGINE_LINE="    <string>$ENGINE_EXE</string>"; fi
+# 판 표시(2026-11-18) — 앱이 켜질 때 dmg 안의 판과 대 본다(mac_setup.rs). 같으면 다시 깔지 않는다.
+if [ -f "$SRC/PAYLOAD_STAMP" ]; then cp "$SRC/PAYLOAD_STAMP" "$APP/PAYLOAD_STAMP"; fi
 
 # 2. 파이썬
 echo "[2/5] 필요한 부품을 까는 중 (처음엔 몇 분 걸립니다)"
@@ -90,9 +113,11 @@ if [ ! -f "$ENV_FILE" ]; then
       echo "JARVIS_ROLE=satellite"
       echo "JARVIS_BRAIN_HOST=$BRAIN"
       echo "JARVIS_OLLAMA_BASE_URL=http://$BRAIN:11434"
+      # 말하기는 맥 내장 목소리(`say`)가 기본이다(2026-11-16). 이 줄은 JARVIS_TTS_ENGINE=supertonic 으로 바꿨을 때만 쓰인다.
       echo "JARVIS_SUPERTONIC_BASE_URL=http://$BRAIN:7788"
     fi
-    echo "JARVIS_VOICE_ENABLED=0"
+    # 듣기는 애플 기기 안 받아쓰기(SonjariVoice.app) — 켜 둔다. 마이크 허락은 처음 말할 때 맥이 묻는다(사람이 누름).
+    echo "JARVIS_VOICE_ENABLED=1"
     echo "JARVIS_HOTKEY_ENABLED=0"
   } > "$ENV_FILE"
   chmod 600 "$ENV_FILE"
@@ -110,6 +135,7 @@ cat > "$PLIST" <<PLIST
   <key>Label</key><string>$LABEL</string>
   <key>ProgramArguments</key>
   <array>
+$ENGINE_LINE
     <string>$APP/.venv/bin/python</string>
     <string>-m</string>
     <string>alture_jarvis</string>
@@ -125,6 +151,12 @@ cat > "$PLIST" <<PLIST
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>ThrottleInterval</key><integer>5</integer>
   <key>ProcessType</key><string>Interactive</string>
+  <!-- 11-18: 시스템 설정 · 로그인 항목에 「python3.12」 대신 손자리 앱으로 보이게(애플 권고 · 레거시 LaunchAgent). -->
+  <key>AssociatedBundleIdentifiers</key>
+  <array>
+    <string>com.alture.jarvis</string>
+    <string>com.sonjari.engine</string>
+  </array>
   <key>StandardOutPath</key><string>$LOGS/backend.out.log</string>
   <key>StandardErrorPath</key><string>$LOGS/backend.err.log</string>
 </dict>

@@ -52,8 +52,17 @@ def _request(kept: list[dict]) -> str:
     return next(str(item["content"]) for item in kept if item["role"] == "user")
 
 
+def _ledger_text(kept: list[dict]) -> str:
+    """읽은 화면 묶음이 실린 메시지 글 — 넉넉한 판은 첫 요청 안, 작은 창(`pin_reads`)은 맨 뒤(11-17)."""
+    for item in kept:
+        text = str(item.get("content") or "")
+        if transcript.READ_LEDGER_OPEN in text:
+            return text
+    return ""
+
+
 def _ledger_rows(kept: list[dict]) -> list[str]:
-    text = _request(kept)
+    text = _ledger_text(kept)
     if transcript.READ_LEDGER_OPEN not in text:
         return []
     block = text[text.index(transcript.READ_LEDGER_OPEN):text.index(transcript.READ_LEDGER_CLOSE)]
@@ -160,10 +169,10 @@ def test_pinned_the_list_shows_every_read_even_the_ones_still_in_view() -> None:
     assert len(rows) == 2
     assert "가상 상품 1 : danawa" in rows[0] and "값: 판매가 128,950원" in rows[0]
     assert "가상 상품 2 : 11st" in rows[1] and "값: 판매가 139,700원" in rows[1]
-    request = _request(pinned)
-    assert transcript.READ_LEDGER_PINNED_LEAD in request and transcript.READ_LEDGER_LEAD not in request
-    assert "아직 여기 없는 곳으로 가고" in request, "남은 곳으로 가라는 말이 같이 있다"
-    assert request.endswith("가상 상품 가격 조사")
+    tail = str(pinned[-1]["content"])
+    assert transcript.READ_LEDGER_PINNED_LEAD in tail and transcript.READ_LEDGER_LEAD not in tail, "11-17: 작은 창의 묶음은 맨 뒤에"
+    assert "아직 여기 없는 곳으로 가고" in tail, "남은 곳으로 가라는 말이 같이 있다"
+    assert _request(pinned) == "가상 상품 가격 조사", "첫 요청은 그대로 — 맨 앞이 안 흔들린다"
 
 
 def test_pinned_nothing_read_yet_means_nothing_added() -> None:
@@ -187,3 +196,23 @@ def test_the_agent_pins_them_only_for_small_windows() -> None:
     source = (Path(__file__).resolve().parents[1] / "src" / "alture_jarvis" / "agent.py").read_text(encoding="utf-8")
     assert 'pin_reads=model_role != "code" and self._compact_tool_surface(' in source
     assert 'model_role, window=self._job_window(job_id, model_role) if job_id else None),' in source   # 11-06 판 안에서는 같은 창
+
+
+def test_pinned_reads_do_not_shake_the_front_on_the_next_call() -> None:
+    """11-17 맥 새 계정(4B · 48K): 묶음을 첫 요청 안에 실어 화면을 하나 읽을 때마다 맨 앞이 바뀌었다 — 뒤를 매 턴 통째로 다시 읽음.
+    다음 부르기(화면 하나 더 읽음)에서도 앞 메시지들이 바이트 단위로 같아야 저장(캐시)이 이어진다."""
+    first_reads = [_read("danawa", 1, "128,950"), _read("11st", 2, "139,700")]
+    before = transcript.bounded([dict(m) for m in _conversation(first_reads)], max_chars=180_000, tool_result_max=30_000, pin_reads=True)
+    after = transcript.bounded([dict(m) for m in _conversation([*first_reads, _read("gmarket", 3, "131,000")])],
+                               max_chars=180_000, tool_result_max=30_000, pin_reads=True)
+    same = len(before) - 1  # 맨 끝 메시지(묶음이 붙는 자리)만 다를 수 있다
+    assert [json.dumps(m, ensure_ascii=False) for m in after[:same]] == [json.dumps(m, ensure_ascii=False) for m in before[:same]]
+    assert len(_ledger_rows(after)) == 3
+
+
+def test_pinned_tail_block_does_not_touch_the_callers_messages() -> None:
+    messages = _conversation([_read("danawa", 1, "128,950")])
+    last_before = dict(messages[-1])
+    transcript.bounded(messages, max_chars=180_000, tool_result_max=30_000, pin_reads=True)
+    assert messages[-1] == last_before, "검사가 다시 읽는 원래 대화는 그대로"
+

@@ -37,6 +37,8 @@ import json
 import logging
 from typing import Any
 
+from . import desktop_tools as _desktop
+
 _LOG = logging.getLogger(__name__)
 
 # 한글·코드 섞인 우리 전사에서 **약 2자 = 1토큰**(2026-08-10 실측: 20,000자 → 10,024토큰).
@@ -50,7 +52,7 @@ NAVIGATION_TOOLS = frozenset({
     "browser_wait", "browser_hover", "browser_press", "browser_probe_frames", "browser_click_at",
     "browser_links", "browser_load_more", "browser_dismiss_dialog",
     "ui_find_target", "ui_click_target", "ui_verify",
-    "windows_uia_snapshot", "windows_focus_window", "windows_list_open_windows",
+    *_desktop.names(_desktop.SNAPSHOT, _desktop.FOCUS, _desktop.LIST),
 })
 
 CODE_TOOLS = frozenset({
@@ -456,6 +458,20 @@ def _attach_read_ledger(messages: list[dict[str, Any]], block: str) -> bool:
         content = item.get("content")
         if item.get("role") == "user" and isinstance(content, str) and not content.startswith(SYSTEM_NOTE_PREFIX):
             item["content"] = with_job_context(block, content)
+            return True
+    return False
+
+
+def _attach_tail_block(messages: list[dict[str, Any]], block: str) -> bool:
+    """묶음을 대화 **맨 끝** 메시지(글 내용인 것) 뒤에 붙인다 — 앞부분을 건드리지 않는다(11-17 · `pin_reads` 묶음).
+
+    맨 끝 메시지는 사본으로 바꾼다 — 부르는 쪽의 원래 대화(검사가 다시 읽는 것)를 고치지 않는다.
+    """
+    for index in range(len(messages) - 1, -1, -1):
+        item = messages[index]
+        content = item.get("content")
+        if item.get("role") in {"tool", "user"} and isinstance(content, str):
+            messages[index] = {**item, "content": f"{content.rstrip()}\n\n{block}"}
             return True
     return False
 
@@ -987,14 +1003,13 @@ def bounded(
     # ★ 버리기 전에 한 줄 (2026-10-12 · `read_ledger` 위의 설명). 담기지 못한 읽은 화면을 한 줄씩 모으고, 그 묶음의
     #   크기만큼 자리를 빼고 다시 담는다. 다시 담으면 버려지는 것이 하나 더 생길 수 있어 두 번까지 맞춘다.
     ledger = ""
+    prior_part = reads_part = ""
     whole_budget = budget
     for _ in range(3):
         # 바로 앞 판의 답이 담기지 못했으면 그것도 같이 남긴다(`prior_turn_block` 위의 설명) — 앞 대화가 먼저, 읽은 화면이 뒤.
-        block = "\n\n".join(
-            part for part in (
-                prior_turn_block(rest, job_index, chosen), read_ledger(rest, tool_positions, chosen, pin_all=pin_reads),
-            ) if part
-        )
+        prior_part = prior_turn_block(rest, job_index, chosen)
+        reads_part = read_ledger(rest, tool_positions, chosen, pin_all=pin_reads)
+        block = "\n\n".join(part for part in (prior_part, reads_part) if part)
         if block == ledger:
             break
         ledger = block
@@ -1007,7 +1022,17 @@ def bounded(
     if system:
         result.insert(0, system)
     if ledger:
-        _attach_read_ledger(result, ledger)
+        if pin_reads and reads_part:
+            # ★ 2026-11-17 맥 새 계정 시험(4B · 48K): 작은 창은 읽은 화면을 **전부** 적는데(`pin_reads`), 그 묶음을 맨 앞(첫 요청
+            #   메시지 안)에 실어 화면을 하나 읽을 때마다 맨 앞이 바뀌었다 — 뒤 3만 토큰을 매 턴 처음부터 다시 읽었다(워드 판 부르기 2:
+            #   새로 붙은 건 2.3K 인데 27K 를 13.4초). 「뒤에 붙기만 하는 접기」도 맨 앞이 흔들리면 소용없다.
+            #   읽은 화면 묶음은 **맨 뒤**에 — 어차피 매 턴 새로 붙는 자리이고, 모델에게는 가장 최근 글이라 더 잘 보인다.
+            #   앞 판의 답(`prior_part`)은 접힐 때만 바뀌므로 앞에 그대로 둔다.
+            if prior_part:
+                _attach_read_ledger(result, prior_part)
+            _attach_tail_block(result, reads_part)
+        else:
+            _attach_read_ledger(result, ledger)
     return result
 
 

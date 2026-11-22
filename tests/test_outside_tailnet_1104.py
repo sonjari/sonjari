@@ -336,3 +336,24 @@ def test_steps_give_pages_but_never_open_or_install_themselves(tmp_path: Path, m
         assert page["ok"] and page["url"].startswith("https://tailscale.com/download")
         assert here.post("/v1/outside/step/nope", headers=AUTH).json()["error"] == "unknown_step"
         assert here.post("/v1/outside/step/install").status_code == 401
+
+
+def test_mac_cli_is_told_it_is_a_cli_1113(monkeypatch):
+    """맥: 앱 안 Tailscale 파일은 TAILSCALE_BE_CLI 가 없으면 launchd 아래에서 화면 앱처럼 떠 12~15초 멈췄다(11-13 실측)."""
+    import subprocess as _sp
+    from alture_jarvis import tailnet as _t
+
+    seen = {}
+
+    def fake_run(cmd, **kwargs):
+        seen.update(kwargs)
+        return _sp.CompletedProcess(cmd, 0, stdout='{"BackendState": "Running"}', stderr="")
+
+    monkeypatch.setattr(_t, "cli_path", lambda: "/Applications/Tailscale.app/Contents/MacOS/Tailscale")
+    monkeypatch.setattr(_t.subprocess, "run", fake_run)
+    monkeypatch.setattr(_t.sys, "platform", "darwin")
+    assert _t.status()["state"] == "Running"
+    assert seen["env"]["TAILSCALE_BE_CLI"] == "1"
+    monkeypatch.setattr(_t.sys, "platform", "win32")
+    _t.status()
+    assert seen["env"] is None

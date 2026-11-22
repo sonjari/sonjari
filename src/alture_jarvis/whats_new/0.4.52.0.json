@@ -1,0 +1,24 @@
+{
+  "ko": {
+    "changes": "이번에 고친 것\n- 맥: 같은 버전인데 「새 버전이 있습니다」가 뜨던 것을 고쳤습니다(코드 줄 끝 표기 차이로 판 번호가 둘로 갈렸습니다).\n- 맥: 옛 손자리를 dmg 안에서 켠 채 새 dmg 를 열면 설치가 안 되던 것을 고쳤습니다.\n\n지난 판(0.4.51)에 들어온 것\n- 맥: 앱 안에서 업데이트합니다. 새 버전이 나오면 위에 「새 버전이 있습니다」가 뜨고, 「지금 업데이트」를 누르면 화면이 잠깐 흐려진 채 새 버전을 받아 설치하고 스스로 다시 열립니다. 다시 열리면 무엇이 바뀌었는지(또는 못 바뀌었는지) 한 번 알려 줍니다.",
+    "tour": "이미 되는데 잘 모르시는 것\n- 3D 생성 팩 · 영상 생성 팩 — 기본으로 꺼져 있습니다. 설정 › 팩에서 켜야 보입니다.\n- 클로드 · 코덱스에서 Sonjari 쓰기 — 웹 조사 · 파일 일을 손자리에게 맡겨 클로드 사용 한도를 아낍니다(설정 › 연결).",
+    "slides": [
+      {
+        "title": "맥도 앱 안에서 업데이트합니다",
+        "body": "새 버전이 나오면 위에 한 줄이 뜹니다. 「지금 업데이트」를 누르면 화면이 잠깐 흐려지고, 새 버전을 받아 서명을 확인한 뒤 스스로 다시 열립니다.",
+        "try": "새 버전 알림이 뜨면 「지금 업데이트」를 눌러 보세요"
+      }
+    ]
+  },
+  "en": {
+    "changes": "Fixed in this update\n- Mac: \"A new version is available\" appeared for the same version (line endings in the code made the build number differ).\n- Mac: opening a new dmg while an old Sonjari was still running from its dmg did not install anything.\n\nAdded in the last update (0.4.51)\n- Mac: updates from inside the app. When a new version is out, \"A new version is available\" appears at the top; press \"Update now\" and the screen dims while the new version downloads, installs and reopens on its own. After it reopens, it tells you once what changed (or that it did not).",
+    "tour": "Already works, but easy to miss\n- 3D generation pack and video generation pack: off by default. Turn them on in Settings › Packs to see them.\n- Use Sonjari from Claude or Codex: hand web research and file work to Sonjari and save your Claude usage (Settings › Connections).",
+    "slides": [
+      {
+        "title": "Mac updates from inside the app",
+        "body": "When a new version is out, a line appears at the top. Press \"Update now\": the screen dims, the new version is downloaded and its signature checked, and Sonjari reopens on its own.",
+        "try": "When the new-version line appears, press \"Update now\""
+      }
+    ]
+  }
+}

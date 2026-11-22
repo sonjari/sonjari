@@ -14,7 +14,7 @@
       "알려 준 이 PC 의 영상 파일(ffmpeg 로 작은 흑백 화면만 읽는다)"
     ],
     "writes": [
-      "내 문서\\Sonjari\\video_read 아래 결과 폴더(표 · 사진 · 숫자)"
+      "{docs}/Sonjari/video_read 아래 결과 폴더(표 · 사진 · 숫자)"
     ],
     "runs": [
       "손자리 크롬 탭 안에서 영상 재생(소리 끔 · 2배속)",

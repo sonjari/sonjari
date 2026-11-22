@@ -1,0 +1,78 @@
+[trellis] generating model with seed 2546395786 (auto)
+[trellis] FlashAttention precision: auto (F16 fast on HTP; BF16/F32 otherwise)
+[1/6] preprocess D:/models/img2_3d/test_inputs/ship_color.png (512)
+[2/6] DINOv3 conditioning
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 12287 MiB):
+  Device 0: NVIDIA GeForce RTX 3060, compute capability 8.6, VMM: yes, VRAM: 12287 MiB
+      cond tokens=1029
+      [stats] cond_512 (DINOv3@512) n=1053696 mean=-0.0000 std=1.0000 min=-29.340 max=24.623 nan/inf=0
+[3/6] sparse-structure flow + decode
+      [flow] [....................]  0/12    0.0s  starting    
+      [flow] [#...................]  1/12    2.1s  ~23s left   
+      [flow] [###.................]  2/12    4.2s  ~21s left   
+      [flow] [#####...............]  3/12    6.3s  ~19s left   
+      [flow] [######..............]  4/12    8.5s  ~17s left   
+      [flow] [########............]  5/12   10.6s  ~15s left   
+      [flow] [##########..........]  6/12   12.7s  ~13s left   
+      [flow] [###########.........]  7/12   14.8s  ~11s left   
+      [flow] [#############.......]  8/12   16.9s  ~8s left    
+      [flow] [###############.....]  9/12   19.0s  ~6s left    
+      [flow] [################....] 10/12   21.2s  ~4s left    
+      [flow] [##################..] 11/12   22.2s  ~2s left    
+      [flow] [####################] 12/12   23.3s  ~0s left    
+      [flow] 12 steps, 22 forwards, 23.3s
+      active voxels @res32 = 2730
+[4/7] shape SLAT flow (512)
+      [flow] [....................]  0/12    0.0s  starting    
+      [flow] [#...................]  1/12    1.4s  ~15s left   
+      [flow] [###.................]  2/12    2.8s  ~14s left   
+      [flow] [#####...............]  3/12    4.2s  ~13s left   
+      [flow] [######..............]  4/12    5.6s  ~11s left   
+      [flow] [########............]  5/12    6.9s  ~10s left   
+      [flow] [##########..........]  6/12    8.3s  ~8s left    
+      [flow] [###########.........]  7/12    9.7s  ~7s left    
+      [flow] [#############.......]  8/12   11.1s  ~6s left    
+      [flow] [###############.....]  9/12   11.8s  ~4s left    
+      [flow] [################....] 10/12   12.5s  ~3s left    
+      [flow] [##################..] 11/12   13.2s  ~1s left    
+      [flow] [####################] 12/12   13.9s  ~0s left    
+      [flow] 12 steps, 20 forwards, 13.9s
+      [stats] slat (res32) n=87360 mean=-0.2508 std=5.9522 min=-27.124 max=27.923 nan/inf=0
+[5/7] FlexiDualGrid shape decode -> mesh @res512
+      [c2s-subdiv-stream] blocks.3.4 N=277727 chunks=5x65536
+      decoded voxels @res512 = 1237179
+      mesh V=1237179 F=2539514
+      filled 960 small holes -> V=1238139 F=2545620
+[6/7] texture SLAT flow + PBR decode
+      [flow] [....................]  0/12    0.0s  starting    
+      [flow] [#...................]  1/12    0.8s  ~8s left    
+      [flow] [###.................]  2/12    1.5s  ~7s left    
+      [flow] [#####...............]  3/12    2.1s  ~6s left    
+      [flow] [######..............]  4/12    2.8s  ~6s left    
+      [flow] [########............]  5/12    3.5s  ~5s left    
+      [flow] [##########..........]  6/12    4.2s  ~4s left    
+      [flow] [###########.........]  7/12    4.9s  ~4s left    
+      [flow] [#############.......]  8/12    5.6s  ~3s left    
+      [flow] [###############.....]  9/12    6.3s  ~2s left    
+      [flow] [################....] 10/12    7.0s  ~1s left    
+      [flow] [##################..] 11/12    7.7s  ~1s left    
+      [flow] [####################] 12/12    8.4s  ~0s left    
+      [flow] 12 steps, 12 forwards, 8.4s
+      PBR voxels=1237179 @res512
+[7/7] write D:/models/img2_3d/results/s_ship_color.glb
+  weld: V 1238139->1229000 (9139 near-duplicates merged, eps=0.00024)
+  [fill-holes-stream] directed F=2545620 boundary=42776 (single edge map)
+  [fill-holes-stream] undirected F=2546168 boundary=42164 (single edge map)
+  fill_holes: 1327 boundary loops filled (+7379 faces)
+  [bvh-mem] F=2552999 nodes=1960269 build-working~0.10 GiB
+  remesh_dc: 2733366 active voxels -> V=1902251 F=3807024 (eps=0.001965, project_back=0.00)
+    [clean] faces=3807024, flipped 0 for consistent winding
+  remesh postproc: dropped 208 floater comps -> V=1733139 F=3469288
+  decimate_qem_gpu(target=150000): V 1733139->74350, F 3469288->149708
+  decimated postproc: dropped 2 more comps -> F=147232
+  uv_bake: 5 components (0 tiny, 0 faces -> strip S=0), 0 duplicate faces dropped
+  uv_bake: 837 merge clusters
+  uv_bake: 1 uncharted faces kept with point-collapsed UVs
+  uv_bake: atlas 1024x1024 (xatlas 1196x1181), Vo=102457 Fo=147232
+      textured GLB (atlas 1024, +D:/models/img2_3d/results/s_ship_color_base.png)
+done in 101.8s -> D:/models/img2_3d/results/s_ship_color.glb (+ D:/models/img2_3d/results/s_ship_color.ply)

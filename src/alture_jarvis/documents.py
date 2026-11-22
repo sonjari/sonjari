@@ -47,6 +47,24 @@ CELL_MAX_CHARS = 32_000
 WRITABLE = ("xlsx", "docx", "pptx", "hwpx", "csv", "md", "txt")
 
 
+def _save_hwpx(document: Any, target: Any) -> None:
+    """한글(HWPX) 문서를 파일로 — python-hwpx 6.x 와 7.0 둘 다.
+
+    2026-11-23: python-hwpx 7.0 이 `save_to_path(path)` 를 `save(path)` 로 합치고, 옛 이름은 부르면
+    HwpxAttributeError 를 내게 바꿨다. 깃허브 CI 는 최신판을 받아 한글 시험 25개가 떨어졌다(이 PC 는 6.3.0 이라 통과).
+    손님 PC 도 갱신 때 7.0 을 받을 수 있어 판 고정 대신 둘 다 받는다. 6.x 에서는 지금까지와 똑같이 save_to_path 를 쓴다.
+    """
+    old = getattr(document, "save_to_path", None)
+    if callable(old):
+        try:
+            old(str(target))
+            return
+        except Exception as error:  # 7.0: 옛 이름을 부르면 HwpxAttributeError — 새 이름으로 넘어간다
+            if type(error).__name__ != "HwpxAttributeError":
+                raise
+    document.save(str(target))
+
+
 def _as_rows(value: Any) -> list[list[str]]:
     """무엇을 주든 표로 만든다.
 
@@ -1350,7 +1368,7 @@ def _write_hwpx(target: Path, blocks: Any, rows: list[list[str]], text: str) -> 
             for line in text.splitlines() or [""]:
                 document.add_paragraph(line)
                 written += 1
-    document.save_to_path(target)
+    _save_hwpx(document, target)
     return {"blocks": written, "footnotes": notes}
 
 
@@ -2143,7 +2161,7 @@ def _edit_hwpx(target: Path, edits: list[Any]) -> dict[str, Any]:
             document.remove_paragraph(paragraphs[index])
             changed.append({"paragraph": index, "how": "문단 삭제", "before": before[:80]})
 
-    document.save_to_path(str(target))
+    _save_hwpx(document, target)
     return {
         "format": "hwpx",
         "footnotes": notes,

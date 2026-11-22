@@ -1,0 +1,54 @@
+{
+  "id": "gen3d",
+  "name": "3D 생성 팩",
+  "version": "0.1.0",
+  "kind": "code",
+  "summary": "이 PC 의 그림 한 장으로 3D 초안(GLB)을 만든다. 클로드가 3D 친화 그림을 그려 맡기면 손자리 그래픽카드가 굽고, 면 수 · 크기 · 닫힌 메시 · 걸린 시간 · 그래픽카드 메모리를 잰 영수증과 작은 미리보기 그림을 돌려준다. 3D 프린트용 STL · 3MF(한 색)도 만든다.",
+  "description": "실행기는 trellis.cpp(MIT · 윈도우 CUDA 판), 모델은 TRELLIS.2 8비트 GGUF(ilintar/trellis2-gguf). 실행기를 따로 떼어 낸 프로세스로 부르고 로그로 단계(7)를 실시간으로 보인다. 한 번에 하나만 돈다. 숫자는 손자리 코드가 GLB 를 직접 열어 잰 것이다. 실측(11-14 · RTX 3060 12GB · 512): 배 · 거북 · 캐릭터 · 전사 11판 85~139초 · 메모리 최대 2,908~4,064MiB(카드 전체 사용량 · 시작 1,117MiB 포함). 맥(Apple Silicon)은 Metal 판 실행기를 직접 빌드해 넣는다(배포처 없음 · 거울이나 손으로 넣은 자리에서만 들임) — 굽기 전에 남은 통합 메모리를 재서 모자라면 거절하고, 이 맥에 올라간 글 모델은 내린 뒤 굽는다. 16GB 맥에서는 1024 를 막는다. 여러 색 프린트(색 나누기)는 다음 판.",
+  "tools": ["gen_3d_check", "gen_3d_blender", "gen_3d_prep", "gen_3d", "gen_3d_status", "gen_3d_print", "gen_3d_views", "gen_3d_finish", "gen_3d_render", "gen_3d_export", "gen_3d_split_plan", "gen_3d_split", "gen_3d_fit_test", "gen_3d_fit_set"],
+  "guide": "guide/SKILL.md",
+  "skills": [],
+  "domains": ["3d"],
+  "permissions": {
+    "reads": [
+      "알려 준 그림 파일 — 파일 도구와 같은 허락 범위 안에서만"
+    ],
+    "writes": [
+      "{docs}/Sonjari/gen3d 아래 판마다 새 폴더(GLB · 바탕색 그림 · PLY · 미리보기 webp · 요청하면 STL · 3MF · 로그 · 영수증) — 덮어쓰지 않는다",
+      "켤 때 받는 실행기 · 모델: 손자리 자료 폴더의 tools\\gen3d · models\\gen3d (약 0.7GB + 9.9GB)",
+      "블렌더 마무리 · 렌더: 판 폴더 안 finish_v<n> · render_v<n> · export_v<n> 새 칸(그림 · mp4 · GLB · FBX) — 원본은 덮어쓰지 않는다",
+      "블렌더를 받기로 동의하면: 윈도우는 내 계정 AppData\\Local\\Sonjari\\blender(풀면 약 1.1GB) · 맥은 다운로드 폴더에 dmg"
+    ],
+    "runs": [
+      "trellis-cli.exe — 그림 한 장마다 한 번, 창 없이, 고른 그래픽카드 하나로(한 번에 하나 · 30분 넘으면 멈춤)",
+      "nvidia-smi — 1초마다 그래픽카드 메모리를 읽으려고(윈도우)",
+      "blender — 깔려 있을 때만 · 마무리 · 색 렌더 · 렌더 · 내보내기마다 한 번, 창 없이 · 사용자 설정 없이(--factory-startup) · CPU 로(EEVEE 를 고르면 그래픽카드)",
+      "ffmpeg — 이 PC 에 있을 때, 한 바퀴 렌더를 mp4 로 묶으려고",
+      "sysctl — 1초마다 통합 메모리 남은 양을 읽으려고(맥)",
+      "맥: 이 기기 Ollama 에 올라간 글 모델을 굽기 전에 내린다(keep_alive 0 · 다음 질문 때 저절로 다시 올라옴)"
+    ],
+    "network": "만들 때는 쓰지 않는다 — 그림 · 결과가 이 PC 밖으로 나가지 않는다. 팩을 켤 때 한 번 실행기(GitHub 릴리스)와 모델(허깅페이스)을 받는다 — 크기 · 라이선스를 먼저 보이고, 받은 뒤 해시를 확인한다. 블렌더는 사람이 안내문을 읽고 동의했을 때만 blender.org 공식 자리에서 받는다(4.5 LTS · 같은 서버의 sha256 지문 확인)."
+  },
+  "models": [
+    {"id": "trellis-cpp-cuda-win", "kind": "binary", "platform": "win-x64-cuda", "dir": "trellis-cpp",
+     "source": {"github_release": "pwilkin/trellis.cpp", "tag": "v0.8.1", "asset": "trellis-cuda-windows-x64.zip"},
+     "sha256": "d2ea7b57174d3bff438064faf0b5fbcc55c29c31e6bba5f41030936fa366ed48", "size": 715040905,
+     "license": "MIT", "license_url": "https://github.com/pwilkin/trellis.cpp/blob/main/LICENSE", "unpack": true, "required": true},
+    {"id": "trellis-cpp-metal-mac", "kind": "binary", "platform": "macos-arm64-metal", "dir": "trellis-cpp-metal",
+     "source": {"github_release": "sonjari/sonjari", "tag": "trellis-cpp-metal-v0.8.1", "asset": "trellis-cpp-metal-macos-arm64.zip"},
+     "sha256": "dc387a43b2ac9ef97ebc38d485b01d1672f27bb05ce9fb20974468056196e28d", "size": 1788647,
+     "license": "MIT", "license_url": "https://github.com/pwilkin/trellis.cpp/blob/main/LICENSE", "unpack": true, "required": true},
+    {"id": "trellis2-q8", "kind": "weights", "dir": "trellis2-q8",
+     "source": {"hf": "ilintar/trellis2-gguf", "include": ["q8/*"]},
+     "size": 9900000000, "license": "MIT(원본 TRELLIS.2 · DINOv3 · BiRefNet 각자 라이선스)", "required": true}
+  ],
+  "next": [
+    {"pack": "animator", "when": "만든 3D 에 뼈대를 넣고 움직이게 하려면(블렌더 · 3ds Max)"},
+    {"pack": "video", "when": "돌려 보는 영상 컷의 박자 · 장면을 레퍼런스에서 읽으려면"},
+    {"pack": "genvideo", "when": "만든 3D 를 첫 장면으로 돌려 보이는 쇼츠 · 소개 영상 시안을 구우려면"}
+  ],
+  "sources": [
+    {"name": "trellis.cpp", "url": "https://github.com/pwilkin/trellis.cpp", "version": "v0.8.1", "license": "MIT"},
+    {"name": "trellis2-gguf", "url": "https://huggingface.co/ilintar/trellis2-gguf", "version": "q8", "license": "MIT(원본 모델을 따름)"}
+  ]
+}

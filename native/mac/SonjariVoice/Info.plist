@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>com.sonjari.voice</string>
+  <key>CFBundleName</key><string>손자리 음성</string>
+  <key>CFBundleDisplayName</key><string>손자리 음성</string>
+  <key>CFBundleExecutable</key><string>SonjariVoice</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <!-- 독(Dock)에 안 뜨는 도우미 -->
+  <key>LSUIElement</key><true/>
+  <key>NSMicrophoneUsageDescription</key><string>손자리에게 말로 시킬 때 마이크 소리를 녹음합니다. 소리와 받아쓴 글은 이 맥 밖으로 나가지 않습니다.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>녹음한 말을 이 맥 안에서 글자로 받아씁니다. 애플 서버로 보내지 않습니다.</string>
+</dict>
+</plist>

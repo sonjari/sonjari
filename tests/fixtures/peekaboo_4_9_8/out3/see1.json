@@ -1,0 +1,958 @@
+{
+  "success" : true,
+  "target_receipt" : {
+    "process_start_identity" : 1794807013296467,
+    "process_start_identity_decimal" : "1794807013296467",
+    "pid" : 5259,
+    "window_id" : 3785
+  },
+  "data" : {
+    "element_count" : 46,
+    "application_name" : "텍스트 편집기",
+    "semantic_scope" : "exact_or_requested",
+    "snapshot_id" : "ps1_9b0ce19a408cce89fd5ef7b62ff3a6e7",
+    "is_dialog" : false,
+    "interactable_count" : 19,
+    "screenshot_raw" : "\/Users\/tester\/sonjari_peekaboo_test\/out3\/before.png",
+    "ui_map" : "\/Users\/tester\/.peekaboo\/snapshots\/ps1_9b0ce19a408cce89fd5ef7b62ff3a6e7\/snapshot.json",
+    "ui_elements" : [
+      {
+        "help" : "텍스트 색상을 선택하려면 클릭합니다.",
+        "is_actionable" : true,
+        "ax_role" : "AXButton",
+        "value" : "투명",
+        "id" : "elem_27",
+        "is_enabled" : true,
+        "description" : "텍스트 색상",
+        "label" : "텍스트 색상",
+        "bounds" : {
+          "height" : 22,
+          "x" : 368,
+          "y" : 174,
+          "width" : 22
+        },
+        "role_description" : "버튼",
+        "role" : "button"
+      },
+      {
+        "help" : "텍스트 배경 색상을 선택하려면 클릭합니다.",
+        "is_actionable" : true,
+        "ax_role" : "AXButton",
+        "value" : "투명",
+        "id" : "elem_28",
+        "is_enabled" : true,
+        "description" : "텍스트 배경 색상",
+        "label" : "텍스트 배경 색상",
+        "bounds" : {
+          "height" : 22,
+          "x" : 393,
+          "y" : 174,
+          "width" : 22
+        },
+        "role_description" : "버튼",
+        "role" : "button"
+      },
+      {
+        "help" : "글자체를 선택합니다.",
+        "is_actionable" : true,
+        "ax_role" : "AXPopUpButton",
+        "value" : "Helvetica",
+        "id" : "elem_29",
+        "is_enabled" : true,
+        "is_value_settable" : false,
+        "description" : "글자체",
+        "label" : "글자체",
+        "bounds" : {
+          "height" : 22,
+          "x" : 418,
+          "y" : 174,
+          "width" : 82
+        },
+        "role_description" : "팝업 버튼",
+        "role" : "button"
+      },
+      {
+        "help" : "스타일 선택합니다.",
+        "is_actionable" : true,
+        "ax_role" : "AXPopUpButton",
+        "value" : "일반체",
+        "id" : "elem_30",
+        "is_enabled" : true,
+        "is_value_settable" : false,
+        "description" : "스타일",
+        "label" : "스타일",
+        "bounds" : {
+          "height" : 22,
+          "x" : 503,
+          "y" : 174,
+          "width" : 82
+        },
+        "role_description" : "팝업 버튼",
+        "role" : "button"
+      },
+      {
+        "role_description" : "버튼",
+        "is_actionable" : true,
+        "ax_role" : "AXButton",
+        "id" : "elem_32",
+        "is_enabled" : true,
+        "description" : "서체 크기",
+        "label" : "서체 크기",
+        "bounds" : {
+          "height" : 15,
+          "x" : 616,
+          "y" : 177,
+          "width" : 20
+        },
+        "title" : "",
+        "role" : "button"
+      },
+      {
+        "help" : "줄 및 단락 간격",
+        "is_actionable" : true,
+        "ax_role" : "AXPopUpButton",
+        "value" : "1.0",
+        "id" : "elem_39",
+        "is_enabled" : true,
+        "is_value_settable" : false,
+        "description" : "줄 간격",
+        "label" : "줄 간격",
+        "bounds" : {
+          "height" : 22,
+          "x" : 791,
+          "y" : 174,
+          "width" : 53
+        },
+        "role_description" : "팝업 버튼",
+        "role" : "button"
+      },
+      {
+        "is_actionable" : true,
+        "ax_role" : "AXButton",
+        "id" : "elem_40",
+        "is_enabled" : true,
+        "label" : "닫기 버튼",
+        "bounds" : {
+          "height" : 16,
+          "width" : 16,
+          "y" : 143,
+          "x" : 279
+        },
+        "role_description" : "닫기 버튼",
+        "role" : "button"
+      },
+      {
+        "role" : "button",
+        "is_actionable" : true,
+        "ax_role" : "AXButton",
+        "id" : "elem_41",
+        "is_enabled" : true,
+        "label" : "전체 화면 버튼",
+        "bounds" : {
+          "height" : 16,
+          "width" : 16,
+          "y" : 143,
+          "x" : 325
+        },
+        "role_description" : "전체 화면 버튼",
+        "help" : "이 버튼을 누르면 윈도우를 확대\/축소합니다."
+      },
+      {
+        "is_actionable" : true,
+        "ax_role" : "AXButton",
+        "id" : "elem_43",
+        "is_enabled" : true,
+        "label" : "최소화 버튼",
+        "bounds" : {
+          "height" : 16,
+          "width" : 16,
+          "y" : 143,
+          "x" : 302
+        },
+        "role_description" : "최소화 버튼",
+        "role" : "button"
+      },
+      {
+        "is_actionable" : true,
+        "selected_text_range" : {
+          "length" : 0,
+          "location" : 0
+        },
+        "ax_role" : "AXTextArea",
+        "value" : "",
+        "id" : "elem_2",
+        "is_value_settable" : true,
+        "identifier" : "First Text View",
+        "label" : "텍스트 엔트리 영역",
+        "bounds" : {
+          "height" : 382,
+          "x" : 271,
+          "y" : 235,
+          "width" : 586
+        },
+        "role_description" : "텍스트 엔트리 영역",
+        "role" : "textField"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXGroup",
+        "id" : "elem_21",
+        "description" : "포맷 설정",
+        "label" : "포맷 설정",
+        "bounds" : {
+          "height" : 36,
+          "width" : 603,
+          "y" : 167,
+          "x" : 271
+        },
+        "role_description" : "그룹",
+        "role" : "group"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXGroup",
+        "id" : "elem_22",
+        "is_enabled" : true,
+        "label" : "그룹",
+        "bounds" : {
+          "height" : 22,
+          "width" : 87,
+          "y" : 174,
+          "x" : 278
+        },
+        "role_description" : "그룹",
+        "role" : "group"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXGroup",
+        "id" : "elem_33",
+        "is_enabled" : true,
+        "label" : "그룹",
+        "bounds" : {
+          "height" : 22,
+          "width" : 94,
+          "y" : 174,
+          "x" : 643
+        },
+        "role_description" : "그룹",
+        "role" : "group"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXGroup",
+        "id" : "elem_42",
+        "label" : "그룹",
+        "bounds" : {
+          "height" : 14,
+          "width" : 14,
+          "y" : 144,
+          "x" : 326
+        },
+        "role_description" : "그룹",
+        "role" : "group"
+      },
+      {
+        "is_selected" : false,
+        "help" : "볼드 텍스트",
+        "bounds" : {
+          "height" : 20,
+          "x" : 279,
+          "y" : 176,
+          "width" : 22
+        },
+        "description" : "볼드체",
+        "role" : "checkbox",
+        "label" : "볼드체",
+        "id" : "elem_23",
+        "is_actionable" : true,
+        "ax_role" : "AXCheckBox",
+        "role_description" : "체크상자",
+        "is_value_settable" : false,
+        "is_enabled" : true,
+        "value" : "0"
+      },
+      {
+        "is_selected" : false,
+        "help" : "이탤릭체 텍스트",
+        "bounds" : {
+          "height" : 20,
+          "x" : 301,
+          "y" : 176,
+          "width" : 22
+        },
+        "description" : "이탤릭체",
+        "role" : "checkbox",
+        "label" : "이탤릭체",
+        "id" : "elem_24",
+        "is_actionable" : true,
+        "ax_role" : "AXCheckBox",
+        "role_description" : "체크상자",
+        "is_value_settable" : false,
+        "is_enabled" : true,
+        "value" : "0"
+      },
+      {
+        "is_selected" : false,
+        "help" : "밑줄체 텍스트",
+        "bounds" : {
+          "height" : 20,
+          "x" : 323,
+          "y" : 176,
+          "width" : 21
+        },
+        "description" : "밑줄체",
+        "role" : "checkbox",
+        "label" : "밑줄체",
+        "id" : "elem_25",
+        "is_actionable" : true,
+        "ax_role" : "AXCheckBox",
+        "role_description" : "체크상자",
+        "is_value_settable" : false,
+        "is_enabled" : true,
+        "value" : "0"
+      },
+      {
+        "is_selected" : false,
+        "help" : "텍스트 취소선",
+        "bounds" : {
+          "height" : 20,
+          "x" : 344,
+          "y" : 176,
+          "width" : 22
+        },
+        "description" : "취소선",
+        "role" : "checkbox",
+        "label" : "취소선",
+        "id" : "elem_26",
+        "is_actionable" : true,
+        "ax_role" : "AXCheckBox",
+        "role_description" : "체크상자",
+        "is_value_settable" : false,
+        "is_enabled" : true,
+        "value" : "0"
+      },
+      {
+        "is_selected" : true,
+        "help" : "텍스트 왼쪽 정렬",
+        "bounds" : {
+          "height" : 20,
+          "x" : 644,
+          "y" : 176,
+          "width" : 24
+        },
+        "description" : "왼쪽 정렬",
+        "role" : "checkbox",
+        "label" : "왼쪽 정렬",
+        "id" : "elem_34",
+        "is_actionable" : true,
+        "ax_role" : "AXCheckBox",
+        "role_description" : "체크상자",
+        "is_value_settable" : false,
+        "is_enabled" : true,
+        "value" : "1"
+      },
+      {
+        "is_selected" : false,
+        "help" : "텍스트 중앙 정렬",
+        "bounds" : {
+          "height" : 20,
+          "x" : 668,
+          "y" : 176,
+          "width" : 23
+        },
+        "description" : "중앙 정렬",
+        "role" : "checkbox",
+        "label" : "중앙 정렬",
+        "id" : "elem_35",
+        "is_actionable" : true,
+        "ax_role" : "AXCheckBox",
+        "role_description" : "체크상자",
+        "is_value_settable" : false,
+        "is_enabled" : true,
+        "value" : "0"
+      },
+      {
+        "is_selected" : false,
+        "help" : "텍스트 오른쪽 정렬",
+        "bounds" : {
+          "height" : 20,
+          "x" : 691,
+          "y" : 176,
+          "width" : 24
+        },
+        "description" : "오른쪽 정렬",
+        "role" : "checkbox",
+        "label" : "오른쪽 정렬",
+        "id" : "elem_36",
+        "is_actionable" : true,
+        "ax_role" : "AXCheckBox",
+        "role_description" : "체크상자",
+        "is_value_settable" : false,
+        "is_enabled" : true,
+        "value" : "0"
+      },
+      {
+        "is_selected" : false,
+        "help" : "텍스트 좌우 정렬",
+        "bounds" : {
+          "height" : 20,
+          "x" : 715,
+          "y" : 176,
+          "width" : 23
+        },
+        "description" : "좌우 정렬",
+        "role" : "checkbox",
+        "label" : "좌우 정렬",
+        "id" : "elem_37",
+        "is_actionable" : true,
+        "ax_role" : "AXCheckBox",
+        "role_description" : "체크상자",
+        "is_value_settable" : false,
+        "is_enabled" : true,
+        "value" : "0"
+      },
+      {
+        "title" : "무제 3",
+        "is_actionable" : false,
+        "ax_role" : "AXWindow",
+        "id" : "elem_0",
+        "identifier" : "_NS:31",
+        "label" : "무제 3",
+        "bounds" : {
+          "height" : 505,
+          "x" : 271,
+          "y" : 135,
+          "width" : 603
+        },
+        "role_description" : "표준 윈도우",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXScrollArea",
+        "id" : "elem_1",
+        "identifier" : "_NS:8",
+        "label" : "스크롤 영역",
+        "bounds" : {
+          "height" : 437,
+          "width" : 603,
+          "y" : 203,
+          "x" : 271
+        },
+        "role_description" : "스크롤 영역",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXScrollBar",
+        "value" : "0.1851851791143417",
+        "id" : "elem_3",
+        "is_enabled" : false,
+        "is_value_settable" : true,
+        "identifier" : "_NS:24",
+        "label" : "0.1851851791143417",
+        "bounds" : {
+          "height" : 19,
+          "x" : 277.5,
+          "y" : 622,
+          "width" : 580.5
+        },
+        "role_description" : "스크롤 막대",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXScrollBar",
+        "value" : "0",
+        "id" : "elem_4",
+        "is_enabled" : false,
+        "is_value_settable" : true,
+        "identifier" : "_NS:27",
+        "label" : "0",
+        "bounds" : {
+          "height" : 390,
+          "x" : 856,
+          "y" : 234,
+          "width" : 19
+        },
+        "role_description" : "스크롤 막대",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRuler",
+        "id" : "elem_5",
+        "label" : "자",
+        "bounds" : {
+          "height" : 32,
+          "width" : 603,
+          "y" : 203,
+          "x" : 271
+        },
+        "role_description" : "자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "0",
+        "id" : "elem_6",
+        "label" : "0",
+        "bounds" : {
+          "height" : 6,
+          "width" : 9,
+          "y" : 212,
+          "x" : 272
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "20.31746031746032",
+        "id" : "elem_7",
+        "label" : "20.31746031746032",
+        "bounds" : {
+          "height" : 6,
+          "width" : 9,
+          "y" : 212,
+          "x" : 848
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "0",
+        "id" : "elem_8",
+        "label" : "0",
+        "bounds" : {
+          "height" : 10,
+          "width" : 9,
+          "y" : 208,
+          "x" : 272
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "1.26984126984127",
+        "id" : "elem_9",
+        "label" : "1.26984126984127",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 312
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "2.53968253968254",
+        "id" : "elem_10",
+        "label" : "2.53968253968254",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 348
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "3.809523809523809",
+        "id" : "elem_11",
+        "label" : "3.809523809523809",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 384
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "5.079365079365079",
+        "id" : "elem_12",
+        "label" : "5.079365079365079",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 420
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "6.349206349206349",
+        "id" : "elem_13",
+        "label" : "6.349206349206349",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 456
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "7.619047619047619",
+        "id" : "elem_14",
+        "label" : "7.619047619047619",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 492
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "8.888888888888889",
+        "id" : "elem_15",
+        "label" : "8.888888888888889",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 528
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "10.15873015873016",
+        "id" : "elem_16",
+        "label" : "10.15873015873016",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 564
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "11.42857142857143",
+        "id" : "elem_17",
+        "label" : "11.42857142857143",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 600
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "12.6984126984127",
+        "id" : "elem_18",
+        "label" : "12.6984126984127",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 636
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "13.96825396825397",
+        "id" : "elem_19",
+        "label" : "13.96825396825397",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 672
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXRulerMarker",
+        "value" : "15.23809523809524",
+        "id" : "elem_20",
+        "label" : "15.23809523809524",
+        "bounds" : {
+          "height" : 9,
+          "width" : 6,
+          "y" : 209,
+          "x" : 708
+        },
+        "role_description" : "자 표시자",
+        "role" : "other"
+      },
+      {
+        "help" : "서체 크기를 설정합니다.",
+        "is_actionable" : true,
+        "ax_role" : "AXComboBox",
+        "value" : "12",
+        "id" : "elem_31",
+        "is_enabled" : true,
+        "is_value_settable" : true,
+        "description" : "서체 크기",
+        "label" : "서체 크기",
+        "bounds" : {
+          "height" : 22,
+          "x" : 588,
+          "y" : 174,
+          "width" : 52
+        },
+        "role_description" : "콤보 상자",
+        "role" : "other"
+      },
+      {
+        "help" : "목록 구분점 및 번호",
+        "is_actionable" : false,
+        "ax_role" : "AXMenuButton",
+        "id" : "elem_38",
+        "is_enabled" : true,
+        "description" : "목록 스타일",
+        "label" : "목록 스타일",
+        "bounds" : {
+          "height" : 22,
+          "x" : 740,
+          "y" : 174,
+          "width" : 48
+        },
+        "role_description" : "메뉴 버튼",
+        "role" : "other"
+      },
+      {
+        "role_description" : "메뉴 버튼",
+        "is_actionable" : false,
+        "ax_role" : "AXMenuButton",
+        "id" : "elem_44",
+        "is_enabled" : false,
+        "description" : "문서 동작",
+        "label" : "문서 동작",
+        "bounds" : {
+          "height" : 18,
+          "x" : 391,
+          "y" : 142,
+          "width" : 12
+        },
+        "title" : "",
+        "role" : "other"
+      },
+      {
+        "is_actionable" : false,
+        "ax_role" : "AXStaticText",
+        "value" : "무제 3",
+        "id" : "elem_45",
+        "is_enabled" : true,
+        "label" : "무제 3",
+        "bounds" : {
+          "height" : 16,
+          "width" : 39,
+          "y" : 143,
+          "x" : 353
+        },
+        "role_description" : "텍스트",
+        "role" : "other"
+      }
+    ],
+    "capture_mode" : "window",
+    "window_title" : "무제 3",
+    "execution_time" : 0.5760729312896729,
+    "screenshot_annotated" : "",
+    "mutation_targeting_available" : true,
+    "snapshot_reusable" : true,
+    "focused_element" : {
+      "windowID" : 3785,
+      "processIdentifier" : 5259,
+      "frame" : [
+        [
+          271,
+          235
+        ],
+        [
+          586,
+          382
+        ]
+      ],
+      "identifier" : "First Text View",
+      "role" : "AXTextArea"
+    },
+    "observation" : {
+      "warnings" : [
+
+      ],
+      "state_snapshot" : {
+        "display_count" : 0,
+        "window_count" : 0,
+        "running_application_count" : 0
+      },
+      "target" : {
+        "source" : "window-id",
+        "resolved_kind" : "window-id",
+        "hints" : [
+
+        ],
+        "window_id" : 3785,
+        "requested_kind" : "window-id",
+        "open_if_needed" : false,
+        "bounds" : [
+          [
+            271,
+            135
+          ],
+          [
+            603,
+            505
+          ]
+        ]
+      },
+      "spans" : [
+        {
+          "duration_ms" : 0.002125,
+          "name" : "state.snapshot",
+          "metadata" : {
+
+          }
+        },
+        {
+          "duration_ms" : 4.073709,
+          "name" : "target.resolve",
+          "metadata" : {
+
+          }
+        },
+        {
+          "duration_ms" : 375.226084,
+          "name" : "capture.window",
+          "metadata" : {
+            "engine" : "CGWindowList"
+          }
+        },
+        {
+          "duration_ms" : 73.775916,
+          "name" : "detection.ax",
+          "metadata" : {
+
+          }
+        },
+        {
+          "duration_ms" : 3.799166,
+          "name" : "output.write",
+          "metadata" : {
+
+          }
+        },
+        {
+          "duration_ms" : 0.409125,
+          "name" : "output.raw.write",
+          "metadata" : {
+
+          }
+        },
+        {
+          "duration_ms" : 3.384625,
+          "name" : "snapshot.write",
+          "metadata" : {
+
+          }
+        },
+        {
+          "duration_ms" : 572.454208,
+          "name" : "desktop.observe",
+          "metadata" : {
+
+          }
+        }
+      ]
+    },
+    "used_cache" : false,
+    "coordinate_context" : {
+      "origin" : "top_left",
+      "window" : {
+        "index" : 0,
+        "title" : "무제 3",
+        "window_id" : 3785
+      },
+      "logical_space" : "global_display_points",
+      "logical_bounds" : [
+        [
+          271,
+          135
+        ],
+        [
+          603,
+          505
+        ]
+      ],
+      "delivered_image_size" : [
+        603,
+        505
+      ],
+      "reference_id" : "ps1_9b0ce19a408cce89fd5ef7b62ff3a6e7",
+      "requested_scale" : {
+        "logical1x" : {
+
+        }
+      },
+      "native_scale" : 1,
+      "output_scale" : 1,
+      "version" : 1,
+      "display" : {
+        "index" : 0
+      }
+    }
+  },
+  "debug_logs" : [
+    "[2026-11-16T05:32:39.895Z] DEBUG: Runtime host: local (in-process)",
+    "[2026-11-16T05:32:39.895Z] VERBOSE [Operation]: Starting operation {mode=auto, app=none, hasAnalyzePrompt=false, operation=see_command, annotate=false, menubar=false}",
+    "[2026-11-16T05:32:39.895Z] VERBOSE [Performance]: Starting timer 'see_command'",
+    "[2026-11-16T05:32:39.897Z] VERBOSE [Capture]: Starting capture and detection phase",
+    "[2026-11-16T05:32:39.897Z] VERBOSE [Capture]: Using desktop observation pipeline {target=window-id:3785}",
+    "[2026-11-16T05:32:39.897Z] VERBOSE [Operation]: Starting operation {operation=capture_phase, mode=window}",
+    "[2026-11-16T05:32:39.897Z] VERBOSE [Performance]: Starting timer 'capture_phase'",
+    "[2026-11-16T05:32:40.471Z] VERBOSE [Operation]: Operation completed {success=true, operation=capture_phase, mode=window}",
+    "[2026-11-16T05:32:40.471Z] VERBOSE [Performance]: Timer 'capture_phase' completed {duration_ms=573}",
+    "[2026-11-16T05:32:40.471Z] VERBOSE [Performance]: Desktop observation span {span=state.snapshot, duration_ms=0}",
+    "[2026-11-16T05:32:40.471Z] VERBOSE [Performance]: Desktop observation span {span=target.resolve, duration_ms=4}",
+    "[2026-11-16T05:32:40.471Z] VERBOSE [Performance]: Desktop observation span {span=capture.window, duration_ms=375}",
+    "[2026-11-16T05:32:40.471Z] VERBOSE [Performance]: Desktop observation span {span=detection.ax, duration_ms=74}",
+    "[2026-11-16T05:32:40.471Z] VERBOSE [Performance]: Desktop observation span {span=output.write, duration_ms=4}",
+    "[2026-11-16T05:32:40.471Z] VERBOSE [Performance]: Desktop observation span {span=output.raw.write, duration_ms=0}",
+    "[2026-11-16T05:32:40.471Z] VERBOSE [Performance]: Desktop observation span {span=snapshot.write, duration_ms=3}",
+    "[2026-11-16T05:32:40.471Z] VERBOSE [Performance]: Desktop observation span {span=desktop.observe, duration_ms=572}",
+    "[2026-11-16T05:32:40.471Z] VERBOSE [Capture]: Capture completed successfully {elementCount=46, screenshotSize=34721, observedFocus=rawTrue=1 rawFalse=30 rawUnknown=15 rawFocusedTypes=[textField:1] rawResolver=unique cached=false partial=false truncated=false attached=true, snapshotId=ps1_9b0ce19a408cce89fd5ef7b62ff3a6e7}"
+  ]
+}

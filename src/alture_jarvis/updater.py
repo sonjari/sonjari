@@ -228,7 +228,9 @@ def unpack(archive: Path, staging: Path) -> dict[str, Any]:
     with zipfile.ZipFile(archive) as bundle:
         for name in bundle.namelist():
             target = (root / name).resolve()
-            if not str(target).startswith(str(root)):
+            # ★ 2026-11-16: 글자 앞머리 비교(`startswith`)는 `staged` 와 `staged2` 를 못 갈랐다 — `../staged2/x` 가 지나갔다.
+            #   경로 단위로 본다.
+            if target != root and not target.is_relative_to(root):
                 raise ValueError(f"zip 이 staging 밖을 가리킵니다: {name}")
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(bundle.read(name))
@@ -245,11 +247,9 @@ def staged_build(staging: Path) -> str:
     package = staging / "src" / "alture_jarvis"
     if not package.is_dir():
         return ""
-    digest = hashlib.sha256()
-    for path in sorted(package.glob("*.py")):
-        digest.update(path.name.encode())
-        digest.update(path.read_bytes())
-    return digest.hexdigest()[:12]
+    from .config import code_digest  # 같은 규칙 하나(2026-11-23 · 줄 끝 무시)
+
+    return code_digest(package)
 
 
 def plan(root: Path, staging: Path, expected_build: str) -> dict[str, Any]:

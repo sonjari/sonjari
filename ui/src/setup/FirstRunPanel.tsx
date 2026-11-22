@@ -96,7 +96,10 @@ export function FirstRunPanel({ api, onOllamaReady, ollamaOnly = false }: { api:
     setRestore(done.ok ? "done" : done.error || "error");
   };
 
-  const showRestore = Boolean(!ollamaOnly && backup?.enabled && backup.latest && backup.memory_empty && restore !== "skipped");
+  // ★ 2026-11-17 맥 새 계정: 방금 깐 손님에게 「이전 기억을 가져올까요? · 3:22 복제본 · 대화 0줄 · 배운 사실 0개」가 떴다 —
+  //   처음 깔면서 만든 빈 복제본이었다. 가져올 것이 있을 때만 묻는다.
+  const backupHasSomething = ((backup?.latest?.tables.conversation_messages ?? 0) + (backup?.latest?.tables.facts ?? 0)) > 0;
+  const showRestore = Boolean(!ollamaOnly && backup?.enabled && backup.latest && backup.memory_empty && backupHasSomething && restore !== "skipped");
 
   if (ollamaOnly && (!ollama || (ollama.running && !ollama.runner_missing))) return null;
 

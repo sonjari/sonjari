@@ -1,0 +1,19 @@
+{
+  "error" : {
+    "code" : "WINDOW_NOT_FOUND",
+    "message" : "Desktop observation target was not found: shareable window for 텍스트 편집기. Candidates: #0 id=69 '<untitled>' 1920x30 alpha=1.00 reason=window minimized; #1 id=68 '<untitled>' 1920x30 alpha=1.00 reason=window minimized; #2 id=67 '<untitled>' 1920x30 alpha=1.00 reason=window minimized; #3 id=66 '<untitled>' 1920x30 alpha=1.00 reason=window minimized; #4 id=48 '버그막이_설계.md' 673x439 alpha=1.00 reason=window minimized"
+  },
+  "debug_logs" : [
+    "[2026-11-16T05:25:43.722Z] DEBUG: Runtime host: local (in-process)",
+    "[2026-11-16T05:25:43.722Z] VERBOSE [Operation]: Starting operation {annotate=false, mode=auto, menubar=false, app=TextEdit, hasAnalyzePrompt=false, operation=see_command}",
+    "[2026-11-16T05:25:43.722Z] VERBOSE [Performance]: Starting timer 'see_command'",
+    "[2026-11-16T05:25:43.724Z] VERBOSE [Capture]: Starting capture and detection phase",
+    "[2026-11-16T05:25:43.724Z] VERBOSE [Capture]: Using desktop observation pipeline {target=app:TextEdit}",
+    "[2026-11-16T05:25:43.724Z] VERBOSE [Operation]: Starting operation {mode=window, operation=capture_phase}",
+    "[2026-11-16T05:25:43.724Z] VERBOSE [Performance]: Starting timer 'capture_phase'",
+    "[2026-11-16T05:25:43.763Z] VERBOSE [Operation]: Operation completed {success=false, error=Desktop observation target was not found: shareable window for 텍스트 편집기. Candidates: #0 id=69 '<untitled>' 1920x30 alpha=1.00 reason=window minimized; #1 id=68 '<untitled>' 1920x30 alpha=1.00 reason=window minimized; #2 id=67 '<untitled>' 1920x30 alpha=1.00 reason=window minimized; #3 id=66 '<untitled>' 1920x30 alpha=1.00 reason=window minimized; #4 id=48 '버그막이_설계.md' 673x439 alpha=1.00 reason=window minimized, operation=see_command}",
+    "[2026-11-16T05:25:43.763Z] VERBOSE [Performance]: Timer 'see_command' completed {duration_ms=40}"
+  ],
+  "success" : false,
+  "data" : null
+}

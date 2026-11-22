@@ -78,6 +78,9 @@ REQUIRED = {
     #   9-18 음성과 같은 모양. 화면에 있는 기능은 필수다.
     "discord": "디스코드로 일 시키기(설정 화면에 있다)",
     "win32cred": "디스코드 봇 토큰을 윈도우 자격 증명 관리자에 저장",
+    # 2026-11-14 대표 허락으로 필수 — 3D 팩의 프린트 파일 면 줄이기(gen3d/simplify.py · ADR-3D-2). 없어도 돌지만
+    #   205만 면 그대로 나가 뱀부가 느리고 경고한다. 11-04 tree_sitter 처럼 「운영에만 깔고 굽는 파이썬엔 없음」을 굽기에서 막는다.
+    "pyfqmr": "3D 프린트 파일의 면 줄이기",
 }
 
 #: 없어도 제품은 돈다(그 기능만 꺼진다). 빌드는 알려만 준다.
@@ -88,6 +91,15 @@ OPTIONAL = {
     # 2026-10-26 「막히면 내 API 키로 클로드에게 묻기」(api_escalation.py). 없으면 그 설정만 켤 수 없다(「부품 없음」).
     #   포장본에 넣는 것은 부품 판 올림이라 대표 허락 뒤 — 그 전까지는 빠진 채로 나가는 것이 맞다.
     "anthropic": "막히면 내 API 키로 클로드에게 묻기(없으면 그 설정만 꺼짐)",
+    # 2026-11-13 영상 파일 읽기의 ffmpeg — 윈도우는 PATH 의 ffmpeg 를 쓰므로 선택, 맥은 아래 MAC_REQUIRED 로 필수.
+    "imageio_ffmpeg": "영상 파일 읽기의 ffmpeg(PATH 에 ffmpeg 가 없을 때)",
+    # 2026-11-14 팩 모델 받기(pack_models.py) — 허깅페이스 저장소를 받는 길. 없으면 파일별 HTTPS 받기로 간다.
+    "huggingface_hub": "팩 모델 받기의 허깅페이스 길(없으면 HTTPS 로 받는다)",
+}
+
+#: 맥에서만 필수 — 윈도우는 다른 길이 있어 선택(OPTIONAL)이지만 맥은 이것 말고 길이 없다.
+MAC_REQUIRED = {
+    "imageio_ffmpeg": "영상 파일 읽기(video_read)의 ffmpeg — 맥에는 ffmpeg 가 없다(2026-11-13 대표 「무조건 돼야 한다」)",
 }
 
 
@@ -170,6 +182,12 @@ def main() -> int:
         print(f"code tools {len(_PYTHON_MODULES)} checked (ran --version)")
     except Exception as exc:  # noqa: BLE001
         missing.append(f"  (코드 도구 목록을 못 읽었다) — {type(exc).__name__}: {exc}")
+    if sys.platform == "darwin":
+        for name, why in MAC_REQUIRED.items():
+            try:
+                importlib.import_module(name)
+            except Exception as exc:  # noqa: BLE001
+                missing.append(f"  {name} ({why}) — {type(exc).__name__}: {exc}")
     off = [f"{name}({why})" for name, why in OPTIONAL.items()
            if not _importable(name)]
     print(f"required {len(REQUIRED) - len(skipped) - len(missing)}/{len(REQUIRED) - len(skipped)} ok")

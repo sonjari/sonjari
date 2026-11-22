@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { ChangeEvent, ClipboardEvent, DragEvent, FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  allowForegroundForChrome, callsSonjariChrome, createBackendClient, focusWorkspaceWindow, isTauri, JarvisClient, loadBootstrap,
+  allowForegroundForChrome, bootstrapWaitListeners, callsSonjariChrome, createBackendClient, focusWorkspaceWindow, isTauri, JarvisClient, loadBootstrap,
   openExternalUrl, pickNativeCodeWorkspace,
 } from "./backend";
 import { createShowcaseSource } from "./workspace/ShowcaseStrip";
@@ -34,11 +34,15 @@ import { HOME_LLM_EVENT } from "./setup/ModelPlace";
 import { friendlyModelName } from "./setup/modelNames";
 import { ComputerPane, ThinkingTrace } from "./workspace/ComputerPane";
 import { applyDeckEvent, type DeckState } from "./workspace/DeckStage";
-import { ApprovalCard, ContinuationCard, QuestionCard } from "./workspace/DecisionCards";
+import { applyGen3dEvent, type Gen3dState } from "./workspace/gen3dState";
+import type { Gen3dLoad } from "./workspace/Gen3dStage";
+import { ApprovalCard, ContinuationCard, PackEnableCard, PackResultLine, QuestionCard, type PackFetchProgress } from "./workspace/DecisionCards";
+import { packFetchProgress } from "./workspace/PackModels";
 import { OVERLAY_MAX_WIDTH, useNarrow } from "./workspace/useNarrow";
 import { MessageView } from "./workspace/MessageView";
 import { useStableCallback } from "./workspace/useStableCallback";
 import { ModelLoadLine } from "./workspace/ModelLoadLine";
+import { PrefillLine, type Prefill } from "./workspace/PrefillLine";
 import { VoiceMeter } from "./workspace/VoiceMeter";
 import { Sidebar } from "./workspace/Sidebar";
 import { TakeoverRelay, type HandoffOrigin, type TakeoverDirection, type TakeoverRelayStage } from "./workspace/TakeoverRelay";
@@ -73,7 +77,7 @@ import { createNotifier, readNotifyEnabled, showToast, windowInFront } from "./n
 import { ProblemReportDialog } from "./workspace/ProblemReportDialog";
 import type {
   AgentProgress, Approval, AttentionNotice,
-  AutoApprovedNotice, ChatAttachment, ClaudeAgentStatus, ClaudeHandoff, ContinuationRequest, CoworkTakeoverOffer,
+  AutoApprovedNotice, PackEnabledNotice, ChatAttachment, ClaudeAgentStatus, ClaudeHandoff, ContinuationRequest, CoworkTakeoverOffer,
   ConversationHistory, ConversationMessage, ConversationSummary, ExternalActionPreview,
   GoogleStatus, JarvisEvent, JarvisState, JobOutput, JobSummary, Looking, PermissionModes,
   ScheduleRow, UndoOffer, WorkspaceMode,
@@ -263,12 +267,49 @@ export function WorkspaceApp() {
   const [trajectories, setTrajectories] = useState<Record<string, Trajectory>>({});
   // 지금 읽는 그림 조각(일마다 하나). 걸음 기록에 넣지 않는다 — 그림은 읽는 동안에만 비춘다.
   const [looking, setLooking] = useState<Record<string, Looking>>({});
+  // 판마다 「쓸 도구와 지침을 읽는 중」 막대(11-18) — 서버가 적은 진행률이 있을 때만. 다음 걸음이 오면 거둔다.
+  const [prefill, setPrefill] = useState<Record<string, Prefill>>({});
   // 대화 길의 첫 글자 기다림 — 왜 처음부터 읽는지(도구 목록 · 지침이 바뀜 등)를 백엔드가 말해 준다(2026-10-25 대표). 일마다 하나.
   const [modelWait, setModelWait] = useState<Record<string, string>>({});
   /** 지금 모델이 무엇을 하나(`agent_live` · 10-25 대표) — 보라색 점 줄. 답은 다 쓴 뒤 검사를 거쳐 칠하므로 그동안 멈춘 것처럼 보였다. */
   const [live, setLive] = useState<Record<string, LiveState>>({});
   /** 판마다 그리는 장표(`deck_slide` · `deck_built` · 10-25 대표 「브라우저처럼 다 보이게」). */
   const [decks, setDecks] = useState<Record<string, DeckState>>({});
+  /** 판마다 만드는 3D(`gen3d_stage` · 11-14 대표 「무대가 핵심」). 클로드가 MCP 로 부른 판도 같다. */
+  const [gen3ds, setGen3ds] = useState<Record<string, Gen3dState>>({});
+  // 3D 판의 파일은 열쇠가 있어야 받는다 — 받아서 blob 주소로 바꿔 띄운다. 같은 파일은 한 번만.
+  const gen3dUrls = useRef(new Map<string, Promise<string>>());
+  const gen3dFixture = useRef<null | ((name: string) => string)>(null);
+  const gen3dLoad = useCallback<Gen3dLoad>((genId, name) => {
+    if (gen3dFixture.current) return Promise.resolve(gen3dFixture.current(name));
+    const key = `${genId}/${name}`;
+    let hit = gen3dUrls.current.get(key);
+    if (!hit) {
+      const client = clientRef.current;
+      hit = client ? client.gen3dFile(genId, name).then((blob) => URL.createObjectURL(blob)) : Promise.reject(new Error("no_client"));
+      hit.catch(() => gen3dUrls.current.delete(key));
+      gen3dUrls.current.set(key, hit);
+    }
+    return hit;
+  }, []);
+  // 리허설(개발 모드 전용): `?gen3dFixture=warrior` — 실측 판(여전사 512 · 3060)의 단계 시간 그대로 알림을 흘려 무대를 본다.
+  useEffect(() => {
+    const name = import.meta.env.DEV ? new URLSearchParams(window.location.search).get("gen3dFixture") : null;
+    if (!name) return;
+    let stop = () => {};
+    void import("./workspace/gen3dFixture").then(({ playGen3dFixture }) => {
+      const run = playGen3dFixture(name, (jobId, payload) => {
+        setLastJobId(jobId);
+        setGen3ds((rows) => {
+          const next = applyGen3dEvent(rows[jobId], payload);
+          return next ? { ...rows, [jobId]: next } : rows;
+        });
+      });
+      gen3dFixture.current = run.fileUrl;
+      stop = run.stop;
+    });
+    return () => stop();
+  }, []);
   const [activeJobId, setActiveJobId] = useState("");
   const [pending, setPending] = useState<PendingSend[]>([]);
   const [attention, setAttention] = useState<AttentionNotice | null>(null);
@@ -277,6 +318,44 @@ export function WorkspaceApp() {
   const [slashIndex, setSlashIndex] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
   const [autoApproved, setAutoApproved] = useState<AutoApprovedNotice | null>(null);
+  // 팩 켜기 결과 한 줄(2026-11-16 · ADR-PACK-1) — 카드가 접힌 자리. 맡김으로 켠 것도 여기 뜬다(끄기 = 되돌리기).
+  const [packResult, setPackResult] = useState<{ pack: string; name: string; state: "on" | "declined" | "failed"; toolCount?: number; delegated?: boolean; fetching?: boolean } | null>(null);
+  const [packUndoBusy, setPackUndoBusy] = useState(false);
+  // 「켜고 받기」 뒤 받는 진행(11-16 저녁) — 결과 한 줄 자리에 「받는 중 n/m · GB」 → 「켜짐 · 준비됨」. 백엔드 상태 읽기로만 채운다.
+  const [packFetch, setPackFetch] = useState<PackFetchProgress | null>(null);
+  useEffect(() => {
+    const client = clientRef.current;
+    const pack = packResult?.pack;
+    if (!client || !pack || packResult?.state !== "on" || !packResult.fetching) {
+      setPackFetch(null);
+      return;
+    }
+    let alive = true;
+    let timer = 0;
+    let waited = 0;
+    setPackFetch({ state: "waiting", done: 0, count: 0, received: 0, total: 0 });
+    const tick = async () => {
+      try {
+        const next = packFetchProgress(await client.packModels(pack));
+        if (!alive) return;
+        // 받기가 끝내 시작하지 않으면(손자리 안 일이 다시 돌지 않음 등) 「시작 중」에 머물지 않고 사람에게 넘긴다.
+        if (next.state === "waiting" && ++waited > 30) {
+          setPackFetch({ ...next, state: "failed" });
+          return;
+        }
+        setPackFetch(next);
+        if (next.state === "ready" || next.state === "failed") return;
+      } catch {
+        // 한 번 못 읽어도 다음에 다시 읽는다.
+      }
+      if (alive) timer = window.setTimeout(() => void tick(), 1000);
+    };
+    void tick();
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [packResult?.pack, packResult?.state, packResult?.fetching]);
   // 승인·계속진행은 작은 팝업에만 있었다. 팝업을 없애면서 여기로 옮긴다 — 이게
   // 없으면 되돌릴 수 없는 동작을 승인할 방법이 아예 사라진다(2026-08-06).
   const [approval, setApproval] = useState<Approval | null>(null);
@@ -836,8 +915,18 @@ export function WorkspaceApp() {
         return Boolean(listed?.items.some((item) => item.exists));
       },
     });
-    loadBootstrap().then(async (bootstrap) => {
+    // 맥 첫 실행(11-17): 앱이 본체를 까는 몇 분 동안 「처음 준비하는 중」을 띄우고, 다 되면 지운다.
+    let preparingShown = false;
+    const onPreparing = (message: string) => {
       if (!alive) return;
+      preparingShown = true;
+      setError(message);
+    };
+    bootstrapWaitListeners.add(onPreparing);
+    loadBootstrap().then(async (bootstrap) => {
+      bootstrapWaitListeners.delete(onPreparing);
+      if (!alive) return;
+      if (preparingShown) setError("");
       setPilotMode(bootstrap.mode === "pilot");
       // 리허설(개발 모드 전용): 마법사와 같은 `?setupFixture=3090` 으로 모델 고르개·컨텍스트 칸을 PC 별로 본다.
       const setupFixture = import.meta.env.DEV ? new URLSearchParams(window.location.search).get("setupFixture") : null;
@@ -857,6 +946,18 @@ export function WorkspaceApp() {
         // 클로드가 손자리에게 맡긴 판의 상태 — 지금 보는 판이 아니어도 적어 둔다(돌아와 열면 카드가 그대로 있게).
         if (event.event === "claude_handoff") {
           if (jobId) setHandoffs((rows) => ({ ...rows, [jobId]: (payload.handoffs ?? []) as ClaudeHandoff[] }));
+          return;
+        }
+        // 3D 무대(11-14) — 판 걸러내기보다 먼저 받는다. 지금 보는 판이 아니어도 적어 둬야 돌아와 열면 무대가 그대로다.
+        //   클로드가 MCP 로 바로 부른 3D 는 손자리 판이 없다(`gen3d:<번호>`). 사람이 자기 일을 돌리는 중이 아니면 그 무대를 띄운다 —
+        //   브라우저 일을 맡기면 크롬이 무대에 뜨는 것처럼(대표). 사람 일이 돌고 있으면 화면을 뺏지 않는다.
+        if (event.event === "gen3d_stage") {
+          if (!jobId) return;
+          setGen3ds((rows) => {
+            const next = applyGen3dEvent(rows[jobId], payload);
+            return next ? { ...rows, [jobId]: next } : rows;
+          });
+          if (jobId.startsWith("gen3d:") && !activeJobRef.current) setLastJobId(jobId);
           return;
         }
         // 받기·자동 적용은 설정 창이 닫혀 있어도 서버에서 끝난다.
@@ -1005,8 +1106,19 @@ export function WorkspaceApp() {
         // 작업 소유와 무관하게 받는다. 승인은 놓치면 작업이 그냥 멈춰 있는다.
         // 자동으로 지나간 일도 **화면에 보여야 한다** — 조용히 지나가면 사람이 무엇이 일어났는지 모른다.
         if (event.event === "approval_auto_approved") {
+          // 맡김으로 지나간 팩 켜기는 아래 「팩 켜짐」 한 줄이 말한다 — 「되돌릴 수 있는 일이라 묻지 않았다」는 그 뜻이 아니다.
+          if ((payload as { reason?: string }).reason === "delegated_by_person") return;
           const notice = payload as unknown as AutoApprovedNotice;
           setAutoApproved({ ...notice, at: Date.now() });
+          return;
+        }
+        if (event.event === "pack_enabled_by_request") {
+          const notice = payload as unknown as PackEnabledNotice;
+          setPackResult({
+            pack: notice.pack, name: notice.result?.name || notice.pack,
+            state: notice.ok ? "on" : "failed", toolCount: notice.result?.tool_count, delegated: Boolean(notice.delegated),
+            fetching: Boolean(notice.result?.models?.fetching),
+          });
           return;
         }
         if (event.event === "approval_requested") {
@@ -1278,6 +1390,7 @@ export function WorkspaceApp() {
           if (line.text) {
             setNarration((rows) => keepNarration([...rows.filter((r) => r.key !== line.key), line]));
           }
+
         } else if (event.event.startsWith("deck_")) {
           setDecks((rows) => {
             const next = applyDeckEvent(rows[jobId], event.event, payload);
@@ -1312,6 +1425,14 @@ export function WorkspaceApp() {
             evidence: (payload.evidence ?? undefined) as AgentProgress["evidence"],
           };
           setProgress((items) => [...items.filter((row) => row.key !== item.key), item].slice(-16));
+          const fraction = payload.waiting_first_token ? payload.prefill_fraction : null;
+          setPrefill((rows) => {
+            if (typeof fraction === "number") return { ...rows, [jobId]: { fraction, message: item.message } };
+            if (!(jobId in rows)) return rows;
+            const next = { ...rows };
+            delete next[jobId];
+            return next;
+          });
           setTrajectories((rows) => {
             const current = rows[jobId] ?? startTrajectory(jobId, sessionRef.current,
               pendingRef.current.find((row) => row.jobId === jobId)?.prompt ?? "", Date.now() / 1000);
@@ -1415,6 +1536,7 @@ export function WorkspaceApp() {
         } else setError(message);
       }
     }).catch((reason) => {
+      bootstrapWaitListeners.delete(onPreparing);
       const message = reason instanceof Error ? reason.message : String(reason);
       // 본체가 아직 안 떴다(브라우저 fetch 의 연결 실패) — 날 문구 대신 기다린다는 말, 연결되면 위에서 다시 읽고 지운다.
       if (isConnectFailure(message)) {
@@ -1427,6 +1549,7 @@ export function WorkspaceApp() {
     });
     return () => {
       alive = false;
+      bootstrapWaitListeners.delete(onPreparing);
       window.removeEventListener("ontelic:model-changed", onModelChanged);
       window.removeEventListener("ontelic:permissions-changed", onPermissionsChanged);
       window.clearInterval(presenceTimer);
@@ -1588,11 +1711,27 @@ export function WorkspaceApp() {
     const timer = window.setTimeout(() => setStageHold(false), 5_000);
     return () => window.clearTimeout(timer);
   }, [browserInJob, activeJobId, stageHold, browserControl]);
-  const stageAllowed = (workspaceMode === "cowork" || unityInJob) && computerOpen && !overlayComputer;
+  // 3D 를 만드는 판은 처음부터 무대로 편다 — 자라나는 모습이 이 일의 얼굴이다(11-14).
+  const gen3dInJob = Boolean(computerJobId && gen3ds[computerJobId]);
+  // 좁은 창(화면 반으로 나눠 쓸 때)에서도 3D 일은 컴퓨터 칸을 저절로 연다 — 대화를 덮고 무대만 창 비율에 맞춰 보인다
+  //   (11-14 대표 「3D 특화는 손자리의 컴퓨터만 그 비율에 맞게」). 사람이 닫으면 그 판 동안은 닫힌 채 둔다.
+  // 3D(· 나중엔 영상)를 굽는 동안 입력창은 흐리게 잠근다 — 그래픽카드가 그 일 하나에 붙잡혀 있어 다른 일을 받으면
+  //   글 모델을 다시 올리느라 둘 다 느려진다(11-14 대표 「다른 짓 못하게」). 다 되면 저절로 풀린다.
+  const gen3dBusy = Boolean(gen3dInJob && gen3ds[computerJobId]?.takes.some((take) => take.state === "running" || take.state === "queued"));
+  // 다른 자리(창 폭 · 대화 바꿈)가 칸을 접어도 굽는 동안은 다시 편다. 사람이 직접 닫은 판만 그대로 둔다.
+  const gen3dUserClosed = useRef("");
+  useEffect(() => {
+    if (gen3dBusy && computerDismissed && gen3dUserClosed.current !== computerJobId) setComputerDismissed(false);
+  }, [gen3dBusy, computerDismissed, computerJobId]);
+  const closeComputer = () => {
+    if (gen3dInJob) gen3dUserClosed.current = computerJobId;
+    setComputerDismissed(true);
+  };
+  const stageAllowed = (workspaceMode === "cowork" || unityInJob || gen3dInJob) && computerOpen && !overlayComputer;
   // ★ 2026-09-26: 사람만 열 수 있는 문(로그인·사람 확인·결제) 앞에서 잡은 워커를 놓고 기다린다 — 그 순간 「일 끝」으로 보고
   //   무대를 접으면, 사람이 할 곳이 사라진다. 문이 열려 있는 동안은 무대를 편다.
   const gateOpen = Boolean(attention && HUMAN_GATE_CODES.has(attention.code));
-  const stage = stageAllowed && (stageOverride ?? (stageHold || browserControl || gateOpen));
+  const stage = stageAllowed && (stageOverride ?? (stageHold || browserControl || gateOpen || gen3dInJob));
   const takeOverHere = useCallback(() => {
     setStageOverride(null);
     setBrowserControl(true);
@@ -1894,7 +2033,15 @@ export function WorkspaceApp() {
         ...current,
         messages: current.messages.filter((message) => message.id !== localId),
       }));
-      setError(reason instanceof Error ? reason.message : String(reason));
+      const message = reason instanceof Error ? reason.message : String(reason);
+      // ★ 2026-11-17 맥 새 계정 시험: 코드 모드에서 폴더를 안 고르고 「문서 폴더에 새 폴더를 만들어…」를 보내자 서버의
+      //   「어느 폴더인지 모호함」(409) 이 기계 말 그대로 떴다 — 이 답을 받는 곳이 화면에 없었다. 폴더 고르는 창을 열고 사람 말로 묻는다.
+      if (message === "code_workspace_ambiguous") {
+        void chooseCodeWorkspace();
+        setError(t("어느 폴더에서 할지 정하지 못했습니다. 열린 창에서 작업할 폴더를 골라 주세요(새로 만들 폴더라면 그 폴더가 들어갈 자리, 예: 문서). 고른 뒤 다시 보내면 됩니다."));
+        return;
+      }
+      setError(message);
     }
   };
 
@@ -2071,13 +2218,21 @@ export function WorkspaceApp() {
     }
   };
 
-  const decideApproval = async (approve: boolean, answer?: string) => {
+  const decideApproval = async (approve: boolean, answer?: string, delegatePacks = false) => {
     const client = clientRef.current;
     const nonce = approval?.nonce;
     if (!client || !nonce || decisionBusy) return;
+    const packCard = approval?.target?.kind === "pack_enable" ? approval.target : null;
     setDecisionBusy(true);
     try {
+      // 「앞으로 클로드에게 맡기기」는 사람이 이 카드에서 고른 것 — 승인보다 먼저 저장한다(실패하면 승인도 안 한다).
+      if (packCard && approve && delegatePacks) await client.setPackDelegate(true);
       await client.decideApproval(nonce, approve, answer);
+      if (packCard && !approve) setPackResult({ pack: packCard.pack || "", name: packCard.name || packCard.pack || "", state: "declined" });
+      // 손자리 안 일이 청한 카드는 다시 돌며 켜고 받는다(바깥 카드는 「팩 켜짐」 알림이 온다) — 누른 그 자리에서 받는 진행을 보인다.
+      if (packCard && approve && packCard.fetch_on_enable && approval?.job_id) {
+        setPackResult({ pack: packCard.pack || "", name: packCard.name || packCard.pack || "", state: "on", fetching: true });
+      }
       setApproval(null);
       setApprovalPreview(null);
     } catch (reason) {
@@ -2310,7 +2465,7 @@ export function WorkspaceApp() {
               <button
                 type="button"
                 className={`screen-chip ${paneOpen ? "on" : ""}`}
-                onClick={() => setComputerDismissed((value) => !value)}
+                onClick={() => (computerDismissed ? setComputerDismissed(false) : closeComputer())}
                 aria-pressed={paneOpen}
               >
                 {workspaceMode === "code" ? <><Code2 size={13} /> {t("작업공간")}</> : <><Monitor size={13} /> {t("컴퓨터")}</>}
@@ -2438,6 +2593,8 @@ export function WorkspaceApp() {
                           ? <ModelLoadLine client={clientRef.current} onResident={markModelWarm} />
                           // 그림을 읽는 중이면 이 줄을 내지 않는다 — 「도구를 고르는 중」은 그 순간 틀린 말이고, 위의 그림이 이미 무엇을 하는지 말한다.
                           : looking[hereJobId || settlingJobId] ? null
+                          // 처음 보는 종류의 일 — 쓸 도구와 지침을 읽는 막대(11-18 · 모델 올리기 막대와 같은 자리 · 같은 모양).
+                          : prefill[hereJobId || settlingJobId] ? <PrefillLine prefill={prefill[hereJobId || settlingJobId]} />
                           // 줄에 서 있으면 「고르는 중」이 아니라 무엇을 기다리는지 말한다(11-12 맥 · `waitingBehind`).
                           : waitingBehind(hereJobId, jobs)
                             ? <div className="workspace-thinking is-queued" role="status"><span /><p>{t("앞 일(「{0}」)을 아직 하는 중입니다. 끝나면 이 질문을 바로 시작합니다.", (waitingBehind(hereJobId, jobs)?.title || t("다른 일")).slice(0, 40))}</p></div>
@@ -2458,7 +2615,35 @@ export function WorkspaceApp() {
                   onStop={() => void decideApproval(false)}
                 />
               )}
-              {approval && approval.tool_name !== ASK_USER_TOOL && (
+              {approval && approval.target?.kind === "pack_enable" && (
+                <PackEnableCard
+                  approval={approval}
+                  busy={decisionBusy}
+                  cardRef={decisionRef}
+                  onDecide={(ok, delegate) => void decideApproval(ok, undefined, delegate)}
+                />
+              )}
+              {!approval && packResult && (
+                <PackResultLine
+                  name={packResult.name}
+                  state={packResult.state}
+                  toolCount={packResult.toolCount}
+                  delegated={packResult.delegated}
+                  fetch={packFetch}
+                  busy={packUndoBusy}
+                  onUndo={packResult.pack ? () => {
+                    const client = clientRef.current;
+                    if (!client) return;
+                    setPackUndoBusy(true);
+                    client.setPack(packResult.pack, false)
+                      .then(() => setPackResult(null))
+                      .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
+                      .finally(() => setPackUndoBusy(false));
+                  } : undefined}
+                  onClose={() => setPackResult(null)}
+                />
+              )}
+              {approval && approval.tool_name !== ASK_USER_TOOL && approval.target?.kind !== "pack_enable" && (
                 <ApprovalCard
                   approval={approval}
                   preview={approvalPreview}
@@ -2485,7 +2670,7 @@ export function WorkspaceApp() {
           )}
         </div>
 
-        <footer className="workspace-composer-shell">
+        <footer className={`workspace-composer-shell${gen3dBusy ? " gpu-hold" : ""}`} title={gen3dBusy ? t("3D 만드는 중 · 끝나면 다시 쓸 수 있습니다") : undefined}>
           {setupApi && codeOffer && codeOffer.sessionId === sessionId && workspaceMode === "code" && (
             <CodeUpgradeCard api={setupApi} offer={codeOffer.offer} onClose={() => setCodeOffer(null)}
               onChanged={() => window.dispatchEvent(new Event("ontelic:model-changed"))} />
@@ -2534,6 +2719,9 @@ export function WorkspaceApp() {
             </div>
           )}
           <form
+            // React 18 에는 `inert` 타입이 없다 — 글자 속성으로 넘긴다(키보드 · 마우스 · 화면 읽기 모두 막힌다).
+            {...(gen3dBusy ? ({ inert: "" } as Record<string, string>) : {})}
+            aria-disabled={gen3dBusy || undefined}
             className={`workspace-composer${dragging ? " dragging" : ""}`}
             onDragOver={(event) => { if (event.dataTransfer?.types?.includes("Files")) { event.preventDefault(); setDragging(true); } }}
             onDragLeave={() => setDragging(false)}
@@ -2677,12 +2865,23 @@ export function WorkspaceApp() {
           // ★ 2026-10-01 베타 테스터: 「이 창도 아예 닫을 수 있게 하면 좋을 듯」. 닫기는 좁은 창(덮어 뜰 때)에만 있었고,
           //   넓은 창에서는 위의 「컴퓨터」 단추를 다시 눌러야 접혔다 — 그 단추를 못 찾았다. 코워크는 넓은 창에서도 X 를 준다
           //   (다시 열기는 「컴퓨터」 단추, 새 일이 시작되면 저절로 다시 열린다). 넓은 창의 코드 작업공간은 제품의 절반이라 그대로.
-          onClose={workspaceMode === "cowork" || overlayComputer ? () => setComputerDismissed(true) : undefined}
+          onClose={workspaceMode === "cowork" || overlayComputer ? closeComputer : undefined}
           stage={stage}
           stageWidth={stageWidth}
           onStageToggle={stageAllowed ? () => setStageOverride(!stage) : undefined}
           onControlChange={setBrowserControl}
           deck={computerJobId ? decks[computerJobId] : undefined}
+          gen3d={computerJobId ? gen3ds[computerJobId] : undefined}
+          gen3dLoad={gen3dLoad}
+          onGen3dPick={computerJobId
+            ? (genId) => setGen3ds((rows) => rows[computerJobId] ? { ...rows, [computerJobId]: { ...rows[computerJobId], current: genId, pinned: true } } : rows)
+            : undefined}
+          onGen3dAction={(kind, take) => {
+            // 다음 행동은 **말로** 이어 간다 — 입력창에 문장을 올려 두고 사람이 보낸다(클로드 판이면 클로드에게 같은 말을 하면 된다).
+            const ask = kind === "again" ? t("방금 3D 를 1024 로 다시 구워 줘") : kind === "blender" ? t("방금 3D 를 블렌더로 열어 줘") : t("방금 3D 를 프린트용 3MF 로 만들어 줘");
+            setDraft(`${ask} (${take.genId})`);
+            draftRef.current?.focus();
+          }}
           handoffs={computerJobId && claudeLane?.owns(computerJobId)
             ? handoffs[computerJobId] ?? claudeLane.handoffs(computerJobId)
             : undefined}
