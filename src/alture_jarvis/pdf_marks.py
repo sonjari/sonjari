@@ -1,4 +1,4 @@
-"""PDF 한 쪽을 글자로 읽을 때 **글자가 아닌 것**을 글자로 내보내지 않는다 (2026-11-23 NIPA 수행계획서 판 f38ebeb4).
+"""PDF 한 쪽을 글자로 읽을 때 **글자가 아닌 것**을 글자로 내보내지 않는다 (2026-11-23 지원사업 수행계획서 판 f38ebeb4).
 
 두 가지 병이 한 판에 같이 나왔다.
 
@@ -31,7 +31,7 @@ UNKNOWN_SYMBOL = "⟦기호⟧"
 _SYMBOL_FONT_WORDS = ("marlett", "wingding", "webding", "dingbat")
 
 #: Marlett 체크 상자를 이루는 글자 — g(바탕) · c d e f(테두리 네 겹) · b(체크 표시) · a(메뉴 체크 표시).
-#: 화면 확인: NIPA 수행계획서 1쪽 「gfedcb」 = ☑ · 「gfedc」 = □ (pypdfium2 로 쪽을 그려 봄, 2026-11-23).
+#: 화면 확인: 지원사업 수행계획서 1쪽 「gfedcb」 = ☑ · 「gfedc」 = □ (pypdfium2 로 쪽을 그려 봄, 2026-11-23).
 _MARLETT_BOX = frozenset("abcdefg")
 _MARLETT_CHECK = frozenset("ab")
 

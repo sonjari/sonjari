@@ -432,7 +432,7 @@ def _read_shape(hwp: Any, spec: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
 
 # ── 글자 모양 0% 함정 (2026-11-23 실측) ──────────────────────────────────────
-# ★ NIPA 신청서 채우기에서 넣은 본문이 장평 0 · 크기 0 으로 들어가 글씨가 안 보이고 쪽수가 4쪽으로 거짓으로 나왔다
+# ★ 지원사업 신청서 채우기에서 넣은 본문이 장평 0 · 크기 0 으로 들어가 글씨가 안 보이고 쪽수가 4쪽으로 거짓으로 나왔다
 #   (fill_v4.hwp 를 다시 열어 「기준점 부재」 줄을 읽으니 RatioHangul 0 · SizeHangul 0).
 #   뿌리는 「GetDefault 가 0 을 준다」가 아니었다. `HAction.GetDefault("CharShape", h.HParameterSet.HCharShape.HSet)`
 #   다음에 `c = h.HParameterSet.HCharShape` 로 **다시 꺼낸** 셋은 채워지지 않은 빈 셋이라(같은 자리에서 같은 객체로 읽으면
@@ -558,7 +558,7 @@ def _format_active(
 # ── 양식 채우기 · 그림 넣기 · 쪽수 (2026-11-23) ────────────────────────────────
 # ★ 정부 지원사업 신청서(한글 양식)에 요약서를 넣을 때 손자리 한글 도구는 글 바꾸기 · 서식 · PDF 만 있어서, 작성 가이드 문구를
 #   지우고 여러 줄을 넣거나 그림을 넣거나 쪽수를 재지 못했다. 클로드가 한글 자동화를 직접 몰아 끝낸 대본
-#   (generated_reports/nipa_gpu_1124/hwp_채우기.py)의 걸음을 그대로 옮겼다:
+#   (generated_reports/(지원사업 서류)/hwp_채우기.py)의 걸음을 그대로 옮겼다:
 #     글 — 찾기 → Cancel → MoveParaBegin → MoveSelParaEnd → Delete(문단째 지움) → 줄마다 BreakPara + InsertText
 #     그림 — InsertPicture(경로, True, 1, False, False, 0, 폭mm, 높이mm) → ctrl.Properties 의 TreatAsChar=1(글자처럼)
 #     쪽수 — PageCount + 그 사본을 PDF 로 구워 쪽수 · 글 · 그림을 다시 읽기

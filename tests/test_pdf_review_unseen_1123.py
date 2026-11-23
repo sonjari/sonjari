@@ -1,4 +1,4 @@
-"""PDF 서류 검토에서 **보지 못한 것을 사실처럼 말한** 문제들 (2026-11-23 NIPA 수행계획서 판 f38ebeb4 · 14b52081).
+"""PDF 서류 검토에서 **보지 못한 것을 사실처럼 말한** 문제들 (2026-11-23 지원사업 수행계획서 판 f38ebeb4 · 14b52081).
 
 실제 판(개인 정보가 든 신청서라 여기 싣지 않는다)과 같은 짜임의 PDF 를 시험 안에서 만든다:
 - Marlett 글자 g f e d c (b) 를 한자리에 겹쳐 그린 체크 상자 — pypdf 는 「gfedcb」로 뽑았다(화면은 ☑).
@@ -176,13 +176,13 @@ def test_reader_attaches_the_business_number_fact() -> None:
 # --- 4. 답 검사: 그림 자리를 「없다」 · 물음표 짐작 -------------------------------------
 
 PICTURE_LINE = "⟦그림 2개 · 그림 속은 안 읽음⟧ 1) 「인」 · 「서명」 글자 위 · 2) 「직인」 글자 위"
-NIPA_ROW = "| 1 | `총괄책임자: 홍길동 (인/서명)` | **서명/인감 미기재.** 제출 전 서명 또는 인감 날인 필요 |"
+GRANT_ROW = "| 1 | `총괄책임자: 홍길동 (인/서명)` | **서명/인감 미기재.** 제출 전 서명 또는 인감 날인 필요 |"
 
 
 def test_absent_claim_on_a_stamped_place_is_caught() -> None:
     anchors = picture_anchors(PICTURE_LINE)
     assert anchors == ["서명", "직인"], "한 글자 이름표(「인」)는 모든 줄에 걸리므로 쓰지 않는다"
-    assert absent_claims_on_pictures(NIPA_ROW, anchors) == ["서명"]
+    assert absent_claims_on_pictures(GRANT_ROW, anchors) == ["서명"]
 
 
 def test_honest_not_checked_line_is_not_caught() -> None:
@@ -210,7 +210,7 @@ def _agent_with(body: str) -> BrowserAgent:
 
 def test_unseen_claims_check_writes_one_warning_each() -> None:
     body = "기업(관)명 : 예시회사 (직인) 총괄책임자: 홍길동 (인/서명)\n" + PICTURE_LINE
-    answer = NIPA_ROW + "\n예시회사의 제품(로봇 메타버스 피팅?)"
+    answer = GRANT_ROW + "\n예시회사의 제품(로봇 메타버스 피팅?)"
     notes = _agent_with(body)._unseen_claims_check("PDF 검토", answer, [{"ok": True}], "job")
     assert "확인 못 함" in notes and "「서명」" in notes
     assert "물음표" in notes and "로봇 메타버스 피팅?" in notes
@@ -222,7 +222,7 @@ PDF_BODY = (
     "[PDF 1쪽]\n사업자등록번호\n(고유번호) 123-45-67800 유 형 ☑산 □학 □연\nE-mail x 국가연구자번호 -\n"
     "과제정보\n연구/개발분야\n(중복 가능)\n■ 언어모델 □ 음성/오디오\n\n[PDF 2쪽]\n3. 과제 개요\n* 본 사업수행을 통해\n4. 과제 주요 내용\n"
 )
-NIPA_TABLE = "\n".join([
+GRANT_TABLE = "\n".join([
     "| 쪽 번호 | 원문 문장 | 고칠 점 |",
     "|---|---|---|",
     "| 1 | `국가연구자번호 -` (총괄·실무 모두) | 빈칸 |",
@@ -232,7 +232,7 @@ NIPA_TABLE = "\n".join([
 
 
 def test_quote_check_reads_only_the_quoted_pieces_and_names_the_quote() -> None:
-    notes = _agent_with(PDF_BODY)._quote_vs_page_check("PDF 검토", NIPA_TABLE, [{"ok": True}], "job")
+    notes = _agent_with(PDF_BODY)._quote_vs_page_check("PDF 검토", GRANT_TABLE, [{"ok": True}], "job")
     # 따옴표 밖에 설명을 붙인 두 줄은 원문이 맞다 — 걸리지 않는다.
     assert "국가연구자번호" not in notes and "과제 개요" not in notes
     # 가운데 「(중복 가능)」을 뺀 인용은 원문과 다르다 — 걸리고, 쪽 번호가 아니라 **그 인용**이 보인다.

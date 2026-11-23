@@ -147,7 +147,7 @@ class _Ctrl:
         self._props = items
 
 
-#: 양식의 작성 가이드 모양 — 파란 기울임(실제 NIPA 양식을 PDF 로 떠서 본 모양). 넣은 글이 이걸 물려받으면 안 된다.
+#: 양식의 작성 가이드 모양 — 파란 기울임(실제 지원사업 양식을 PDF 로 떠서 본 모양). 넣은 글이 이걸 물려받으면 안 된다.
 _FORM_CHAR = {"Height": 1000, "Bold": 0, "Italic": 1, "TextColor": 0xFF0000, **{name: 100 for name in _ALL}}
 _FORM_PARA = {"PrevSpacing": 0, "NextSpacing": 0, "LineSpacingType": 0, "LineSpacing": 130}
 

@@ -385,7 +385,7 @@ def _step_paths(step: dict[str, Any]) -> list[str]:
 
 
 def _sensitive_report(steps: list[dict[str, Any]], prompt: str) -> dict[str, Any] | None:
-    """비밀 자리 막힘 — 몇 번 실패를 기다리지 않는다 (2026-11-23 NIPA 판 잡 14b52081).
+    """비밀 자리 막힘 — 몇 번 실패를 기다리지 않는다 (2026-11-23 지원사업 서류 판 잡 14b52081).
 
     사람이 맡긴 PDF 가 `~/.claude/uploads/…` 에 있었다. 첫 걸음에 `sensitive_path_blocked` 가 났는데, 모델은 브라우저 file 주소 ·
     글 파일 읽기 · 폴더 목록으로 **손을 바꿔 가며** 같은 자리를 다섯 번 더 두드렸고(6번째에 멈춤), 멈춘 뒤에는 「허용할 폴더를
