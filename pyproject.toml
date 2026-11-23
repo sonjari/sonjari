@@ -7,14 +7,19 @@ name = "alture-jarvis"
 version = "0.1.0"
 description = "Local-first multimodal office assistant backend for ALTURE"
 readme = "README.ko.md"
-requires-python = ">=3.11"
+# 3.11.5: soupsieve 보안판(4.x)이 3.11.5 를 요구한다(2026-11-23). 스토어 런타임 3.11.9 · 맥 3.12 라 영향 없음.
+requires-python = ">=3.11.5"
 dependencies = [
   "fastapi>=0.116.0",
   "httpx>=0.27.0",
   "uvicorn[standard]>=0.35.0",
   "pydantic>=2.8.2",
   "playwright>=1.44.0",
-  "pypdf>=6.21.2",
+  # ★ 2026-11-23 대표 허락: 공개 저장소 Dependabot 경보(pypdf 높음 7 · soupsieve 높음 2 보통 1 · opentelemetry-api 보통 1)를 닫는 하한.
+  #   맥 설치는 잠금 파일이 아니라 이 하한으로 받는다(install_mac.sh `uv pip install -e`). pypdf 7.x 는 아직 시험 안 함 → <7.
+  "pypdf>=6.21.4,<7",
+  "soupsieve>=4.0.1",
+  "opentelemetry-api>=1.45.2",
   "pypdfium2>=4.30.0",
   "python-docx>=1.2.0",
   "openpyxl>=3.1.5",

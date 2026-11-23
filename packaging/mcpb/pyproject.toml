@@ -1,0 +1,10 @@
+# Sonjari MCP 다리 꾸러미(.mcpb)의 파이썬 짐 — uv 가 이 두 패키지만 깐다(2026-11-23).
+# 다리는 이미 떠 있는 손자리 앱(127.0.0.1)에 붙는 얇은 껍데기라 무거운 부품이 필요 없다(11-07 글라마 컨테이너와 같은 두 줄).
+[project]
+name = "sonjari-mcp-bundle"
+version = "0.4.53"
+requires-python = ">=3.11"
+dependencies = [
+  "mcp==2.0.0",
+  "httpx==0.28.1",
+]

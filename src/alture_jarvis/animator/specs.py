@@ -121,6 +121,16 @@ LIBRARY_APPLY = _tool(
         "character": {"type": "string", "description": "입힐 캐릭터 이름(다듬은 것 기억하기의 상황 열쇠 — 비우면 바이페드 이름). 같은 캐릭터 · 같은 목록에서 같은 손질을 두 번 하면 남길지 묻는다"},
         "keep_keys": {"type": "array", "items": {"type": "integer"}, "description": "남길 키포즈 프레임(사람이 고른 것). 주면 나머지 키를 지운다 · 첫끝은 늘 남긴다"},
         "keypose_check": {"type": "boolean", "description": "true 면 입히지 않고, 지난 입히기의 움직임 양 표로 키포즈 후보 프레임을 준다"},
+        "hold_feet": {"type": "array", "items": {"type": "array", "items": {"type": "integer"}},
+                      "description": "발 구간 고정(시험 중): [[시작, 끝], …] — 그 구간 동안 두 발을 시작 프레임의 위치 · 회전 그대로 둔다(예 [[0, 4]]). "
+                                     "현업 사용기 11-20: 4프레임 COM 쏠림 24 를 「두 발을 0프레임 그대로 0~4에 유지」로 약 1 로 고쳤다"},
+        "com_shift": {"type": "array", "items": {"type": "object", "properties": {
+                          "from": {"type": "integer"}, "to": {"type": "integer"},
+                          "back": {"type": "number", "description": "발 앞 방향(발뒤꿈치→발끝)의 반대로 옮길 거리 · 음수면 앞으로"},
+                          "move": {"type": "array", "items": {"type": "number"}, "description": "월드 [x, y, z] 로 더 옮길 양"}}},
+                      "description": "몸만 옮기기(시험 중): 그 구간의 COM 키만 옮기고 두 발은 옮기기 전 자리 · 회전으로 되돌린다(발이 끌려오지 않게). "
+                                     "예 [{\"from\": 4, \"to\": 4, \"back\": 16}]. 거리는 사람이 정한다 — 두세 벌 만들어 com_report 숫자로 고르게 하라"},
+        "com_report": {"type": "boolean", "description": "입힌 뒤 프레임마다 COM 이 두 발 중간보다 얼마나 앞(+) · 뒤(-)인지 적는다(기본 true · 읽기만). 61프레임 넘으면 최대만"},
     },
     ["id"],
 )

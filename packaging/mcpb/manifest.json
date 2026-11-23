@@ -1,0 +1,36 @@
+{
+  "manifest_version": "0.4",
+  "name": "sonjari",
+  "display_name": "Sonjari",
+  "version": "0.4.53",
+  "description": "Hand web research, file and document work to Sonjari, a free local AI agent running on your own PC or Mac.",
+  "long_description": "Sonjari is a free local AI agent for Windows and Mac. It works in your real Chrome (with your logins), your files, Excel, Word and Hangul documents, on your own machine. This bundle is the bridge: Claude hands a whole job to Sonjari with one call, Sonjari reads the pages on your machine, and only the answer and its sources come back, so your context and usage limit are spared. Requires the Sonjari app to be installed and running (Microsoft Store on Windows, signed dmg on Mac).",
+  "author": {
+    "name": "RoboMetaFit",
+    "url": "https://github.com/sonjari/sonjari"
+  },
+  "homepage": "https://github.com/sonjari/sonjari",
+  "documentation": "https://github.com/sonjari/sonjari/blob/main/docs/guide/mcp.md",
+  "support": "https://github.com/sonjari/sonjari/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "uv",
+    "entry_point": "server/main.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "server/main.py"]
+    }
+  },
+  "tools": [
+    {"name": "sonjari_guide", "description": "How to hand work to Sonjari, and capability cards for what it can do."},
+    {"name": "sonjari_task", "description": "Hand one whole job to Sonjari; it runs on this machine and returns a job id."},
+    {"name": "sonjari_task_status", "description": "Get the progress or result of a job, with sources and files."},
+    {"name": "sonjari_task_cancel", "description": "Stop a job you handed to Sonjari."}
+  ],
+  "keywords": ["local-agent", "browser", "chrome", "excel", "word", "hangul", "research", "local-llm", "ollama"],
+  "license": "Apache-2.0",
+  "repository": {"type": "git", "url": "https://github.com/sonjari/sonjari"},
+  "compatibility": {
+    "platforms": ["win32", "darwin"]
+  }
+}

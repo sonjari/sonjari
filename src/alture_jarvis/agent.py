@@ -5156,6 +5156,8 @@ class BrowserAgent:
     _QUOTE_NOISE = re.compile(r"[\W_]+")
     #: 이보다 짧은 칸(느슨하게 만든 뒤 글자 수)은 인용으로 안 본다 — 「200」 · 「-」.
     _QUOTE_MIN_CHARS = 8
+    #: 칸 안에서 원문으로 감싼 조각 — `…` · 「…」 · “…” · "…". 이것이 있으면 이것만 원문이다(2026-11-23 NIPA 판).
+    _QUOTE_MARKED = re.compile(r"`([^`\n]+)`|「([^」\n]+)」|“([^”\n]+)”|\"([^\"\n]+)\"")
 
     def _quote_vs_page_check(self, asked: str, answer: str, steps: list[dict[str, Any]], job_id: str) -> str:
         """「원문 한 문장」 칸이 **읽은 본문에 정말 있는가** (2026-10-27 운영 판 d72ca482 · f52e0d50).
@@ -5197,7 +5199,7 @@ class BrowserAgent:
                 grid.append([cell.strip() for cell in table_cells(body_line)])
             tables.append((header, grid))
 
-        missing: list[str] = []
+        missing: list[tuple[str, str]] = []  # (걸린 인용, 줄 이름)
         for header, grid in tables:
             quote_columns = [i for i, name in enumerate(header)
                              if self._QUOTE_HEAD.search(str(name)) and not self._QUOTE_HEAD_NOT.search(str(name))]
@@ -5214,22 +5216,80 @@ class BrowserAgent:
                         continue
                     if self._ROW_URL.fullmatch(cells[column].strip()):
                         continue  # 칸 글자가 주소 하나뿐이면 문장이 아니다
+                    # ★ 2026-11-23 NIPA 판 f38ebeb4: 모델은 원문을 `…` 로 감싸고 그 **밖**에 설명을 붙였다(「`국가연구자번호 -` (총괄·실무 모두)」 ·
+                    #   「`3. 과제 개요` / `4. 과제 주요 내용`」). 칸 전체를 한 문장으로 맞추니 원문은 맞는데 경고가 났다(4줄 중 3줄).
+                    #   칸 안에 따옴표로 감싼 조각이 있으면 **그 조각만** 원문이다 — 밖의 글은 모델의 말이다.
+                    #   단 칸이 **따옴표로 시작할 때만** — 「He said "AI" is …」 처럼 문장 속 짧은 따옴표만 보면 지어낸 나머지를 놓친다.
+                    cell_text = cells[column].lstrip(" *_")
+                    quoted = self._QUOTE_MARKED.findall(cell_text) if cell_text[:1] in "`「“\"" else []
+                    segments = [next(part for part in group if part) for group in quoted] if quoted else [cells[column]]
                     # 「…」 · 「...」 로 줄인 인용은 조각마다 맞춘다.
-                    pieces = [loose(piece) for piece in re.split(r"…|\.{3}", cells[column])]
-                    pieces = [piece for piece in pieces if len(piece) >= self._QUOTE_MIN_CHARS]
-                    if pieces and any(piece not in haystack for piece in pieces) and name and name not in missing:
-                        missing.append(name)
+                    for segment in segments:
+                        pieces = [loose(piece) for piece in re.split(r"…|\.{3}", segment)]
+                        pieces = [piece for piece in pieces if len(piece) >= self._QUOTE_MIN_CHARS]
+                        if pieces and any(piece not in haystack for piece in pieces):
+                            shown = " ".join(segment.replace("`", "").split())
+                            shown = shown if len(shown) <= 40 else shown[:39] + "…"
+                            # 줄 이름표(첫 칸)만 찍으면 「1」 · 「2」(쪽 번호)처럼 무엇이 틀렸는지 안 보였다 — 걸린 인용을 그대로 보인다.
+                            if (shown, name) not in missing:
+                                missing.append((shown, name))
         if not missing:
             return ""
+
+        def where(name: str, english: bool = False) -> str:
+            if not name:
+                return ""
+            name = name if len(name) <= 60 else name[:59] + "…"
+            return f" (row: {name})" if english else f"(그 줄: {name})"
+
         return _say(
             "\n\n⚠ **「원문」 칸의 문장이 그 줄의 페이지 본문에 없습니다(원문과 다름): "
-            + " · ".join(f"「{name}」" for name in missing[:3])
+            + " · ".join(f"「{shown}」{where(name)}" for shown, name in missing[:3])
             + ".** 모델이 고쳐 쓰거나 지어낸 문장일 수 있습니다 — 원문 그대로라고 믿지 말고 그 페이지에서 확인하세요.",
             "\n\n⚠ **The 'original sentence' cell is not in the page text of its row (differs from the source): "
-            + " · ".join(f"\"{name}\"" for name in missing[:3])
+            + " · ".join(f"\"{shown}\"{where(name, True)}" for shown, name in missing[:3])
             + ".** The model may have reworded or invented it — do not treat it as a verbatim quote; check that page.",
             asked or answer,
         )
+
+    def _unseen_claims_check(self, asked: str, answer: str, steps: list[dict[str, Any]], job_id: str) -> str:
+        """보지 못한 것을 사실처럼 말한 줄 (2026-11-23 NIPA 수행계획서 판 f38ebeb4 · `picture_claims` 설명).
+
+        ① 그림(직인 · 서명)이 찍힌 자리를 「미기재 · 없음」이라 함 — 읽은 글의 「⟦그림 …⟧」 이름표로 가른다.
+        ② 괄호 안 물음표 짐작(「로봇 메타버스 피팅?」)이 읽은 글 · 요청 어디에도 없음.
+        """
+        from .picture_claims import absent_claims_on_pictures, picture_anchors, unsupported_hedges
+
+        bodies = self._page_bodies(steps, job_id)
+        if not bodies:
+            return ""
+        material = "\n".join(bodies.values())
+        notes = ""
+        unseen = absent_claims_on_pictures(answer, picture_anchors(material))
+        if unseen:
+            notes += _say(
+                "\n\n⚠ **그림이 찍힌 자리를 「없다 · 미기재」라고 한 줄이 있습니다: "
+                + " · ".join(f"「{name}」" for name in unseen[:3])
+                + ".** 그 자리에는 그림(도장 · 서명일 수 있음)이 있고, 손자리는 그림 속을 읽지 않았습니다 — "
+                "「없다」가 아니라 「확인 못 함」입니다. 원본 화면에서 직접 확인하세요.",
+                "\n\n⚠ **A line says something is missing where the page has a picture: "
+                + " · ".join(f"\"{name}\"" for name in unseen[:3])
+                + ".** A picture (possibly a seal or signature) sits there and Sonjari did not read inside it — "
+                "this is \"not checked\", not \"missing\". Check the original page.",
+                asked or answer,
+            )
+        hedges = unsupported_hedges(answer, material + "\n" + str(asked or ""))
+        if hedges:
+            notes += _say(
+                "\n\n⚠ **모델이 물음표를 붙인 짐작이 있고, 읽은 자료와 요청 어디에도 없습니다: "
+                + " · ".join(f"「{item}」" for item in hedges[:3])
+                + ".** 사실로 쓰지 마세요.",
+                "\n\n⚠ **The model added its own guess with a question mark, and it is not in anything read or asked: "
+                + " · ".join(f"\"{item}\"" for item in hedges[:3])
+                + ".** Do not use it as a fact.",
+                asked or answer,
+            )
+        return notes
 
     def _topic_condition_check(self, asked: str, answer: str, steps: list[dict[str, Any]], job_id: str) -> str:
         """「AI 분야 5개」처럼 조건을 시켰는데 **조건에 맞는다는 근거가 없는 줄** (2026-10-03 K-Startup 5차 9ac405c8).
@@ -11591,7 +11651,20 @@ class BrowserAgent:
 
             # ★ 같은 자리에서 헛돌면 **멈추고 넘긴다**(2026-09-23 — `_stuck_report` 설명). 사람 문(로그인·캡차·결제)은
             #   위에서 이미 넘겼다. 여기는 사람 문이 아닌데 계속 실패하는 판이다.
-            stuck = None if finish_now else _stuck_report(steps)
+            stuck = None if finish_now else _stuck_report(steps, prompt)
+            if stuck is not None and stuck.get("kind") == "sensitive_wall":
+                # ★ 사람이 적은 그 파일이 비밀 자리라 막혔다 — 승인으로도 안 풀린다(2026-11-23 NIPA 판 14b52081: 손을 바꿔 6번 두드린 뒤
+                #   「허용할 폴더를 알려 주세요 · 이어서」를 물었다). 첫 번에 까닭과 할 일을 적고 끝낸다. 「이어서」를 묻지 않는다.
+                self.events.publish("agent_sensitive_wall", {"job_id": job_id, "times": stuck.get("times")})
+                messages.append({"role": "user", "content": (
+                    f"[시스템] {_STUCK_MARK} {stuck['blocked']}. 이 자리는 어떤 손(다른 도구 · 브라우저 file 주소 · 명령)으로도 열지 않는다. "
+                    "더 시도하지 말고 지금 답을 써라 — 그 파일을 읽지 못했다는 것, 까닭(비밀이 드는 자리라 막혀 있음), 사람이 할 일"
+                    f"({stuck['ask']})을 적어라. 읽지 않은 파일의 내용을 짐작해 쓰지 마라."
+                )})
+                finish_now = True
+                stop_reason = "wrapped_up:sensitive_wall"
+                self._progress(job_id, "running", stuck["message"].splitlines()[0])
+                stuck = None
             if stuck is not None and stuck.get("kind") == "site_down":
                 # ★ 점검 중인 사이트는 사람도 못 고친다(2026-10-15) — 넘기지 않고, 그 사이트를 「못 읽음」으로 두고 남은 출처로 잇는다.
                 #   알린 뒤에도 또 점검 중에서 막히면 가진 것으로 정리한다.
@@ -12262,6 +12335,8 @@ class BrowserAgent:
                 + self._row_facts_vs_page_check(asked, answer, steps, job_id)
                 # 「원문 한 문장」 칸이 그 줄의 페이지 본문에 정말 있나(2026-10-27 d72ca482 · f52e0d50).
                 + self._quote_vs_page_check(asked, answer, steps, job_id)
+                # 보지 못한 것을 사실처럼: 그림 자리를 「없다」 · 근거 없는 물음표 짐작(2026-11-23 NIPA f38ebeb4).
+                + self._unseen_claims_check(asked, answer, steps, job_id)
                 # 반대 방향: 조건에 맞는다는 **근거가 없는** 줄(2026-10-03 K-Startup 「AI/SW」 이름표).
                 + self._topic_condition_check(asked, answer, steps, job_id)
             )

@@ -500,6 +500,9 @@ class AnimatorTools:
             if not set(keep) - set(keep_info["added_ends"]):
                 # 사람이 고른 자리가 구간 안에 하나도 없다 — 첫끝만 남기고 다 지우지 않는다(프레임 번호를 잘못 읽었을 가능성)
                 raise ValueError(f"남길 프레임이 구간 안에 하나도 없다(구간 밖: {keep_info['out_of_range']})")
+        # 11-20 덧붙임: 발 구간 고정 · 몸만 옮기기 — 틀린 구간이 하나라도 있으면 아무것도 안 만든다(일부만 하지 않는다)
+        hold = library.frame_spans(arguments.get("hold_feet"), e.get("start"), e.get("end"))
+        shifts = library.com_shifts(arguments.get("com_shift"), e.get("start"), e.get("end"))
         amount.unlink(missing_ok=True)       # 지난 표를 이번 것으로 잘못 읽지 않게
         other = None
         blend = 0.0
@@ -532,11 +535,18 @@ class AnimatorTools:
                                                    foot_lock=arguments.get("foot_lock", True) is not False,
                                                    keep_keys=keep, amount_path=None if keep else amount,
                                                    raw=arguments.get("raw") is True,
+                                                   hold_feet=hold, com_shift=shifts,
+                                                   com_report=arguments.get("com_report", True) is not False,
                                                    backup=self.root / "backups" / f"before_apply_{time.strftime('%Y%m%d_%H%M%S')}.max"))
         result = {"ok": True, "motion": self._brief(e), "run_line": run_line(script),
                   "raw": arguments.get("raw") is True,
                   "next": "무엇을 어느 캐릭터에 입히는지 사람에게 말하고 「해」를 받은 뒤에만 run_line 을 보내라. "
                           "되돌리기는 맥스 편집 › 가져오기(Fetch)."}
+        if hold or shifts:
+            result["feet_fix"] = {"hold_feet": [list(s) for s in hold], "com_shift": shifts, "status": "시험 중",
+                                  "note": "돌아온 줄의 「발 구간 고정 … 어긋남 최대」 · 「COM 옮김 … 발 어긋남 최대」 · 「COM 앞섬」을 사람에게 그대로 전해라. "
+                                          "발 어긋남이 크면(키의 1% 넘게) 바이페드 발 고정이 안 먹은 것이다 — 편집 › 가져오기(Fetch)를 권해라. "
+                                          "★ 바이페드 발에 월드 회전을 박는 것은 실제 맥스 확인 전."}
         if keep_info is not None:
             result["keyposes"] = {**keep_info, "status": "시험 중",
                                   "note": "다 입힌 뒤(첫끝 · 발 고정까지) 이 프레임의 키만 남기고 나머지 키를 지운다 — 첫 · 끝은 늘 남긴다. "
