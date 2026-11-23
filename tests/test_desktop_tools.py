@@ -55,16 +55,28 @@ _MAC_ADDED = {
 }
 
 
+#: 고정(6927f47e) **뒤에** 새 도구로 더한 이름 — 고정 파일은 손으로 고치지 않으니 여기에 적고 빼고 견준다.
+#:   2026-11-23 한글 양식 채우기(hwp_preview_fill → hwp_apply_fill): 서식 도구가 있는 자리에 같이 들어간다.
+_ADDED_AFTER_FREEZE = {
+    "answer_hygiene._ARTIFACT_STAGE_SUPPORT": {"hwp_preview_fill"},
+    "code_look_gate._READ_ONLY_FORBIDDEN_TOOLS": {"hwp_preview_fill", "hwp_apply_fill"},
+    "permissions.WRITE_TOOL_NAMES": {"hwp_apply_fill"},
+    "plan._ACTION_TOOLS": {"hwp_apply_fill"},
+}
+
+
 @pytest.mark.parametrize("key", sorted(_OLD))
 def test_windows_side_unchanged(key: str) -> None:
     """맥 이름을 빼면 옛 집합과 **글자까지** 같다 — 윈도우 동작은 하나도 안 바뀐다."""
-    now = set(_NOW[key])
+    now = set(_NOW[key]) - _ADDED_AFTER_FREEZE.get(key, set())
     assert {name for name in now if not name.startswith("mac_")} == set(_OLD[key])
 
 
 @pytest.mark.parametrize("key", sorted(_OLD))
 def test_only_mac_names_added_and_all_pairs_present(key: str) -> None:
-    now = set(_NOW[key])
+    added = _ADDED_AFTER_FREEZE.get(key, set())
+    assert added <= set(_NOW[key])  # 적어 둔 이름이 정말 들어가 있다(빠지면 이 목록도 같이 고친다)
+    now = set(_NOW[key]) - added
     assert now - set(_OLD[key]) == _MAC_ADDED[key]
 
 

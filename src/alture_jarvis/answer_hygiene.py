@@ -40,7 +40,7 @@ _FRESH_READ_TOOLS = frozenset({"browser_read", "browser_extract", "browser_open_
 _ARTIFACT_PROGRESS_TOOLS = frozenset({
     "local_write_document", "local_edit_document", "local_write_file",
     "local_edit_spreadsheet", "artifact_from_observations", "hwp_apply_edit", "local_make_slide",
-    "hwp_apply_format", "hwp_export_pdf",
+    "hwp_apply_format", "hwp_apply_fill", "hwp_export_pdf",
 })
 
 #: 산출물 차례에 **같이 남기는** 손 — 파일을 만드는 일의 일부이거나, 막혔을 때 물을 손이다 (2026-10-04 도구 전수조사 2-E).
@@ -51,7 +51,7 @@ _ARTIFACT_STAGE_SUPPORT = frozenset({
     "local_read_document", "local_list_directory", "local_search_files",
     "ask_user", "local_request_path_access", "skill_read",
     "sandbox_run", "browser_screenshot", "local_apply_edit",
-    "hwp_list_open", "hwp_read", "hwp_preview_edit", "hwp_preview_format",
+    "hwp_list_open", "hwp_read", "hwp_preview_edit", "hwp_preview_format", "hwp_preview_fill",
     # ★ 프로그램 창을 조작해 파일을 만드는 일(한글 → PDF 저장 · 메모장 저장)은 창 손이 곧 파일 쓰는 손이다 (2026-10-17 화면 자동화 측정).
     #   파일 만들 차례가 걸리면 이 손들이 「이 차례가 아니다」로 막혀 저장 창 앞에서 멈출 자리였다.
     #   이름은 역할 표에서 — 윈도우 `windows_*` · 맥 `mac_*` 같은 역할(`desktop_tools.py`). 비전 좌표 미리보기는 원래 없던 그대로 뺀다.

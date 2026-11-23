@@ -328,7 +328,7 @@ from .answer_hygiene import (
 _COMMIT_TOOLS = frozenset(
     set(_ACTION_ID_CONSUMER_TO_PRODUCER)
     - {"naver_blog_fill_editor", "naver_blog_prepare_save_draft", "naver_blog_prepare_publish"}
-    | {"hwp_apply_edit", "hwp_apply_format", CLAUDE_CODE_TOOL}
+    | {"hwp_apply_edit", "hwp_apply_format", "hwp_apply_fill", CLAUDE_CODE_TOOL}
 )
 
 #
@@ -1101,6 +1101,8 @@ AGENT_SYSTEM_PROMPT = """당신은 손자리의 범용 로컬 Computer Use 계�
   만들고 적용했다고 말하지 마라. 사람이 편집 중이면 도구가 거절하므로 덮지 마라.
 - 열린 한글 문서의 서식(글꼴·글자 크기·굵게·기울임·밑줄·글자 색·정렬·줄 간격)은 메뉴를 누르지 말고
   hwp_preview_format → hwp_apply_format 으로 바꿔라. 적용 결과의 matches 가 false 면 바뀐 것처럼 말하지 마라.
+- 열린 한글 양식의 칸 채우기(작성 가이드 문구를 지우고 여러 줄 넣기 · 그림 넣기 · 쪽수 맞추기)는
+  hwp_preview_fill → hwp_apply_fill 로 해라. 미리보기의 pages · fits · lines_missing 을 보고 말하고, verified 가 false 면 다 됐다고 하지 마라.
 - **파일명·제목만 보고 답하지 마라.** 찾기와 훑기는 무엇이 **있는지**만 알려 주고
   무엇**인지**는 알려 주지 않는다. 내용을 말하려면 읽는 도구를 한 번 더 불러라.
 
@@ -1470,6 +1472,7 @@ def _step_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
         "artifact_from_observations",
         "hwp_preview_edit",
         "hwp_preview_format",
+        "hwp_preview_fill",
         "hwp_export_pdf",
         # ★ **열두 번째 등록 자리** (2026-09-01 저녁).
         #
@@ -2763,6 +2766,8 @@ class BrowserAgent:
             "hwp_apply_edit": "승인된 한글 편집을 원본에 반영하는 중",
             "hwp_preview_format": "한글 문서 사본에 서식을 걸어 보는 중",
             "hwp_apply_format": "승인된 한글 서식을 원본에 반영하는 중",
+            "hwp_preview_fill": "한글 양식 사본에 글과 그림을 채워 쪽수를 재는 중",
+            "hwp_apply_fill": "승인된 한글 양식 채우기를 원본에 반영하는 중",
             "windows_list_open_windows": "현재 열린 Windows 앱을 확인 중",
             "windows_focus_window": "요청한 앱 창을 앞으로 가져오는 중",
             "windows_open_path": "요청한 파일이나 폴더를 여는 중",

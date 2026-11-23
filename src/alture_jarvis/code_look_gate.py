@@ -30,6 +30,8 @@ _READ_ONLY_FORBIDDEN_TOOLS = _CODE_WRITE_TOOLS | frozenset(
         "hwp_apply_edit",
         "hwp_preview_format",
         "hwp_apply_format",
+        "hwp_preview_fill",
+        "hwp_apply_fill",
         "hwp_export_pdf",
         "clipboard_write",
         *_desktop.names(_desktop.EXECUTE),

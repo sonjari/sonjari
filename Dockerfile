@@ -8,7 +8,7 @@
 FROM python:3.12-slim
 
 WORKDIR /app
-RUN pip install --no-cache-dir "mcp==2.0.0" "httpx==0.28.1"
+RUN pip install --no-cache-dir "mcp==2.3.0" "httpx2==2.16.0" "httpx==0.28.1"
 COPY src/alture_jarvis /app/alture_jarvis
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1

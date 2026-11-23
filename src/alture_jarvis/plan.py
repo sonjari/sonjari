@@ -2731,6 +2731,7 @@ _ARTIFACT_TOOLS = frozenset(
         "claude_code_delegate",
         "hwp_apply_edit",
         "hwp_apply_format",
+        "hwp_apply_fill",
         "hwp_export_pdf",
         "browser_screenshot",
     }
@@ -2960,6 +2961,7 @@ _ACTION_TOOLS = frozenset({
     "local_delete_file",
     "hwp_apply_edit",
     "hwp_apply_format",
+    "hwp_apply_fill",
     "hwp_export_pdf",
     *_desktop.names(_desktop.EXECUTE),
     "artifact_from_observations",

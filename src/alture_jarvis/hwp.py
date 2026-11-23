@@ -79,6 +79,26 @@ def _find_document(hwp: Any, native_document_id: int, source_path: str = "") -> 
     raise RuntimeError("hwp_document_not_open")
 
 
+def _reopen_without_closing_others(hwp: Any, path: Path) -> bool:
+    """닫은 문서를 같은 한글에 다시 연다 — **다른 문서를 갈아엎지 않게** 새 탭을 먼저 연다.
+
+    ★ 2026-11-23 실측(한글 2022 숨김 인스턴스): A · B 두 문서가 열려 있고 B 에 저장 안 한 고침이 있을 때 A 를 닫고
+      `Open(A)` 하면 Open 이 「지금 문서」인 **B 를 교체해** B 와 그 고침이 사라졌다(문서 목록 [A] 만 남음). 닫은 뒤 이름이
+      있거나 고친 문서가 남아 있으면 `XHwpDocuments.Add(True)` 로 빈 탭을 먼저 열면 [B(고침 그대로), A] 가 됐다.
+      혼자 열려 있던 문서를 닫으면 빈 문서 하나가 남고, 그건 교체돼도 잃을 것이 없다.
+    """
+    documents = hwp.XHwpDocuments
+    keep = False
+    for index in range(int(documents.Count)):
+        other = documents.Item(index)
+        if str(getattr(other, "FullName", "") or "") or bool(getattr(other, "Modified", False)):
+            keep = True
+            break
+    if keep:
+        documents.Add(True)
+    return bool(hwp.Open(str(path), _open_format(path), "lock:false;suspendpassword:true;forceopen:true"))
+
+
 def _active_text(hwp: Any, document: Any) -> str:
     document.SetActive_XHwpDocument()
     return str(hwp.GetTextFile("TEXT", "") or "")[:_MAX_TEXT]
@@ -411,6 +431,56 @@ def _read_shape(hwp: Any, spec: dict[str, dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+# ── 글자 모양 0% 함정 (2026-11-23 실측) ──────────────────────────────────────
+# ★ NIPA 신청서 채우기에서 넣은 본문이 장평 0 · 크기 0 으로 들어가 글씨가 안 보이고 쪽수가 4쪽으로 거짓으로 나왔다
+#   (fill_v4.hwp 를 다시 열어 「기준점 부재」 줄을 읽으니 RatioHangul 0 · SizeHangul 0).
+#   뿌리는 「GetDefault 가 0 을 준다」가 아니었다. `HAction.GetDefault("CharShape", h.HParameterSet.HCharShape.HSet)`
+#   다음에 `c = h.HParameterSet.HCharShape` 로 **다시 꺼낸** 셋은 채워지지 않은 빈 셋이라(같은 자리에서 같은 객체로 읽으면
+#   장평 100 · 1200 · 함초롬돋움, 다시 꺼내면 0 · 0 · 빈 글꼴 — 두 번 재도 같음) 거기 값 몇 개만 넣고 Execute 하면 나머지가
+#   전부 0 으로 들어간다. 문단 모양도 같아서 줄 간격 0 이 된다. 이 파일의 `_execute_shape` 는 처음부터 같은 객체를 써서
+#   이 길을 안 밟지만, 다음에 누가 모양을 바꾸는 줄을 더할 때 같은 함정에 빠지지 않게 **건 뒤 다시 읽어** 막는다.
+# ★ 「0 이면 100 으로 채우기」를 서식 도구에 일괄로 넣지 않는다 — 장평이 80 · 120 으로 섞인 선택은 GetDefault 가 장평을
+#   0 으로 보이되 **항목이 없는** 상태이고(ItemExist=False), 그대로 굵게만 걸면 80 · 120 이 지켜진다(같은 날 실측).
+#   일괄로 100 을 넣으면 사람이 섞어 둔 장평을 뭉갠다. 그래서 서식 도구는 「있는 항목인데 0」만 고장으로 본다.
+# ★ 그 「0」은 **캐럿 자리에서만** 보인다(같은 날 양성 대조). 장평 0 인 글을 선택해 읽으면 한글은 0 이 아니라 「항목 없음」을
+#   돌려준다 — 섞인 장평과 같은 모양이라 선택으로 읽는 검사는 눈이 멀었다(처음 넣은 검사가 0 인 글을 보고도 통과).
+#   캐럿(h.CharShape · h.ParaShape)에서는 0 이 0 으로 읽힌다. 그래서 건 뒤 선택을 풀고 대상의 마지막 글자 자리에서 읽는다.
+# ★ 선택이 있을 때 빈 셋을 걸면 넣은 항목만 바뀌고 장평은 그대로였다(굵게 · 크기 · 정렬 각각 실측) — 0% 는 선택 없는
+#   캐럿에서 새 글을 칠 때 생긴다. 서식 도구의 검사는 앞으로 누가 그 길을 만들 때를 막는 그물이다.
+_LANGS = ("Hangul", "Latin", "Hanja", "Japanese", "Other", "Symbol", "User")
+_RATIO_SIZE_ITEMS = tuple(prefix + lang for prefix in ("Ratio", "Size") for lang in _LANGS)
+#: 한글에서 0 이 될 수 없는 모양 값 — 장평(50~200%) · 상대 크기(10~250%) · 줄 간격. 0 이 읽히면 빈 셋이 들어간 것이다.
+_ZERO_IS_BROKEN_CHAR = _RATIO_SIZE_ITEMS
+_ZERO_IS_BROKEN_PARA = ("LineSpacing",)
+
+
+def _caret_zero_items(hwp: Any) -> list[str]:
+    """**캐럿 자리**(선택 없음)의 글자 · 문단 모양에서 있는 항목인데 0 인 장평 · 크기 · 줄 간격 이름."""
+    out: list[str] = []
+    for getter, names in (("CharShape", _ZERO_IS_BROKEN_CHAR), ("ParaShape", _ZERO_IS_BROKEN_PARA)):
+        try:
+            shape = getattr(hwp, getter)
+        except Exception:  # noqa: BLE001, S112 - 못 읽으면 이 그물은 넘어간다(다른 되읽기가 있다)
+            continue
+        for name in names:
+            try:
+                if bool(shape.ItemExist(name)) and int(shape.Item(name)) == 0:
+                    out.append(name)
+            except Exception:  # noqa: BLE001, S112
+                continue
+    return out
+
+
+def _zero_after_selection(hwp: Any) -> list[str]:
+    """방금 건 선택의 마지막 글자 자리에서 0 을 본다 — 선택을 풀면 캐럿이 선택 끝에 온다(실측), 한 칸 왼쪽이 그 글자다.
+
+    같은 셋을 선택 전체에 한 번에 걸므로 한 글자만 봐도 된다. 선택은 풀린 채로 돌려준다(부르는 쪽이 다음 대상을 다시 고른다).
+    """
+    _run_action(hwp, "Cancel")
+    _run_action(hwp, "MoveLeft")
+    return _caret_zero_items(hwp)
+
+
 def _apply_shape(hwp: Any, spec: dict[str, dict[str, Any]], progress: dict[str, int]) -> None:
     if spec.get("char"):
         if not _execute_shape(hwp, "CharShape", "HCharShape", dict(spec["char"])):
@@ -420,6 +490,13 @@ def _apply_shape(hwp: Any, spec: dict[str, dict[str, Any]], progress: dict[str, 
         if not _execute_shape(hwp, "ParagraphShape", "HParaShape", dict(spec["para"])):
             raise RuntimeError("hwp_para_shape_failed")
         progress["steps"] = progress.get("steps", 0) + 1
+
+
+def _stop_if_zero(hwp: Any) -> None:
+    zeros = _zero_after_selection(hwp)
+    if zeros:
+        # 걸음은 이미 세었다 — 부르는 쪽(apply_format)이 센 만큼 되돌리고, 미리보기는 사본째 버린다.
+        raise RuntimeError("hwp_shape_became_zero:" + ",".join(zeros[:6]))
 
 
 def _format_active(
@@ -445,6 +522,7 @@ def _format_active(
         before_shapes.append(_read_shape(hwp, spec))
         _apply_shape(hwp, spec, progress)
         readbacks.append(_read_shape(hwp, spec))
+        _stop_if_zero(hwp)
     else:
         ends = _occurrence_ends(hwp, target_text, _MAX_FORMAT_TARGETS + 1)
         found = len(ends)
@@ -461,6 +539,7 @@ def _format_active(
             before_shapes.append(_read_shape(hwp, spec))
             _apply_shape(hwp, spec, progress)
             readbacks.append(_read_shape(hwp, spec))
+            _stop_if_zero(hwp)
             previous = end
     _run_action(hwp, "Cancel")
     after_text = _active_text(hwp, document)
@@ -474,6 +553,370 @@ def _format_active(
         "before_shapes": before_shapes,
         "readbacks": readbacks,
     }
+
+
+# ── 양식 채우기 · 그림 넣기 · 쪽수 (2026-11-23) ────────────────────────────────
+# ★ 정부 지원사업 신청서(한글 양식)에 요약서를 넣을 때 손자리 한글 도구는 글 바꾸기 · 서식 · PDF 만 있어서, 작성 가이드 문구를
+#   지우고 여러 줄을 넣거나 그림을 넣거나 쪽수를 재지 못했다. 클로드가 한글 자동화를 직접 몰아 끝낸 대본
+#   (generated_reports/nipa_gpu_1124/hwp_채우기.py)의 걸음을 그대로 옮겼다:
+#     글 — 찾기 → Cancel → MoveParaBegin → MoveSelParaEnd → Delete(문단째 지움) → 줄마다 BreakPara + InsertText
+#     그림 — InsertPicture(경로, True, 1, False, False, 0, 폭mm, 높이mm) → ctrl.Properties 의 TreatAsChar=1(글자처럼)
+#     쪽수 — PageCount + 그 사본을 PDF 로 구워 쪽수 · 글 · 그림을 다시 읽기
+#   실측(같은 날, 한글 2022 숨김 인스턴스): 찾기 → Cancel 뒤 캐럿은 찾은 글의 끝, InsertPicture 는 CtrlID "gso" 를 주고 폭 40mm 가
+#   11339 HWPUNIT 로 되읽혔으며 그림 하나로 PageCount 가 2 → 3 으로 바로 바뀌었다.
+_FILL_MAX_OPS = 20
+_FILL_MAX_LINES = 400
+_FILL_MAX_CHARS = 40_000
+_FILL_MAX_FIND = 500
+_PICTURE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".gif"}
+_PICTURE_MM_RANGE = (5.0, 400.0)
+#: 1mm = 7200/25.4 HWPUNIT. 그림 폭을 다시 읽어 견줄 때 쓴다.
+_HWPUNIT_PER_MM = 7200 / 25.4
+_DEFAULT_HEIGHT = 1000  # 10pt — 캐럿 자리 글자 크기가 0 으로 읽힐 때만 쓴다
+_DEFAULT_LINE_SPACING = 160
+
+
+def _picture_aspect(path: Path) -> float | None:
+    """그림의 높이/폭. PNG · JPEG 머리만 읽는다(따로 깔린 그림 꾸러미에 기대지 않는다). 못 읽으면 None."""
+    try:
+        with path.open("rb") as stream:
+            head = stream.read(64 * 1024)
+    except OSError:
+        return None
+    if head[:8] == b"\x89PNG\r\n\x1a\n" and head[12:16] == b"IHDR":
+        width, height = int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
+        return height / width if width else None
+    if head[:2] == b"\xff\xd8":
+        index = 2
+        while index + 9 < len(head):
+            if head[index] != 0xFF:
+                index += 1
+                continue
+            marker = head[index + 1]
+            length = int.from_bytes(head[index + 2:index + 4], "big")
+            if marker in (0xC0, 0xC1, 0xC2):
+                height = int.from_bytes(head[index + 5:index + 7], "big")
+                width = int.from_bytes(head[index + 7:index + 9], "big")
+                return height / width if width else None
+            index += 2 + length
+    return None
+
+
+def _fill_mm(value: Any, field: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"hwp_fill_{field}_must_be_a_number")  # noqa: TRY004
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"hwp_fill_{field}_must_be_a_number") from exc
+    low, high = _PICTURE_MM_RANGE
+    if not math.isfinite(number) or not low <= number <= high:
+        raise ValueError(f"hwp_fill_{field}_out_of_range")
+    return int(round(number))  # InsertPicture 는 mm 를 정수로 받는다(검증된 대본과 같은 모양)
+
+
+def _fill_ops(arguments: dict[str, Any], resolve_picture: Any) -> list[dict[str, Any]]:
+    """모델이 준 채우기 목록 → 한글에 넘길 걸음. 한글에 닿기 전에 모양 · 크기 · 그림 경로(읽기 범위)를 다 거른다."""
+    raw = arguments.get("operations")
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("hwp_fill_operations_required")
+    if len(raw) > _FILL_MAX_OPS:
+        raise ValueError("hwp_fill_too_many_operations")
+    ops: list[dict[str, Any]] = []
+    total_lines = 0
+    total_chars = 0
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError("hwp_fill_operation_must_be_an_object")
+        kind = str(item.get("kind") or "").strip().lower()
+        find = str(item.get("find") or "")
+        if not find.strip():
+            raise ValueError("hwp_fill_find_required")
+        if len(find) > _FILL_MAX_FIND:
+            raise ValueError("hwp_fill_find_too_long")
+        if "\n" in find or "\r" in find:
+            raise ValueError("hwp_fill_find_must_be_one_line")  # 한글 찾기는 문단을 넘는 글자를 못 찾는다
+        replace = item.get("replace_paragraph")
+        if replace is not None and not isinstance(replace, bool):
+            raise ValueError("hwp_fill_replace_paragraph_must_be_boolean")
+        if kind == "text":
+            lines = item.get("lines")
+            if isinstance(lines, str):
+                lines = lines.splitlines()
+            if not isinstance(lines, list) or not lines or not all(isinstance(line, str) for line in lines):
+                raise ValueError("hwp_fill_lines_must_be_a_list_of_strings")
+            clean = [line.replace("\r", "").replace("\n", " ") for line in lines]
+            total_lines += len(clean)
+            total_chars += sum(len(line) for line in clean)
+            op: dict[str, Any] = {
+                "kind": "text",
+                "find": find,
+                "lines": clean,
+                # 글은 기본이 「작성 가이드 문단을 지우고 그 자리에」 — 양식 채우기에서 가장 흔한 모양이다.
+                "replace_paragraph": True if replace is None else replace,
+            }
+            if item.get("size_pt") not in (None, ""):
+                op["height"] = _pt_to_hwpunit(item["size_pt"])
+            if item.get("bold") is not None:
+                if not isinstance(item["bold"], bool):
+                    raise ValueError("hwp_fill_bold_must_be_boolean")
+                op["bold"] = 1 if item["bold"] else 0
+            # ★ 글자 색 · 기울임은 **늘 명시한다** (2026-11-23 실제 한글 판을 눈으로 보고). 캐럿 자리 모양을 이어받으면 지운
+            #   작성 가이드의 파란 기울임이 본문에 그대로 묻어 나왔다. 기본은 검정 · 기울임 없음(검증된 대본과 같은 값).
+            italic = item.get("italic", False)
+            if not isinstance(italic, bool):
+                raise ValueError("hwp_fill_italic_must_be_boolean")
+            op["italic"] = 1 if italic else 0
+            op["color"] = _color_to_colorref(item.get("color") or "#000000")
+            if item.get("font") not in (None, ""):
+                op["font"] = _font_name(item["font"], "fill_font")
+            ops.append(op)
+        elif kind == "picture":
+            path = resolve_picture(str(item.get("path") or ""))
+            if path.suffix.lower() not in _PICTURE_SUFFIXES:
+                raise ValueError("hwp_fill_picture_must_be_png_jpg_bmp_or_gif")
+            if not path.is_file():
+                raise ValueError("hwp_fill_picture_not_a_file")
+            width = _fill_mm(item.get("width_mm", 160), "width_mm")
+            if item.get("height_mm") not in (None, ""):
+                height = _fill_mm(item["height_mm"], "height_mm")
+            else:
+                aspect = _picture_aspect(path)
+                if aspect is None:
+                    raise ValueError("hwp_fill_picture_height_mm_required")
+                height = _fill_mm(width * aspect, "height_mm")
+            ops.append(
+                {
+                    "kind": "picture",
+                    "find": find,
+                    "path": str(path),
+                    "width_mm": width,
+                    "height_mm": height,
+                    # 그림은 기본이 「찾은 문단 다음 새 문단」 — 자리표시 문단([그림 1])을 갈아 끼울 때만 true.
+                    "replace_paragraph": False if replace is None else replace,
+                }
+            )
+        else:
+            raise ValueError("hwp_fill_kind_must_be_text_or_picture")
+    if total_lines > _FILL_MAX_LINES:
+        raise ValueError("hwp_fill_too_many_lines")
+    if total_chars > _FILL_MAX_CHARS:
+        raise ValueError("hwp_fill_text_too_long")
+    return ops
+
+
+def _fill_char_shape(hwp: Any, op: dict[str, Any]) -> list[str]:
+    """새 글을 넣기 전 캐럿 자리의 글자 모양을 **같은 셋 객체**로 받아(위 0% 함정 주석) 0 인 장평 · 크기만 100 으로 채운다.
+
+    캐럿 자리는 선택이 없어 섞인 값이 없다 — 양식이 쓰던 장평(예: 95%)은 그대로 이어받고, 빈 셋에서 온 0 만 고친다.
+    7개 언어(Hangul · Latin · Hanja · Japanese · Other · Symbol · User)를 다 본다. 고친 이름을 돌려준다(되읽기 증거로 싣는다).
+    """
+    parameters = hwp.HParameterSet.HCharShape
+    hwp.HAction.GetDefault("CharShape", parameters.HSet)
+    repaired: list[str] = []
+    for name in _RATIO_SIZE_ITEMS:
+        try:
+            current = int(getattr(parameters, name) or 0)
+        except Exception:  # noqa: BLE001 - 못 읽으면 0 으로 본다(빈 셋과 같은 위험)
+            current = 0
+        if current == 0:
+            setattr(parameters, name, 100)
+            repaired.append(name)
+    if "height" in op:
+        parameters.Height = int(op["height"])
+    else:
+        try:
+            height = int(parameters.Height or 0)
+        except Exception:  # noqa: BLE001
+            height = 0
+        if height == 0:
+            parameters.Height = _DEFAULT_HEIGHT
+            repaired.append("Height")
+    if "bold" in op:
+        parameters.Bold = int(op["bold"])
+    if "italic" in op:
+        parameters.Italic = int(op["italic"])
+    if "color" in op:
+        parameters.TextColor = int(op["color"])
+    if "font" in op:
+        for lang in ("Hangul", "Latin"):
+            setattr(parameters, f"FaceName{lang}", op["font"])
+            setattr(parameters, f"FontType{lang}", _FONT_TYPE_TTF)
+    if not bool(hwp.HAction.Execute("CharShape", parameters.HSet)):
+        raise RuntimeError("hwp_fill_char_shape_failed")
+    return repaired
+
+
+def _fill_para_shape(hwp: Any) -> list[str]:
+    """문단 모양도 같은 셋 객체로 받아 문단 앞 · 뒤 간격과 줄 간격을 **명시해** 다시 건다. 0 인 줄 간격만 160% 로 채운다."""
+    parameters = hwp.HParameterSet.HParaShape
+    hwp.HAction.GetDefault("ParagraphShape", parameters.HSet)
+    repaired: list[str] = []
+    for name in ("PrevSpacing", "NextSpacing"):
+        try:
+            setattr(parameters, name, int(getattr(parameters, name) or 0))
+        except Exception:  # noqa: BLE001
+            setattr(parameters, name, 0)
+            repaired.append(name)
+    try:
+        spacing = int(parameters.LineSpacing or 0)
+    except Exception:  # noqa: BLE001
+        spacing = 0
+    if spacing == 0:
+        parameters.LineSpacingType = _LINE_SPACING_PERCENT
+        parameters.LineSpacing = _DEFAULT_LINE_SPACING
+        repaired.append("LineSpacing")
+    else:
+        parameters.LineSpacing = spacing
+    if not bool(hwp.HAction.Execute("ParagraphShape", parameters.HSet)):
+        raise RuntimeError("hwp_fill_para_shape_failed")
+    return repaired
+
+
+def _caret_char_check(hwp: Any) -> dict[str, Any]:
+    """넣은 뒤 캐럿 자리 글자 모양을 `h.CharShape` 로 되읽는다 — 장평 · 크기 · 글자 크기가 0 이면 안 보이는 글이다."""
+    shape = hwp.CharShape
+    out: dict[str, Any] = {}
+    for name in ("RatioHangul", "SizeHangul", "RatioLatin", "SizeLatin", "Height"):
+        try:
+            out[name] = int(shape.Item(name)) if bool(shape.ItemExist(name)) else None
+        except Exception:  # noqa: BLE001
+            out[name] = None
+    return out
+
+
+def _find_unique(hwp: Any, text: str) -> tuple[int, int, int]:
+    """문서에서 그 글을 찾아 **한 곳뿐인지** 보고, 그 자리를 선택한 채로 둔다. 여러 곳이면 엉뚱한 칸을 채울 수 있어 멈춘다."""
+    ends = _occurrence_ends(hwp, text, 2)
+    if not ends:
+        raise RuntimeError("hwp_fill_find_not_found:" + text[:60])
+    if len(ends) > 1:
+        raise RuntimeError("hwp_fill_find_not_unique_give_longer_text:" + text[:60])
+    _select_occurrence(hwp, text, None, ends[0])
+    return ends[0]
+
+
+def _place_caret(hwp: Any, replace_paragraph: bool) -> None:
+    """찾은 글(선택된 상태)에서 넣을 자리로 캐럿을 옮긴다 — 문단째 지우거나, 그 문단 뒤에 새 문단을 연다."""
+    _run_action(hwp, "Cancel")
+    if replace_paragraph:
+        _run_action(hwp, "MoveParaBegin")
+        _run_action(hwp, "MoveSelParaEnd")
+        _run_action(hwp, "Delete")
+    else:
+        _run_action(hwp, "MoveParaEnd")
+        _run_action(hwp, "BreakPara")
+
+
+def _insert_text(hwp: Any, text: str) -> None:
+    parameters = hwp.HParameterSet.HInsertText
+    hwp.HAction.GetDefault("InsertText", parameters.HSet)
+    parameters.Text = text
+    if not bool(hwp.HAction.Execute("InsertText", parameters.HSet)):
+        raise RuntimeError("hwp_fill_insert_text_failed")
+
+
+def _fill_text(hwp: Any, op: dict[str, Any]) -> dict[str, Any]:
+    _find_unique(hwp, op["find"])
+    _place_caret(hwp, bool(op["replace_paragraph"]))
+    para_repaired = _fill_para_shape(hwp)
+    char_repaired = _fill_char_shape(hwp, op)
+    for index, line in enumerate(op["lines"]):
+        if index:
+            _run_action(hwp, "BreakPara")
+        if line:
+            _insert_text(hwp, line)
+    readback = _caret_char_check(hwp)
+    zeros = [name for name, value in readback.items() if value == 0]
+    if zeros:
+        raise RuntimeError("hwp_fill_text_invisible_zero_shape:" + ",".join(zeros))
+    return {
+        "kind": "text",
+        "find": op["find"][:80],
+        "lines": len(op["lines"]),
+        "repaired": char_repaired + para_repaired,
+        "char_after": readback,
+    }
+
+
+def _fill_picture(hwp: Any, op: dict[str, Any]) -> dict[str, Any]:
+    _find_unique(hwp, op["find"])
+    _place_caret(hwp, bool(op["replace_paragraph"]))
+    width_mm, height_mm = int(op["width_mm"]), int(op["height_mm"])
+    # 인자: 경로 · 문서에 넣기(True) · 크기 지정(1 = 주는 폭 · 높이) · 뒤집기 둘(False) · 효과 없음(0) · 폭mm · 높이mm.
+    ctrl = hwp.InsertPicture(op["path"], True, 1, False, False, 0, width_mm, height_mm)
+    if ctrl is None:
+        raise RuntimeError("hwp_fill_picture_insert_failed")
+    properties = ctrl.Properties
+    properties.SetItem("TreatAsChar", 1)
+    ctrl.Properties = properties
+    after = ctrl.Properties
+    treat_as_char = int(after.Item("TreatAsChar"))
+    width_unit = int(after.Item("Width")) if bool(after.ItemExist("Width")) else None
+    if treat_as_char != 1:
+        raise RuntimeError("hwp_fill_picture_not_treated_as_char")
+    width_ok = width_unit is None or abs(width_unit - width_mm * _HWPUNIT_PER_MM) <= 0.02 * width_mm * _HWPUNIT_PER_MM
+    if not width_ok:
+        raise RuntimeError("hwp_fill_picture_width_mismatch")
+    return {
+        "kind": "picture",
+        "find": op["find"][:80],
+        "path": op["path"],
+        "ctrl_id": str(getattr(ctrl, "CtrlID", "") or ""),
+        "treat_as_char": treat_as_char == 1,
+        "width_mm": round(width_unit / _HWPUNIT_PER_MM, 1) if width_unit else None,
+        "height_mm": height_mm,
+    }
+
+
+def _fill_active(hwp: Any, ops: list[dict[str, Any]]) -> dict[str, Any]:
+    """열린(활성) 사본에 채우기 걸음을 차례로 건다. 쪽수는 걸기 전 · 건 뒤 PageCount 로 잰다."""
+    pages_before = int(hwp.PageCount)
+    done: list[dict[str, Any]] = []
+    for op in ops:
+        done.append(_fill_text(hwp, op) if op["kind"] == "text" else _fill_picture(hwp, op))
+    _run_action(hwp, "Cancel")
+    return {"pages_before": pages_before, "pages_after": int(hwp.PageCount), "done": done}
+
+
+def _lines_expected_in_pdf(ops: list[dict[str, Any]]) -> list[str]:
+    """PDF 에 남아 있어야 할 줄. 뒤 걸음이 문단째 지운 줄(예: 「[그림 1] 자리」를 그림으로 바꿈)은 빠지는 게 맞다.
+
+    ★ 2026-11-23 실제 한글 첫 판에서 이 줄을 빼지 않아 「PDF 에 안 보인다」 헛경고가 났다 — 일부러 지운 것을 고장으로 셌다.
+    """
+    out: list[str] = []
+    for index, op in enumerate(ops):
+        if op["kind"] != "text":
+            continue
+        later = [o["find"] for o in ops[index + 1:] if o.get("replace_paragraph")]
+        out.extend(line for line in op["lines"] if not any(find in line for find in later))
+    return out
+
+
+def _pdf_readback(pdf_path: Path, lines: list[str]) -> dict[str, Any]:
+    """구운 PDF 에서 쪽수 · 그림 수 · 넣은 줄이 실제로 글로 남았는지 다시 읽는다. 못 읽으면 None(「없었다」와 섞지 않는다).
+
+    줄 바꿈 · 띄어쓰기는 한글이 쪽 폭에 맞춰 다시 짜므로 공백을 다 빼고 견준다. 0% 글은 PDF 에 글자가 남을 수 있어
+    이 되읽기만으로는 못 잡는다 — 그래서 글자 모양 되읽기(_caret_char_check)를 따로 한다.
+    """
+    try:
+        from pypdf import PdfReader
+
+        reader = PdfReader(str(pdf_path))
+        pages = len(reader.pages)
+        text = "".join(page.extract_text() or "" for page in reader.pages)
+        images = 0
+        for page in reader.pages:
+            try:
+                images += len(page.images)
+            except Exception:  # noqa: BLE001, S112 - 그림 세기는 덤이다
+                continue
+    except Exception:  # noqa: BLE001
+        return {"pages": None, "images": None, "lines_checked": 0, "lines_missing": None}
+    flat = re.sub(r"\s+", "", text)
+    wanted = [line for line in lines if re.sub(r"\s+", "", line)]
+    missing = [line[:80] for line in wanted if re.sub(r"\s+", "", line) not in flat]
+    return {"pages": pages, "images": images, "lines_checked": len(wanted), "lines_missing": missing[:20]}
 
 
 def _undo_steps(document: Any, steps: int) -> None:
@@ -768,9 +1211,7 @@ def _worker_operation(payload: dict[str, Any]) -> dict[str, Any]:
                 raise RuntimeError("hwp_document_has_unsaved_edits")
             document.Close(False)
             _atomic_restore(backup, source)
-            reopened = bool(
-                hwp.Open(str(source), "HWP", "lock:false;suspendpassword:true;forceopen:true")
-            )
+            reopened = _reopen_without_closing_others(hwp, source)
             restored_sha = _sha256(source)
             return {
                 "path": str(source),
@@ -843,6 +1284,88 @@ def _worker_operation(payload: dict[str, Any]) -> dict[str, Any]:
                 "after_sha256": after_sha,
                 "file_changed": after_sha != expected_sha,
                 **formatted,
+            }
+
+        if operation == "preview_fill":
+            # 글 바꾸기 미리보기와 같은 까닭으로 사본은 따로 띄운 숨김 인스턴스에서만 굽는다(위 preview_edit 주석).
+            if bool(hwp.IsModified) or bool(getattr(document, "Modified", False)):
+                raise RuntimeError("hwp_document_has_unsaved_edits")
+            preview_path = Path(str(payload.get("preview_path") or ""))
+            pdf_path = Path(str(payload.get("pdf_path") or ""))
+            preview_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(Path(source_path), preview_path)
+            preview_hwp = _new_instance(_PROG_ID)
+            try:
+                preview_hwp.RegisterModule(_SECURITY_KIND, module_name)
+                if not bool(
+                    preview_hwp.Open(
+                        str(preview_path), _open_format(preview_path), "lock:false;suspendpassword:true;forceopen:true"
+                    )
+                ):
+                    raise RuntimeError("hwp_preview_copy_open_failed")
+                preview_document = preview_hwp.XHwpDocuments.Item(0)
+                preview_hwp.XHwpWindows.Item(0).Visible = False
+                preview_document.SetActive_XHwpDocument()
+                filled = _fill_active(preview_hwp, list(payload.get("ops") or []))
+                after_text = _active_text(preview_hwp, preview_document)
+                if not bool(preview_document.Save(True)):
+                    raise RuntimeError("hwp_preview_save_failed")
+                # 쪽수는 한글의 PageCount 하나만 믿지 않는다 — 같은 사본을 PDF 로 구워 쪽수 · 글 · 그림을 다시 읽는다.
+                pdf_saved = _save_as_pdf(preview_hwp, pdf_path)
+            finally:
+                try:
+                    preview_hwp.Clear(1)
+                except Exception:  # noqa: BLE001, S110
+                    pass
+                try:
+                    preview_hwp.Quit()
+                except Exception:  # noqa: BLE001, S110
+                    pass
+            return {
+                "native_document_id": native_document_id,
+                "path": source_path,
+                "preview_path": str(preview_path),
+                "pdf_path": str(pdf_path),
+                "pdf_saved": bool(pdf_saved),
+                "source_sha256": _sha256(Path(source_path)),
+                "preview_sha256": _sha256(preview_path),
+                "after_text": after_text,
+                **filled,
+            }
+
+        if operation == "apply_fill":
+            # ★ 원본에서 걸음을 다시 돌리지 않는다 — 사람이 본 것은 미리보기 사본의 쪽수 · PDF 다. 같은 걸음을 원본에서 다시
+            #   돌리면 그 사이 무엇 하나만 달라도 다른 결과가 원본에 남는다. 승인된 사본 파일을 **그대로** 원본 자리에 끼운다
+            #   (되돌리기의 restore 와 같은 순서: 닫기 → 바꿔 끼우기 → 다시 열기).
+            if bool(hwp.IsModified) or bool(getattr(document, "Modified", False)):
+                raise RuntimeError("hwp_document_has_unsaved_edits")
+            source = Path(source_path)
+            expected_sha = str(payload.get("source_sha256") or "")
+            if not expected_sha or _sha256(source) != expected_sha:
+                raise RuntimeError("hwp_source_drifted_since_preview")
+            preview = Path(str(payload.get("preview_path") or ""))
+            preview_sha = str(payload.get("preview_sha256") or "")
+            if not preview.is_file() or not preview_sha or _sha256(preview) != preview_sha:
+                raise RuntimeError("hwp_fill_preview_changed_since_review")
+            backup = Path(str(payload.get("backup_path") or ""))
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, backup)
+            document.Close(False)
+            try:
+                _atomic_restore(preview, source)
+            except Exception:
+                _reopen_without_closing_others(hwp, source)
+                raise
+            reopened = _reopen_without_closing_others(hwp, source)
+            after_sha = _sha256(source)
+            return {
+                "native_document_id": native_document_id,
+                "path": str(source),
+                "backup_path": str(backup),
+                "before_sha256": expected_sha,
+                "after_sha256": after_sha,
+                "reopened": reopened,
+                "verified": after_sha == preview_sha and after_sha != expected_sha,
             }
 
         raise ValueError("unknown_hwp_worker_operation")
@@ -928,6 +1451,26 @@ class HwpFormatPreview:
     used: bool = False
 
 
+@dataclass(slots=True)
+class HwpFillPreview:
+    """양식 채우기 미리보기 한 건. 적용은 여기 적힌 사본 파일(해시)을 그대로 원본 자리에 끼우는 것뿐이다."""
+
+    preview_id: str
+    document_id: int
+    instance_id: str
+    native_document_id: int
+    source_path: str
+    source_sha256: str
+    preview_path: str
+    preview_sha256: str
+    ops: list[dict[str, Any]]
+    summary: str
+    pages: int | None
+    created_at: float
+    expires_at: float
+    used: bool = False
+
+
 class HwpTools:
     """열린 HWP를 사본에서 검토한 뒤 승인받아 원본에 적용한다."""
 
@@ -938,6 +1481,7 @@ class HwpTools:
         self._lock = threading.RLock()
         self._previews: dict[str, HwpEditPreview] = {}
         self._format_previews: dict[str, HwpFormatPreview] = {}
+        self._fill_previews: dict[str, HwpFillPreview] = {}
         self._definitions = self._build_definitions()
 
     @staticmethod
@@ -1044,6 +1588,54 @@ class HwpTools:
                 ["preview_id"],
             ),
             self._function(
+                "hwp_preview_fill",
+                "열린 HWP 양식(신청서 · 보고서 표 칸)을 채운다. 원본은 건드리지 않고 사본에 먼저 넣어 쪽수와 PDF 를 돌려준다. "
+                "operations 의 각 걸음은 find(본문에 있는 그대로의 한 줄 글, 문서에 한 곳뿐이어야 함)로 자리를 잡는다. "
+                "kind=text 는 lines(여러 줄 글)를 넣는다 — 기본은 찾은 문단(작성 가이드 문구 등)을 통째로 지우고 그 자리에 넣고, "
+                "replace_paragraph=false 면 그 문단 뒤에 새 문단으로 넣는다. kind=picture 는 그림 파일(png·jpg)을 글자처럼 "
+                "취급해 넣는다 — 기본은 찾은 문단 뒤 새 문단, replace_paragraph=true 면 그 문단([그림 1] 같은 자리표시)을 "
+                "그림으로 바꾼다. width_mm 만 주면 높이는 그림 비율로 정한다. 결과의 pages(쪽수) · fits(max_pages 이내인지) · "
+                "lines_missing(PDF 에서 못 찾은 줄)을 보고 쪽수를 맞춘 뒤 hwp_apply_fill 로 원본에 반영한다.",
+                {
+                    "document_id": {"type": "integer"},
+                    "operations": {
+                        "type": "array",
+                        "maxItems": _FILL_MAX_OPS,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "kind": {"type": "string", "enum": ["text", "picture"]},
+                                "find": {"type": "string", "description": "자리를 잡을 글(문서에 한 곳뿐인 한 줄)"},
+                                "lines": {"type": "array", "items": {"type": "string"}, "description": "넣을 줄들(text)"},
+                                "replace_paragraph": {"type": "boolean", "description": "찾은 문단을 지우고 그 자리에 넣기"},
+                                "size_pt": {"type": "number", "description": "넣을 글 크기(pt, 생략하면 그 자리 모양)"},
+                                "bold": {"type": "boolean"},
+                                "italic": {"type": "boolean", "description": "기울임(기본 끔 — 가이드 모양을 안 물려받게)"},
+                                "color": {"type": "string", "description": "글자 색 #RRGGBB(기본 검정)"},
+                                "font": {"type": "string", "description": "글꼴 이름(생략하면 그 자리 글꼴)"},
+                                "path": {"type": "string", "description": "그림 파일 경로(picture)"},
+                                "width_mm": {"type": "number", "description": "그림 폭(mm, 기본 160)"},
+                                "height_mm": {"type": "number", "description": "그림 높이(mm, 생략하면 비율대로)"},
+                            },
+                            "required": ["kind", "find"],
+                        },
+                    },
+                    "max_pages": {"type": "integer", "minimum": 1, "description": "넘으면 안 되는 쪽수(맞는지 fits 로 알려 준다)"},
+                },
+                ["document_id", "operations"],
+            ),
+            self._function(
+                "hwp_apply_fill",
+                "앞서 만든 HWP 양식 채우기 미리보기 사본을 그대로 원본 자리에 반영한다(원본에서 다시 채우지 않는다). "
+                "승인 필수이며, 사람이 편집 중이거나 원본 또는 사본이 달라졌으면 실행하지 않는다. 되돌리기는 백업으로 한다.",
+                {
+                    "preview_id": {"type": "string"},
+                    "change_summary": {"type": "string", "description": "승인 화면에 보여 줄 채우기 요약"},
+                    "preview_path": {"type": "string", "description": "preview 결과의 사본 경로"},
+                },
+                ["preview_id"],
+            ),
+            self._function(
                 "hwp_export_pdf",
                 "이 PC 의 한글 파일(.hwp·.hwpx)을 PDF 로 바꾼다. 한글 파일을 PDF 로 바꿀 때는 한글 창을 열지 말고 이 도구를 쓴다. "
                 "화면에 안 보이는 한글을 따로 띄워 사본을 PDF 로 저장하고 그 한글만 끈다 — 열려 있는 한글 창과 원본 파일은 "
@@ -1082,7 +1674,7 @@ class HwpTools:
         active = 0
         with self._lock:
             active = sum(
-                1 for row in [*self._previews.values(), *self._format_previews.values()]
+                1 for row in [*self._previews.values(), *self._format_previews.values(), *self._fill_previews.values()]
                 if not row.used and row.expires_at >= time.time()
             )
         return {
@@ -1609,6 +2201,196 @@ class HwpTools:
             return None
         return {key: result[key] for key in required}
 
+    # ── 양식 채우기 · 그림 · 쪽수 (2026-11-23) ─────────────────────────────
+    def _resolve_picture(self, raw: str) -> Path:
+        if not raw.strip():
+            raise ValueError("hwp_fill_picture_path_required")
+        return self.local_computer.resolve_allowed_path(raw.strip())
+
+    @staticmethod
+    def _max_pages(arguments: dict[str, Any]) -> int | None:
+        value = arguments.get("max_pages")
+        if value in (None, ""):
+            return None
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or int(value) != value or int(value) < 1:
+            raise ValueError("hwp_fill_max_pages_must_be_a_positive_integer")
+        return int(value)
+
+    def preview_fill(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        document_id = int(arguments.get("document_id") or 0)
+        ops = _fill_ops(arguments, self._resolve_picture)
+        max_pages = self._max_pages(arguments)
+        row = self._row(document_id)
+        if bool(row.get("modified")):
+            raise RuntimeError("hwp_document_has_unsaved_edits")
+        job_id = self._job_id(arguments)
+        preview_dir = self.local_computer.job_workspace(job_id, create=True) / "hwp-previews"
+        preview_dir.mkdir(parents=True, exist_ok=True)
+        source = Path(str(row["path"]))
+        preview_path = preview_dir / f"{source.stem}.fill-preview{source.suffix}"
+        pdf_path = preview_dir / f"{source.stem}.fill-preview.pdf"
+        result = self._invoke(
+            "preview_fill",
+            instance_id=row["instance_id"],
+            native_document_id=row["native_document_id"],
+            source_path=str(source),
+            preview_path=str(preview_path),
+            pdf_path=str(pdf_path),
+            ops=ops,
+            _timeout_floor_sec=_EXPORT_TIMEOUT_SEC,
+        )
+        lines = _lines_expected_in_pdf(ops)
+        pictures = sum(1 for op in ops if op["kind"] == "picture")
+        is_pdf, _size = _pdf_head_ok(pdf_path)
+        readback = _pdf_readback(pdf_path, lines) if is_pdf else {
+            "pages": None, "images": None, "lines_checked": 0, "lines_missing": None,
+        }
+        hangul_pages = int(result.get("pages_after") or 0) or None
+        pdf_pages = readback.get("pages")
+        # 쪽수는 PDF 를 먼저 믿는다(실제로 찍히는 것). 둘이 다르면 숨기지 않고 둘 다 싣는다.
+        pages = pdf_pages if pdf_pages is not None else hangul_pages
+        problems: list[str] = []
+        if not is_pdf:
+            problems.append("PDF 로 굽지 못해 쪽수 · 글을 다시 읽지 못했습니다.")
+        if readback.get("lines_missing"):
+            problems.append("넣은 줄 일부가 PDF 글에서 안 보입니다(lines_missing).")
+        if readback.get("images") is not None and pictures and int(readback["images"]) < pictures:
+            problems.append("넣은 그림 수보다 PDF 의 그림이 적습니다.")
+        if pdf_pages is not None and hangul_pages is not None and pdf_pages != hangul_pages:
+            problems.append(f"한글 쪽수({hangul_pages})와 PDF 쪽수({pdf_pages})가 다릅니다.")
+        fits = None if max_pages is None or pages is None else pages <= max_pages
+        summary = f"「{source.name}」 글 {sum(1 for op in ops if op['kind'] == 'text')}곳 · 줄 {len(lines)} · 그림 {pictures}장"
+        if pages is not None:
+            summary += f" → {pages}쪽"
+        now = time.time()
+        preview = HwpFillPreview(
+            preview_id=secrets.token_urlsafe(18),
+            document_id=document_id,
+            instance_id=str(row["instance_id"]),
+            native_document_id=int(row["native_document_id"]),
+            source_path=str(source),
+            source_sha256=str(result.get("source_sha256") or ""),
+            preview_path=str(preview_path),
+            preview_sha256=str(result.get("preview_sha256") or ""),
+            ops=ops,
+            summary=summary,
+            pages=pages,
+            created_at=now,
+            expires_at=now + max(30, int(getattr(self.config, "hwp_preview_ttl_sec", 300))),
+        )
+        with self._lock:
+            self._fill_previews[preview.preview_id] = preview
+            for preview_id, old in list(self._fill_previews.items()):
+                if old.used or old.expires_at < now - 60:
+                    self._fill_previews.pop(preview_id, None)
+        out: dict[str, Any] = {
+            "action": "hwp_preview_fill",
+            "preview_id": preview.preview_id,
+            "expires_at": preview.expires_at,
+            "document_id": document_id,
+            "path": str(source),
+            "output_path": str(preview_path),
+            "pdf_path": str(pdf_path) if is_pdf else None,
+            "summary": summary,
+            "pages": pages,
+            "pages_hangul": hangul_pages,
+            "pages_pdf": pdf_pages,
+            "pages_before": result.get("pages_before"),
+            "max_pages": max_pages,
+            "fits": fits,
+            "pictures_in_pdf": readback.get("images"),
+            "lines_checked": readback.get("lines_checked"),
+            "lines_missing": readback.get("lines_missing"),
+            "done": list(result.get("done") or [])[:_FILL_MAX_OPS],
+            "verified": not problems,
+            "requires_approval": True,
+        }
+        if problems:
+            out["warning"] = " ".join(problems)
+        if fits is False:
+            out["next"] = f"{pages}쪽이라 {max_pages}쪽을 넘습니다. 글을 줄이거나 그림 폭(width_mm)을 줄여 다시 미리보기를 만드세요."
+        return out
+
+    def _fill_preview(self, preview_id: str) -> HwpFillPreview:
+        with self._lock:
+            preview = self._fill_previews.get(preview_id)
+        if preview is None:
+            raise ValueError("hwp_preview_not_found")
+        if preview.used:
+            raise RuntimeError("hwp_preview_already_used")
+        if preview.expires_at < time.time():
+            raise RuntimeError("hwp_preview_expired")
+        return preview
+
+    def apply_fill(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        preview = self._fill_preview(str(arguments.get("preview_id") or ""))
+        job_id = self._job_id(arguments)
+        backup_dir = self.local_computer.job_workspace(job_id, create=True) / "backups"
+        backup = backup_dir / f"{Path(preview.source_path).name}.{secrets.token_hex(6)}.bak"
+        result = self._invoke(
+            "apply_fill",
+            instance_id=preview.instance_id,
+            native_document_id=preview.native_document_id,
+            source_path=preview.source_path,
+            source_sha256=preview.source_sha256,
+            preview_path=preview.preview_path,
+            preview_sha256=preview.preview_sha256,
+            backup_path=str(backup),
+        )
+        with self._lock:
+            preview.used = True
+        verified = result.get("verified") is True
+        if self.events is not None:
+            self.events.publish(
+                "hwp_fill_applied", {"path": preview.source_path, "preview_id": preview.preview_id, "verified": verified}
+            )
+        return {
+            "action": "hwp_apply_fill",
+            "preview_id": preview.preview_id,
+            "path": preview.source_path,
+            "backup_path": str(result.get("backup_path") or backup),
+            "before_sha256": str(result.get("before_sha256") or ""),
+            "after_sha256": str(result.get("after_sha256") or ""),
+            "reopened": bool(result.get("reopened")),
+            "summary": preview.summary,
+            "pages": preview.pages,
+            "verified": verified,
+        }
+
+    def _capture_fill_proof(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        preview = self._fill_preview(str(arguments.get("preview_id") or ""))
+        path = Path(preview.source_path)
+        current_sha = _sha256(path) if path.is_file() else ""
+        copy = Path(preview.preview_path)
+        current_preview_sha = _sha256(copy) if copy.is_file() else ""
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                {
+                    "preview_id": preview.preview_id,
+                    "document_id": preview.document_id,
+                    "instance_id": preview.instance_id,
+                    "native_document_id": preview.native_document_id,
+                    "path": preview.source_path.lower(),
+                    "expected_sha256": preview.source_sha256,
+                    "current_sha256": current_sha,
+                    "preview_sha256": preview.preview_sha256,
+                    "current_preview_sha256": current_preview_sha,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        return {
+            "fingerprint": fingerprint,
+            "preview_id": preview.preview_id,
+            "document_id": preview.document_id,
+            "instance_id": preview.instance_id,
+            "native_document_id": preview.native_document_id,
+            "path": preview.source_path,
+            "sha256": current_sha,
+            "summary": preview.summary,
+        }
+
     # ── PDF 로 내보내기 (2026-10-17) ────────────────────────────────────────
     def _export_target(self, arguments: dict[str, Any]) -> tuple[Path, Path]:
         """원본(읽기 범위 안 · 있어야 함)과 만들 PDF 자리(쓰기 범위 안). 범위 밖이면 local_computer 가 까닭과 함께 거절한다."""
@@ -1766,6 +2548,8 @@ class HwpTools:
             "hwp_apply_edit": self.apply_edit,
             "hwp_preview_format": self.preview_format,
             "hwp_apply_format": self.apply_format,
+            "hwp_preview_fill": self.preview_fill,
+            "hwp_apply_fill": self.apply_fill,
             "hwp_export_pdf": self.export_pdf,
         }
         # ★ 서식도 글자 바꾸기와 같은 무게다 — 미리보기는 사본만 만드니 L1, 원본 반영은 승인 L2 (2026-10-17).
@@ -1776,12 +2560,16 @@ class HwpTools:
             "hwp_apply_edit": RiskLevel.L2,
             "hwp_preview_format": RiskLevel.L1,
             "hwp_apply_format": RiskLevel.L2,
+            # ★ 양식 채우기도 같은 무게다 — 미리보기는 사본 · 사본 PDF 만 만드니 L1, 원본 반영은 승인 L2 (2026-11-23).
+            "hwp_preview_fill": RiskLevel.L1,
+            "hwp_apply_fill": RiskLevel.L2,
             # ★ PDF 내보내기는 「새 파일 만들기」다 — local_write_document 처럼 바닥 L1, 자리에 따라 `_export_risk` 가 올린다.
             "hwp_export_pdf": RiskLevel.L1,
         }
         inverses = {
             "hwp_apply_edit": self._undo_handle,
             "hwp_apply_format": self._format_undo_handle,
+            "hwp_apply_fill": self._undo_handle,
             "hwp_export_pdf": self._export_undo_handle,
         }
         undos = {"hwp_export_pdf": self._undo_export}
@@ -1791,6 +2579,7 @@ class HwpTools:
         proofs = {
             "hwp_apply_edit": self._capture_apply_proof,
             "hwp_apply_format": self._capture_format_proof,
+            "hwp_apply_fill": self._capture_fill_proof,
         }
         for definition in self._definitions:
             name = str(definition["function"]["name"])
@@ -1822,6 +2611,7 @@ class HwpTools:
                     ),
                     needs_job_context=name in {
                         "hwp_preview_edit", "hwp_apply_edit", "hwp_preview_format", "hwp_apply_format", "hwp_export_pdf",
+                        "hwp_preview_fill", "hwp_apply_fill",
                     },
                 )
             )

@@ -16,6 +16,14 @@ from alture_jarvis.packs import PackError, PackRegistry, load_packs
 REPO = Path(__file__).resolve().parents[1]
 
 
+@pytest.fixture(autouse=True)
+def _short_paths(monkeypatch):
+    # 11-23: 긴 폴더면 허깅페이스 라이브러리를 건너뛴다(test_pack_hf_long_path_1123). 여기 시험은 라이브러리 길을 보므로
+    # 이 PC 의 임시 폴더 길이에 결과가 흔들리지 않게 「짧음」으로 고정한다.
+    import alture_jarvis.pack_models as pm
+    monkeypatch.setattr(pm, "_hf_temp_too_long", lambda target, windows=None: False)
+
+
 def _zip(files: dict[str, bytes]) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as zf:

@@ -2897,5 +2897,7 @@
  "설정한 자리에 있음 · 받지 않아도 됨": "In the folder you set · no download needed",
  "어느 폴더에서 할지 정하지 못했습니다. 열린 창에서 작업할 폴더를 골라 주세요(새로 만들 폴더라면 그 폴더가 들어갈 자리, 예: 문서). 고른 뒤 다시 보내면 됩니다.": "Couldn't tell which folder to work in. Pick the folder in the window that just opened (for a new folder, pick where it should go, e.g. Documents), then send again.",
  "지금은 {0} 입니다. 설치 페이지에서 새 버전을 직접 받아 주세요": "You are on {0}. Download the new version from the install page",
- "아직 받을 수 없습니다": "Not available to install yet"
+ "아직 받을 수 없습니다": "Not available to install yet",
+ "한글 양식 채우기 미리보기": "Hangul (.hwp) form fill preview",
+ "한글 양식 채우기 적용": "Apply Hangul (.hwp) form fill"
 }

@@ -5,6 +5,7 @@ name = "sonjari-mcp-bundle"
 version = "0.4.53"
 requires-python = ">=3.11"
 dependencies = [
-  "mcp==2.0.0",
+  "mcp==2.3.0",
+  "httpx2==2.16.0",
   "httpx==0.28.1",
 ]
