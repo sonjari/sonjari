@@ -1253,12 +1253,195 @@ fn sjMotionAmount com S E outPath = (
 '''
 
 
+# ── 발 구간 고정 · 몸만 옮기기 · COM 앞섬 표(11-20 현업 사용기 덧붙임 ①②③) ──────────────────────────
+# ★ 까닭(11-20): 입힌 26프레임 동작의 4프레임에서 COM 이 두 발 중간보다 약 24 앞으로 쏠려 보였다.
+#   COM 키만 뒤로 10 밀었더니 발이 같이 끌려와 쏠림 그대로 → COM 16 뒤로 + 두 발 4프레임 원위치로 약 8 →
+#   **두 발을 0프레임 위치 · 회전 그대로 0~4프레임에 유지**하니 약 1 이 되어 사람이 「맞다」고 판정했다.
+#   ① hold_feet: 구간 [a, b] 동안 두 발을 a 프레임의 월드 위치 · 회전으로 고정(그 구간의 원래 키 자리 + a · b).
+#   ② com_shift: 구간의 COM 키만 옮기고, 옮기기 전에 적어 둔 두 발의 월드 위치 · 회전으로 되돌린다(발이 끌려오지 않게).
+#      「뒤로」는 발뒤꿈치 → 발끝(Foot → Toe0) 방향의 반대 — 균형 점검(balance_check ①)과 같은 앞 방향.
+#   ③ COM 앞섬: 프레임마다 COM 이 두 발 중간보다 앞 방향으로 얼마나 나가 있나(+앞 · -뒤). 읽기만 한다.
+#   ★ 바이페드 발에 월드 회전을 박는 것(biped.setTransform #rotation)이 사람이 손으로 한 「회전 그대로」와 같은지는 실제 맥스 확인 전 —
+#     그래서 고친 뒤 발이 기준에서 얼마나 어긋나는지를 다시 재어 결과에 쓴다.
+
+def frame_spans(raw: Any, start: int | None = None, end: int | None = None, *, name: str = "hold_feet") -> list[tuple[int, int]]:
+    """[[a, b], …] → [(a, b)] · 정수로 · a ≤ b · 구간을 알면 그 안이어야 한다. 틀리면 ValueError(일부만 하지 않는다)."""
+    if raw is None:
+        return []
+    if not isinstance(raw, (list, tuple)):
+        raise ValueError(f"{name} 는 [[시작, 끝], …] 목록으로(예: [[0, 4]])")
+    if len(raw) == 2 and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in raw):
+        raw = [raw]                                           # [0, 4] 하나만 준 것도 받는다
+    out: list[tuple[int, int]] = []
+    for sp in raw:
+        if not isinstance(sp, (list, tuple)) or len(sp) != 2 or any(isinstance(v, bool) for v in sp):
+            raise ValueError(f"{name} 의 구간은 [시작, 끝] 두 숫자로 — 받은 것: {sp!r}")
+        try:
+            a, b = (int(round(float(v))) for v in sp)
+        except (TypeError, ValueError):
+            raise ValueError(f"{name} 에 숫자가 아닌 것: {sp!r}") from None
+        if a > b:
+            raise ValueError(f"{name} 구간 {a}~{b}: 시작이 끝보다 크다")
+        if start is not None and end is not None and (a < start or b > end):
+            raise ValueError(f"{name} 구간 {a}~{b} 가 동작 구간 {start}~{end} 밖이다")
+        out.append((a, b))
+    return out
+
+
+def com_shifts(raw: Any, start: int | None = None, end: int | None = None) -> list[dict[str, Any]]:
+    """[{from, to, back?, move?}, …] → 정리한 목록. back = 발 앞 방향의 반대로 옮길 거리(음수면 앞으로) · move = 월드 [x, y, z]."""
+    if raw is None:
+        return []
+    if isinstance(raw, dict):
+        raw = [raw]
+    if not isinstance(raw, list):
+        raise ValueError('com_shift 는 [{from, to, back 또는 move}, …] 로(예: [{"from": 4, "to": 4, "back": 16}])')
+    out: list[dict[str, Any]] = []
+    for it in raw:
+        if not isinstance(it, dict):
+            raise ValueError(f"com_shift 의 한 칸은 from · to · back(또는 move) 로 — 받은 것: {it!r}")
+        a = it.get("from")
+        b = it.get("to", a)
+        (span,) = frame_spans([[a, b]], start, end, name="com_shift")
+        try:
+            back = float(it.get("back") or 0.0)
+            mv = [float(v) for v in (it.get("move") or [0, 0, 0])]
+        except (TypeError, ValueError):
+            raise ValueError(f"com_shift 의 back · move 는 숫자로 — 받은 것: {it!r}") from None
+        if len(mv) != 3:
+            raise ValueError("com_shift 의 move 는 [x, y, z] 세 숫자")
+        if back == 0.0 and not any(mv):
+            raise ValueError(f"com_shift {span[0]}~{span[1]}: 옮길 거리(back 또는 move)가 없다")
+        out.append({"from": span[0], "to": span[1], "back": back, "move": mv})
+    return out
+
+
+FEET_HOLD = r'''
+-- ★ 11-20 발 구간 고정 · 몸만 옮기기 · COM 앞섬 표(현업 사용기 덧붙임 ①②③)
+fn sjFootNodes com = (
+  local r = #()
+  for s in #(" L Foot", " R Foot") do (local n = getNodeByName (com.name + s) exact:true; if n != undefined do append r n)
+  r
+)
+fn sjSetWorld n tm = (
+  biped.setTransform n #rotation tm.rotation true
+  biped.setTransform n #pos tm.pos true
+)
+fn sjSpanTimes ctrls a b = (
+  local ts = sjKeyTimes ctrls a b
+  appendIfUnique ts a; appendIfUnique ts b
+  sort ts
+)
+fn sjFootDir com t = (
+  -- 앞 방향: 두 발의 발뒤꿈치 → 발끝(Foot → Toe0) 수평 방향 평균(balance_check ① 과 같은 기준). 못 구하면 undefined
+  local ax = [0, 0, 0]
+  for s in #(" L", " R") do (
+    local f = getNodeByName (com.name + s + " Foot") exact:true
+    local o = getNodeByName (com.name + s + " Toe0") exact:true
+    if f != undefined and o != undefined do (
+      local d = at time t (o.transform.pos - f.transform.pos)
+      d = [d.x, d.y, 0]
+      if (length d) > 0.0001 do ax += normalize d
+    )
+  )
+  if (length ax) < 0.0001 then undefined else normalize ax
+)
+fn sjFeetDrift feet ts refs = (
+  local w = 0.0
+  for k = 1 to ts.count do for i = 1 to feet.count do w = amax w (distance (at time ts[k] feet[i].transform.pos) refs[k][i].pos)
+  w
+)
+fn sjHoldFeet com a b = (
+  local feet = sjFootNodes com
+  if feet.count == 0 do return ("발 구간 고정 " + (a as string) + "~" + (b as string) + ": 발을 못 찾음 — 안 함")
+  -- ★ 11-23 맥스 실측(CMU 걷기 · 0~10): 원래 키 자리에만 박으니 키 사이에서 오른발이 6.73 샜다 → 구간의 모든 프레임에 박는다
+  --   (고정 구간은 짧다 — 키가 촘촘해지면 keep_keys 로 다시 줄인다)
+  local ts = for f = a to b collect f
+  local ref = for n in feet collect (at time a n.transform)
+  local keepT = sliderTime
+  for t in ts do (
+    sliderTime = t
+    with animate on (for i = 1 to feet.count do sjSetWorld feet[i] ref[i])
+  )
+  sliderTime = keepT
+  local allF = for f = a to b collect f
+  local refs = for f in allF collect ref
+  -- ★ 11-23 맥스 실측: 걷는 동작에 0~10 고정 → 오른발 6.73 밀림 = 엉덩이 → 발 자리(35.6)가 다리 길이(28.9)를 넘은 양.
+  --   키는 다 박혔는데 다리가 안 닿는 것이다 → 결과에 그 까닭을 같이 적는다(사람이 「고정이 안 먹었다」로 읽지 않게).
+  local short = 0.0
+  for i = 1 to feet.count do (
+    local th = getNodeByName (substituteString feet[i].name " Foot" " Thigh") exact:true
+    local ca = getNodeByName (substituteString feet[i].name " Foot" " Calf") exact:true
+    if th != undefined and ca != undefined do (
+      local leg = at time a ((distance th.transform.pos ca.transform.pos) + (distance ca.transform.pos feet[i].transform.pos))
+      for f in allF do short = amax short ((at time f (distance th.transform.pos ref[i].pos)) - leg)
+    )
+  )
+  "발 구간 고정 " + (a as string) + "~" + (b as string) + "(" + (a as string) + "프레임 위치 · 회전): 키 " + (ts.count as string) + \
+    "곳 · 기준에서 어긋남 최대 " + (formattedPrint (sjFeetDrift feet allF refs) format:".2f") + \
+    (if short > 0.05 then (" · ★ 다리가 발 자리에 안 닿음(최대 " + (formattedPrint short format:".2f") + \
+      " 모자람) — 이 구간에 몸이 너무 멀리 간다. 구간을 줄이거나 com_shift 로 몸을 당겨라") else "")
+)
+fn sjComShift com a b mv back = (
+  local feet = sjFootNodes com
+  local cc = #(com.controller.horizontal.controller, com.controller.vertical.controller)
+  local cts = sjSpanTimes cc a b
+  local ts = for f = a to b collect f       -- 발은 구간 모든 프레임에서 되돌린다(키 사이로 새지 않게 · 11-23 실측)
+  local saved = for t in ts collect (for n in feet collect (at time t n.transform))
+  local keepT = sliderTime
+  local noDir = 0
+  for t in cts do (
+    sliderTime = t
+    local d = mv
+    if back != 0.0 do (
+      local ax = sjFootDir com t
+      if ax == undefined then noDir += 1 else d = d + ax * (0.0 - back)
+    )
+    with animate on (biped.setTransform com #pos (com.transform.pos + d) true)
+  )
+  for k = 1 to ts.count do (
+    sliderTime = ts[k]
+    with animate on (for i = 1 to feet.count do sjSetWorld feet[i] saved[k][i])
+  )
+  sliderTime = keepT
+  "COM 옮김 " + (a as string) + "~" + (b as string) + "(뒤로 " + (back as string) + " · 더한 " + (mv as string) + "): COM 키 " + \
+    (cts.count as string) + "곳 · 발 되돌린 자리 " + (ts.count as string) + " · 발 어긋남 최대 " + \
+    (formattedPrint (sjFeetDrift feet ts saved) format:".2f") + \
+    (if noDir > 0 then (" · ★ 앞 방향(발끝)을 못 구해 뒤로 옮기기를 건너뛴 키 " + (noDir as string) + "곳") else "")
+)
+fn sjComLead com S E = (
+  -- 읽기만: 프레임마다 COM 이 두 발 중간보다 앞 방향(+) · 뒤(-)로 얼마나 나가 있나
+  local feet = sjFootNodes com
+  if feet.count < 2 do return "COM 앞섬: 두 발을 못 찾음"
+  local ss = stringStream ""
+  local worst = 0.0
+  local wf = S
+  local n = 0
+  for f = S to E do (
+    local ax = sjFootDir com f
+    if ax != undefined do (
+      local mid = at time f ((feet[1].transform.pos + feet[2].transform.pos) / 2)
+      local c = at time f com.transform.pos
+      local v = dot [c.x - mid.x, c.y - mid.y, 0] ax
+      n += 1
+      if (abs v) > (abs worst) do (worst = v; wf = f)
+      if (E - S) <= 60 do format " %:%" f (formattedPrint v format:".1f") to:ss
+    )
+  )
+  if n == 0 do return "COM 앞섬: 발끝(Toe0)을 못 찾아 앞 방향을 모름"
+  "COM 앞섬(두 발 중간 기준 · +앞 -뒤): 최대 " + (formattedPrint worst format:".1f") + "(" + (wf as string) + "프레임)" + \
+    (if (E - S) <= 60 then (" · 프레임별" + (ss as string)) else " · 프레임이 많아 표는 생략(anim_balance_check 로)")
+)
+'''
+
+
 def apply_script(bip: Path, biped: str = "", label: str = "", frames: tuple[int, int] | None = None,
                  *, match_height: bool = True, stride: float = 1.0, arm_spread: float = 0.0,
                  blend_bip: Path | None = None, blend: float = 0.0,
                  blend_frames: tuple[int, int] | None = None, bookend: bool = True, foot_lock: bool = True,
                  keep_keys: Sequence[int] | None = None, amount_path: Path | None = None, raw: bool = False,
-                 backup: Path | None = None) -> str:
+                 backup: Path | None = None, hold_feet: Sequence[tuple[int, int]] | None = None,
+                 com_shift: Sequence[dict[str, Any]] | None = None, com_report: bool = False) -> str:
     """지금 장면의 바이페드에 .bip 를 입힌다. 입히기 전에 holdMaxFile — 맘에 안 들면 편집 › 가져오기(Fetch)로 되돌린다.
 
     11-03 시험: loadBipFile 은 시간 구간을 바꾸지 않는다(78프레임 공격을 120프레임 대기 장면에 입히니 0~120 그대로) →
@@ -1269,6 +1452,9 @@ def apply_script(bip: Path, biped: str = "", label: str = "", frames: tuple[int,
 
     11-18: keep_keys(프레임 목록)를 주면 다 입힌 뒤(첫끝 · 발 고정까지) 그 자리 키만 남긴다. amount_path 를 주면 지우기 전에
     프레임별 움직임 양 표를 쓴다(키포즈 후보 고르기용 — keypose_candidates).
+
+    11-20: com_shift(몸만 옮기고 발은 되돌림) → hold_feet(구간 동안 두 발 고정)는 발 고정 뒤 · 키 남기기 전에,
+    com_report(COM 앞섬 표)는 맨 끝(키를 지운 뒤 모양)에. 앞의 둘은 사람이 콕 집어 준 손질이라 raw 여도 한다.
     """
     if raw:
         bookend, foot_lock, stride, arm_spread, blend_bip = False, False, 1.0, 0.0, None
@@ -1299,6 +1485,11 @@ def apply_script(bip: Path, biped: str = "", label: str = "", frames: tuple[int,
     if foot_lock:
         fit += f'  fitNote = fitNote + " · " + (sjFootLock com footSpans footP0 {stride:.3f})\n'
     rng_s, rng_e = "(animationRange.start.frame as integer)", "(animationRange.end.frame as integer)"
+    for sh in com_shift or []:
+        mv = "[" + ", ".join(f"{float(v):.3f}" for v in sh["move"]) + "]"
+        fit += f'  fitNote = fitNote + " · " + (sjComShift com {int(sh["from"])} {int(sh["to"])} {mv} {float(sh["back"]):.3f})\n'
+    for a, b in hold_feet or []:
+        fit += f'  fitNote = fitNote + " · " + (sjHoldFeet com {int(a)} {int(b)})\n'
     if amount_path is not None:
         # 표는 키를 지우기 전 — 입힌 그대로의 움직임에서 고르게
         fit += f'  fitNote = fitNote + " · " + (sjMotionAmount com {rng_s} {rng_e} {_q(amount_path)})\n'
@@ -1306,9 +1497,13 @@ def apply_script(bip: Path, biped: str = "", label: str = "", frames: tuple[int,
     if trimming:
         arr = "#(" + ", ".join(str(int(f)) for f in sorted(set(int(f) for f in keep_keys))) + ")"
         fit += f'  fitNote = fitNote + " · " + (sjTrimKeys com {arr} {rng_s} {rng_e})\n'
+    if com_report:
+        fit += f'  fitNote = fitNote + " · " + (sjComLead com {rng_s} {rng_e})\n'
+    feet_tools = bool(com_shift or hold_feet or com_report)
     return (
         "-- 손자리 애니메이터 팩: 창고 동작 입히기(입히기 전 장면을 보관(Hold)한다)\n(\n" + _FIND_BIPED + COM_MATCH + BODY_FIT + (FOOT_LOCK if foot_lock else "") + POSE_FN + (BLEND if blending else "") +
         (KEY_TRIM if (trimming or amount_path is not None) else "") +
+        (FEET_HOLD if feet_tools else "") +
         r'''fn sjProbe = (
   local pts = #()
   for o in objects where (classof o.controller == BipSlave_Control) and (matchPattern o.name pattern:"*Hand" or matchPattern o.name pattern:"*Foot") do (

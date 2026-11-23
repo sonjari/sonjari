@@ -1295,7 +1295,17 @@ def default_token_file() -> "Path | None":
     if configured:
         root = Path(configured)
     elif os.name == "nt":
-        root = runtime_dir(Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local"))
+        local = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+        root = runtime_dir(local)
+        if not (root / "data" / "control.token").is_file():
+            # ★ 2026-11-23(.mcpb): 스토어판 앱이 쓴 %LOCALAPPDATA% 는 패키지 칸
+            #   (Packages\<패키지>\LocalCache\Local\…)으로 옮겨져, 패키지 **밖**에서 뜬 다리(클로드 데스크톱의 .mcpb)는 못 본다.
+            #   그 칸도 같은 이름으로 찾아본다. 패키지 안 별칭(sonjari-mcp)에서는 위 자리에 그대로 보인다(11-13 실측).
+            for packaged in sorted(local.glob("Packages/RoboMetaFit.Sonjari_*/LocalCache/Local")):
+                candidate = runtime_dir(packaged)
+                if (candidate / "data" / "control.token").is_file():
+                    root = candidate
+                    break
     elif sys.platform == "darwin":
         root = runtime_dir(Path(os.environ.get("SONJARI_APP_SUPPORT") or Path.home() / "Library" / "Application Support"))
     else:

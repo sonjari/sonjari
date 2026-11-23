@@ -8,13 +8,13 @@
     "source": "github"
   },
   "websiteUrl": "https://github.com/sonjari/sonjari",
-  "version": "0.4.52",
+  "version": "0.4.53",
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/sonjari/sonjari/releases/download/v0.4.52-mac/sonjari-mcp-0.4.52.mcpb",
-      "version": "0.4.52",
-      "fileSha256": "a9a9e7671e93af8dc0384882d075412467723d90d8c44170e4b43df2be407798",
+      "identifier": "https://github.com/sonjari/sonjari/releases/download/v0.4.53-mac/sonjari-mcp-0.4.53.mcpb",
+      "version": "0.4.53",
+      "fileSha256": "187c721fc38e1315b4c34d46dd25e52cd0046e498f4cdc08369639dd9018f3ba",
       "transport": {
         "type": "stdio"
       }

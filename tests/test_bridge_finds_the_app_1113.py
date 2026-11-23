@@ -61,3 +61,28 @@ def test_the_default_follows_the_apps_runtime_rule(tmp_path: Path, clean_env) ->
         clean_env.setattr(sys, "platform", "darwin")
         clean_env.setenv("SONJARI_APP_SUPPORT", str(tmp_path / "sup"))
     assert mcp_server.default_token_file() == _default_runtime_root() / "data" / "control.token"
+
+
+# ── 2026-11-23 .mcpb: 패키지 밖에서 뜬 다리가 스토어판 앱의 토큰을 찾는다 ─────────────────────────────
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="윈도우 스토어판만의 자리")
+def test_outside_the_package_the_bridge_finds_the_store_apps_token(tmp_path: Path, clean_env) -> None:
+    packaged = tmp_path / "Packages" / "RoboMetaFit.Sonjari_qe52nfz6fmh9c" / "LocalCache" / "Local" / "Sonjari" / "data"
+    packaged.mkdir(parents=True)
+    (packaged / "control.token").write_text("tok-from-store\n", encoding="utf-8")
+    clean_env.setenv("LOCALAPPDATA", str(tmp_path))
+    assert mcp_server.default_token_file() == packaged / "control.token"
+    assert mcp_server.resolve_token() == "tok-from-store"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="윈도우 스토어판만의 자리")
+def test_the_plain_place_still_wins_when_it_has_a_token(tmp_path: Path, clean_env) -> None:
+    plain = tmp_path / "Sonjari" / "data"
+    plain.mkdir(parents=True)
+    (plain / "control.token").write_text("tok-plain", encoding="utf-8")
+    packaged = tmp_path / "Packages" / "RoboMetaFit.Sonjari_x" / "LocalCache" / "Local" / "Sonjari" / "data"
+    packaged.mkdir(parents=True)
+    (packaged / "control.token").write_text("tok-store", encoding="utf-8")
+    clean_env.setenv("LOCALAPPDATA", str(tmp_path))
+    assert mcp_server.resolve_token() == "tok-plain"

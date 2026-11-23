@@ -217,6 +217,12 @@ class DocumentReader:
             result.text = result.text[:budget]
             result.truncated = True
         result.text = _normalize(result.text)
+        # ★ 2026-11-23 NIPA 판: 「사업자번호는 보통 3-2-6」이라는 틀린 상식으로 맞는 번호를 고치라 했다 — 계산되는 것은 계산해 붙인다(`doc_facts`).
+        from .doc_facts import facts_block
+
+        facts = facts_block(result.text)
+        if facts:
+            result.text += "\n\n" + facts
         return result
 
     @staticmethod
@@ -299,14 +305,38 @@ class DocumentReader:
     def _pdf(self, raw: bytes) -> DocumentContent:
         from pypdf import PdfReader
 
+        from .pdf_marks import read_page
+
         reader = PdfReader(io.BytesIO(raw))
         total = len(reader.pages)
         parts = []
         warnings: list[str] = []
+        symbols = unplaced = pictures = 0
+        any_text = False
         for index, page in enumerate(reader.pages[: self.max_pages]):
-            text = page.extract_text() or ""
+            # ★ 2026-11-23 NIPA 판: 기호 글꼴(체크 상자 · 글머리)을 글자로, 그림(직인 · 서명)을 없는 것으로 읽었다 — `pdf_marks` 설명.
+            marks = read_page(page)
+            text = marks.text
+            symbols += marks.symbols_replaced
+            unplaced += marks.symbols_unplaced
+            pictures += len(marks.pictures)
             if text.strip():
-                parts.append(f"[PDF {index + 1}쪽]\n{text}")
+                any_text = True
+                parts.append(f"[PDF {index + 1}쪽]\n{text}" + (f"\n{marks.picture_note}" if marks.picture_note else ""))
+            elif marks.picture_note:
+                parts.append(f"[PDF {index + 1}쪽]\n{marks.picture_note}")
+        if symbols:
+            warnings.append(f"기호 글꼴 글자(체크 상자 · 글머리) {symbols}곳을 ☑ · □ · 기호로 바꿨습니다 — 글자 오타가 아닙니다.")
+        if unplaced:
+            warnings.append(f"기호 글꼴 글자 {unplaced}곳은 자리를 못 찾아 뽑힌 글자 그대로 두었습니다(영문자처럼 보여도 기호입니다).")
+        if pictures:
+            warnings.append(
+                f"글자로 읽지 못한 그림 {pictures}개가 있습니다(쪽 끝 「⟦그림」 줄에 자리). 도장 · 서명 · 사진 · 그림으로 된 글자일 수 있고 "
+                "그림 속은 읽지 않았습니다 — 그 자리에 무엇이 있다 · 없다는 이 글로 말할 수 없습니다."
+            )
+        # 글자가 한 쪽에도 없으면 스캔본이다 — 그림 표시만 남기지 말고 예전대로 아래 OCR 로 보낸다.
+        if not any_text:
+            parts = []
         if total and not parts and self.pdf_ocr is not None:
             try:
                 ocr_text, processed = self.pdf_ocr(raw, min(total, self.max_pages))

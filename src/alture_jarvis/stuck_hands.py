@@ -357,8 +357,72 @@ def _local_stuck_ask(tool: str, error: str) -> tuple[str, str]:
     return _ASK_LOCAL_OTHER, ""
 
 
-def _stuck_report(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
+#: 승인으로도 안 풀리는 막힘 — 비밀이 드는 자리(`local_computer._sensitive_path`). 다시 해도 · 다른 손으로 해도 같은 벽이다.
+_SENSITIVE_BLOCK = "sensitive_path_blocked"
+#: 경로 꼴 — 윈도우 드라이브 · 집 폴더(~) · file 주소 · 맥/리눅스 절대 경로(낱말 중간의 「연구/개발」은 아님).
+_PROMPT_PATH = re.compile(r"(?:[A-Za-z]:[\\/]|~[\\/]|file:/+|(?<![\w/.])/[\w.~-]+/)[^\s「」『』\"'<>|*?]*")
+
+
+def _norm_path(raw: str) -> str:
+    text = str(raw or "").strip().strip("「」『』\"'`.,)")
+    if text.lower().startswith("file:"):
+        text = re.sub(r"^file:/+", "", text, flags=re.IGNORECASE)
+    try:
+        text = str(Path(text).expanduser())
+    except (RuntimeError, ValueError):
+        pass
+    return text.replace("/", "\\").rstrip("\\").casefold()
+
+
+def _step_paths(step: dict[str, Any]) -> list[str]:
+    arguments = step.get("arguments")
+    if not isinstance(arguments, dict):
+        return []
+    return [
+        _norm_path(value) for value in arguments.values()
+        if isinstance(value, str) and _PROMPT_PATH.match(value.strip())
+    ]
+
+
+def _sensitive_report(steps: list[dict[str, Any]], prompt: str) -> dict[str, Any] | None:
+    """비밀 자리 막힘 — 몇 번 실패를 기다리지 않는다 (2026-11-23 NIPA 판 잡 14b52081).
+
+    사람이 맡긴 PDF 가 `~/.claude/uploads/…` 에 있었다. 첫 걸음에 `sensitive_path_blocked` 가 났는데, 모델은 브라우저 file 주소 ·
+    글 파일 읽기 · 폴더 목록으로 **손을 바꿔 가며** 같은 자리를 다섯 번 더 두드렸고(6번째에 멈춤), 멈춘 뒤에는 「허용할 폴더를
+    알려 주세요 · 이어서」를 물었다 — 이 막힘은 승인으로도 안 풀린다. 되풀이는 걸음 낭비이고, 손을 바꾸는 것은 막힘을 돌아가려는 시도다.
+
+    막힌 자리가 **사람이 과제 글에 적은 그 경로**이거나 그것을 품은 폴더(목록 보기)면 첫 번에 정리한다 — 그 파일 없이는 할 일이 없다.
+
+    그 밖(모델이 스스로 들른 자리 · 사람이 적은 폴더 **아래**의 다른 파일)은 건드리지 않는다(예전대로 5번 연속). 운영 기록 6,039판 역검증:
+    막힘이 난 판 4개 중 3개는 `token_showdown.py` 같은 보통 코드 파일이 이름 때문에 막힌 것이었고 그 판들은 막힌 뒤에도 일을 마쳤다 —
+    「두 번째 막힘에서 끝냄」으로 짰던 첫 안은 그중 하나(75aaa296 · 막힘 2번)를 중간에 끊었을 것이다.
+    """
+    last = steps[-1] if steps else {}
+    if last.get("ok") or not str(last.get("error") or "").startswith(_SENSITIVE_BLOCK):
+        return None
+    blocked_paths = _step_paths(last)
+    asked_paths = [_norm_path(match.group(0)) for match in _PROMPT_PATH.finditer(prompt or "")]
+    named = any(
+        blocked == asked or asked.startswith(blocked + "\\")
+        for blocked in blocked_paths for asked in asked_paths
+    )
+    if not named:
+        return None
+    times = sum(1 for step in steps if not step.get("ok") and str(step.get("error") or "").startswith(_SENSITIVE_BLOCK))
+    shown = next((str(value) for value in (last.get("arguments") or {}).values()
+                  if isinstance(value, str) and _PROMPT_PATH.match(value.strip())), "")
+    blocked = "비밀이 드는 자리(키 · 토큰 · 자격 증명 · 다른 도구의 기록)라 손자리가 열지 않는 경로입니다" + (f": {shown[:160]}" if shown else "")
+    ask = ("이 막힘은 승인으로도 풀리지 않습니다. 그 파일을 손자리가 읽을 수 있는 폴더(예: 문서 · 바탕화면)로 복사한 뒤 "
+           "그 경로로 다시 맡겨 주세요.")
+    return {"kind": "sensitive_wall", "named": named, "times": times, "done": "", "blocked": blocked, "ask": ask, "url": "",
+            "message": f"여기서 멈췄습니다: {blocked}.\n이것만 해 주세요: {ask}"}
+
+
+def _stuck_report(steps: list[dict[str, Any]], prompt: str = "") -> dict[str, Any] | None:
     """같은 자리에서 헛돌고 있으면 사람에게 넘길 보고, 아니면 None. 모델을 부르지 않는다(이미 센 것만 쓴다)."""
+    sensitive = _sensitive_report(steps, prompt)
+    if sensitive is not None:
+        return sensitive
     # ★ 사람이 같은 탭을 쓰고 있다(2026-10-19 잡 51f35b07 · `BrowserWorker._hold_if_human_on_tab`). 헛돈 것이 아니라 **사람의 차례**다 —
     #   몇 번 실패를 기다리지 않고 첫 번에 넘긴다. 모델에게 「물어라」로 돌려보내면 그 자리에서 다른 손을 또 써 본다(사고 R).
     last_step = steps[-1] if steps else {}

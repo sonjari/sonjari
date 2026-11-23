@@ -139,6 +139,12 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "search_boxes.py",
         "plopfit.py", "serp.py", "inhouse_data.py", "google_workspace.py",
         "local_computer.py", "document_reader.py", "person_search.py",
+        # PDF 쪽 읽기 — 기호 글꼴을 ☑ · □ 로 · 그림 자리를 「⟦그림⟧」 줄로(2026-11-23 NIPA 판). 모델이 받는 문서 글이 바뀐다.
+        "pdf_marks.py",
+        # 문서 속 사업자등록번호를 검증 숫자로 계산해 한 줄 붙인다(2026-11-23) — 모델이 받는 문서 글이 바뀐다.
+        "doc_facts.py",
+        # 그림 자리를 「없다」고 한 줄 · 근거 없는 물음표 짐작에 경고(2026-11-23) — 조사 답에 붙는 글이 바뀐다.
+        "picture_claims.py",
         "hwp.py", "claude_code.py", "code_index.py", "code_syntax.py", "code_scout.py",
         # 코드 모드가 어느 파이썬으로 돌고 무엇을 깔 수 있나(2026-09-26). 시험을 **어떤 환경에서** 돌리느냐가
         # 코드 판의 결과를 바꾸므로 local_computer.py 와 같은 축에 둔다.

@@ -1,6 +1,6 @@
 [package]
 name = "alture-jarvis-hud"
-version = "0.4.52"
+version = "0.4.53"
 description = "ALTURE JARVIS local desktop HUD"
 authors = ["ALTURE"]
 edition = "2021"

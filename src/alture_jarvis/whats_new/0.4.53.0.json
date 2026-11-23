@@ -1,0 +1,24 @@
+{
+  "ko": {
+    "changes": "이번에 고친 것\n- PDF 서류 검토: 그림이나 표처럼 실제로 읽지 못한 부분을 읽은 것처럼 말하던 것을 고쳤습니다. 이제 못 본 곳은 못 봤다고 적습니다.\n- 한글(HWPX) 문서: 새 부품 판에서 저장이 안 되던 것을 고쳤습니다.\n- 애니메이터 팩(3ds Max): 동작을 입힐 때 정한 구간 동안 두 발을 고정하기 · 발은 두고 몸만 옮기기 · 프레임마다 무게중심이 두 발 중간보다 얼마나 앞서는지 알려 주기가 생겼습니다.\n- 보안: 앱 업데이트 부품과 문서 읽기 부품을 보안 경고가 풀린 판으로 올렸습니다.",
+    "tour": "이미 되는데 잘 모르시는 것\n- 3D 생성 팩 · 영상 생성 팩 — 기본으로 꺼져 있습니다. 설정 › 팩에서 켜야 보입니다.\n- 클로드 · 코덱스에서 Sonjari 쓰기 — 웹 조사 · 파일 일을 손자리에게 맡겨 클로드 사용 한도를 아낍니다(설정 › 연결).",
+    "slides": [
+      {
+        "title": "못 본 것은 못 봤다고 적습니다",
+        "body": "PDF 서류를 검토할 때 그림 · 표 · 도장처럼 글자로 읽지 못한 곳을 짐작으로 채우지 않고, 어디를 못 봤는지 따로 적습니다.",
+        "try": "PDF 서류 하나를 주고 「빠진 것 검토해 줘」라고 해 보세요"
+      }
+    ]
+  },
+  "en": {
+    "changes": "Fixed in this update\n- PDF review: parts it could not actually read, such as pictures or tables, were described as if they had been read. It now says which parts it could not see.\n- Hangul (HWPX) documents: saving failed with the newest version of the document library.\n- Animator pack (3ds Max): when applying a motion you can now hold both feet for a frame range, move only the body while the feet stay, and see per frame how far the center of mass leads the midpoint of the feet.\n- Security: the app update component and the document readers were moved to versions without the open security advisories.",
+    "tour": "Already works, but easy to miss\n- 3D generation pack and video generation pack: off by default. Turn them on in Settings › Packs to see them.\n- Use Sonjari from Claude or Codex: hand web research and file work to Sonjari and save your Claude usage (Settings › Connections).",
+    "slides": [
+      {
+        "title": "It says what it could not see",
+        "body": "When reviewing a PDF, places it could not read as text (pictures, tables, stamps) are no longer filled in by guesswork; it lists them separately.",
+        "try": "Give it a PDF and ask it to check what is missing"
+      }
+    ]
+  }
+}
