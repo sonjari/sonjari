@@ -708,6 +708,13 @@ class ModelFetcher:
                 from huggingface_hub import snapshot_download as snapshot  # type: ignore[import-not-found]
             except ImportError:
                 snapshot = None
+        if snapshot and _hf_temp_too_long(target):
+            # ★ 2026-11-23 현업 사용자 PC(스토어판): 영상 팩 wan5b 가 `hf_hub: FileNotFoundError` 로 멈췄다. 허깅페이스 라이브러리의
+            #   받는 중 파일(`<폴더>\.cache\huggingface\download\<28자>.<64자>.incomplete`)이 255자 언저리면 긴 경로 표시(\\?\)를
+            #   안 붙이는데(라이브러리는 255 초과일 때만 붙임) 윈도우가 막는다 — 이 PC 에서 255자 실패 · 257자 성공으로 재현.
+            #   스토어판 데이터 폴더(…\Packages\<패키지>\LocalCache\Local\Sonjari\data)가 길어 거기 걸렸다. 우리가 \\?\ 를 붙이면
+            #   라이브러리가 한 번 더 붙여 깨진다(WinError 123) → 이 자리면 라이브러리를 쓰지 않고 아래 직접 받기(<파일>.part · 짧다)로.
+            snapshot = None
         if snapshot:
             target.mkdir(parents=True, exist_ok=True)
             try:
@@ -797,6 +804,19 @@ class ModelFetcher:
             text = (f"{model['id']} — 라이선스: {model['license']}\n원문 주소: {model['license_url'] or '(없음)'}\n"
                     "(원문을 이 자리에서 받지 못해 이름과 주소만 적는다.)\n")
         (target / LICENSE_FILE).write_text(text, encoding="utf-8")
+
+
+#: 허깅페이스 라이브러리가 받는 폴더 아래에 붙이는 받는 중 파일 몫:
+#: `\.cache\huggingface\download\` (29) + 줄인 이름 28 + `.` + 지문 64 + `.incomplete` (11) = 133자.
+HF_TEMP_TAIL = 133
+#: 이 길이를 넘으면 라이브러리를 쓰지 않는다. 255 실패 · 257 성공(긴 경로 표시)이 재현돼 경계가 애매하다 — 넉넉히 240.
+HF_TEMP_LIMIT = 240
+
+
+def _hf_temp_too_long(target: Path, *, windows: bool | None = None) -> bool:
+    if not (os.name == "nt" if windows is None else windows):
+        return False  # 맥 · 리눅스는 경로 한도가 길다
+    return len(os.path.abspath(str(target))) + HF_TEMP_TAIL >= HF_TEMP_LIMIT
 
 
 def _free_bytes(path: Path) -> int:

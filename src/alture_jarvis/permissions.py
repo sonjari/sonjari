@@ -167,6 +167,7 @@ WRITE_TOOL_NAMES: frozenset[str] = frozenset({
     "google_gmail_send",
     "hwp_apply_edit",
     "hwp_apply_format",
+    "hwp_apply_fill",
     "hwp_export_pdf",
     "local_apply_edit",
     "local_delete_file",

@@ -328,7 +328,7 @@ from .answer_hygiene import (
 _COMMIT_TOOLS = frozenset(
     set(_ACTION_ID_CONSUMER_TO_PRODUCER)
     - {"naver_blog_fill_editor", "naver_blog_prepare_save_draft", "naver_blog_prepare_publish"}
-    | {"hwp_apply_edit", "hwp_apply_format", CLAUDE_CODE_TOOL}
+    | {"hwp_apply_edit", "hwp_apply_format", "hwp_apply_fill", CLAUDE_CODE_TOOL}
 )
 
 #
@@ -1101,6 +1101,8 @@ AGENT_SYSTEM_PROMPT = """당신은 손자리의 범용 로컬 Computer Use 계�
   만들고 적용했다고 말하지 마라. 사람이 편집 중이면 도구가 거절하므로 덮지 마라.
 - 열린 한글 문서의 서식(글꼴·글자 크기·굵게·기울임·밑줄·글자 색·정렬·줄 간격)은 메뉴를 누르지 말고
   hwp_preview_format → hwp_apply_format 으로 바꿔라. 적용 결과의 matches 가 false 면 바뀐 것처럼 말하지 마라.
+- 열린 한글 양식의 칸 채우기(작성 가이드 문구를 지우고 여러 줄 넣기 · 그림 넣기 · 쪽수 맞추기)는
+  hwp_preview_fill → hwp_apply_fill 로 해라. 미리보기의 pages · fits · lines_missing 을 보고 말하고, verified 가 false 면 다 됐다고 하지 마라.
 - **파일명·제목만 보고 답하지 마라.** 찾기와 훑기는 무엇이 **있는지**만 알려 주고
   무엇**인지**는 알려 주지 않는다. 내용을 말하려면 읽는 도구를 한 번 더 불러라.
 
@@ -1470,6 +1472,7 @@ def _step_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
         "artifact_from_observations",
         "hwp_preview_edit",
         "hwp_preview_format",
+        "hwp_preview_fill",
         "hwp_export_pdf",
         # ★ **열두 번째 등록 자리** (2026-09-01 저녁).
         #
@@ -2763,6 +2766,8 @@ class BrowserAgent:
             "hwp_apply_edit": "승인된 한글 편집을 원본에 반영하는 중",
             "hwp_preview_format": "한글 문서 사본에 서식을 걸어 보는 중",
             "hwp_apply_format": "승인된 한글 서식을 원본에 반영하는 중",
+            "hwp_preview_fill": "한글 양식 사본에 글과 그림을 채워 쪽수를 재는 중",
+            "hwp_apply_fill": "승인된 한글 양식 채우기를 원본에 반영하는 중",
             "windows_list_open_windows": "현재 열린 Windows 앱을 확인 중",
             "windows_focus_window": "요청한 앱 창을 앞으로 가져오는 중",
             "windows_open_path": "요청한 파일이나 폴더를 여는 중",
@@ -5156,7 +5161,7 @@ class BrowserAgent:
     _QUOTE_NOISE = re.compile(r"[\W_]+")
     #: 이보다 짧은 칸(느슨하게 만든 뒤 글자 수)은 인용으로 안 본다 — 「200」 · 「-」.
     _QUOTE_MIN_CHARS = 8
-    #: 칸 안에서 원문으로 감싼 조각 — `…` · 「…」 · “…” · "…". 이것이 있으면 이것만 원문이다(2026-11-23 NIPA 판).
+    #: 칸 안에서 원문으로 감싼 조각 — `…` · 「…」 · “…” · "…". 이것이 있으면 이것만 원문이다(2026-11-23 지원사업 서류 판).
     _QUOTE_MARKED = re.compile(r"`([^`\n]+)`|「([^」\n]+)」|“([^”\n]+)”|\"([^\"\n]+)\"")
 
     def _quote_vs_page_check(self, asked: str, answer: str, steps: list[dict[str, Any]], job_id: str) -> str:
@@ -5216,7 +5221,7 @@ class BrowserAgent:
                         continue
                     if self._ROW_URL.fullmatch(cells[column].strip()):
                         continue  # 칸 글자가 주소 하나뿐이면 문장이 아니다
-                    # ★ 2026-11-23 NIPA 판 f38ebeb4: 모델은 원문을 `…` 로 감싸고 그 **밖**에 설명을 붙였다(「`국가연구자번호 -` (총괄·실무 모두)」 ·
+                    # ★ 2026-11-23 지원사업 서류 판 f38ebeb4: 모델은 원문을 `…` 로 감싸고 그 **밖**에 설명을 붙였다(「`국가연구자번호 -` (총괄·실무 모두)」 ·
                     #   「`3. 과제 개요` / `4. 과제 주요 내용`」). 칸 전체를 한 문장으로 맞추니 원문은 맞는데 경고가 났다(4줄 중 3줄).
                     #   칸 안에 따옴표로 감싼 조각이 있으면 **그 조각만** 원문이다 — 밖의 글은 모델의 말이다.
                     #   단 칸이 **따옴표로 시작할 때만** — 「He said "AI" is …」 처럼 문장 속 짧은 따옴표만 보면 지어낸 나머지를 놓친다.
@@ -5253,7 +5258,7 @@ class BrowserAgent:
         )
 
     def _unseen_claims_check(self, asked: str, answer: str, steps: list[dict[str, Any]], job_id: str) -> str:
-        """보지 못한 것을 사실처럼 말한 줄 (2026-11-23 NIPA 수행계획서 판 f38ebeb4 · `picture_claims` 설명).
+        """보지 못한 것을 사실처럼 말한 줄 (2026-11-23 지원사업 수행계획서 판 f38ebeb4 · `picture_claims` 설명).
 
         ① 그림(직인 · 서명)이 찍힌 자리를 「미기재 · 없음」이라 함 — 읽은 글의 「⟦그림 …⟧」 이름표로 가른다.
         ② 괄호 안 물음표 짐작(「로봇 메타버스 피팅?」)이 읽은 글 · 요청 어디에도 없음.
@@ -11653,7 +11658,7 @@ class BrowserAgent:
             #   위에서 이미 넘겼다. 여기는 사람 문이 아닌데 계속 실패하는 판이다.
             stuck = None if finish_now else _stuck_report(steps, prompt)
             if stuck is not None and stuck.get("kind") == "sensitive_wall":
-                # ★ 사람이 적은 그 파일이 비밀 자리라 막혔다 — 승인으로도 안 풀린다(2026-11-23 NIPA 판 14b52081: 손을 바꿔 6번 두드린 뒤
+                # ★ 사람이 적은 그 파일이 비밀 자리라 막혔다 — 승인으로도 안 풀린다(2026-11-23 지원사업 서류 판 14b52081: 손을 바꿔 6번 두드린 뒤
                 #   「허용할 폴더를 알려 주세요 · 이어서」를 물었다). 첫 번에 까닭과 할 일을 적고 끝낸다. 「이어서」를 묻지 않는다.
                 self.events.publish("agent_sensitive_wall", {"job_id": job_id, "times": stuck.get("times")})
                 messages.append({"role": "user", "content": (
@@ -12335,7 +12340,7 @@ class BrowserAgent:
                 + self._row_facts_vs_page_check(asked, answer, steps, job_id)
                 # 「원문 한 문장」 칸이 그 줄의 페이지 본문에 정말 있나(2026-10-27 d72ca482 · f52e0d50).
                 + self._quote_vs_page_check(asked, answer, steps, job_id)
-                # 보지 못한 것을 사실처럼: 그림 자리를 「없다」 · 근거 없는 물음표 짐작(2026-11-23 NIPA f38ebeb4).
+                # 보지 못한 것을 사실처럼: 그림 자리를 「없다」 · 근거 없는 물음표 짐작(2026-11-23 지원사업 서류 f38ebeb4).
                 + self._unseen_claims_check(asked, answer, steps, job_id)
                 # 반대 방향: 조건에 맞는다는 **근거가 없는** 줄(2026-10-03 K-Startup 「AI/SW」 이름표).
                 + self._topic_condition_check(asked, answer, steps, job_id)

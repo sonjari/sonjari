@@ -139,7 +139,7 @@ _AXIS_FILES: dict[str, tuple[str, ...]] = {
         "search_boxes.py",
         "plopfit.py", "serp.py", "inhouse_data.py", "google_workspace.py",
         "local_computer.py", "document_reader.py", "person_search.py",
-        # PDF 쪽 읽기 — 기호 글꼴을 ☑ · □ 로 · 그림 자리를 「⟦그림⟧」 줄로(2026-11-23 NIPA 판). 모델이 받는 문서 글이 바뀐다.
+        # PDF 쪽 읽기 — 기호 글꼴을 ☑ · □ 로 · 그림 자리를 「⟦그림⟧」 줄로(2026-11-23 지원사업 서류 판). 모델이 받는 문서 글이 바뀐다.
         "pdf_marks.py",
         # 문서 속 사업자등록번호를 검증 숫자로 계산해 한 줄 붙인다(2026-11-23) — 모델이 받는 문서 글이 바뀐다.
         "doc_facts.py",

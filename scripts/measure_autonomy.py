@@ -214,6 +214,7 @@ WRITE_TOOLS = frozenset(
         "clipboard_write",
         "hwp_apply_edit",
         "hwp_apply_format",  # 서식 반영(2026-10-17) — 글자 바꾸기와 같은 무게, 백업 되돌리기가 붙는다
+        "hwp_apply_fill",  # 양식 채우기 반영(2026-11-23) — 미리본 사본을 그대로 끼운다, 백업 되돌리기가 붙는다
         "hwp_export_pdf",  # 한글 → PDF(2026-10-17) — 새 파일을 만든다(local_write_document 와 같은 칸)
         # 지목 폴더의 코드를 실제로 읽고 고치는 외부 코딩 손. 결과가 git 변경으로
         # 남으므로 읽기나 중립으로 세면 L3 분모가 조용히 샌다.
@@ -248,6 +249,7 @@ COMMIT_TOOLS = frozenset(
         "artifact_from_observations",
         "hwp_apply_edit",
         "hwp_apply_format",  # 서식 반영(2026-10-17) — 글자 바꾸기와 같은 무게, 백업 되돌리기가 붙는다
+        "hwp_apply_fill",  # 양식 채우기 반영(2026-11-23) — 미리본 사본을 그대로 끼운다, 백업 되돌리기가 붙는다
         "hwp_export_pdf",  # 한글 → PDF(2026-10-17) — 새 파일을 만든다(local_write_document 와 같은 칸)
         # 남의 달력을 고치고 지운다. `google_calendar_create` 와 같은 무게이고,
         # 참석자가 있으면 밖으로 알림이 나간다 — 되돌려도 이미 나간 것은 남는다.
@@ -282,6 +284,7 @@ PREPARE_TOOLS = frozenset(
         "windows_visual_preview",
         "hwp_preview_edit",
         "hwp_preview_format",  # 서식 미리보기(2026-10-17) — 사본에만 건다. 확정은 hwp_apply_format
+        "hwp_preview_fill",  # 양식 채우기 미리보기(2026-11-23) — 사본 · 사본 PDF 만. 확정은 hwp_apply_fill
     }
 )
 

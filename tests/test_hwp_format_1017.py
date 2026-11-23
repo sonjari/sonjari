@@ -403,6 +403,7 @@ def test_english_screen_has_the_new_descriptions(tmp_path: Path) -> None:
 _DEFAULT_CHAR = {
     "FaceNameHangul": "함초롬바탕", "FaceNameLatin": "함초롬바탕", "Height": 1000,
     "Bold": 0, "Italic": 0, "UnderlineType": 0, "TextColor": 0,
+    **{name: 100 for name in hwp_module._RATIO_SIZE_ITEMS},
 }
 _DEFAULT_PARA = {"AlignType": 0, "LineSpacingType": 0, "LineSpacing": 160}
 
@@ -456,6 +457,10 @@ class _Actions:
         elif action_id == "SelectAll":
             last = len(hwp.paras) - 1
             hwp.sel = ((0, 0), (last, len(hwp.paras[last])))
+            hwp.caret = (0, last, len(hwp.paras[last]))
+        elif action_id == "MoveLeft":
+            list_id, para, pos = hwp.caret
+            hwp.sel, hwp.caret = None, (list_id, para, max(0, pos - 1))
         else:
             raise AssertionError(action_id)
         return True
@@ -496,8 +501,10 @@ class _FakeHwp:
     """
 
     def __init__(self, paras: list[str], *, wrap: bool = False, caret_at_start: bool = False,
-                 ignore: tuple[str, ...] = (), eat_a_char: bool = False) -> None:
+                 ignore: tuple[str, ...] = (), eat_a_char: bool = False, zero_ratio: bool = False) -> None:
         self.paras = list(paras)
+        # zero_ratio: 11-23 함정처럼 빈 셋이 들어가 건 글자의 장평이 0 이 된다.
+        self.zero_ratio = zero_ratio
         self.wrap, self.caret_at_start, self.ignore, self.eat_a_char = wrap, caret_at_start, ignore, eat_a_char
         self.char: dict[tuple[int, int], dict[str, Any]] = {}
         self.para_shape: dict[int, dict[str, Any]] = {}
@@ -562,6 +569,8 @@ class _FakeHwp:
         if action_id == "CharShape":
             for key in self._selected_chars():
                 self.char.setdefault(key, dict(_DEFAULT_CHAR)).update(values)
+                if self.zero_ratio:
+                    self.char[key].update({name: 0 for name in hwp_module._RATIO_SIZE_ITEMS if name.startswith("Ratio")})
             if self.eat_a_char:
                 self.paras[0] = self.paras[0][1:]
         else:
@@ -576,7 +585,26 @@ class _FakeHwp:
         else:
             (sp, _), (ep, _) = self.sel  # type: ignore[misc]
             rows = [self.para_shape.get(p, _DEFAULT_PARA) for p in range(sp, ep + 1)]
-        return {name: rows[0][name] for name in rows[0] if all(row[name] == rows[0][name] for row in rows)}
+        # ★ 실제 한글(2026-11-23 실측): 선택으로 읽으면 섞인 값도, **0 인 장평 · 크기도** 「항목 없음」이다.
+        return {
+            name: rows[0][name] for name in rows[0]
+            if all(row[name] == rows[0][name] for row in rows)
+            and not (name in hwp_module._RATIO_SIZE_ITEMS and rows[0][name] == 0)
+        }
+
+    @property
+    def CharShape(self) -> _ReadSet:  # noqa: N802 - 한글 속성 이름 그대로
+        """캐럿 자리(그 오른쪽 글자)의 글자 모양. 캐럿에서는 0 이 0 으로 읽힌다(실측)."""
+        _list, para, pos = self.caret
+        reader = _ReadSet()
+        reader.items = dict(self.char.get((para, pos), _DEFAULT_CHAR))
+        return reader
+
+    @property
+    def ParaShape(self) -> _ReadSet:  # noqa: N802
+        reader = _ReadSet()
+        reader.items = dict(self.para_shape.get(self.caret[1], _DEFAULT_PARA))
+        return reader
 
 
 _PARAS = ["제목 하나", "본문 제목 둘 그리고 제목 셋", "끝"]
@@ -698,3 +726,25 @@ def test_apply_worker_refuses_a_file_changed_since_preview(tmp_path: Path, monke
             }
         )
     assert fake.shape_calls == 0
+
+
+def test_a_shape_that_became_zero_is_caught_at_the_caret_even_though_the_selection_hides_it() -> None:
+    """11-23 함정의 그물. 선택으로 읽으면 0 이 「항목 없음」으로 숨어서(실측) 처음 넣은 검사는 눈이 멀었다 — 캐럿에서 본다."""
+    hwp = _FakeHwp(_PARAS, zero_ratio=True)
+    spec = _format_spec({"bold": True})
+    progress = {"steps": 0}
+    with pytest.raises(RuntimeError, match="hwp_shape_became_zero:RatioHangul"):
+        _format_active(hwp, _FakeDocument(), {"spec": spec, "target_text": "끝"}, progress)
+    assert progress["steps"] == 1  # 건 걸음은 세었다 — apply 가 그만큼 되돌린다
+    # 같은 글을 선택으로 읽으면 0 이 숨는다 — 선택으로만 보는 검사였다면 통과시켰을 것이다.
+    hwp.sel = ((2, 0), (2, 1))
+    assert hwp_module._read_items(hwp, "CharShape", ("RatioHangul",)) == {"RatioHangul": None}
+
+
+def test_mixed_ratios_are_left_alone_and_do_not_trip_the_zero_net() -> None:
+    """장평 80 · 120 이 섞인 글에 굵게만 걸면 80 · 120 이 그대로여야 한다(0 → 100 일괄 채우기를 서식에 넣지 않은 까닭)."""
+    hwp = _FakeHwp(_PARAS)
+    hwp.char[(2, 0)] = {**_DEFAULT_CHAR, "RatioHangul": 80}
+    result = _format_active(hwp, _FakeDocument(), {"spec": _format_spec({"bold": True}), "target_text": "끝"}, {"steps": 0})
+    assert result["targets"] == 1
+    assert hwp.char[(2, 0)]["RatioHangul"] == 80 and hwp.char[(2, 0)]["Bold"] == 1

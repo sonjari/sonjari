@@ -73,6 +73,7 @@ export const WRITE_TOOLS = new Set([
   "artifact_from_observations",
   "hwp_apply_edit",
   "hwp_apply_format",
+  "hwp_apply_fill",
   "hwp_export_pdf",
   "claude_code_delegate",
   // 2026-10-26: 손자리가 파일을 만드는 문 — 백엔드 쓰기 목록(`write_order.WRITE_TOOLS`)에는 있었는데 여기 없었다.
@@ -384,6 +385,8 @@ const TOOL_LABELS: Record<string, string> = {
   hwp_apply_edit: t("한글 편집 적용"),
   hwp_preview_format: t("한글 서식 미리보기"),
   hwp_apply_format: t("한글 서식 적용"),
+  hwp_preview_fill: t("한글 양식 채우기 미리보기"),
+  hwp_apply_fill: t("한글 양식 채우기 적용"),
   hwp_export_pdf: t("한글 → PDF 저장"),
   ui_find_target: t("누를 곳 찾기"),
   ui_click_target: t("찾은 곳 누르기"),

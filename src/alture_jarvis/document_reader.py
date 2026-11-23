@@ -217,7 +217,7 @@ class DocumentReader:
             result.text = result.text[:budget]
             result.truncated = True
         result.text = _normalize(result.text)
-        # ★ 2026-11-23 NIPA 판: 「사업자번호는 보통 3-2-6」이라는 틀린 상식으로 맞는 번호를 고치라 했다 — 계산되는 것은 계산해 붙인다(`doc_facts`).
+        # ★ 2026-11-23 지원사업 서류 판: 「사업자번호는 보통 3-2-6」이라는 틀린 상식으로 맞는 번호를 고치라 했다 — 계산되는 것은 계산해 붙인다(`doc_facts`).
         from .doc_facts import facts_block
 
         facts = facts_block(result.text)
@@ -314,7 +314,7 @@ class DocumentReader:
         symbols = unplaced = pictures = 0
         any_text = False
         for index, page in enumerate(reader.pages[: self.max_pages]):
-            # ★ 2026-11-23 NIPA 판: 기호 글꼴(체크 상자 · 글머리)을 글자로, 그림(직인 · 서명)을 없는 것으로 읽었다 — `pdf_marks` 설명.
+            # ★ 2026-11-23 지원사업 서류 판: 기호 글꼴(체크 상자 · 글머리)을 글자로, 그림(직인 · 서명)을 없는 것으로 읽었다 — `pdf_marks` 설명.
             marks = read_page(page)
             text = marks.text
             symbols += marks.symbols_replaced
